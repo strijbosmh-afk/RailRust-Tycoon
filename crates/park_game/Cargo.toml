@@ -1,0 +1,20 @@
+[package]
+name = "park_game"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "parkbound"
+path = "src/main.rs"
+
+[dependencies]
+park_sim = { path = "../park_sim" }
+bevy = { version = "=0.17.3", default-features = false, features = [
+    "std", "async_executor", "multi_threaded", "bevy_asset", "bevy_color",
+    "bevy_log", "bevy_winit", "bevy_window", "bevy_render", "bevy_camera",
+    "bevy_core_pipeline", "bevy_mesh", "bevy_image", "bevy_shader",
+    "bevy_sprite", "bevy_sprite_render", "bevy_text", "bevy_ui",
+    "bevy_ui_render", "bevy_input_focus", "default_font", "png",
+] }

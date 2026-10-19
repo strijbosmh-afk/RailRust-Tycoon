@@ -1,0 +1,38 @@
+name: Windows checks and package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.93.1
+        with:
+          components: rustfmt, clippy, rust-docs
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Check lints
+        run: cargo clippy --release --workspace --all-targets --locked -- -D warnings
+      - name: Run tests
+        run: cargo test --release --workspace --locked
+      - name: Build the Windows distribution
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Store the build for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parkbound-windows-x64
+          path: |
+            dist/Parkbound-*-windows-x64.zip
+            dist/Parkbound-*-windows-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 14

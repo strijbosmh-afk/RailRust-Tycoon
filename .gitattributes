@@ -1,0 +1,15 @@
+* text=auto
+.gitattributes text eol=lf
+.gitignore text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ps1 text eol=lf
+*.json text eol=lf
+*.png binary
+*.docx binary
+# These exact upstream bytes are checked against scripts/notices/sources.json.
+scripts/notices/** -text -whitespace
