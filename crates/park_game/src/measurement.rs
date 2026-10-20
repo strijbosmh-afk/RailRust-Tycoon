@@ -83,7 +83,7 @@ pub(super) fn validate_modes(args: &[OsString]) -> Result<(), String> {
             "--benchmark",
         ),
         (
-            &["--profile-samples", "--profile-no-vsync"][..],
+            &["--profile-samples", "--profile-no-vsync", "--profile-gpu"][..],
             "--profile-frames",
         ),
     ] {

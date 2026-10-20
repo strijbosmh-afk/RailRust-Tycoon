@@ -229,6 +229,7 @@ fn apply_preset(
     mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+    render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
     view.capture_active = true;
     view.set_speed(Speed::Paused);
@@ -309,6 +310,11 @@ fn apply_preset(
     if let Some(rotation) = capture.rotation {
         view.rotation = rotation;
         view.scene_dirty = true;
+    }
+    if let Some(scene) = render_scene {
+        // Only overview captures may use an isolated rendering fixture.
+        // Reapply its camera after the ordinary preset resets rotation/view.
+        scene.apply_view(&sim.0, &mut view);
     }
     if capture.scene.is_train() {
         crate::focus_train(&sim.0, &mut view);
@@ -514,6 +520,156 @@ fn verify_png(path: &Path, expected: (u32, u32)) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::render_scene::{CameraPreset, RenderScene};
+    use park_sim::diagnostics::DiagnosticCase;
+
+    #[test]
+    fn large_render_capture_overrides_survive_post_startup_and_refresh_the_first_frame() {
+        for camera in [CameraPreset::Crowd, CameraPreset::Ride] {
+            let render_scene = RenderScene {
+                case: DiagnosticCase::SaveScale,
+                camera,
+                rotation: 3,
+                underground: true,
+            };
+            let park = render_scene.build().unwrap();
+            assert!(park.max_terrain_height() > 0);
+            let initial_train = park.train_cars();
+            let mut view = ViewState::default();
+            render_scene.apply_view(&park, &mut view);
+            let untouched_directory =
+                std::env::temp_dir().join("Parkbound capture ordering no file operations");
+            let mut app = App::new();
+            app.insert_resource(Simulation(park))
+                .insert_resource(view)
+                .insert_resource(render_scene)
+                .insert_resource(SaveSession::from_arguments([
+                    OsString::from("--save-dir"),
+                    untouched_directory.into_os_string(),
+                ]))
+                .insert_resource(Capture {
+                    // No capture_frame system is installed: this test covers
+                    // real preset/startup ordering without a GPU or file I/O.
+                    destination: PathBuf::new(),
+                    temporary: PathBuf::new(),
+                    scene: Scene::Overview,
+                    rotation: None,
+                    terrain_profile: TerrainProfile::Flat,
+                    view_mode: ViewMode::Surface,
+                    small_window: false,
+                    ticks: 137,
+                    started: Instant::now(),
+                    frames: 0,
+                    requested: false,
+                    captured_size: None,
+                    finished: false,
+                })
+                .insert_resource(Time::<()>::default())
+                .init_resource::<ButtonInput<KeyCode>>()
+                .init_resource::<Assets<Mesh>>()
+                .init_resource::<Assets<ColorMaterial>>()
+                .add_systems(Startup, crate::setup_scene)
+                .add_systems(PostStartup, apply_preset)
+                .add_systems(Update, (crate::keyboard_input, crate::update_scene).chain());
+            app.world_mut()
+                .spawn((Window::default(), bevy::window::PrimaryWindow));
+            {
+                let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+                for key in [
+                    KeyCode::Space,
+                    KeyCode::KeyE,
+                    KeyCode::Home,
+                    KeyCode::Delete,
+                    KeyCode::KeyO,
+                    KeyCode::F5,
+                ] {
+                    keys.press(key);
+                }
+            }
+            app.update();
+            let park = &app.world().resource::<Simulation>().0;
+            let view = app.world().resource::<ViewState>();
+            assert_eq!((park.width(), park.height(), park.ticks()), (256, 256, 137));
+            assert_eq!(park.max_terrain_height(), 0);
+            assert_ne!(park.train_cars(), initial_train);
+            assert_eq!(view.terrain_profile, TerrainProfile::Flat);
+            assert_eq!(view.rotation, 3);
+            assert_eq!(view.view_mode, ViewMode::Underground);
+            assert_eq!(view.speed, Speed::Paused);
+            assert!(view.capture_active);
+            assert!(
+                !view.scene_dirty,
+                "first Update must consume the preset rebuild"
+            );
+            assert!(!view.remove_path_pending && !view.toggle_train_pending);
+            assert_eq!(view.save_pending, None);
+            let focus = match camera {
+                CameraPreset::Crowd => world::path_focus(park, 3).unwrap(),
+                CameraPreset::Ride => world::train_focus(park, 3).unwrap(),
+                CameraPreset::Overview => unreachable!(),
+            };
+            assert_eq!(
+                view.zoom,
+                if camera == CameraPreset::Crowd {
+                    12.8
+                } else {
+                    12.0
+                }
+            );
+            assert!(
+                (view.pan
+                    - (focus
+                        - Vec2::Y
+                            * f32::from(park.max_surface_height())
+                            * world::HEIGHT_STEP
+                            * 0.5))
+                    .length()
+                    < 0.001
+            );
+            let scene = app.world().resource::<crate::SceneMeshes>();
+            let meshes = app.world().resource::<Assets<Mesh>>();
+            assert_eq!(scene.guest_renderer.stats().updates, 2);
+            // In the underground view, flat-vs-hills changes the floor colors.
+            // This catches retaining the Startup mesh after the preset runs.
+            let expected_static = world::build_scene(park, 3, view.grid, ViewMode::Underground);
+            let actual_static = meshes.get(&scene.landscape).unwrap();
+            assert_eq!(
+                actual_static.attribute(Mesh::ATTRIBUTE_COLOR),
+                expected_static.attribute(Mesh::ATTRIBUTE_COLOR)
+            );
+            assert_eq!(actual_static.indices(), expected_static.indices());
+            let mut expected_renderer = world::GuestRenderer::default();
+            let mut expected_guests = world::GuestRenderer::empty_mesh();
+            expected_renderer.update(&mut expected_guests, park, 3, ViewMode::Underground);
+            let actual_guests = meshes.get(&scene.guests).unwrap();
+            assert_eq!(
+                actual_guests.attribute(Mesh::ATTRIBUTE_POSITION),
+                expected_guests.attribute(Mesh::ATTRIBUTE_POSITION)
+            );
+            assert_eq!(
+                actual_guests.attribute(Mesh::ATTRIBUTE_COLOR),
+                expected_guests.attribute(Mesh::ATTRIBUTE_COLOR)
+            );
+            assert_eq!(
+                meshes
+                    .get(&scene.train)
+                    .unwrap()
+                    .attribute(Mesh::ATTRIBUTE_POSITION),
+                world::train_mesh(park, 3, ViewMode::Underground)
+                    .attribute(Mesh::ATTRIBUTE_POSITION)
+            );
+            app.update();
+            assert_eq!(app.world().resource::<Simulation>().0.ticks(), 137);
+            assert_eq!(
+                app.world()
+                    .resource::<crate::SceneMeshes>()
+                    .guest_renderer
+                    .stats()
+                    .updates,
+                2,
+            );
+        }
+    }
 
     fn park_at(ticks: u32) -> Park {
         let mut park = Park::new(32, 32);

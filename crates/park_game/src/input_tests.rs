@@ -20,6 +20,79 @@ fn train_park() -> Park {
     park
 }
 
+#[test]
+fn render_preview_blocks_keyboard_and_button_edits_but_allows_camera_and_speed() {
+    use park_sim::diagnostics::DiagnosticCase;
+    let original = train_park();
+    let mut app = App::new();
+    app.insert_resource(Simulation(original.clone()))
+        .insert_resource(ViewState {
+            diagnostic_case: Some(DiagnosticCase::SaveScale),
+            selected: Some(SurfaceId::Object(original.objects()[0].id)),
+            camera_span: 8.0,
+            ..default()
+        })
+        .insert_resource(Time::<()>::default())
+        .init_resource::<ButtonInput<KeyCode>>()
+        .add_systems(
+            Update,
+            (
+                ui::button_actions,
+                keyboard_input,
+                apply_terrain_profile,
+                apply_path_actions,
+                apply_train_actions,
+            )
+                .chain(),
+        );
+    for key in [
+        KeyCode::KeyT,
+        KeyCode::Delete,
+        KeyCode::KeyR,
+        KeyCode::KeyO,
+        KeyCode::F5,
+        KeyCode::F9,
+    ] {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+    }
+    for action in [
+        ui::Action::Terrain,
+        ui::Action::RemovePath,
+        ui::Action::RestorePaths,
+        ui::Action::ToggleTrain,
+        ui::Action::Save,
+        ui::Action::Load,
+        ui::Action::LoadBackup,
+    ] {
+        app.world_mut()
+            .spawn((Button, Interaction::Pressed, action));
+    }
+    app.update();
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+    let view = app.world().resource::<ViewState>();
+    assert!(
+        !view.terrain_change_pending && !view.remove_path_pending && !view.restore_paths_pending
+    );
+    assert!(!view.toggle_train_pending && view.save_pending.is_none());
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .reset_all();
+    for key in [KeyCode::KeyE, KeyCode::KeyU, KeyCode::KeyF, KeyCode::Digit2] {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(key);
+    }
+    app.update();
+    let view = app.world().resource::<ViewState>();
+    assert_eq!(view.rotation, 1);
+    assert_eq!(view.view_mode, world::ViewMode::Underground);
+    assert_eq!(view.speed, Speed::Fast);
+    assert_eq!(view.zoom, 12.0);
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+}
+
 fn test_window(width: u32, height: u32, dpi: f32) -> Window {
     Window {
         resolution: WindowResolution::new(

@@ -3,10 +3,12 @@
 mod benchmark;
 mod capture;
 mod frame_probe;
+mod gpu_probe;
 #[cfg(test)]
 mod input_tests;
 mod measurement;
 mod persistence;
+mod render_scene;
 mod save_check;
 mod save_store;
 mod ui;
@@ -62,6 +64,9 @@ struct ViewState {
     focus_train_pending: bool,
     save_pending: Option<SaveAction>,
     save_notice: String,
+    diagnostic_case: Option<park_sim::diagnostics::DiagnosticCase>,
+    camera_span: f32,
+    pan_limit: Vec2,
 }
 
 impl Default for ViewState {
@@ -92,6 +97,9 @@ impl Default for ViewState {
             focus_train_pending: false,
             save_pending: None,
             save_notice: "F5 save / F9 load\nShift+F9 loads backup".into(),
+            diagnostic_case: None,
+            camera_span: 1.0,
+            pan_limit: Vec2::splat(1800.0),
         }
     }
 }
@@ -119,7 +127,7 @@ impl ViewState {
     }
 
     fn zoom_by(&mut self, factor: f32) {
-        self.zoom = (self.zoom * factor).clamp(0.6, 3.5);
+        self.zoom = (self.zoom * factor).clamp(0.6, 3.5 * self.camera_span);
     }
 
     fn reset_camera(&mut self) {
@@ -128,6 +136,9 @@ impl ViewState {
     }
 
     fn toggle_terrain_profile(&mut self) {
+        if self.diagnostic_case.is_some() {
+            return;
+        }
         self.terrain_profile = match self.terrain_profile {
             TerrainProfile::Flat => TerrainProfile::Terraced,
             TerrainProfile::Terraced => TerrainProfile::Flat,
@@ -145,6 +156,9 @@ impl ViewState {
     }
 
     fn request_save(&mut self, action: SaveAction) {
+        if self.diagnostic_case.is_some() {
+            return;
+        }
         // Loading wins over saving if multiple inputs arrive in one frame.
         // A combined press must never overwrite the file it intends to load.
         if self.save_pending.is_none_or(|pending| action >= pending) {
@@ -168,18 +182,42 @@ fn main() -> AppExit {
         eprintln!("{error}");
         return AppExit::error();
     }
+    let (render_scene, arguments) = match render_scene::RenderScene::extract(&arguments) {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            eprintln!("{error}");
+            return AppExit::error();
+        }
+    };
     if let Some(result) = benchmark::run(&arguments) {
         return result;
     }
-    if let Some(result) = save_check::run(arguments) {
+    if let Some(result) = save_check::run(arguments.clone()) {
         return result;
     }
-    let park = demonstration_park();
+    if let Err(error) = frame_probe::validate_arguments(&arguments) {
+        eprintln!("Frame profiling failed: {error}");
+        return AppExit::error();
+    }
+    let park = match &render_scene {
+        Some(scene) => match scene.build() {
+            Ok(park) => park,
+            Err(error) => {
+                eprintln!("Render fixture failed: {error}");
+                return AppExit::error();
+            }
+        },
+        None => demonstration_park(),
+    };
+    let mut view = ViewState::default();
+    if let Some(scene) = &render_scene {
+        scene.apply_view(&park, &mut view);
+    }
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .insert_resource(Simulation(park))
-        .init_resource::<ViewState>()
+        .insert_resource(view)
         .insert_resource(SaveSession::from_arguments(std::env::args_os().skip(1)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -213,8 +251,11 @@ fn main() -> AppExit {
             )
                 .chain(),
         );
+    if let Some(scene) = render_scene {
+        app.insert_resource(scene);
+    }
     capture::configure(&mut app);
-    if let Err(error) = frame_probe::configure(&mut app) {
+    if let Err(error) = frame_probe::configure(&mut app, &arguments) {
         eprintln!("Frame profiling failed: {error}");
         return AppExit::error();
     }
@@ -398,8 +439,11 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
         direction.y -= 1.0;
     }
     let zoom = view.zoom;
-    view.pan += direction.normalize_or_zero() * time.delta_secs().min(0.1) * 700.0 / zoom;
-    view.pan = view.pan.clamp(Vec2::splat(-1800.0), Vec2::splat(1800.0));
+    let movement =
+        direction.normalize_or_zero() * time.delta_secs().min(0.1) * 700.0 * view.camera_span
+            / zoom;
+    view.pan += movement;
+    view.pan = view.pan.clamp(-view.pan_limit, view.pan_limit);
 }
 
 fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
@@ -421,6 +465,11 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
 }
 
 fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.diagnostic_case.is_some() {
+        view.remove_path_pending = false;
+        view.restore_paths_pending = false;
+        return;
+    }
     if view.remove_path_pending {
         view.remove_path_pending = false;
         let selected_path = match view.selected {
@@ -459,7 +508,7 @@ fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) 
 
 fn focus_train(park: &Park, view: &mut ViewState) {
     if let Some(center) = world::train_focus(park, view.rotation) {
-        view.zoom = 1.5;
+        view.zoom = 1.5 * view.camera_span;
         view.pan =
             center - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
         view.hovered = None;
@@ -469,7 +518,9 @@ fn focus_train(park: &Park, view: &mut ViewState) {
 fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
     if view.toggle_train_pending {
         view.toggle_train_pending = false;
-        if let Some(train) = sim.0.train() {
+        if let Some(train) = sim.0.train()
+            && view.diagnostic_case.is_none()
+        {
             let open = !train.open;
             sim.0.set_train_open(open);
         }
@@ -559,7 +610,7 @@ fn pointer_input(
     if view.dragging && !starting_drag {
         let (scale, _) = camera_layout(window, &view, &sim.0);
         view.pan += Vec2::new(-movement.x, movement.y) * scale;
-        view.pan = view.pan.clamp(Vec2::splat(-1800.0), Vec2::splat(1800.0));
+        view.pan = view.pan.clamp(-view.pan_limit, view.pan_limit);
     }
     if over_map && scroll != 0.0 {
         view.zoom_by((scroll.clamp(-5.0, 5.0) * 0.12).exp());

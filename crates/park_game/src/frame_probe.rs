@@ -8,9 +8,10 @@ use std::{
 };
 
 use bevy::{
+    diagnostic::DiagnosticsStore,
     ecs::system::SystemParam,
     prelude::*,
-    render::renderer::RenderAdapterInfo,
+    render::renderer::{RenderAdapterInfo, RenderDevice},
     window::{PresentMode, PrimaryWindow, WindowOccluded},
     winit::WinitSettings,
 };
@@ -18,8 +19,10 @@ use park_sim::{Speed, TICKS_PER_SECOND};
 use serde_json::{Value, json};
 
 use crate::{
-    Simulation, ViewState,
+    SceneMeshes, Simulation, ViewState,
+    gpu_probe::GpuProbe,
     measurement::{summarize, validate_output, write_json_new},
+    render_scene,
 };
 
 const DEFAULT_SAMPLES: usize = 600;
@@ -99,6 +102,7 @@ struct Settings {
     destination: PathBuf,
     samples: usize,
     no_vsync: bool,
+    gpu: bool,
 }
 
 impl Settings {
@@ -107,10 +111,11 @@ impl Settings {
             .iter()
             .any(|argument| argument == "--profile-frames")
         {
-            if arguments
-                .iter()
-                .any(|argument| argument == "--profile-samples" || argument == "--profile-no-vsync")
-            {
+            if arguments.iter().any(|argument| {
+                argument == "--profile-samples"
+                    || argument == "--profile-no-vsync"
+                    || argument == "--profile-gpu"
+            }) {
                 return Err(
                     "profile options require --profile-frames <absolute NEW JSON path>".into(),
                 );
@@ -120,6 +125,7 @@ impl Settings {
         let mut destination = None;
         let mut samples = None;
         let mut no_vsync = false;
+        let mut gpu = false;
         let mut arguments = arguments.iter();
         while let Some(argument) = arguments.next() {
             let flag = argument
@@ -150,6 +156,8 @@ impl Settings {
                 "--profile-no-vsync" => {
                     return Err("--profile-no-vsync may only be supplied once".into());
                 }
+                "--profile-gpu" if !gpu => gpu = true,
+                "--profile-gpu" => return Err("--profile-gpu may only be supplied once".into()),
                 _ => return Err(format!("unrecognized frame profile argument: {flag}")),
             }
         }
@@ -159,6 +167,7 @@ impl Settings {
             destination,
             samples: samples.unwrap_or(DEFAULT_SAMPLES),
             no_vsync,
+            gpu,
         }))
     }
 }
@@ -261,8 +270,12 @@ impl FrameRun {
 }
 
 /// Configure before app.run(), after the normal window/resources exist.
-pub(super) fn configure(app: &mut App) -> Result<(), String> {
-    configure_arguments(app, &std::env::args_os().skip(1).collect::<Vec<_>>())
+pub(super) fn configure(app: &mut App, arguments: &[OsString]) -> Result<(), String> {
+    configure_arguments(app, arguments)
+}
+
+pub(super) fn validate_arguments(arguments: &[OsString]) -> Result<(), String> {
+    Settings::parse(arguments).map(|_| ())
 }
 
 fn configure_arguments(app: &mut App, arguments: &[OsString]) -> Result<(), String> {
@@ -296,6 +309,9 @@ fn configure_arguments(app: &mut App, arguments: &[OsString]) -> Result<(), Stri
         view.selected = None;
         view.hovered = None;
     }
+    if settings.gpu {
+        crate::gpu_probe::install(app);
+    }
     app.insert_resource(Probe::default())
         .insert_resource(FrameRun::new(settings))
         .add_systems(Last, measure_frame);
@@ -312,6 +328,13 @@ struct Runtime<'w, 's> {
     adapter: Option<Res<'w, RenderAdapterInfo>>,
     winit: Option<Res<'w, WinitSettings>>,
     occlusion_events: MessageReader<'w, 's, WindowOccluded>,
+    view: Res<'w, ViewState>,
+    render_scene: Option<Res<'w, render_scene::RenderScene>>,
+    scene_meshes: Option<Res<'w, SceneMeshes>>,
+    meshes: Option<Res<'w, Assets<Mesh>>>,
+    gpu: Option<ResMut<'w, GpuProbe>>,
+    diagnostics: Option<Res<'w, DiagnosticsStore>>,
+    device: Option<Res<'w, RenderDevice>>,
 }
 
 fn warmup_finished(frames: u32, elapsed: Duration) -> bool {
@@ -329,6 +352,13 @@ fn measure_frame(
     }
     let now = Instant::now();
     run.frames += 1;
+    // Capabilities are useful even if warmup times out. The collector retains
+    // no samples until begin_window, and filters stale diagnostic deliveries.
+    if let Some(gpu) = runtime.gpu.as_mut()
+        && let Some(diagnostics) = runtime.diagnostics.as_deref()
+    {
+        gpu.collect(diagnostics, run.frames as u64, runtime.device.as_deref());
+    }
     let window = runtime
         .windows
         .single()
@@ -374,6 +404,9 @@ fn measure_frame(
             run.start_virtual_elapsed = runtime.virtual_time.elapsed();
             run.start_fixed_overstep = runtime.fixed_time.overstep();
             probe.start(run.settings.samples);
+            if let Some(gpu) = runtime.gpu.as_mut() {
+                gpu.begin_window();
+            }
         }
         return;
     }
@@ -540,7 +573,10 @@ fn report(run: &FrameRun, probe: &Probe, runtime: &Runtime, now: Instant, status
         "status": status,
         "completed": status == "completed",
         "measurement": "Instant intervals between consecutive main-world Last schedules; CPU main-loop pacing, not GPU or presented-frame timestamps",
-        "gpu_timing_collected": false,
+        "gpu_timing_collected": runtime.gpu.as_ref().is_some_and(|gpu| gpu.has_gpu_samples()),
+        "gpu_diagnostics": runtime.gpu.as_ref().map(|gpu| gpu.report()),
+        "render_scene": render_scene::describe(&runtime.sim.0, &runtime.view, runtime.render_scene.as_deref()),
+        "render_work": render_work(runtime),
         "requested_samples": run.settings.samples,
         "measured_samples": run.intervals.len(),
         "total_main_frames": run.frames,
@@ -571,6 +607,39 @@ fn report(run: &FrameRun, probe: &Probe, runtime: &Runtime, now: Instant, status
     })
 }
 
+fn render_work(runtime: &Runtime) -> Value {
+    let (Some(scene), Some(meshes)) = (&runtime.scene_meshes, &runtime.meshes) else {
+        return Value::Null;
+    };
+    let stats = scene.guest_renderer.stats();
+    let counts = [
+        ("landscape", &scene.landscape),
+        ("selection", &scene.selection),
+        ("guests", &scene.guests),
+        ("train", &scene.train),
+    ]
+    .into_iter()
+    .map(|(name, handle)| {
+        let counts = meshes.get(handle).map(|mesh| {
+            let vertices = mesh.count_vertices();
+            let indices = mesh.indices().map_or(0, |indices| indices.len());
+            json!({"vertices":vertices,"indices":indices,
+                "logical_cpu_payload_bytes":vertices * 48 + indices * 4})
+        });
+        (name.to_owned(), json!(counts))
+    })
+    .collect::<serde_json::Map<_, _>>();
+    json!({
+        "meshes":counts,
+        "guest_renderer":{"updates":stats.updates,"deck_rebuilds":stats.deck_rebuilds,
+            "template_builds":stats.template_builds,"buffer_growths":stats.buffer_growths,
+            "rendered_guests":stats.rendered_guests,"vertices":stats.vertices},
+        "scope":"Current generated CPU geometry, including off-screen geometry. Four attributes plus indices (five buffers) use 48 bytes per vertex plus 4 per index; capacities, extraction clones, GPU packing/allocation, physical upload bytes/time and visibility counts are not measured. Guest buffer growths count CPU capacity changes only.",
+        "physical_gpu_upload_bytes":Value::Null,
+        "physical_gpu_upload_time_ms":Value::Null,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -593,6 +662,10 @@ mod tests {
     }
 
     fn configured_app(destination: &std::path::Path) -> (App, Entity) {
+        configured_app_options(destination, false)
+    }
+
+    fn configured_app_options(destination: &std::path::Path, gpu: bool) -> (App, Entity) {
         let mut app = App::new();
         app.insert_resource(Simulation(park_sim::Park::new(32, 32)))
             .insert_resource(ViewState::default())
@@ -605,17 +678,17 @@ mod tests {
             .world_mut()
             .spawn((Window::default(), PrimaryWindow))
             .id();
-        configure_arguments(
-            &mut app,
-            &[
-                "--profile-frames".into(),
-                destination.as_os_str().to_owned(),
-                "--profile-samples".into(),
-                "120".into(),
-                "--profile-no-vsync".into(),
-            ],
-        )
-        .unwrap();
+        let mut arguments = vec![
+            "--profile-frames".into(),
+            destination.as_os_str().to_owned(),
+            "--profile-samples".into(),
+            "120".into(),
+            "--profile-no-vsync".into(),
+        ];
+        if gpu {
+            arguments.push("--profile-gpu".into());
+        }
+        configure_arguments(&mut app, &arguments).unwrap();
         (app, window)
     }
 
@@ -625,6 +698,7 @@ mod tests {
         configure_arguments(&mut app, &[]).unwrap();
         assert!(!app.world().contains_resource::<Probe>());
         assert!(!app.world().contains_resource::<FrameRun>());
+        assert!(!app.world().contains_resource::<GpuProbe>());
         app.update();
     }
 
@@ -659,6 +733,7 @@ mod tests {
             vec!["unexpected"],
             vec!["--save-dir", "elsewhere"],
             vec!["--profile-no-vsync", "--profile-no-vsync"],
+            vec!["--profile-gpu", "--profile-gpu"],
             vec!["--profile-samples", "120", "--profile-samples", "120"],
             vec!["--profile-samples", "--profile-no-vsync"],
         ] {
@@ -681,6 +756,7 @@ mod tests {
             vec!["--profile-frames"],
             vec!["--profile-samples", "120"],
             vec!["--profile-no-vsync"],
+            vec!["--profile-gpu"],
         ] {
             assert!(
                 Settings::parse(
@@ -729,6 +805,7 @@ mod tests {
     fn configured_probe_reports_actual_size_and_unknown_adapter_without_gpu_claims() {
         let destination = output();
         let (mut app, window) = configured_app(&destination);
+        assert!(!app.world().contains_resource::<GpuProbe>());
         assert!(app.world().resource::<ViewState>().capture_active);
         let requested = app.world().get::<Window>(window).unwrap();
         assert_eq!(requested.resolution.physical_size(), UVec2::new(1920, 1080));
@@ -764,7 +841,30 @@ mod tests {
         assert!(report["adapter"].is_null());
         assert_eq!(report["version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(report["gpu_timing_collected"], false);
+        assert!(report["gpu_diagnostics"].is_null());
         assert!(!app.world().resource::<Probe>().is_measuring());
+        fs::remove_file(destination).unwrap();
+    }
+
+    #[test]
+    fn gpu_profile_without_renderer_completes_with_explicit_unavailable_data() {
+        let destination = output();
+        let (mut app, _) = configured_app_options(&destination, true);
+        {
+            let mut run = app.world_mut().resource_mut::<FrameRun>();
+            run.started = Instant::now() - Duration::from_secs(3);
+            run.frames = 119;
+        }
+        app.update();
+        for _ in 0..120 {
+            app.update();
+        }
+        let report: Value = serde_json::from_slice(&fs::read(&destination).unwrap()).unwrap();
+        assert_eq!(report["completed"], true);
+        assert_eq!(report["gpu_timing_collected"], false);
+        assert_eq!(report["gpu_diagnostics"]["status"], "no_render_app");
+        assert_eq!(report["gpu_diagnostics"]["spans"], json!([]));
+        assert!(report["render_work"].is_null());
         fs::remove_file(destination).unwrap();
     }
 

@@ -81,6 +81,10 @@ pub(super) fn perform_action(
     view: &mut ViewState,
     action: SaveAction,
 ) -> bool {
+    if view.diagnostic_case.is_some() {
+        view.save_notice = "Render preview only\nEditing and saves disabled".into();
+        return false;
+    }
     let Some(store) = &session.store else {
         warn!("Save folder unavailable: {:?}", session.problem);
         view.save_notice = "Save folder unavailable.\nCheck launch settings.".into();
@@ -353,6 +357,25 @@ mod tests {
                     .store
                     .is_none()
             );
+        }
+    }
+
+    #[test]
+    fn rendering_preview_rejects_every_save_action_without_touching_disk() {
+        let session = session();
+        let directory = session.store.as_ref().unwrap().directory().to_owned();
+        let mut park = fixture();
+        let original = park.clone();
+        let mut view = ViewState {
+            diagnostic_case: Some(park_sim::diagnostics::DiagnosticCase::SaveScale),
+            ..default()
+        };
+        for action in [SaveAction::Save, SaveAction::Load, SaveAction::Backup] {
+            view.request_save(action);
+            assert!(view.save_pending.is_none());
+            assert!(!perform_action(&session, &mut park, &mut view, action));
+            assert_eq!(park, original);
+            assert!(!directory.exists());
         }
     }
 }
