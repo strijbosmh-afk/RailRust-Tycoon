@@ -4,15 +4,15 @@ A free Windows theme park simulation in Rust, inspired by the classic isometric 
 
 Source repository: [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). **Continuing on another PC? Start with [RESUME_DEVELOPMENT.md](RESUME_DEVELOPMENT.md)** for setup, build commands, architecture, current status, and the next implementation steps.
 
-Version 0.5.0 adds a three-car train on a closed station/lift/drop/brake circuit. Open it to run laps, close it to finish the current lap and park, and use Find to center the circuit. Twelve seeded guests continue exploring the elevated path network, with path removal and recovery retained. Flat/Terraced terrain and Surface/Underground inspection remain available.
+Version 0.6.0 adds a single save slot and an explicit backup load to the seeded park demonstration. Save the complete simulation, load it paused, and resume the same guests and train. The three-car station/lift/drop/brake circuit, twelve guests, path removal/recovery, terrain presets, and Surface/Underground inspection remain available.
 
-The PRF-03 automatic circuit proof is verified through 99 tests, sixteen inspected captures, and a normal launch showing a completed lap; details are in [the train report](docs/TRAIN_REPORT.md). Native O/F/button checks remain open after desktop activity interrupted testing, and physical Delete still needs a retest. These gaps are separate from the demonstrated circuit behavior. Save/reload is next; track editing, boarding, ride revenue/ratings, and finances remain later milestones in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
+The PRF-04 save/reload continuation proof is verified through 131 passing tests, separate production processes, twelve inspected captures, and package relocation; see [the save report](docs/SAVE_REPORT.md). Native Save/Load/Backup controls remain unverified, along with earlier O/F/button and physical Delete retests. Performance measurement is next; track editing, boarding, ride revenue/ratings, and finances remain later milestones in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
 
 ## Play the Windows build
 
-Extract the entire `Parkbound-0.5.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. Its ZIP passed relocation with all 19 payload hashes and eleven guides verified; the extracted executable rendered successfully from an unrelated working directory. A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder; see [the train report](docs/TRAIN_REPORT.md) for exact evidence.
+Extract the entire `Parkbound-0.6.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. All 20 payload hashes and twelve guides matched after relocation; the extracted executable passed fresh-process continuation/backup checks and reproduced the loaded-park image exactly. A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder; see [the save report](docs/SAVE_REPORT.md) for exact evidence.
 
-The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. The crowd, overlap, terrain, and foundation reports preserve earlier results; they do not verify changed 0.5.0 code.
+The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Earlier milestone reports preserve their own results; they do not verify changed 0.6.0 code.
 
 ## Controls
 
@@ -31,6 +31,9 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | R / Restore paths button | Restore missing demonstration paths without resetting time or guests |
 | O / Open or Close button | Open the train, or let its current lap finish and park at the station |
 | F / Find button | Center the train circuit at 150% zoom |
+| F5 / Save button | Save the current simulation to the single slot |
+| F9 / Load button | Load the primary slot and pause |
+| Shift+F9 / Backup button | Explicitly load the previous valid backup and pause |
 | Space | Pause or resume the previous simulation speed |
 | 1 / 2 / 3 | Set simulation speed to 1x / 2x / 4x |
 | H / F1 | Open or close help |
@@ -41,9 +44,15 @@ Tile coordinates in the inspector start at 1. Terrain heights are simulation ste
 
 Flat terrain exposes the same track that Terraced terrain buries. Switching presets preserves elapsed time, materials, object identities, and object heights. Underground view removes terrain from rendering and picking; its reference floor is decorative and cannot be selected. Hidden selections retain their identity but do not show through occluding surfaces.
 
-Delete and Restore paths exercise the navigation proof; they are not a full path editor. Restored segments receive new IDs, while surviving paths and guests retain theirs. A lost guest keeps its last location and can recover onto a path at that location or an adjacent tile at the same height. The displayed timer is elapsed simulation time, not a park calendar. Trees and the entrance arch remain decorative. Every launch starts a fresh seeded demonstration.
+Delete and Restore paths exercise the navigation proof; they are not a full path editor. Restored segments receive new IDs, while surviving paths and guests retain theirs. A lost guest keeps its last location and can recover onto a path at that location or an adjacent tile at the same height. The displayed timer is elapsed simulation time, not a park calendar. Trees and the entrance arch remain decorative. Every launch starts a fresh seeded demonstration; use Load to continue a saved park. Startup does not overwrite an existing save.
 
 The train initially waits 90 ticks at the station, then runs while open. Closing at the station parks it immediately; closing during travel finishes the current lap. Space freezes both the train and guests, so a paused train cannot complete its requested return until resume. Reopening starts another station wait. Motion uses tuned integer rules along the track; this is not a realistic coaster physics model or a complete ride system.
+
+## Save and continue
+
+Saves live in `%LOCALAPPDATA%\Parkbound\saves`, separate from the executable and shared OneDrive source folder. `park.park.json` is the primary slot; `park.park.json.bak` is the previous valid backup. Saving replaces the one slot. Backup loading is explicit, and a corrupt primary is never rotated into the backup. A successful load resets camera/selection/view, pauses simulation, and resumes at 1x when requested; authoritative train and guest state is retained. Camera, UI settings, and pause/speed preference are not saved.
+
+The format is versioned JSON for the current demonstration. The app accepts 32 × 32 parks; unsupported versions, invalid references, and corrupt files report an error without replacing the running park. There is no autosave or save browser yet. Copy closed-game save files separately to continue on another PC; GitHub and the shared source checkout do not transfer LocalAppData automatically. For QA or an explicitly chosen portable folder, launch with `--save-dir` followed by an absolute path. See the [resume guide](RESUME_DEVELOPMENT.md) for backup and lock recovery.
 
 ## Develop
 
@@ -61,7 +70,9 @@ The first Bevy build compiles the rendering engine and takes substantially longe
 
 For an automated render check, run the executable with `--capture-frame` followed by an absolute `.png` output path. It waits for rendering, saves a frame, and exits. Existing `--capture-scene overview|selection|path|track|crowd|lost|recovered|help` presets remain; train presets are `train|train-lift|train-drop|train-brake|train-return|train-closed`. Use `--capture-map flat|terraced`, `--capture-view surface|underground`, and `--capture-rotation 0|1|2|3`. `--capture-ticks` accepts 0–36000 initial complete ticks (default 600); named train phases may advance additional bounded ticks before capture. Add `--capture-small-window` for the 1024 by 680 minimum window. These checks inspect output and do not replace normal mouse and keyboard testing; detailed commands are in the resume guide.
 
-`park_sim` owns engine-independent terrain, stable identities, clearance, path connectivity, seeded guests, sampled circuit geometry, train operation, and complete fixed ticks. `park_game` owns projection, shared surface rendering/picking, separate guest/train meshes, visibility, controls, and UI. A separate content crate will be introduced when authored ride/scenario definitions justify it.
+Save diagnostics use `--save-check write` and a separate `--save-check verify` process with a new absolute `--save-dir`. Persistence render scenes `saved|loaded|backup|load-error` also require an explicit isolated save directory; `saved` writes its slot. See [the save report](docs/SAVE_REPORT.md) for exact setup and expected evidence.
+
+`park_sim` owns engine-independent terrain, stable identities, clearance, path connectivity, seeded guests, sampled circuit geometry, train operation, complete fixed ticks, and validated save encoding/decoding. `park_game` owns filesystem storage, projection, shared surface rendering/picking, separate guest/train meshes, visibility, controls, and UI. A separate content crate will be introduced when authored ride/scenario definitions justify it.
 
 ## Project documents
 
@@ -69,7 +80,8 @@ For an automated render check, run the executable with `--capture-frame` followe
 - [Development plan](DEVELOPMENT_PLAN.md): milestones and completion gates.
 - [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): feature inventory and acceptance criteria.
 - [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed choices, working defaults, and open decisions.
-- [Train report](docs/TRAIN_REPORT.md): current 0.5.0 circuit proof, verification, and remaining checks.
+- [Save report](docs/SAVE_REPORT.md): current 0.6.0 continuation proof, format/storage contract, and verification.
+- [Train report](docs/TRAIN_REPORT.md): historical 0.5.0 circuit proof, verification, and remaining checks.
 - [Crowd report](docs/CROWD_REPORT.md): historical 0.4.0 navigation proof and evidence.
 - [Overlap report](docs/OVERLAP_REPORT.md): historical 0.3.0 overlap proof and evidence.
 - [Terrain report](docs/TERRAIN_REPORT.md): historical 0.2.0 terrain proof and verification.
@@ -80,4 +92,4 @@ For an automated render check, run the executable with `--capture-frame` followe
 
 All planned gameplay will be included in the free download. The project's source-code license has not yet been selected; free binary distribution does not imply an open-source license. Dependency and embedded-font notices accompany the packaged build. No original RollerCoaster Tycoon code, graphics, music, or scenario files are included.
 
-Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. The train implementation is saved in [draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), with [passing Windows CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959). CI prepares a review artifact; it does not create a public release. Check the exact commit's run after further code changes.
+Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. The retained train implementation is saved in [draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), with [passing Windows CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959). Current 0.6.0 source delivery and CI are pending. CI prepares a review artifact; it does not create a public release. Check the exact commit's run after further code changes.

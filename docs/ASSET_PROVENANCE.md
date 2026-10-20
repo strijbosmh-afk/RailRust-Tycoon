@@ -1,6 +1,6 @@
 # Asset provenance
 
-This register covers the 0.5.0 train circuit and retained crowd/overlap/terrain/foundation assets. Current build evidence is recorded in [the train report](TRAIN_REPORT.md). Add an entry before importing any new graphics, fonts, sounds, music, maps, or data.
+This register covers the 0.6.0 save controls and retained train/crowd/overlap/terrain/foundation assets. Current build evidence is recorded in [the save report](SAVE_REPORT.md). Add an entry before importing any new graphics, fonts, sounds, music, maps, or data.
 
 | Asset | Source | Rights and distribution treatment |
 | --- | --- | --- |
@@ -17,4 +17,4 @@ This register covers the 0.5.0 train circuit and retained crowd/overlap/terrain/
 | Embedded Fira Mono font subset | Bevy 0.17.3 `bevy_text`, `default_font` feature | SIL Open Font License; include the font's license and attribution in the packaged notices |
 | Engine, shaders, and dependencies | Locked Cargo dependency graph | Packaging collects exact package metadata and license/notice texts; reviewed supplementary notices cover packages that omit their license text |
 
-No game audio or external textures are included in version 0.5.0. The train proof introduces no external art asset. The working title Parkbound has not undergone a public-name availability review. Project source licensing remains a separate pending decision.
+No game audio or external textures are included in version 0.6.0. The save proof introduces no external art asset; its save schema and demonstration data are project-authored. Serialization uses serde and adds locked `serde_json` 1.0.154, `itoa` 1.0.18, and `zmij` 1.0.23. Packaging collected 291 dependency notices, default-font attribution, Rust standard-library notices, and one required MSVC DLL; package verification is recorded in the save report. Existing supplementary license files and their recorded bytes must be preserved. The working title Parkbound has not undergone a public-name availability review. Project source licensing remains a separate pending decision.

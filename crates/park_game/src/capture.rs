@@ -18,6 +18,7 @@ use park_sim::{
 
 use crate::{
     MAP_SIZE, Simulation, ViewState,
+    persistence::{self, SaveAction, SaveSession},
     world::{self, ViewMode},
 };
 
@@ -41,6 +42,10 @@ enum Scene {
     TrainBrake,
     TrainReturn,
     TrainClosed,
+    Saved,
+    Loaded,
+    Backup,
+    LoadError,
 }
 
 impl Scene {
@@ -118,10 +123,25 @@ pub(super) fn configure(app: &mut App) {
                 Some("train-brake") => Scene::TrainBrake,
                 Some("train-return") => Scene::TrainReturn,
                 Some("train-closed") => Scene::TrainClosed,
-                _ => panic!("--capture-scene must be overview, help, selection, path, track, crowd, lost, recovered, train, train-lift, train-drop, train-brake, train-return, or train-closed"),
+                Some("saved") => Scene::Saved,
+                Some("loaded") => Scene::Loaded,
+                Some("backup") => Scene::Backup,
+                Some("load-error") => Scene::LoadError,
+                _ => panic!(
+                    "unknown --capture-scene; see docs/SAVE_REPORT.md and docs/TRAIN_REPORT.md"
+                ),
             },
         )
         .unwrap_or(Scene::Overview);
+    if matches!(
+        scene,
+        Scene::Saved | Scene::Loaded | Scene::Backup | Scene::LoadError
+    ) {
+        assert!(
+            arguments.iter().any(|value| value == "--save-dir"),
+            "persistence captures require an explicit isolated --save-dir"
+        );
+    }
     let rotation = arguments
         .iter()
         .position(|value| value == "--capture-rotation")
@@ -205,6 +225,7 @@ pub(super) fn configure(app: &mut App) {
 
 fn apply_preset(
     capture: Res<Capture>,
+    session: Res<SaveSession>,
     mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
@@ -303,6 +324,29 @@ fn apply_preset(
             .expect("selected capture object must have geometry");
         view.pan =
             point - Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+    }
+    if matches!(
+        capture.scene,
+        Scene::Saved | Scene::Loaded | Scene::Backup | Scene::LoadError
+    ) {
+        let action = match capture.scene {
+            Scene::Saved => SaveAction::Save,
+            Scene::Backup => SaveAction::Backup,
+            _ => SaveAction::Load,
+        };
+        let before = sim.0.clone();
+        let success = persistence::perform_action(&session, &mut sim.0, &mut view, action);
+        if matches!(capture.scene, Scene::LoadError) {
+            assert!(
+                !success,
+                "load-error capture requires a missing or invalid save"
+            );
+            assert_eq!(sim.0, before, "failed load must preserve the live park");
+        } else {
+            assert!(success, "persistence capture failed: {}", view.save_notice);
+        }
+        // A loaded scene intentionally retains the normal load's fitted camera
+        // and paused state, instead of modifying its terrain or simulating ahead.
     }
     if capture.small_window
         && let Ok(mut window) = windows.single_mut()

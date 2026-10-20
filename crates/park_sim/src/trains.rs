@@ -11,14 +11,14 @@ use crate::{Axis, ObjectId, ObjectKind, Park, PlacementError, TilePos};
 /// Fixed-point units per ground tile and per abstract height step.
 pub const TRACK_UNITS: i32 = 1024;
 pub const STATION_DWELL_TICKS: u16 = 90;
-const MAX_SPEED: u32 = 96;
+pub(crate) const MAX_SPEED: u32 = 96;
 const LIFT_SPEED: u32 = 24;
 const BRAKE_SPEED: u32 = 20;
 const CAR_SPACING: u32 = 320;
 const CAR_HALF_LENGTH: u32 = 120;
 const SAMPLES_PER_PIECE: i64 = 8;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TrackKind {
     Station,
     Lift,
@@ -28,7 +28,7 @@ pub enum TrackKind {
     Straight,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TrackDirection {
     North,
     East,
@@ -58,8 +58,10 @@ impl TrackDirection {
 }
 
 /// A tile-edge endpoint. Entry and exit heights are whole simulation steps.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrackPort {
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub edge: TrackDirection,
     pub height: u8,
 }
@@ -67,11 +69,16 @@ pub struct TrackPort {
 /// Construction input for a one-tile piece. Circuit installation is atomic.
 /// Curves are level quarter turns; lifts rise one step; drops descend one or two.
 /// Other pieces are level straights. Exactly one station is required.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TrackPieceSpec {
+    #[serde(deserialize_with = "crate::saves::strict_object")]
     pub pos: TilePos,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub kind: TrackKind,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
     pub entry: TrackPort,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
     pub exit: TrackPort,
 }
 
@@ -97,8 +104,8 @@ pub struct TrackPiece {
 pub struct TrainCircuit {
     pub pieces: Vec<TrackPiece>,
     pub total_length: u32,
-    specs: Vec<TrackPieceSpec>,
-    station_stop: u32,
+    pub(crate) specs: Vec<TrackPieceSpec>,
+    pub(crate) station_stop: u32,
 }
 
 impl TrainCircuit {
@@ -119,7 +126,7 @@ impl TrainCircuit {
         piece.samples[piece.samples.len() - 1]
     }
 
-    fn locate(&self, distance: u32) -> (usize, u32) {
+    pub(crate) fn locate(&self, distance: u32) -> (usize, u32) {
         let mut remaining = distance % self.total_length;
         for (index, piece) in self.pieces.iter().enumerate() {
             if remaining < piece.length {
@@ -131,7 +138,7 @@ impl TrainCircuit {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TrainPhase {
     Station,
     Lift,
@@ -142,10 +149,12 @@ pub enum TrainPhase {
     Fault,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Train {
     /// A close request finishes the current lap; it does not pause the park.
     pub open: bool,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub phase: TrainPhase,
     /// Fixed distance units per simulation tick (30 ticks/second).
     pub speed: u32,
@@ -154,8 +163,8 @@ pub struct Train {
     pub laps: u64,
     pub dwell_ticks: u16,
     pub piece_index: usize,
-    lap_progress: u32,
-    departed: bool,
+    pub(crate) lap_progress: u32,
+    pub(crate) departed: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -486,7 +495,7 @@ impl Park {
     }
 }
 
-fn validate_specs(
+pub(crate) fn validate_specs(
     park: &Park,
     specs: &[TrackPieceSpec],
 ) -> Result<Vec<Vec<TrackPoint>>, TrainError> {
@@ -532,7 +541,7 @@ fn validate_specs(
     Ok(geometry)
 }
 
-fn envelope(spec: TrackPieceSpec) -> (Axis, u8, u8) {
+pub(crate) fn envelope(spec: TrackPieceSpec) -> (Axis, u8, u8) {
     let height = spec.entry.height.min(spec.exit.height);
     let clearance = spec.entry.height.abs_diff(spec.exit.height) + 2;
     let axis = match spec.entry.edge {
@@ -580,7 +589,7 @@ fn piece_samples(spec: TrackPieceSpec) -> Vec<TrackPoint> {
         .collect()
 }
 
-fn point_distance(from: TrackPoint, to: TrackPoint) -> u32 {
+pub(crate) fn point_distance(from: TrackPoint, to: TrackPoint) -> u32 {
     let dx = i64::from(to.x) - i64::from(from.x);
     let dy = i64::from(to.y) - i64::from(from.y);
     let dz = (i64::from(to.height) - i64::from(from.height)) / 4;
@@ -695,7 +704,7 @@ mod tests {
         assert_eq!(circuit.pieces.len(), 46);
         assert_eq!(
             circuit.total_length,
-            circuit.pieces.iter().map(|piece| piece.length).sum()
+            circuit.pieces.iter().map(|piece| piece.length).sum::<u32>()
         );
         assert_eq!(park.validate_train_circuit(), Ok(()));
         assert_eq!(park.max_surface_height(), 16);

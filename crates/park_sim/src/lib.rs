@@ -4,10 +4,12 @@
 //! concerns outside this crate makes the simulation usable in headless tests.
 
 mod crowds;
+mod saves;
 mod surfaces;
 mod trains;
 
 pub use crowds::{CrowdStats, Guest, GuestId, GuestPosition, GuestState, WALK_TICKS};
+pub use saves::{MAX_SAVE_BYTES, SaveError};
 pub use surfaces::{Axis, ObjectId, ObjectKind, PlacementError, SurfaceId, SurfaceObject};
 pub use trains::{
     STATION_DWELL_TICKS, TRACK_UNITS, TrackDirection, TrackKind, TrackPiece, TrackPieceSpec,
@@ -25,21 +27,26 @@ pub const MAX_MAP_SIZE: u32 = 256;
 pub const MAX_TERRAIN_HEIGHT: u8 = 32;
 
 /// An integer tile coordinate, with the origin at the map's first corner.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(
+    Clone, Copy, Debug, Default, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
 pub struct TilePos {
     pub x: u32,
     pub y: u32,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Terrain {
     Grass,
     Water,
     Sand,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Tile {
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub terrain: Terrain,
     /// Elevation in abstract simulation steps, between 0 and MAX_TERRAIN_HEIGHT.
     pub height: u8,
