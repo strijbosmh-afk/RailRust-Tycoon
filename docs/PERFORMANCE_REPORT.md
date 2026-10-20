@@ -1,5 +1,7 @@
 # Performance measurement report — 0.7.0
 
+> **Hardware designation corrected for 0.8.0:** the user explicitly rejected this poorly performing development PC as a reference machine. No reference PC is selected. All numbers below are historical local diagnostics only; they do not establish minimum hardware or pass/fail the proposed 60 FPS target. That acceptance awaits an agreed representative PC. Earlier uses of “reference” in this report and the preserved dataset path describe the original recording, not an approved hardware baseline. Original timing values, raw JSON, checksums, and dataset path names are unchanged. Current work is recorded in [OPTIMIZATION_REPORT.md](OPTIMIZATION_REPORT.md).
+
 Date: 20 October 2026. Acceptance ID: **PRF-05**, **in progress for the full proposed target**. Repeatable diagnostics, all 147 release tests, strict source checks, fourteen reference/extended processes, hosted Windows CI, and relocated-package checks passed. Measurements identify substantial crowd geometry costs and a baseline frame-rate deficit. The [save report](SAVE_REPORT.md) preserves accepted 0.6.0 continuation evidence; earlier reports remain historical.
 
 The proposed target is a 256 × 256 park with 5,000 guests and 50 operating rides at 60 FPS and 1080p on a recorded reference PC. The current model supports one circuit/train and the normal UI supports 32 × 32 maps. Measuring a larger crowd with one circuit cannot establish the 50-ride or complete playable-park target. The tooling must report actual supported counts and explicit unsupported cases; a successful benchmark process is not a performance-target pass.
@@ -63,11 +65,11 @@ The wrapper records only selected OS version/build/architecture, CPU name/core c
 
 The existing 8 MiB save format, 256-guest limit, one-circuit model, and 32 × 32 player presentation remain unchanged. A `stress` save rejection is an expected, explicit limitation; it must not be replaced by timing a smaller park and labelling that the stress result.
 
-## Reference measurements
+## Historical local diagnostic measurements
 
 The main batch ran on 20 October 2026, 12:48–12:50 UTC, using release implementation `e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559`. The wrapper recorded a clean checkout at launch and the same executable hash before and after all eleven processes. All nine CPU reports completed every requested phase, and both frame runs completed 600 samples with exit code 0. The source and executable identities below tie these numbers to this implementation.
 
-| Recorded reference hardware | Value |
+| Recorded development hardware | Value |
 | --- | --- |
 | OS | Windows 11 Enterprise, 10.0.26200, build 26200, 64-bit |
 | CPU | Intel Core i5-9400T, six cores / six logical processors; CIM reports 1,800 MHz maximum-clock field |
@@ -110,7 +112,7 @@ Store costs include production validation, codec, filesystem reads/writes, synch
 
 Both runs measured physical/logical 1920 × 1080 at scale 1.0, with no configuration or size changes and all 600 intervals marked focused and visible. Occlusion remained **unknown for all 600 intervals**, so these reports do not prove an unobscured display. Auto presentation modes may select backend fallbacks that the probe cannot inspect. Each mode has one run; the small difference between them is not enough to conclude that disabling vsync makes the game slower.
 
-The baseline did not reach the proposed 60 FPS in these measurements. Mean scene-update CPU time was only 0.335–0.367 ms, with zero static rebuilds; mean simulation-update CPU time was 0.092–0.093 ms. These limited main-world timings do not explain the 25–26 ms main-loop intervals or identify a GPU bottleneck. Render-thread, upload, GPU, presentation, and scheduling measurements are required before attributing that deficit.
+The baseline recorded less than 60 main-loop FPS locally; this is not a pass/fail decision for a hardware target on this rejected reference candidate. Mean scene-update CPU time was only 0.335–0.367 ms, with zero static rebuilds; mean simulation-update CPU time was 0.092–0.093 ms. These limited main-world timings do not explain the 25–26 ms main-loop intervals or identify a GPU bottleneck. Render-thread, upload, GPU, presentation, and scheduling measurements are required before attributing that deficit.
 
 The measured windows advanced 448 and 475 complete ticks. Neither run recorded a real-time interval above the 250 ms virtual-time cap, and real/virtual elapsed time matched. Endpoint differences include fixed-step overstep; `dropped_ticks` intentionally remains null rather than inventing a dropped-tick count.
 

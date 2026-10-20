@@ -5,6 +5,7 @@
 //! ride boarding are later gameplay; these guests visit path nodes.
 
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
 
 use crate::{Axis, ObjectId, ObjectKind, Park, PlacementError, SurfaceObject, TilePos};
 
@@ -72,9 +73,53 @@ pub struct CrowdStats {
     pub arrivals: u64,
 }
 
+/// Local diagnostic work counts, excluded from saves and Park equality.
+/// `reuses` counts crowd ticks that reused a valid graph; read-only neighbor
+/// queries do not change counters. `invalidations` counts discarded warm
+/// graphs, so several path edits before the next tick discard only one graph.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize)]
+pub struct PathCacheStats {
+    pub builds: u64,
+    pub reuses: u64,
+    pub invalidations: u64,
+    pub cached: bool,
+}
+
+/// Clones may share an immutable graph. Editing one Park drops only that
+/// Park's reference; it cannot change another clone's topology or counters.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PathCache {
+    graph: Option<Arc<PathGraph>>,
+    stats: PathCacheStats,
+}
+
+impl PathCache {
+    pub(crate) fn invalidate(&mut self) {
+        if self.graph.take().is_some() {
+            self.stats.invalidations = self.stats.invalidations.saturating_add(1);
+        }
+        self.stats.cached = false;
+    }
+
+    fn graph(&mut self, objects: &[SurfaceObject]) -> &PathGraph {
+        if self.graph.is_none() {
+            self.graph = Some(Arc::new(PathGraph::new(objects)));
+            self.stats.builds = self.stats.builds.saturating_add(1);
+            self.stats.cached = true;
+        } else {
+            self.stats.reuses = self.stats.reuses.saturating_add(1);
+        }
+        self.graph.as_deref().expect("graph built or retained")
+    }
+}
+
 impl Park {
     pub fn guests(&self) -> &[Guest] {
         &self.guests
+    }
+
+    pub fn path_cache_stats(&self) -> PathCacheStats {
+        self.path_cache.stats
     }
 
     pub fn crowd_stats(&self) -> CrowdStats {
@@ -115,6 +160,9 @@ impl Park {
     /// Cardinal path neighbors in stable ID order. Track, a diagonal, and a
     /// vertically stacked path do not form a walkable connection.
     pub fn path_neighbors(&self, id: ObjectId) -> Vec<ObjectId> {
+        if let Some(graph) = &self.path_cache.graph {
+            return graph.edges.get(&id).cloned().unwrap_or_default();
+        }
         let Some(path) = self.object(id).filter(|path| path.kind == ObjectKind::Path) else {
             return Vec::new();
         };
@@ -232,10 +280,9 @@ impl Park {
         if self.guests.is_empty() {
             return;
         }
-        // A deliberately small graph rebuilt from authoritative objects. It has
-        // no stale connectivity cache after placement/deletion. Profile before
-        // replacing this proof implementation with a large-park graph cache.
-        let graph = PathGraph::new(&self.objects);
+        // Object edits invalidate derived connectivity before another tick or
+        // query can use it. Stable topology needs no allocation or graph rebuild.
+        let graph = self.path_cache.graph(&self.objects);
         for guest in &mut self.guests {
             graph.step_guest(guest, &mut self.crowd_rng);
         }
@@ -270,6 +317,7 @@ pub(crate) fn next_random(state: &mut u64) -> u64 {
     value ^ (value >> 31)
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct PathGraph {
     pub(crate) nodes: BTreeMap<ObjectId, SurfaceObject>,
     pub(crate) edges: BTreeMap<ObjectId, Vec<ObjectId>>,
@@ -282,14 +330,31 @@ impl PathGraph {
             .filter(|object| object.kind == ObjectKind::Path)
             .map(|object| (object.id, *object))
             .collect();
+        // Placement/save validation prevents two paths at the same tile and
+        // height. Indexing those coordinates avoids comparing every path pair.
+        let by_position: BTreeMap<_, _> = nodes
+            .values()
+            .map(|path| ((path.pos.x, path.pos.y, path.height), path.id))
+            .collect();
         let edges = nodes
             .values()
             .map(|path| {
-                let neighbors = nodes
-                    .values()
-                    .filter(|other| paths_connect(path, other))
-                    .map(|other| other.id)
+                let (x, y, h) = (path.pos.x, path.pos.y, path.height);
+                let positions = [
+                    x.checked_sub(1).map(|x| (x, y, h)),
+                    x.checked_add(1).map(|x| (x, y, h)),
+                    y.checked_sub(1).map(|y| (x, y, h)),
+                    y.checked_add(1).map(|y| (x, y, h)),
+                ];
+                let mut neighbors: Vec<_> = positions
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|position| by_position.get(&position).copied())
                     .collect();
+                // The previous all-pairs scan used ascending ObjectId order.
+                // Preserve that order, not cardinal/spatial traversal order,
+                // to retain BFS tie-breaking and all seeded guest decisions.
+                neighbors.sort_unstable();
                 (path.id, neighbors)
             })
             .collect();
@@ -415,6 +480,35 @@ fn route_from_parents(
 mod tests {
     use super::*;
     use crate::{Speed, TerrainProfile};
+
+    /// Independent pre-cache graph construction retained as a regression
+    /// oracle. Its all-pairs scan must agree with indexed topology and ID order.
+    fn all_pairs_graph(objects: &[SurfaceObject]) -> PathGraph {
+        let nodes: BTreeMap<_, _> = objects
+            .iter()
+            .filter(|object| object.kind == ObjectKind::Path)
+            .map(|object| (object.id, *object))
+            .collect();
+        let edges = nodes
+            .values()
+            .map(|path| {
+                let neighbors = nodes
+                    .values()
+                    .filter(|other| paths_connect(path, other))
+                    .map(|other| other.id)
+                    .collect();
+                (path.id, neighbors)
+            })
+            .collect();
+        PathGraph { nodes, edges }
+    }
+
+    fn advance_forcing_fresh_graph(park: &mut Park, speed: Speed) {
+        for _ in 0..speed.multiplier() {
+            park.path_cache.invalidate();
+            park.advance(Speed::Normal);
+        }
+    }
 
     fn fixture(seed: u64) -> Park {
         let mut park = Park::new(32, 32);
@@ -729,5 +823,244 @@ mod tests {
             assert_valid_references(&park);
         }
         assert!(park.guests()[0].arrivals > 0);
+    }
+
+    #[test]
+    fn indexed_graph_preserves_all_pairs_topology_and_stable_tie_order() {
+        use crate::diagnostics::{DiagnosticCase, build_fixture};
+        for case in [DiagnosticCase::Baseline, DiagnosticCase::SaveScale] {
+            let mut park = build_fixture(case, 17).unwrap().park;
+            // A loaded object vector need not be sorted by stable identity.
+            park.objects.reverse();
+            let indexed = PathGraph::new(&park.objects);
+            let reference = all_pairs_graph(&park.objects);
+            assert_eq!(indexed, reference);
+            let ids: Vec<_> = indexed.nodes.keys().copied().collect();
+            for index in 0..12 {
+                let from = ids[index * 13 % ids.len()];
+                let to = ids[(index * 37 + 1) % ids.len()];
+                assert_eq!(indexed.route(from, to), reference.route(from, to));
+            }
+        }
+        let mut park = Park::new(6, 6);
+        for (x, y, height) in [
+            (0, 0, 0),
+            (1, 0, 0),
+            (0, 1, 0),
+            (0, 0, 2),
+            (0, 1, 2),
+            (1, 1, 2),
+            (2, 2, 2),
+            (5, 5, 0),
+        ] {
+            add_path(&mut park, x, y, height);
+        }
+        park.place_object(TilePos { x: 2, y: 0 }, ObjectKind::Track, Axis::Y, 0, 2)
+            .unwrap();
+        assert_eq!(
+            PathGraph::new(&park.objects),
+            all_pairs_graph(&park.objects)
+        );
+        assert_eq!(PathGraph::new(&[]), all_pairs_graph(&[]));
+    }
+
+    #[test]
+    fn unchanged_ticks_reuse_graph_and_only_path_edits_invalidate_it() {
+        let mut park = fixture(91);
+        assert_eq!(park.path_cache_stats(), PathCacheStats::default());
+        park.advance(Speed::Paused);
+        assert_eq!(park.path_cache_stats(), PathCacheStats::default());
+        park.advance(Speed::Normal);
+        park.advance(Speed::Fastest);
+        assert_eq!(
+            park.path_cache_stats(),
+            PathCacheStats {
+                builds: 1,
+                reuses: 4,
+                invalidations: 0,
+                cached: true,
+            }
+        );
+        let before = park.path_cache_stats();
+        let occupied = *park
+            .objects()
+            .iter()
+            .find(|object| object.kind == ObjectKind::Path)
+            .unwrap();
+        assert!(
+            park.place_object(
+                occupied.pos,
+                occupied.kind,
+                occupied.axis,
+                occupied.height,
+                occupied.clearance
+            )
+            .is_err()
+        );
+        assert_eq!(park.remove_object(ObjectId(u64::MAX)), None);
+        park.restore_crowd_paths().unwrap();
+        park.try_apply_terrain_profile(TerrainProfile::Flat)
+            .unwrap();
+        let track = park
+            .place_object(TilePos { x: 1, y: 1 }, ObjectKind::Track, Axis::X, 0, 2)
+            .unwrap();
+        park.remove_object(track).unwrap();
+        park.install_train_fixture().unwrap();
+        park.advance(Speed::Paused);
+        assert_eq!(park.path_cache_stats(), before);
+
+        let neighbor = add_path(&mut park, 7, 16, 8);
+        assert!(!park.path_cache_stats().cached);
+        assert!(park.path_neighbors(occupied.id).contains(&neighbor));
+        assert_eq!(park.path_cache_stats().invalidations, 1);
+        park.advance(Speed::Normal);
+        assert_eq!(park.path_cache_stats().builds, 2);
+        assert!(park.path_cache_stats().cached);
+        park.remove_object(neighbor).unwrap();
+        // Queries are correct immediately, without a clock tick rebuilding.
+        assert!(!park.path_neighbors(occupied.id).contains(&neighbor));
+        assert!(park.path_neighbors(neighbor).is_empty());
+        let before_pause = park.path_cache_stats();
+        park.advance(Speed::Paused);
+        assert_eq!(park.path_cache_stats(), before_pause);
+        park.advance(Speed::Fast);
+        assert_eq!(park.path_cache_stats().builds, 3);
+        assert_eq!(park.path_cache_stats().reuses, 5);
+        assert_eq!(park.path_cache_stats().invalidations, 2);
+    }
+
+    #[test]
+    fn shared_clone_cache_and_failed_atomic_restoration_remain_independent() {
+        let mut park = fixture(4);
+        park.advance(Speed::Normal);
+        let unchanged = park.clone();
+        assert!(Arc::ptr_eq(
+            park.path_cache.graph.as_ref().unwrap(),
+            unchanged.path_cache.graph.as_ref().unwrap()
+        ));
+        let early = park
+            .objects()
+            .iter()
+            .find(|path| path.kind == ObjectKind::Path && path.pos == TilePos { x: 8, y: 16 })
+            .copied()
+            .unwrap();
+        let late = park
+            .objects()
+            .iter()
+            .find(|path| path.kind == ObjectKind::Path && path.pos == TilePos { x: 13, y: 19 })
+            .copied()
+            .unwrap();
+        park.remove_object(early.id).unwrap();
+        park.remove_object(late.id).unwrap();
+        assert!(unchanged.path_cache_stats().cached);
+        assert!(!unchanged.path_neighbors(early.id).is_empty());
+        assert!(park.path_neighbors(early.id).is_empty());
+        park.place_object(late.pos, ObjectKind::Track, Axis::Y, 8, 2)
+            .unwrap();
+        park.advance(Speed::Normal);
+        let before = park.clone();
+        let before_stats = park.path_cache_stats();
+        // The candidate can restore the early path before the later collision.
+        assert!(park.restore_crowd_paths().is_err());
+        assert_eq!(park, before);
+        assert_eq!(park.path_cache_stats(), before_stats);
+        assert!(Arc::ptr_eq(
+            park.path_cache.graph.as_ref().unwrap(),
+            before.path_cache.graph.as_ref().unwrap()
+        ));
+        assert_eq!(unchanged.path_cache_stats().builds, 1);
+        assert_eq!(unchanged.path_cache_stats().invalidations, 0);
+    }
+
+    #[test]
+    fn cached_and_forced_fresh_continuations_match_through_edits_load_and_speeds() {
+        let mut cached = fixture(12345);
+        cached.install_train_fixture().unwrap();
+        let mut fresh = cached.clone();
+        for frame in 0..900 {
+            match frame {
+                80 => {
+                    let current = cached.guests()[0].current.unwrap();
+                    let mut removed = cached.path_neighbors(current);
+                    removed.push(current);
+                    for id in removed {
+                        cached.remove_object(id).unwrap();
+                        fresh.remove_object(id).unwrap();
+                    }
+                    assert!(cached.crowd_stats().lost > 0);
+                }
+                140 | 330 => {
+                    cached.restore_crowd_paths().unwrap();
+                    fresh.restore_crowd_paths().unwrap();
+                }
+                230 => {
+                    let destination = cached
+                        .guests()
+                        .iter()
+                        .find_map(|guest| guest.destination)
+                        .expect("seeded crowd has a destination");
+                    cached.remove_object(destination).unwrap();
+                    fresh.remove_object(destination).unwrap();
+                }
+                400 => {
+                    let bytes = cached.to_save_bytes().unwrap();
+                    cached = Park::from_save_bytes(&bytes).unwrap();
+                    assert_eq!(cached.path_cache_stats(), PathCacheStats::default());
+                    assert_eq!(cached, fresh);
+                    assert_eq!(cached.to_save_bytes().unwrap(), bytes);
+                }
+                600 => {
+                    cached
+                        .try_apply_terrain_profile(TerrainProfile::Flat)
+                        .unwrap();
+                    fresh
+                        .try_apply_terrain_profile(TerrainProfile::Flat)
+                        .unwrap();
+                }
+                700 => {
+                    cached.install_crowd_fixture(999).unwrap();
+                    fresh.install_crowd_fixture(999).unwrap();
+                }
+                _ => {}
+            }
+            let speed = [Speed::Normal, Speed::Fast, Speed::Fastest, Speed::Paused][frame % 4];
+            cached.advance(speed);
+            advance_forcing_fresh_graph(&mut fresh, speed);
+            assert_eq!(
+                cached, fresh,
+                "different authoritative state at frame {frame}"
+            );
+        }
+        assert!(cached.path_cache_stats().reuses > 500);
+        assert!(fresh.path_cache_stats().builds > 1_000);
+        assert_valid_references(&cached);
+    }
+
+    #[test]
+    fn cache_warmth_never_changes_save_bytes_or_reordered_load_continuation() {
+        let mut park = fixture(1);
+        park.install_train_fixture().unwrap();
+        park.objects.reverse();
+        park.guests.reverse();
+        let bytes = park.to_save_bytes().unwrap();
+        let cold = Park::from_save_bytes(&bytes).unwrap();
+        assert_eq!(cold, park);
+        assert_eq!(cold.objects(), park.objects());
+        assert_eq!(cold.guests(), park.guests());
+        park.path_cache.graph(&park.objects);
+        assert!(park.path_cache_stats().cached);
+        assert_eq!(park, cold);
+        assert_eq!(park.to_save_bytes().unwrap(), bytes);
+        let mut loaded = Park::from_save_bytes(&bytes).unwrap();
+        assert!(!loaded.path_cache_stats().cached);
+        for _ in 0..600 {
+            park.advance(Speed::Fast);
+            advance_forcing_fresh_graph(&mut loaded, Speed::Fast);
+            assert_eq!(park, loaded);
+        }
+        assert_eq!(
+            park.to_save_bytes().unwrap(),
+            loaded.to_save_bytes().unwrap()
+        );
     }
 }

@@ -1,6 +1,6 @@
 # Product decisions
 
-Updated: 20 October 2026 for the 0.7.0 performance measurement checkpoint; original planning baseline: 19 October 2026. This records confirmed direction separately from implementation defaults and unresolved decisions. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the feature acceptance register; [the development plan](../DEVELOPMENT_PLAN.md) defines milestones; [the performance report](PERFORMANCE_REPORT.md) records current verification.
+Updated: 20 October 2026 for the 0.8.0 guest-rendering/path-cache checkpoint; original planning baseline: 19 October 2026. This records confirmed direction separately from implementation defaults and unresolved decisions. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the feature acceptance register; [the development plan](../DEVELOPMENT_PLAN.md) defines milestones; [the optimization report](OPTIMIZATION_REPORT.md) records current verification.
 
 ## Confirmed by the user
 
@@ -10,7 +10,8 @@ Updated: 20 October 2026 for the 0.7.0 performance measurement checkpoint; origi
 | Implementation language | Rust. |
 | Platform | Windows only. |
 | Business model | Free distribution with all functionality included. |
-| Delivery process | Work in stages, retaining playable milestones. Stage 2's overlap, crowd, automatic train-circuit, and save-continuation proofs are verified in 0.3.0–0.6.0. Measurement tooling and reference collection are verified in 0.7.0; the full performance target remains open. Unverified controls, physical hardware checks, foundation gaps, and distribution acceptance remain explicit. |
+| Performance reference hardware | **No reference PC is selected.** The current PC performs poorly and must not be used as a reference. Its measurements are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC. |
+| Delivery process | Work in stages, retaining playable milestones. Stage 2's overlap, crowd, automatic train-circuit, and save-continuation proofs are verified in 0.3.0–0.6.0. Measurement tooling and local diagnostic collection were verified in 0.7.0. Version 0.8.0 optimizes guest rendering/connectivity; the full performance target remains open. Unverified controls, physical hardware checks, foundation gaps, and distribution acceptance remain explicit. |
 | Source repository | Save the full source and a cross-PC handoff guide in the user's dedicated repository, [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). The repository is public. This does not select a source-code license. |
 | Final scope | Fully functional classic gameplay, rather than treating the first small park as a finished game. Coverage is tracked explicitly in the checklist. |
 
@@ -53,12 +54,14 @@ These choices let implementation proceed and can be revised when evidence warran
 | PRF-04 acceptance and 0.6.0 delivery | Verified narrowly for authoritative continuation: 131 tests, formatting/strict Clippy/release build, twelve inspected captures, separate production/extracted-process continuation and backup, and all 20 payload hashes/twelve guides matching. The relocated loaded-park image matched exactly. Native Save/Load/Backup remains unverified after an obscured native attempt issued no input; implementation `d7a16f6` is pushed in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), stacked on the train review; [Windows CI run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034) passed for implementation `d7a16f6`. Full persistence and release gates remain separate. |
 | Measurement fixtures | Baseline is the existing 32 × 32 park/12 guests/37 paths. Save-scale and stress use 256 × 256 maps/1,024 connected paths with 256/5,000 guests. Each has exactly one circuit/train; no extra ride count is fabricated. Existing production graph/BFS is measured without an optimization hidden inside the fixture. |
 | Measurement semantics | Opt-in CPU runs are separate from baseline frame profiles. Frame intervals measure main-loop pacing with requested/actual resolution, present mode, and visibility metadata; they are not GPU or presented-frame timings. The Windows wrapper runs sequential bounded processes and records 200 ms sampled working/private bytes plus binary/source identity and selected hardware fields. |
-| Measurement limits and PRF-05 | In progress for the full 50-ride target. Stress saving is unsupported by the unchanged 256-guest cap; normal player presentation remains 32 × 32. Record incomplete and unsupported outcomes, then use measured evidence to choose architectural changes or deliberately revise targets. All 147 release tests and formatting/strict lint/build checks pass. Eleven reference processes and three extended stress processes completed; implementation CI run 39425219126 passed, and the relocated package passed 22 payload hashes/thirteen guides, save continuation, and bundled-wrapper checks. |
-| Next performance work | Reference baseline main-loop pacing is 37.94–40.15 FPS at actual 1080p; stress guest-mesh generation averages 114.61–135.45 ms. First pursue reusable/batched guest geometry, then cached path connectivity with deterministic edit/load invalidation. Investigate baseline render-thread/GPU/presentation costs separately; existing CPU hooks cannot identify its cause. Preserve raw before/after workloads and full continuation checks. |
+| Measurement limits and PRF-05 | In progress for the full 50-ride target. Stress saving is unsupported by the unchanged 256-guest cap; normal player presentation remains 32 × 32. Record incomplete and unsupported outcomes, then use measured evidence to choose architectural changes or deliberately revise targets. Historical 0.7.0 passed 147 release tests and formatting/strict lint/build checks. Eleven historical local diagnostic processes and three extended stress processes completed; implementation CI run 39425219126 passed, and the relocated package passed 22 payload hashes/thirteen guides, save continuation, and bundled-wrapper checks. |
+| Historical diagnostic motivation | Local baseline main-loop pacing is 37.94–40.15 FPS at actual 1080p; stress guest-mesh generation averages 114.61–135.45 ms. First pursue reusable/batched guest geometry, then cached path connectivity with deterministic edit/load invalidation. Investigate baseline render-thread/GPU/presentation costs separately; existing CPU hooks cannot identify its cause. Preserve raw before/after workloads and full continuation checks. |
+| Current optimization scope | Version 0.8.0 implements derived path-connectivity caching and persistent guest-rendering state. Preserve deterministic routes/RNG, save bytes, stable IDs, shadow clipping, depth, and all rotations. Final verification remains pending in the optimization report. No save-cap, ride-count, player-control, or hardware-target change is implied. |
+| Local comparison policy | Compare identical release fixtures, seeds, complete ticks, and repeated distributions. Separate cold construction from reusable updates and report any workload change. Keep the 0.7.0 raw JSON/checksums and historical directory names unchanged. Local improvements do not satisfy representative-hardware acceptance. |
 | Distribution path | Versioned ZIP builds first; installer and public download page before 1.0. Proposed first public channel: itch.io. |
 | Feature availability | All gameplay in the free download; no paid unlocks. Offline operation is part of the release checks. |
 
-## Development reference machine
+## Development machine, explicitly not a reference PC
 
 The implementation session recorded this machine on 19 October 2026. These are the development/test host specifications, **not validated minimum requirements**:
 
@@ -69,7 +72,7 @@ The implementation session recorded this machine on 19 October 2026. These are t
 | Graphics | Intel UHD Graphics 630; driver 31.0.101.2115. |
 | Memory | 8,453,365,760 bytes reported (approximately 7.87 GiB; nominal 8 GB). |
 
-Release measurements now record baseline main-loop frame pacing and process memory on this reference PC; see the performance report. Startup time, other PCs/drivers, minimum hardware, and clean-machine compatibility remain unverified. The full large-park benchmark remains a target.
+The user explicitly rejected this poorly performing PC as a reference. No reference PC is selected. Historical measurements of frame pacing and process memory here are local diagnostics only; see the correction in the performance report. Startup time, other PCs/drivers, minimum hardware, and clean-machine compatibility remain unverified. The full large-park benchmark remains a target.
 
 ## Pending decisions and their gates
 
@@ -77,8 +80,8 @@ Release measurements now record baseline main-loop frame pacing and process memo
 | --- | --- | --- |
 | Exact classic reference inventory | Stage 0 review, refined before Stage 6 content lock | Audit rides, track pieces, operating modes, facilities, scenario objectives, and UI behaviors; assign missing items stable checklist IDs. |
 | Expansion inclusion | Before creating expansion-specific content | List expansion-specific variants separately and choose which belong to 1.0. |
-| Supported Windows versions and minimum hardware | Provisional in Stage 2; final in Stage 8 | Measure packaged builds on a named reference PC and additional clean systems; record CPU/GPU/RAM, display scale, and graphics behavior. |
-| Performance targets | Stage 2 | Evaluate the proposed 256 x 256 map, 5,000 guests, 50 rides, and 60 FPS at 1080p; distinguish design targets from measured capabilities. |
+| Supported Windows versions and minimum hardware | Provisional in Stage 2; final in Stage 8 | Agree a representative PC first, then measure packaged builds there and on additional clean systems; record CPU/GPU/RAM, display scale, and graphics behavior. |
+| Performance targets | Stage 2 | After agreeing a representative PC, evaluate the proposed 256 x 256 map, 5,000 guests, 50 rides, and 60 FPS at 1080p; distinguish design targets from measured capabilities. |
 | Original ride/scenery/scenario counts | Before Stage 6 content production closes | Map original content definitions to the completed behavioral inventory and set explicit catalogue/campaign counts. |
 | Public game name | Before public release assets | Check availability and relevant naming rights; replace the temporary title if needed. |
 | Source-code license | Before granting reuse rights or accepting outside contributions | Source publication in the dedicated GitHub repository is authorized. No project source license has been selected; decide independently from free binary distribution and asset licenses. |
@@ -89,4 +92,4 @@ Release measurements now record baseline main-loop frame pacing and process memo
 
 ## Release completion rule
 
-Versions 0.1.0 through 0.7.0 are foundation, terrain, overlap, crowd, train, save-continuation, and measurement checkpoints. Their named [reports](PERFORMANCE_REPORT.md) separate historical and current evidence. Version 1.0 requires the agreed gameplay inventory, the original content catalogue, usable editors and scenarios, tested saves and upgrades, and a distributable Windows package. A clean-machine launch, broader save recovery/migrations, licensing records, and public-release checks remain open until demonstrated. A successful local build or benchmark process alone does not close them.
+Versions 0.1.0 through 0.8.0 cover foundation, terrain, overlap, crowd, train, save-continuation, local diagnostics, and optimization work. Their named [reports](OPTIMIZATION_REPORT.md) separate historical and current evidence. Version 1.0 requires the agreed gameplay inventory, the original content catalogue, usable editors and scenarios, tested saves and upgrades, and a distributable Windows package. A clean-machine launch, broader save recovery/migrations, licensing records, and public-release checks remain open until demonstrated. A successful local build or benchmark process alone does not close them.

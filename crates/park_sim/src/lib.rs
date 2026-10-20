@@ -9,7 +9,9 @@ mod saves;
 mod surfaces;
 mod trains;
 
-pub use crowds::{CrowdStats, Guest, GuestId, GuestPosition, GuestState, WALK_TICKS};
+pub use crowds::{
+    CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
+};
 pub use saves::{MAX_SAVE_BYTES, SaveError};
 pub use surfaces::{Axis, ObjectId, ObjectKind, PlacementError, SurfaceId, SurfaceObject};
 pub use trains::{
@@ -112,7 +114,7 @@ impl Speed {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Park {
     width: u32,
     height: u32,
@@ -126,7 +128,30 @@ pub struct Park {
     crowd_rng: u64,
     circuit: Option<TrainCircuit>,
     train: Option<Train>,
+    path_cache: crowds::PathCache,
 }
+
+/// Cache warmth and diagnostic counters are not simulation state. Existing
+/// authoritative fields, including ordered objects/guests and RNG, retain
+/// their previous equality semantics across cloning and save/load.
+impl PartialEq for Park {
+    fn eq(&self, other: &Self) -> bool {
+        self.width == other.width
+            && self.height == other.height
+            && self.tiles == other.tiles
+            && self.ticks == other.ticks
+            && self.objects == other.objects
+            && self.next_object_id == other.next_object_id
+            && self.guests == other.guests
+            && self.next_guest_id == other.next_guest_id
+            && self.crowd_seed == other.crowd_seed
+            && self.crowd_rng == other.crowd_rng
+            && self.circuit == other.circuit
+            && self.train == other.train
+    }
+}
+
+impl Eq for Park {}
 
 impl Park {
     /// Create a deterministic park with a broad meadow and a sand-edged lake.
@@ -164,6 +189,7 @@ impl Park {
             crowd_rng: 0,
             circuit: None,
             train: None,
+            path_cache: crowds::PathCache::default(),
         }
     }
 

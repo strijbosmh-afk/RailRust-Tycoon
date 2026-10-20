@@ -6,7 +6,10 @@ use bevy::{
 };
 use park_sim::{Axis, GuestState, ObjectKind, Park, SurfaceId, SurfaceObject, Terrain, TilePos};
 
+mod guest_render;
 mod train_render;
+
+pub use guest_render::{GuestRenderStats, GuestRenderer};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;

@@ -201,6 +201,9 @@ impl Park {
             clearance,
         });
         self.next_object_id = next_id;
+        if kind == ObjectKind::Path {
+            self.path_cache.invalidate();
+        }
         Ok(id)
     }
 
@@ -209,6 +212,7 @@ impl Park {
         let index = self.objects.iter().position(|object| object.id == id)?;
         let removed = self.objects.remove(index);
         if removed.kind == ObjectKind::Path {
+            self.path_cache.invalidate();
             self.reconcile_guests_after_removal(removed);
         }
         self.reconcile_train_after_removal(id);

@@ -535,6 +535,7 @@ fn report(run: &FrameRun, probe: &Probe, runtime: &Runtime, now: Instant, status
         "build_profile": if cfg!(debug_assertions) { "debug" } else { "release" },
         "os": std::env::consts::OS,
         "architecture": std::env::consts::ARCH,
+        "hardware_role": "local diagnostics only; no reference PC has been selected",
         "recorded_unix_seconds": SystemTime::now().duration_since(UNIX_EPOCH).ok().map(|time| time.as_secs()),
         "status": status,
         "completed": status == "completed",
