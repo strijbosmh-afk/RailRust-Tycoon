@@ -351,7 +351,7 @@ mod tests {
         app.update();
         let small = slots(&app);
         assert_eq!(small, vec![original[0]]);
-        assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 4);
+        assert_eq!(app.world().resource::<Assets<Mesh>>().len(), 5);
         for (entity, asset) in original.iter().skip(1) {
             assert!(app.world().get_entity(*entity).is_err());
             assert!(app.world().resource::<Assets<Mesh>>().get(*asset).is_none());
@@ -378,7 +378,7 @@ mod tests {
         assert_eq!(large[0], original[0]);
         assert_eq!(
             app.world().resource::<Assets<Mesh>>().len(),
-            large.len() + 3
+            large.len() + 4
         );
         assert_eq!(
             app.world().resource::<StaticLandscape>().total_counts().0,

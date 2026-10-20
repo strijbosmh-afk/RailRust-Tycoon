@@ -5,6 +5,13 @@ use super::{
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase};
 
+use crate::path_tools::PathTool;
+
+pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
+pub(super) const PATH_PANEL_RIGHT: f32 = RIDE_PANEL_MARGIN;
+pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
+pub(super) const PATH_PANEL_HEIGHT: f32 = 284.0;
+
 const INK: Color = Color::srgb_u8(30, 62, 53);
 const MUTED: Color = Color::srgb_u8(91, 109, 95);
 const PAPER: Color = Color::srgb_u8(248, 248, 237);
@@ -31,6 +38,8 @@ pub(super) enum Action {
     Save,
     Load,
     LoadBackup,
+    SetPathTool(PathTool),
+    PathHeight(i8),
     Help,
     CloseHelp,
 }
@@ -51,6 +60,9 @@ pub(super) enum Label {
     TrainToggle,
     SaveStatus,
     ParkInfo,
+    PathHeight,
+    PathHint,
+    PathResult,
 }
 
 #[derive(Component)]
@@ -241,8 +253,8 @@ pub(super) fn setup(mut commands: Commands) {
                 );
             });
             p.spawn(row()).with_children(|p| {
-                button(p, "Remove path", Action::RemovePath, 102.0);
-                button(p, "Restore [R]", Action::RestorePaths, 102.0);
+                button(p, "Remove [Del]", Action::RemovePath, 102.0);
+                button(p, "Restore demo", Action::RestorePaths, 102.0);
             });
             p.spawn((
                 Node {
@@ -279,6 +291,60 @@ pub(super) fn setup(mut commands: Commands) {
                 10.0,
                 MUTED,
             );
+        });
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: px(PATH_PANEL_TOP),
+                right: px(PATH_PANEL_RIGHT),
+                width: px(PATH_PANEL_WIDTH),
+                height: px(PATH_PANEL_HEIGHT),
+                padding: UiRect::all(px(12)),
+                border: UiRect::all(px(1)),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(4),
+                ..default()
+            },
+            GlobalZIndex(2),
+            BackgroundColor(PAPER),
+            BorderColor::all(BORDER),
+            BorderRadius::all(px(6)),
+        ))
+        .with_children(|p| {
+            label(p, "PATH TOOLS", 16.0, INK);
+            p.spawn(row()).with_children(|p| {
+                button(p, "Inspect", Action::SetPathTool(PathTool::Inspect), 100.0);
+                button(p, "Path [P]", Action::SetPathTool(PathTool::Build), 100.0);
+            });
+            button(
+                p,
+                "Demolish [X]",
+                Action::SetPathTool(PathTool::Demolish),
+                207.0,
+            );
+            dynamic_label(p, "Level path / height 8", 11.0, INK, Label::PathHeight);
+            p.spawn(row()).with_children(|p| {
+                button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
+                button(p, "+ [PgUp]", Action::PathHeight(1), 100.0);
+            });
+            for (initial, kind, color) in [
+                ("Choose Path or Demolish.", Label::PathHint, INK),
+                ("Last: no path changes yet.", Label::PathResult, MUTED),
+            ] {
+                p.spawn(Node {
+                    width: percent(100),
+                    height: px(44),
+                    flex_shrink: 0.0,
+                    overflow: Overflow::clip(),
+                    ..default()
+                })
+                .with_children(|p| {
+                    dynamic_label(p, initial, 11.0, color, kind);
+                });
+            }
+            label(p, "Esc: return to inspection", 11.0, MUTED);
         });
 
     commands
@@ -331,7 +397,12 @@ pub(super) fn setup(mut commands: Commands) {
         ))
         .with_children(|p| {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
-            label(p, "Del: remove path   R: restore   H: help", 11.0, MUTED);
+            label(
+                p,
+                "P: path   X: demolish   Esc: inspect   H: help",
+                11.0,
+                MUTED,
+            );
         });
 
     commands
@@ -370,7 +441,9 @@ pub(super) fn setup(mut commands: Commands) {
                     MUTED,
                 );
                 for (keys, purpose) in [
-                    ("Left click", "Inspect land, path or track"),
+                    ("Left click", "Inspect / place / remove one path"),
+                    ("P / X", "Build level paths / demolish paths"),
+                    ("PgUp / PgDn", "Raise / lower path build height"),
                     ("Right / middle drag", "Pan around the park"),
                     ("WASD / arrow keys", "Pan with the keyboard"),
                     ("Mouse wheel / + / -", "Zoom in and out"),
@@ -385,7 +458,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("F5 / F9", "Save / load park"),
                     ("Shift + F9", "Load the previous valid save"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
-                    ("Esc", "Close help or clear selection"),
+                    ("Esc", "Close help / return to inspection"),
                 ] {
                     p.spawn(Node {
                         justify_content: JustifyContent::SpaceBetween,
@@ -435,6 +508,8 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
                     | Action::Save
                     | Action::Load
                     | Action::LoadBackup
+                    | Action::SetPathTool(_)
+                    | Action::PathHeight(_)
             )
         {
             continue;
@@ -460,6 +535,8 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             Action::Save => view.request_save(SaveAction::Save),
             Action::Load => view.request_save(SaveAction::Load),
             Action::LoadBackup => view.request_save(SaveAction::Backup),
+            Action::SetPathTool(mode) => view.set_path_tool(*mode),
+            Action::PathHeight(delta) => view.adjust_path_height(*delta),
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -565,8 +642,15 @@ pub(super) fn refresh(
                 view.zoom * 100.0
             ),
             Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
+            Label::Status if view.path_tool.mode == PathTool::Build => format!(
+                "Path tool / height {} / click to place",
+                view.path_tool.height
+            ),
+            Label::Status if view.path_tool.mode == PathTool::Demolish => {
+                "Demolish tool / click a visible path".into()
+            }
             Label::Status if view.path_notice.is_some() && view.hovered.is_none() => {
-                view.path_notice.clone().unwrap()
+                "Path edit result: see Path tools".into()
             }
             Label::Status => view.hovered.map_or(
                 format!(
@@ -655,6 +739,17 @@ pub(super) fn refresh(
             }
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
+            Label::PathHeight => format!("Level path / height {}", view.path_tool.height),
+            Label::PathHint if view.diagnostic_case.is_some() => {
+                "Read-only render preview.\nPath tools are disabled.".into()
+            }
+            Label::PathHint => view.path_tool.hint.clone(),
+            Label::PathResult => format!(
+                "Last: {}",
+                view.path_notice
+                    .as_deref()
+                    .unwrap_or("no path changes yet.")
+            ),
         };
         if text.0 != value {
             text.0 = value;
@@ -668,9 +763,14 @@ pub(super) fn refresh(
             Action::Terrain => view.terrain_profile == TerrainProfile::Terraced,
             Action::Underground => view.view_mode == ViewMode::Underground,
             Action::ToggleTrain => sim.0.train().is_some_and(|train| !train.open),
+            Action::SetPathTool(mode) => view.path_tool.mode == *mode,
             _ => false,
         };
-        let color = if (!view.capture_active && *interaction == Interaction::Pressed) || active {
+        let tool_disabled = matches!(action, Action::SetPathTool(_) | Action::PathHeight(_))
+            && (view.capture_active || view.diagnostic_case.is_some());
+        let color = if tool_disabled {
+            Color::srgb_u8(239, 240, 232)
+        } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD
         } else if !view.capture_active && *interaction == Interaction::Hovered {
             Color::srgb_u8(207, 220, 197)

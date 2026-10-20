@@ -36,6 +36,12 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify --save-dir $proofDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process continuation failed" }
           Get-Content -LiteralPath (Join-Path $proofDirectory "verification.txt")
+          $pathDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound path proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-paths --save-dir $pathDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Path construction proof writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-paths --save-dir $pathDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process path continuation failed" }
+          Get-Content -LiteralPath (Join-Path $pathDirectory "verification-paths.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

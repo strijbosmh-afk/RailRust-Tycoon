@@ -228,7 +228,8 @@ impl Park {
 
     /// Restore only missing proof paths as one atomic edit. Existing objects,
     /// guests, clock, seed state and identities are retained. New objects receive
-    /// fresh IDs; a conflicting object rejects the complete restoration.
+    /// fresh IDs; a collision or player construction limit rejects the complete
+    /// restoration. Generic object placement remains available to diagnostics.
     pub fn restore_crowd_paths(&mut self) -> Result<(), PlacementError> {
         if (self.width(), self.height()) != (32, 32) {
             return Err(PlacementError::FixtureMapSize {
@@ -244,6 +245,7 @@ impl Park {
                     && path.height == FIXTURE_HEIGHT
                     && path.clearance == 2
             }) {
+                candidate.validate_path(pos, FIXTURE_HEIGHT)?;
                 candidate.place_object(pos, ObjectKind::Path, axis, FIXTURE_HEIGHT, 2)?;
             }
         }
@@ -805,6 +807,60 @@ mod tests {
         let snapshot = small.clone();
         assert!(small.install_crowd_fixture(1).is_err());
         assert_eq!(small, snapshot);
+    }
+
+    #[test]
+    fn fixture_restore_at_path_capacity_rolls_back_even_a_partial_repair() {
+        let mut park = fixture(123);
+        let removed: Vec<_> = park
+            .objects()
+            .iter()
+            .filter(|object| object.kind == ObjectKind::Path)
+            .take(2)
+            .map(|object| object.id)
+            .collect();
+        for id in &removed {
+            park.remove_object(*id).unwrap();
+        }
+        let paths = park
+            .objects()
+            .iter()
+            .filter(|object| object.kind == ObjectKind::Path)
+            .count();
+        let mut added = Vec::new();
+        for index in 0..crate::saves::MAX_PATHS - paths {
+            added.push(
+                park.place_path(
+                    TilePos {
+                        x: (index % 32) as u32,
+                        y: (index / 32) as u32,
+                    },
+                    10,
+                )
+                .unwrap(),
+            );
+        }
+        for remaining_capacity in [0, 1] {
+            if remaining_capacity == 1 {
+                park.remove_object(added.pop().unwrap()).unwrap();
+            }
+            park.advance(Speed::Normal);
+            let snapshot = park.clone();
+            let bytes = park.to_save_bytes().unwrap();
+            let cache = park.path_cache_stats();
+            assert!(cache.cached);
+            assert_eq!(
+                park.restore_crowd_paths(),
+                Err(PlacementError::CapacityExceeded {
+                    resource: "paths",
+                    max: crate::saves::MAX_PATHS,
+                })
+            );
+            assert_eq!(park, snapshot);
+            assert_eq!(park.path_cache_stats(), cache);
+            assert_eq!(park.to_save_bytes().unwrap(), bytes);
+            assert!(removed.iter().all(|id| park.object(*id).is_none()));
+        }
     }
 
     #[test]
