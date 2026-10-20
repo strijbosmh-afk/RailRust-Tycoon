@@ -462,6 +462,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
             for face in train_render::piece_faces(park, piece, rotation) {
                 mesh.surface(face.surface, face.ink);
             }
+            mesh.end_group(PaintLayer::Object);
             continue;
         }
         let surfaces = object_surfaces(park, object, rotation);
@@ -547,11 +548,12 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 }
             }
         }
+        mesh.end_group(PaintLayer::Object);
     }
 }
 
-fn cutaway_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
-    let mut mesh = Painter::default();
+fn cutaway_painter(park: &Park, rotation: u8, grid: bool, record_groups: bool) -> Painter {
+    let mut mesh = Painter::with_groups(record_groups);
     let size = park.width();
     for y in 0..size {
         for x in 0..size {
@@ -581,25 +583,36 @@ fn cutaway_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
                     );
                 }
             }
+            mesh.end_group(PaintLayer::Terrain);
         }
     }
     paint_objects(&mut mesh, park, rotation, ViewMode::Underground);
-    mesh.finish()
+    mesh
 }
 
 /// Build terrain, soil edges, trees, and a decorative entrance in one mesh.
 /// The material should be opaque white so per-vertex colors and depth apply.
 pub fn build_scene(park: &Park, rotation: u8, grid: bool, mode: ViewMode) -> Mesh {
+    scene_painter(park, rotation, grid, mode, false).finish()
+}
+
+fn scene_painter(
+    park: &Park,
+    rotation: u8,
+    grid: bool,
+    mode: ViewMode,
+    record_groups: bool,
+) -> Painter {
     assert_eq!(
         park.width(),
         park.height(),
         "isometric scene expects a square park"
     );
     if mode == ViewMode::Underground {
-        return cutaway_scene(park, rotation, grid);
+        return cutaway_painter(park, rotation, grid, record_groups);
     }
     let size = park.width();
-    let mut mesh = Painter::default();
+    let mut mesh = Painter::with_groups(record_groups);
     let half_x = size as f32 * HALF_WIDTH;
     let half_y = size as f32 * HALF_HEIGHT;
     let top = Vec2::new(0.0, half_y);
@@ -618,6 +631,7 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool, mode: ViewMode) -> Mes
         -10.0,
         rgb(24, 46, 48),
     );
+    mesh.end_group(PaintLayer::Shadow);
 
     for y in 0..size {
         for x in 0..size {
@@ -736,6 +750,7 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool, mode: ViewMode) -> Mes
                     stroke,
                 );
             }
+            mesh.end_group(PaintLayer::Terrain);
         }
     }
 
@@ -768,6 +783,7 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool, mode: ViewMode) -> Mes
         let base = elevated_tile_center(park, pos, rotation).expect("valid scenery tile");
         let top = column_surfaces(park, pos, rotation)[0].expect("valid scenery roof");
         tree(&mut mesh, base, top, noise(pos));
+        mesh.end_group(PaintLayer::Scenery);
     }
 
     if size >= 12 {
@@ -775,9 +791,10 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool, mode: ViewMode) -> Mes
         let base = elevated_tile_center(park, entrance, rotation).expect("valid entrance tile");
         let top = column_surfaces(park, entrance, rotation)[0].expect("valid entrance roof");
         entrance_arch(&mut mesh, base, top);
+        mesh.end_group(PaintLayer::Scenery);
     }
     paint_objects(&mut mesh, park, rotation, mode);
-    mesh.finish()
+    mesh
 }
 
 /// Outline only the selected owner's visible surfaces. A small depth bias
@@ -1104,9 +1121,45 @@ struct Painter {
     positions: Vec<[f32; 3]>,
     colors: Vec<Ink>,
     indices: Vec<u32>,
+    groups: Option<Vec<PaintGroup>>,
+}
+
+/// Optional metadata for static partitioning; never becomes a mesh attribute.
+/// Keep touching faces and details of one tile, tree, or object in source order.
+struct PaintGroup {
+    indices: std::ops::Range<usize>,
+    layer: PaintLayer,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum PaintLayer {
+    Shadow,
+    Terrain,
+    Scenery,
+    Object,
 }
 
 impl Painter {
+    fn with_groups(record: bool) -> Self {
+        Self {
+            groups: record.then(Vec::new),
+            ..default()
+        }
+    }
+
+    fn end_group(&mut self, layer: PaintLayer) {
+        let Some(groups) = &mut self.groups else {
+            return;
+        };
+        let start = groups.last().map_or(0, |group| group.indices.end);
+        if start < self.indices.len() {
+            groups.push(PaintGroup {
+                indices: start..self.indices.len(),
+                layer,
+            });
+        }
+    }
+
     fn triangle_3d(&mut self, points: [Vec3; 3], ink: Ink) {
         let first = self.positions.len() as u32;
         for point in points {

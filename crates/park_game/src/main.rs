@@ -281,6 +281,10 @@ fn setup_scene(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn(Camera2d);
+    let material = materials.add(ColorMaterial::from(Color::WHITE));
+    let mut landscape = static_landscape::StaticLandscape::new(material.clone());
+    landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
+    commands.insert_resource(landscape);
     let selection = meshes.add(world::selection_mesh(
         None,
         None,
@@ -293,10 +297,6 @@ fn setup_scene(
     guest_renderer.update(&mut guest_mesh, &sim.0, view.rotation, view.view_mode);
     let guests = meshes.add(guest_mesh);
     let train = meshes.add(world::train_mesh(&sim.0, view.rotation, view.view_mode));
-    let material = materials.add(ColorMaterial::from(Color::WHITE));
-    let mut landscape = static_landscape::StaticLandscape::new(material.clone());
-    landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
-    commands.insert_resource(landscape);
     // Its vertices move to different tiles; a cached initial bounding box
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((

@@ -145,7 +145,7 @@ impl StaticLandscape {
         let viewport = self.last_viewport.flatten();
         json!({
             "method":"conservative_world_xy_aabb",
-            "chunking":if self.partitioned { "spatial_triangles" } else { "single_mesh" },
+            "chunking":if self.partitioned { "spatial_groups" } else { "single_mesh" },
             "bucket_world_size":[1024.0,512.0],
             "selection_state":if viewport.is_some() { "camera_bounds" } else { "unavailable_all_selected" },
             "viewport_world":viewport.map(|bounds| json!({"min":bounds.min.to_array(),"max":bounds.max.to_array()})),

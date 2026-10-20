@@ -250,7 +250,7 @@ function Assert-StaticVisibility([object] $Work) {
     }
     $visibility = $Work.static_visibility
     if ($visibility.method -ne 'conservative_world_xy_aabb' -or
-        $visibility.chunking -notin @('single_mesh', 'spatial_triangles') -or
+        $visibility.chunking -notin @('single_mesh', 'spatial_groups') -or
         $visibility.selection_state -notin @('camera_bounds', 'unavailable_all_selected') -or
         $visibility.viewport_guard_logical_pixels -isnot [ValueType] -or
         $visibility.viewport_guard_logical_pixels -is [bool] -or

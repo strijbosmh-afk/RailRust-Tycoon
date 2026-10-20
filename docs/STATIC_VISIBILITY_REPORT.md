@@ -1,6 +1,6 @@
 # Static terrain chunk visibility — 0.10.0
 
-Date: 20 October 2026. This checkpoint implements bounded static-scene visibility for the existing large diagnostic maps. Work starts from the verified 0.9.0 checkpoint `96518d9` on `codex/static-terrain-visibility`. The integrated contract and diagnostic schema are recorded below; all 190 release tests (125 game/65 simulation) passed. Final source identity, strict lint/build, runtime results, CI, and package evidence are pending. Earlier results remain attached to their named reports; they do not verify changed code.
+Date: 20 October 2026. This checkpoint implements bounded static-scene visibility for the existing large diagnostic maps. Work starts from the verified 0.9.0 checkpoint `96518d9` on `codex/static-terrain-visibility`. The integrated contract and diagnostic schema are recorded below; the corrected implementation passed 193 release tests (128 game/65 simulation) and strict release Clippy. Final binary build, source identity, runtime results, CI, and package evidence are pending. Earlier results remain attached to their named reports; they do not verify changed code.
 
 **No reference PC is selected.** The user explicitly excluded this poorly performing development PC as a performance reference. Measurements here are local diagnostics, not minimum specifications, representative FPS, a portable speedup, or a pass/fail result for the proposed 60 FPS target. PRF-05 remains in progress for the full 256 × 256 / 5,000-guest / 50-ride workload.
 
@@ -10,7 +10,7 @@ The completed [0.9.0 diagnostic report](LARGE_MAP_GPU_REPORT.md) observed that l
 
 The change partitions static geometry into spatial chunks only for maps larger than 32 × 32. The normal 32 × 32 demonstration retains its single legacy mesh. Existing `build_scene` remains the full-scene correctness oracle. Guest and train meshes, deterministic simulation, path caching, player controls, and persistence stay separate.
 
-`world::build_static_chunks(&Park, rotation, grid, mode)` returns `Vec<StaticChunkGeometry>`, each with a `Mesh` and `Rect` bounds. Large-map triangles are grouped by their projected XY centroid into deterministic 1024 × 512 world-unit buckets. Triangles wider or taller than a bucket go into a separate overflow bucket. Each triangle retains its attributes, winding, and depth with local indices; it is not split at a chunk or viewport edge. The complete source mesh is dropped after partitioning, so it is not a duplicate persistent render mesh.
+`world::build_static_chunks(&Park, rotation, grid, mode)` returns `Vec<StaticChunkGeometry>`, each with a `Mesh` and `Rect` bounds. Large-map geometry is partitioned using atomic emission groups: each terrain tile and its details, each scenery object, and each surface object, including a track piece's supports, base, and rails, stay together. Groups are assigned to deterministic 1024 × 512 world-unit buckets by their actual bounds center; oversized groups use an overflow bucket within their layer. Layer keys deterministically order returned chunks as Shadow → Terrain → Scenery → Object. Static assets are created before dynamic meshes at initial allocation. These are construction-order guarantees, not a universal GPU draw-order guarantee after slots shrink or regrow and mesh asset IDs are reused or newly allocated. Each triangle retains its attributes, winding, and depth with local indices; neither triangles nor emission groups are split between buckets or at a viewport edge. Within each group, original triangle order is preserved, keeping support shafts, footings, and rails together. Bounded initial-view comparisons and resource-reuse tests separately verify rendered output and replacement behavior. The complete source mesh is dropped after partitioning, so it is not a duplicate persistent render mesh.
 
 Conservative bounds include every actual used vertex: terrain tops and cliffs, scenery, tree canopies, entrance arch, path decks, static circuit geometry/supports, and decorative shadows. A tile origin or nominal tile footprint alone is insufficient. Rectangular-map rejection remains consistent with `build_scene`.
 
@@ -43,7 +43,7 @@ The report distinguishes:
 | Field | Contract |
 | --- | --- |
 | `method` | `conservative_world_xy_aabb` |
-| `chunking` | `single_mesh` for maps at most 32 × 32; otherwise `spatial_triangles` |
+| `chunking` | `single_mesh` for maps at most 32 × 32; otherwise `spatial_groups` |
 | `bucket_world_size` | `[1024, 512]` |
 | `selection_state` | `camera_bounds`, or `unavailable_all_selected` when a valid viewport is unavailable |
 | `viewport_world` | `{ "min": [x,y], "max": [x,y] }`, or null when unavailable |
@@ -64,8 +64,8 @@ No threshold on this PC decides acceptance. Primary evidence is exact geometry/o
 
 These checks describe required proof; they are not passing results yet.
 
-1. Compare the union of chunk triangles with the full-scene oracle, including attributes/depth. Cover grid on/off, all four rotations, Surface/Underground, large terrain edges, and decoration extending beyond its tile.
-2. Check conservative bounds from actual vertices, including negative coordinates, high cliffs, long shadows, and triangles crossing chunk/viewport edges. A partially intersecting triangle must not disappear because its origin lies outside the viewport.
+1. Compare the union of chunk triangles with the full-scene oracle, including attributes/depth and group/layer ordering. Cover grid on/off, all four rotations, Surface/Underground, large terrain edges, and decoration extending beyond its tile.
+2. Check conservative bounds from actual vertices, including negative coordinates, high cliffs, long shadows, related support shaft/footing/rail surfaces, and triangles crossing nominal bucket/viewport edges. A partially intersecting triangle must not disappear because its origin lies outside the viewport.
 3. Verify camera pan/zoom/resize selects different existing chunks while static build counts and entity/handle allocation remain unchanged. Include minimum window and logical-pixel/DPI transforms; retain geometry behind UI.
 4. Change rotation/view/content and replace a large map with the 32-map demonstration and back. Verify regenerated geometry, removed surplus slots, same-tick replacement, and unchanged dynamic guest/train updates.
 5. Compare production captures against the full-scene or previous executable at matching complete ticks. Include overview, focused crowd/ride, clipped edges, rotations, Underground, Flat/Terraced, and the ordinary 32-map baseline. Inspect images; process exit alone is insufficient.
@@ -94,8 +94,8 @@ Use a fresh absolute output directory and bounded runs. Shared frame options can
 | Item | Current evidence |
 | --- | --- |
 | Implementation / PR / CI | Pending; branch `codex/static-terrain-visibility`, starting checkpoint `96518d9` |
-| Partition and bounds contract | API and 1024 × 512 centroid/overflow buckets settled above; integrated regression evidence pending |
-| Release tests / formatting / strict lint / build | All 190 release tests passed: 125 game / 65 simulation. Formatting, strict Clippy, and final binary build evidence pending |
+| Partition and bounds contract | API and 1024 × 512 atomic-group/layer buckets described above; corrected implementation regression evidence pending |
+| Release tests / formatting / strict lint / build | Corrected implementation passed 193 release tests: 128 game / 65 simulation. Strict release Clippy passed; final formatting/build evidence and runtime checks pending |
 | PowerShell report validation | 30 new checks plus 44 historical wrapper checks passed; production-report validation remains pending runtime evidence |
 | Viewport/resource reuse and replacement | Pending |
 | Production images / picking | Pending |

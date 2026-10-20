@@ -1,6 +1,6 @@
 //! Deterministic, conservative partitions of the existing static scene.
 //!
-//! A chunk owns complete triangles and their original vertex attributes. Its
+//! A chunk owns complete emission groups and their original vertex attributes. Its
 //! actual projected bounds, rather than its nominal bucket, govern visibility.
 //! The full scene is temporary input and is not retained alongside the chunks.
 
@@ -23,11 +23,13 @@ pub struct StaticChunkGeometry {
 
 /// Partition the authoritative scene without changing its geometry or depth.
 ///
-/// Normal maps retain their original single mesh. Large maps assign triangles
-/// to fixed projected buckets by centroid. A triangle larger than a bucket
-/// goes into a separate overflow chunk, so the full-map diorama shadow does
-/// not inflate the bounds of otherwise local terrain. Return order is stable:
-/// overflow first when present, then occupied buckets ordered by (x, y).
+/// Normal maps retain their original single mesh. Large maps assign complete
+/// tiles, trees, arches, and surface objects to fixed projected buckets by
+/// their bounds center. Touching faces within one object retain their order,
+/// including track support shafts and footings that meet at equal depth.
+/// Oversized groups and the map shadow use separate overflow buckets.
+/// Return order follows shadow, terrain, scenery, and objects, then (x, y)
+/// within each layer, with that layer's overflow first when present.
 ///
 /// Like `build_scene`, this requires a square park.
 pub fn build_static_chunks(
@@ -36,16 +38,18 @@ pub fn build_static_chunks(
     grid: bool,
     mode: ViewMode,
 ) -> Vec<StaticChunkGeometry> {
-    partition(
-        build_scene(park, rotation, grid, mode),
-        park.width() > SINGLE_MESH_MAX_SIZE,
-    )
+    if park.width() <= SINGLE_MESH_MAX_SIZE {
+        return partition_groups(build_scene(park, rotation, grid, mode), false, &[]);
+    }
+    let mut painter = scene_painter(park, rotation, grid, mode, true);
+    let groups = painter.groups.take().expect("static groups were requested");
+    partition_groups(painter.finish(), true, &groups)
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Bucket {
-    Overflow,
-    Cell(i32, i32),
+struct Bucket {
+    layer: PaintLayer,
+    cell: Option<(i32, i32)>,
 }
 
 fn positions(mesh: &Mesh) -> &[[f32; 3]] {
@@ -67,20 +71,25 @@ fn bounds(points: impl Iterator<Item = Vec2>) -> Rect {
     Rect { min, max }
 }
 
-fn bucket(triangle: [[f32; 3]; 3]) -> Bucket {
-    let points = triangle.map(point);
-    let extent = bounds(points.into_iter()).size();
-    if extent.x > BUCKET_WIDTH || extent.y > BUCKET_HEIGHT {
-        return Bucket::Overflow;
+fn bucket(bounds: Rect, layer: PaintLayer) -> Bucket {
+    let extent = bounds.size();
+    let center = bounds.center();
+    let overflow =
+        layer == PaintLayer::Shadow || extent.x > BUCKET_WIDTH || extent.y > BUCKET_HEIGHT;
+    Bucket {
+        layer,
+        cell: (!overflow).then_some((
+            (center.x / BUCKET_WIDTH).floor() as i32,
+            (center.y / BUCKET_HEIGHT).floor() as i32,
+        )),
     }
-    let center = (points[0] + points[1] + points[2]) / 3.0;
-    Bucket::Cell(
-        (center.x / BUCKET_WIDTH).floor() as i32,
-        (center.y / BUCKET_HEIGHT).floor() as i32,
-    )
 }
 
-fn partition(mut source: Mesh, split: bool) -> Vec<StaticChunkGeometry> {
+fn partition_groups(
+    mut source: Mesh,
+    split: bool,
+    groups: &[PaintGroup],
+) -> Vec<StaticChunkGeometry> {
     assert_eq!(source.primitive_topology(), PrimitiveTopology::TriangleList);
     let index_count = source.indices().map_or(0, Indices::len);
     assert_eq!(index_count % 3, 0, "static scene has incomplete triangles");
@@ -96,20 +105,42 @@ fn partition(mut source: Mesh, split: bool) -> Vec<StaticChunkGeometry> {
     }
 
     // Stage only source indices, not a second copy of every vertex attribute.
-    // Each source triangle appears in exactly one bucket, in its original order.
+    // Each complete group appears in one bucket, retaining its source order.
     let source_indices = source.remove_indices().unwrap();
     let vertices = positions(&source);
     let mut buckets: BTreeMap<Bucket, Vec<u32>> = BTreeMap::new();
-    let mut indices = source_indices.iter();
-    while let Some(a) = indices.next() {
-        let b = indices.next().unwrap();
-        let c = indices.next().unwrap();
+    let index_at = |index| match &source_indices {
+        Indices::U16(indices) => u32::from(indices[index]),
+        Indices::U32(indices) => indices[index],
+    };
+    let mut covered = 0;
+    for group in groups {
+        assert_eq!(
+            group.indices.start, covered,
+            "static groups must be contiguous"
+        );
+        assert!(group.indices.end <= index_count && !group.indices.is_empty());
+        assert_eq!(
+            group.indices.len() % 3,
+            0,
+            "static groups must contain whole triangles"
+        );
+        let bounds = bounds(
+            group
+                .indices
+                .clone()
+                .map(|index| point(vertices[index_at(index) as usize])),
+        );
         buckets
-            .entry(bucket([vertices[a], vertices[b], vertices[c]]))
+            .entry(bucket(bounds, group.layer))
             .or_default()
-            .extend([a, b, c].map(|index| u32::try_from(index).unwrap()));
+            .extend(group.indices.clone().map(index_at));
+        covered = group.indices.end;
     }
-    drop(indices);
+    assert_eq!(
+        covered, index_count,
+        "static groups must cover the full scene"
+    );
     drop(source_indices);
 
     // Reuse one dense remapping table between chunks. Shared source vertices
@@ -171,6 +202,20 @@ mod tests {
     use park_sim::{MAX_TERRAIN_HEIGHT, diagnostics};
 
     use super::*;
+
+    // Synthetic meshes have no semantic groups. Treat each test triangle as
+    // an independent group to exercise generic attributes and index remapping.
+    fn partition(source: Mesh, split: bool) -> Vec<StaticChunkGeometry> {
+        let count = source.indices().map_or(0, Indices::len);
+        let groups: Vec<_> = (0..count)
+            .step_by(3)
+            .map(|start| PaintGroup {
+                indices: start..start + 3,
+                layer: PaintLayer::Terrain,
+            })
+            .collect();
+        partition_groups(source, split, &groups)
+    }
 
     fn signatures<'a>(meshes: impl IntoIterator<Item = &'a Mesh>) -> Vec<[u32; 36]> {
         let mut result = Vec::new();
@@ -349,8 +394,131 @@ mod tests {
                 second.mesh.attributes().collect::<Vec<_>>()
             );
         }
-        assert_eq!(bucket([[-0.5, -0.5, 0.0]; 3]), Bucket::Cell(-1, -1));
-        assert_eq!(bucket([[0.0, 0.0, 0.0]; 3]), Bucket::Cell(0, 0));
+        assert_eq!(
+            bucket(
+                Rect::from_corners(Vec2::splat(-0.5), Vec2::splat(-0.5)),
+                PaintLayer::Terrain
+            )
+            .cell,
+            Some((-1, -1))
+        );
+        assert_eq!(
+            bucket(
+                Rect::from_corners(Vec2::ZERO, Vec2::ZERO),
+                PaintLayer::Terrain
+            )
+            .cell,
+            Some((0, 0))
+        );
+    }
+
+    #[test]
+    fn touching_object_faces_stay_atomic_across_bucket_boundaries_in_source_order() {
+        let mut painter = Painter::with_groups(true);
+        // Both faces belong to one object but their individual centers fall
+        // on opposite sides of y=512. This models a shaft and its footing.
+        for (y, color) in [(500.0, [0.1, 0.2, 0.3, 1.0]), (520.0, [0.4, 0.5, 0.6, 1.0])] {
+            painter.triangle_3d(
+                [
+                    Vec3::new(1.0, y, 20.0),
+                    Vec3::new(3.0, y, 20.0),
+                    Vec3::new(2.0, y + 3.0, 20.0),
+                ],
+                color,
+            );
+        }
+        painter.end_group(PaintLayer::Object);
+        let groups = painter.groups.take().unwrap();
+        let source = painter.finish();
+        assert_eq!(partition(source.clone(), true).len(), 2);
+        let chunks = partition_groups(source.clone(), true, &groups);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].mesh.indices(), source.indices());
+        assert_eq!(
+            chunks[0].mesh.attributes().collect::<Vec<_>>(),
+            source.attributes().collect::<Vec<_>>()
+        );
+        assert!(chunks[0].bounds.min.y < 512.0 && chunks[0].bounds.max.y > 512.0);
+    }
+
+    #[test]
+    fn recording_emission_groups_never_changes_full_scene_geometry_or_order() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(42).unwrap();
+        park.install_train_fixture().unwrap();
+        for rotation in 0..4 {
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                let original = build_scene(&park, rotation, true, mode);
+                let mut painter = scene_painter(&park, rotation, true, mode, true);
+                let groups = painter.groups.take().unwrap();
+                assert!(!groups.is_empty());
+                let mut end = 0;
+                let mut layer = PaintLayer::Shadow;
+                for group in &groups {
+                    assert_eq!(group.indices.start, end);
+                    assert_eq!(group.indices.len() % 3, 0);
+                    assert!(group.layer >= layer);
+                    end = group.indices.end;
+                    layer = group.layer;
+                }
+                let recorded = painter.finish();
+                assert_eq!(end, recorded.indices().unwrap().len());
+                assert_eq!(recorded.indices(), original.indices());
+                assert_eq!(
+                    recorded.attributes().collect::<Vec<_>>(),
+                    original.attributes().collect::<Vec<_>>()
+                );
+                let chunks = partition_groups(recorded, true, &groups);
+                assert_eq!(
+                    signatures([&original]),
+                    signatures(chunks.iter().map(|chunk| &chunk.mesh))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn complete_track_piece_groups_include_support_shafts_footings_and_rails() {
+        let mut park = Park::new(32, 32);
+        park.install_train_fixture().unwrap();
+        let painter = scene_painter(&park, 0, false, ViewMode::Surface, true);
+        let groups: Vec<_> = painter
+            .groups
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter(|group| group.layer == PaintLayer::Object)
+            .collect();
+        assert_eq!(groups.len(), park.objects().len());
+        let mut crossing_groups = 0;
+        for (object, group) in park.objects().iter().zip(groups) {
+            let piece = train_render::piece_for(&park, object.id).unwrap();
+            let mut expected = Painter::default();
+            for face in train_render::piece_faces(&park, piece, 0) {
+                expected.surface(face.surface, face.ink);
+            }
+            let actual: Vec<_> = painter.indices[group.indices.clone()]
+                .iter()
+                .map(|&index| painter.positions[index as usize])
+                .collect();
+            assert_eq!(actual, expected.positions);
+            let triangle_buckets: std::collections::BTreeSet<_> = actual
+                .chunks_exact(3)
+                .map(|triangle| {
+                    bucket(
+                        bounds(triangle.iter().copied().map(point)),
+                        PaintLayer::Object,
+                    )
+                })
+                .collect();
+            if triangle_buckets.len() > 1 {
+                crossing_groups += 1;
+            }
+        }
+        assert!(
+            crossing_groups > 0,
+            "fixture must exercise a bucket boundary"
+        );
     }
 
     #[test]
