@@ -4,7 +4,7 @@ use bevy::{
     asset::RenderAssetUsages, color::ColorToComponents, mesh::Indices, prelude::*,
     render::render_resource::PrimitiveTopology,
 };
-use park_sim::{Axis, ObjectKind, Park, SurfaceId, SurfaceObject, Terrain, TilePos};
+use park_sim::{Axis, GuestState, ObjectKind, Park, SurfaceId, SurfaceObject, Terrain, TilePos};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
@@ -108,7 +108,7 @@ pub fn pick_surface(world: Vec2, park: &Park, rotation: u8, mode: ViewMode) -> O
     for object in park.objects() {
         if object_visible(park, object, mode) {
             let (x, y) = rotate(object.pos, size, rotation);
-            for surface in object_surfaces(object, size, rotation) {
+            for surface in object_surfaces(park, object, rotation) {
                 consider(
                     surface,
                     (x + y, x, object.id.0),
@@ -293,29 +293,59 @@ fn object_point(
     project(x as f32 + du, y as f32 + dv, height, size).truncate()
 }
 
-/// A narrow horizontal deck and its two front faces. Detail strokes are
-/// clipped to the top, so every painted pixel has the same selectable owner.
-fn object_surfaces(object: &SurfaceObject, size: u32, rotation: u8) -> [Surface; 3] {
-    let (x, y) = rotate(object.pos, size, rotation);
-    let (u, v) = (x as f32, y as f32);
+/// Unrotated footprint. Path decks reach every connected cardinal edge;
+/// their axis selects plank orientation, not the legal walking directions.
+fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     let across = match object.kind {
         ObjectKind::Path => 0.34,
         ObjectKind::Track => 0.31,
     };
-    let along_u = matches!(object.axis, Axis::X) != (rotation % 2 == 1);
-    let (half_u, half_v) = if along_u {
-        (0.5, across)
-    } else {
-        (across, 0.5)
+    let (half_x, half_y) = match object.axis {
+        Axis::X => (0.5, across),
+        Axis::Y => (across, 0.5),
+    };
+    let (mut min_x, mut max_x, mut min_y, mut max_y) = (-half_x, half_x, -half_y, half_y);
+    if object.kind == ObjectKind::Path {
+        for neighbor in park
+            .path_neighbors(object.id)
+            .into_iter()
+            .filter_map(|id| park.object(id))
+        {
+            if neighbor.pos.x < object.pos.x {
+                min_x = -0.5;
+            } else if neighbor.pos.x > object.pos.x {
+                max_x = 0.5;
+            } else if neighbor.pos.y < object.pos.y {
+                min_y = -0.5;
+            } else if neighbor.pos.y > object.pos.y {
+                max_y = 0.5;
+            }
+        }
+    }
+    (min_x, max_x, min_y, max_y)
+}
+
+/// A horizontal deck and its two front faces. Detail strokes are clipped to
+/// the top, so rendering, picking, and outlines share the connected footprint.
+fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surface; 3] {
+    let size = park.width();
+    let (x, y) = rotate(object.pos, size, rotation);
+    let (u, v) = (x as f32, y as f32);
+    let (min_x, max_x, min_y, max_y) = object_bounds(park, object);
+    let (min_u, max_u, min_v, max_v) = match rotation % 4 {
+        0 => (min_x, max_x, min_y, max_y),
+        1 => (-max_y, -min_y, min_x, max_x),
+        2 => (-max_x, -min_x, -max_y, -min_y),
+        _ => (min_y, max_y, -max_x, -min_x),
     };
     let height = object_top(object);
     let bottom = f32::from(object.height);
     let top = Surface {
         vertices: [
-            project(u - half_u, v - half_v, height, size),
-            project(u - half_u, v + half_v, height, size),
-            project(u + half_u, v + half_v, height, size),
-            project(u + half_u, v - half_v, height, size),
+            project(u + min_u, v + min_v, height, size),
+            project(u + min_u, v + max_v, height, size),
+            project(u + max_u, v + max_v, height, size),
+            project(u + max_u, v + min_v, height, size),
         ],
         kind: SurfaceKind::Top,
     };
@@ -325,8 +355,8 @@ fn object_surfaces(object: &SurfaceObject, size: u32, rotation: u8) -> [Surface;
             vertices: [
                 top.vertices[1],
                 top.vertices[2],
-                project(u + half_u, v + half_v, bottom, size),
-                project(u - half_u, v + half_v, bottom, size),
+                project(u + max_u, v + max_v, bottom, size),
+                project(u + min_u, v + max_v, bottom, size),
             ],
             kind: SurfaceKind::LeftCliff,
         },
@@ -334,8 +364,8 @@ fn object_surfaces(object: &SurfaceObject, size: u32, rotation: u8) -> [Surface;
             vertices: [
                 top.vertices[2],
                 top.vertices[3],
-                project(u + half_u, v - half_v, bottom, size),
-                project(u + half_u, v + half_v, bottom, size),
+                project(u + max_u, v + min_v, bottom, size),
+                project(u + max_u, v + max_v, bottom, size),
             ],
             kind: SurfaceKind::RightCliff,
         },
@@ -353,7 +383,7 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
         SurfaceId::Object(id) => park
             .object(id)
             .filter(|object| object_visible(park, object, mode))
-            .map(|object| object_surfaces(object, park.width(), rotation).to_vec())
+            .map(|object| object_surfaces(park, object, rotation).to_vec())
             .unwrap_or_default(),
         _ => Vec::new(),
     }
@@ -364,7 +394,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         if !object_visible(park, object, mode) {
             continue;
         }
-        let surfaces = object_surfaces(object, park.width(), rotation);
+        let surfaces = object_surfaces(park, object, rotation);
         let top = surfaces[0];
         for surface in surfaces {
             let ink = match (object.kind, surface.kind) {
@@ -389,19 +419,31 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         };
         match object.kind {
             ObjectKind::Path => {
+                let (min_x, max_x, min_y, max_y) = object_bounds(park, object);
+                let (min_across, max_across) = match object.axis {
+                    Axis::X => (min_y, max_y),
+                    Axis::Y => (min_x, max_x),
+                };
                 // Original timber planks and a dark inset edge make the
-                // raised walkway readable even at the overview fit.
+                // raised walkway readable. A connected junction has no
+                // dark border painted across its open walking edge.
                 for along in [-0.4, -0.2, 0.0, 0.2, 0.4] {
                     mesh.surface_line(
                         top,
-                        point(along, -0.32),
-                        point(along, 0.32),
+                        point(along, min_across + 0.02),
+                        point(along, max_across - 0.02),
                         0.8,
                         DETAIL_BIAS,
                         rgb(188, 143, 88),
                     );
                 }
-                for across in [-0.29, 0.29] {
+                for across in [
+                    (min_across > -0.5).then_some(min_across + 0.05),
+                    (max_across < 0.5).then_some(max_across - 0.05),
+                ]
+                .into_iter()
+                .flatten()
+                {
                     mesh.surface_line(
                         top,
                         point(-0.5, across),
@@ -692,6 +734,136 @@ pub fn selection_mesh(
         }
     }
     mesh.finish()
+}
+
+/// Moving people have their own mesh so a simulation tick never has to
+/// regenerate the static terrain. They are decorations of authoritative guest
+/// state for now; clicking through a person still inspects the path beneath.
+pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
+    let mut mesh = Painter::default();
+    if park.width() != park.height() {
+        return mesh.finish();
+    }
+    for guest in park.guests() {
+        if guest
+            .current
+            .and_then(|id| park.object(id))
+            .is_some_and(|object| !object_visible(park, object, mode))
+        {
+            continue;
+        }
+        let Some(base) = guest_anchor(park, guest.id, rotation) else {
+            continue;
+        };
+        let point = base.truncate();
+        // Clip the contact shadow to the actual supporting path decks. While
+        // crossing a tile edge the two roofs form the continuous support.
+        for object in [guest.current, guest.next]
+            .into_iter()
+            .flatten()
+            .filter_map(|id| park.object(id))
+        {
+            let top = object_surfaces(park, object, rotation)[0];
+            mesh.surface_ellipse(top, point, 5.3, 2.6, DETAIL_BIAS * 3.0, rgb(145, 112, 77));
+        }
+        // A tiny billboard has the depth of its feet, so nearer terrain or
+        // decks can hide it. The bias only separates it from its own roof.
+        let depth = base.z + 0.04;
+        let stride = if guest.state == GuestState::Walking {
+            ((f32::from(guest.progress) / f32::from(park_sim::WALK_TICKS)) * std::f32::consts::TAU)
+                .sin()
+                * 1.8
+        } else {
+            0.0
+        };
+        for (side, step) in [(-1.8, stride), (1.8, -stride)] {
+            mesh.line(
+                point + Vec2::new(side, 7.5),
+                point + Vec2::new(side + step, 0.8),
+                2.4,
+                depth,
+                rgb(43, 62, 68),
+            );
+        }
+        let shirt = if guest.state == GuestState::Lost {
+            rgb(235, 112, 44)
+        } else {
+            match guest.id.0 % 6 {
+                0 => rgb(213, 77, 82),
+                1 => rgb(66, 126, 188),
+                2 => rgb(150, 88, 174),
+                3 => rgb(242, 184, 65),
+                4 => rgb(53, 154, 140),
+                _ => rgb(222, 119, 161),
+            }
+        };
+        mesh.quad(
+            [
+                point + Vec2::new(-3.3, 7.0),
+                point + Vec2::new(3.3, 7.0),
+                point + Vec2::new(3.8, 17.0),
+                point + Vec2::new(-3.8, 17.0),
+            ],
+            depth + 0.001,
+            shirt,
+        );
+        let skin = if guest.id.0.is_multiple_of(3) {
+            rgb(174, 119, 84)
+        } else {
+            rgb(239, 192, 143)
+        };
+        for side in [-1.0, 1.0] {
+            mesh.line(
+                point + Vec2::new(side * 4.0, 15.3),
+                point + Vec2::new(side * 4.3, 9.2 + stride * side),
+                1.8,
+                depth + 0.002,
+                skin,
+            );
+        }
+        mesh.ellipse(
+            point + Vec2::new(0.0, 20.2),
+            3.5,
+            4.0,
+            depth + 0.003,
+            rgb(67, 53, 42),
+        );
+        mesh.ellipse(point + Vec2::new(0.3, 19.6), 3.1, 3.2, depth + 0.004, skin);
+        if guest.state == GuestState::Lost {
+            mesh.line(
+                point + Vec2::new(0.0, 28.0),
+                point + Vec2::new(0.0, 32.0),
+                2.0,
+                depth + 0.005,
+                rgb(201, 68, 34),
+            );
+            mesh.ellipse(
+                point + Vec2::new(0.0, 25.5),
+                1.0,
+                1.0,
+                depth + 0.005,
+                rgb(201, 68, 34),
+            );
+        }
+    }
+    mesh.finish()
+}
+
+fn guest_anchor(park: &Park, id: park_sim::GuestId, rotation: u8) -> Option<Vec3> {
+    let position = park.guest_position(id)?;
+    let (from_u, from_v) = rotate(position.from, park.width(), rotation);
+    let (to_u, to_v) = rotate(position.to, park.width(), rotation);
+    let fraction = f32::from(position.progress) / f32::from(position.steps.max(1));
+    let u = from_u as f32 + (to_u as f32 - from_u as f32) * fraction;
+    let v = from_v as f32 + (to_v as f32 - from_v as f32) * fraction;
+    // Path tops are shallow decks within their two-step clearance interval.
+    // The guest's base follows that visible roof, not the terrain underneath.
+    Some(project(
+        u,
+        v,
+        f32::from(position.height) + 0.22,
+        park.width(),
+    ))
 }
 
 fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
@@ -1390,7 +1562,7 @@ mod tests {
                         mesh_depth(&scene, border).unwrap()
                             > mesh_depth(&outline, border).unwrap() + 5.0
                     );
-                    let path_top = object_surfaces(park.object(path).unwrap(), 12, rotation)[0];
+                    let path_top = object_surfaces(&park, park.object(path).unwrap(), rotation)[0];
                     assert!(
                         (mesh_depth(&scene, center).unwrap() - path_top.depth_at(center)).abs()
                             < 0.01
@@ -1401,7 +1573,7 @@ mod tests {
                         let point = Vec3::from(*point);
                         assert!(point.is_finite());
                         assert!(
-                            object_surfaces(park.object(path).unwrap(), 12, rotation)
+                            object_surfaces(&park, park.object(path).unwrap(), rotation)
                                 .into_iter()
                                 .any(|face| {
                                     face.hit_depth(point.truncate()).is_some_and(|depth| {
@@ -1436,7 +1608,7 @@ mod tests {
                     Some(SurfaceId::Terrain(pos)),
                 );
                 let scene = build_scene(&park, rotation, false, ViewMode::Surface);
-                let object_depth = object_surfaces(object, 12, rotation)[0].depth_at(center);
+                let object_depth = object_surfaces(&park, object, rotation)[0].depth_at(center);
                 assert!((mesh_depth(&scene, center).unwrap() - object_depth).abs() < 0.01);
             }
         }
@@ -1474,7 +1646,7 @@ mod tests {
             // Remove the neighbor so both front faces are actually exposed.
             park.remove_object(second).unwrap();
             let scene = build_scene(&park, rotation, false, ViewMode::Surface);
-            for face in object_surfaces(park.object(first).unwrap(), 12, rotation)
+            for face in object_surfaces(&park, park.object(first).unwrap(), rotation)
                 .into_iter()
                 .skip(1)
             {
@@ -1547,6 +1719,160 @@ mod tests {
                         0
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn junction_decks_and_picking_reach_only_connected_same_height_edges() {
+        let mut park = Park::new(12, 12);
+        let center_id = park
+            .place_object(TilePos { x: 5, y: 5 }, ObjectKind::Path, Axis::X, 4, 2)
+            .unwrap();
+        let stacked = park
+            .place_object(TilePos { x: 5, y: 6 }, ObjectKind::Path, Axis::Y, 8, 2)
+            .unwrap();
+        let track = park
+            .place_object(TilePos { x: 5, y: 4 }, ObjectKind::Track, Axis::Y, 4, 2)
+            .unwrap();
+        assert_eq!(
+            object_bounds(&park, park.object(center_id).unwrap()),
+            (-0.5, 0.5, -0.34, 0.34),
+        );
+        park.remove_object(stacked).unwrap();
+        park.remove_object(track).unwrap();
+        let mut cross_neighbors = Vec::new();
+        for pos in [
+            TilePos { x: 4, y: 5 },
+            TilePos { x: 6, y: 5 },
+            TilePos { x: 5, y: 4 },
+            TilePos { x: 5, y: 6 },
+        ] {
+            cross_neighbors.push(
+                park.place_object(pos, ObjectKind::Path, Axis::Y, 4, 2)
+                    .unwrap(),
+            );
+        }
+        assert_eq!(park.path_neighbors(center_id).len(), 4);
+        assert_eq!(
+            object_bounds(&park, park.object(center_id).unwrap()),
+            (-0.5, 0.5, -0.5, 0.5),
+        );
+        for rotation in 0..4 {
+            for across in [-0.45, 0.45] {
+                let center = park.object(center_id).unwrap();
+                let point = object_point(center, 0.0, across, object_top(center), 12, rotation);
+                for mode in [ViewMode::Surface, ViewMode::Underground] {
+                    assert_eq!(
+                        pick_surface(point, &park, rotation, mode),
+                        Some(SurfaceId::Object(center_id)),
+                    );
+                    let scene = build_scene(&park, rotation, false, mode);
+                    let roof = object_surfaces(&park, center, rotation)[0];
+                    assert!(
+                        (mesh_depth(&scene, point).unwrap() - roof.depth_at(point)).abs() < 0.01,
+                    );
+                }
+            }
+        }
+        // Deleting one branch closes precisely that cross edge, without
+        // changing the rest of the junction's selectable owner.
+        park.remove_object(cross_neighbors[3]).unwrap();
+        assert_eq!(
+            object_bounds(&park, park.object(center_id).unwrap()),
+            (-0.5, 0.5, -0.5, 0.34),
+        );
+    }
+
+    #[test]
+    fn guest_mesh_interpolates_on_path_roofs_in_every_rotation_and_view() {
+        let mut park = Park::new(32, 32);
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        park.install_crowd_fixture(1234).unwrap();
+        for _ in 0..17 {
+            park.advance(park_sim::Speed::Normal);
+        }
+        assert!(park.guests().iter().any(|guest| guest.progress > 0));
+        for rotation in 0..4 {
+            for guest in park.guests() {
+                let position = park.guest_position(guest.id).unwrap();
+                let fraction = f32::from(position.progress) / f32::from(position.steps);
+                let from = tile_center(position.from, 32, rotation);
+                let to = tile_center(position.to, 32, rotation);
+                let expected = from.lerp(to, fraction)
+                    + Vec2::Y * ((f32::from(position.height) + 0.22) * HEIGHT_STEP);
+                let base = guest_anchor(&park, guest.id, rotation).unwrap();
+                assert!(base.truncate().distance(expected) < 0.0001);
+                assert!(base.z < 1000.0);
+            }
+            let surface = guest_mesh(&park, rotation, ViewMode::Surface);
+            let underground = guest_mesh(&park, rotation, ViewMode::Underground);
+            assert!(surface.count_vertices() > 0);
+            assert_eq!(positions(&surface), positions(&underground));
+            assert!(
+                positions(&surface)
+                    .iter()
+                    .flatten()
+                    .all(|value| value.is_finite())
+            );
+        }
+    }
+
+    #[test]
+    fn guest_billboards_use_physical_depth_and_are_hidden_by_nearer_terrain() {
+        for rotation in 0..4 {
+            let mut park = Park::new(32, 32);
+            park.install_crowd_fixture(9).unwrap();
+            let guest = park.guests()[0].clone();
+            let base = guest_anchor(&park, guest.id, rotation).unwrap();
+            let sample = base.truncate() + Vec2::new(0.0, 12.0);
+            let people = guest_mesh(&park, rotation, ViewMode::Surface);
+            let person_depth = mesh_depth(&people, sample).unwrap();
+            assert!(person_depth >= base.z + 0.04);
+            // Put an empty terrain column toward the camera, at an elevation
+            // whose roof overlaps this person's body in the projected view.
+            let (u, v) = rotate(guest.anchor, 32, rotation);
+            let (distance, foreground) = (2..=10)
+                .filter(|distance| u + distance < 32 && v + distance < 32)
+                .map(|distance| (distance, unrotate(u + distance, v + distance, 32, rotation)))
+                .find(|(_, pos)| park.objects().iter().all(|object| object.pos != *pos))
+                .unwrap();
+            park.set_terrain_height(foreground, guest.height + (2 * distance + 1) as u8)
+                .unwrap();
+            let terrain = build_scene(&park, rotation, false, ViewMode::Surface);
+            assert!(mesh_depth(&terrain, sample).unwrap() > person_depth + 1.0);
+        }
+    }
+
+    #[test]
+    fn lost_guests_remain_visible_at_their_anchor_without_deleted_path_references() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(42).unwrap();
+        let paths: Vec<_> = park
+            .objects()
+            .iter()
+            .filter(|object| object.kind == ObjectKind::Path)
+            .map(|object| object.id)
+            .collect();
+        for path in paths {
+            park.remove_object(path).unwrap();
+        }
+        assert_eq!(park.crowd_stats().lost, 12);
+        for rotation in 0..4 {
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                let mesh = guest_mesh(&park, rotation, mode);
+                assert!(mesh.count_vertices() > 0);
+                assert!(
+                    positions(&mesh)
+                        .iter()
+                        .flatten()
+                        .all(|value| value.is_finite())
+                );
+                let colors = match mesh.attribute(Mesh::ATTRIBUTE_COLOR).unwrap() {
+                    VertexAttributeValues::Float32x4(colors) => colors,
+                    _ => panic!("mesh color format changed"),
+                };
+                assert!(colors.contains(&rgb(235, 112, 44)));
             }
         }
     }

@@ -3,8 +3,10 @@
 //! Rendering, input, and wall-clock time belong to the application. Keeping those
 //! concerns outside this crate makes the simulation usable in headless tests.
 
+mod crowds;
 mod surfaces;
 
+pub use crowds::{CrowdStats, Guest, GuestId, GuestPosition, GuestState, WALK_TICKS};
 pub use surfaces::{Axis, ObjectId, ObjectKind, PlacementError, SurfaceId, SurfaceObject};
 
 /// Number of normal-speed simulation ticks in one second.
@@ -105,6 +107,10 @@ pub struct Park {
     ticks: u64,
     objects: Vec<SurfaceObject>,
     next_object_id: u64,
+    guests: Vec<Guest>,
+    next_guest_id: u64,
+    crowd_seed: Option<u64>,
+    crowd_rng: u64,
 }
 
 impl Park {
@@ -137,6 +143,10 @@ impl Park {
             ticks: 0,
             objects: Vec::new(),
             next_object_id: 1,
+            guests: Vec::new(),
+            next_guest_id: 1,
+            crowd_seed: None,
+            crowd_rng: 0,
         }
     }
 
@@ -246,9 +256,16 @@ impl Park {
 
     /// Advance once per application fixed update (30 updates per real second).
     ///
-    /// Saturation prevents the clock from wrapping if it reaches its limit.
+    /// Every accelerated tick executes all authoritative systems. The clock
+    /// stops at its limit together with the simulation rather than wrapping.
     pub fn advance(&mut self, speed: Speed) {
-        self.ticks = self.ticks.saturating_add(u64::from(speed.multiplier()));
+        for _ in 0..speed.multiplier() {
+            if self.ticks == u64::MAX {
+                break;
+            }
+            self.ticks += 1;
+            self.step_crowd();
+        }
     }
 }
 

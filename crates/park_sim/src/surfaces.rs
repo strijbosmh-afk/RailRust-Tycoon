@@ -193,7 +193,11 @@ impl Park {
     /// Remove only the requested object, retaining the order and IDs of others.
     pub fn remove_object(&mut self, id: ObjectId) -> Option<SurfaceObject> {
         let index = self.objects.iter().position(|object| object.id == id)?;
-        Some(self.objects.remove(index))
+        let removed = self.objects.remove(index);
+        if removed.kind == ObjectKind::Path {
+            self.reconcile_guests_after_removal(removed);
+        }
+        Some(removed)
     }
 
     /// Install a deterministic 21-object overlap scene as one atomic operation.

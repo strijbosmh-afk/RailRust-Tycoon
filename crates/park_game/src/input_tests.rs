@@ -7,6 +7,13 @@ use std::time::Duration;
 
 use super::*;
 
+fn crowd_park() -> Park {
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    park.apply_terrain_profile(TerrainProfile::Terraced);
+    park.install_crowd_fixture(CROWD_SEED).unwrap();
+    park
+}
+
 fn test_window(width: u32, height: u32, dpi: f32) -> Window {
     Window {
         resolution: WindowResolution::new(
@@ -610,6 +617,243 @@ fn fitting_includes_elevated_objects_above_flat_terrain() {
                 window.height() * 0.5 - relative.y,
             );
             assert!(is_map_position(cursor, &window, false) && cursor.x < window.width());
+        }
+    }
+}
+
+#[test]
+fn keyboard_deletion_and_restore_preserve_guests_time_and_other_objects() {
+    let mut park = crowd_park();
+    for _ in 0..90 {
+        park.advance(Speed::Normal);
+    }
+    let removed = park.guests()[0].current.unwrap();
+    let guest_ids: Vec<_> = park.guests().iter().map(|guest| guest.id).collect();
+    let objects = park.objects().to_vec();
+    let ticks = park.ticks();
+    let (mut app, _) = input_app(
+        park,
+        ViewState {
+            selected: Some(SurfaceId::Object(removed)),
+            speed: Speed::Paused,
+            ..default()
+        },
+        1.0,
+    );
+    app.add_systems(Update, apply_path_actions.after(keyboard_input));
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::Delete);
+    frame(&mut app);
+    let park = &app.world().resource::<Simulation>().0;
+    assert!(park.object(removed).is_none());
+    assert_eq!(park.ticks(), ticks);
+    assert_eq!(
+        park.guests().iter().map(|g| g.id).collect::<Vec<_>>(),
+        guest_ids
+    );
+    assert!(
+        park.guests()
+            .iter()
+            .all(|guest| guest.current != Some(removed)
+                && guest.next != Some(removed)
+                && guest.destination != Some(removed))
+    );
+    assert!(app.world().resource::<ViewState>().selected.is_none());
+    assert!(app.world().resource::<ViewState>().scene_dirty);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyR);
+    frame(&mut app);
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(park.ticks(), ticks);
+    assert_eq!(park.objects().len(), objects.len());
+    assert!(
+        park.object(removed).is_none(),
+        "restoration must allocate a new identity"
+    );
+    for object in objects.iter().filter(|o| o.id != removed) {
+        assert_eq!(park.object(object.id), Some(object));
+    }
+    assert_eq!(
+        park.guests().iter().map(|g| g.id).collect::<Vec<_>>(),
+        guest_ids
+    );
+}
+
+#[test]
+fn delete_rejects_non_paths_and_help_blocks_path_shortcuts() {
+    let park = crowd_park();
+    let track = park
+        .objects()
+        .iter()
+        .find(|o| o.kind == ObjectKind::Track)
+        .unwrap()
+        .id;
+    for (selected, help) in [
+        (Some(SurfaceId::Object(track)), false),
+        (Some(SurfaceId::Terrain(TilePos { x: 12, y: 16 })), false),
+        (
+            Some(SurfaceId::Object(park.guests()[0].current.unwrap())),
+            true,
+        ),
+    ] {
+        let (mut app, _) = input_app(
+            park.clone(),
+            ViewState {
+                selected,
+                help,
+                ..default()
+            },
+            1.0,
+        );
+        app.add_systems(Update, apply_path_actions.after(keyboard_input));
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::Delete);
+        frame(&mut app);
+        assert_eq!(app.world().resource::<Simulation>().0, park);
+    }
+}
+
+#[test]
+fn path_buttons_apply_once_and_capture_mode_ignores_them() {
+    for capture_active in [false, true] {
+        let park = crowd_park();
+        let selected = park.guests()[0].current.unwrap();
+        let count = park.objects().len();
+        let mut app = App::new();
+        app.insert_resource(Simulation(park))
+            .insert_resource(ViewState {
+                selected: Some(SurfaceId::Object(selected)),
+                capture_active,
+                ..default()
+            })
+            .add_systems(Update, (ui::button_actions, apply_path_actions).chain());
+        let button = app
+            .world_mut()
+            .spawn((Button, Interaction::Pressed, ui::Action::RemovePath))
+            .id();
+        app.update();
+        assert_eq!(
+            app.world().resource::<Simulation>().0.objects().len(),
+            count - usize::from(!capture_active)
+        );
+        assert_eq!(
+            app.world().resource::<ViewState>().ui_pointer_consumed,
+            !capture_active
+        );
+        app.update();
+        assert!(!app.world().resource::<ViewState>().ui_pointer_consumed);
+        app.world_mut()
+            .entity_mut(button)
+            .insert((ui::Action::RestorePaths, Interaction::None));
+        app.update();
+        app.world_mut()
+            .entity_mut(button)
+            .insert(Interaction::Pressed);
+        app.update();
+        assert_eq!(
+            app.world().resource::<Simulation>().0.objects().len(),
+            count
+        );
+    }
+}
+
+#[test]
+fn application_speed_advances_complete_crowd_steps_and_pause_freezes_them() {
+    let mut expected = crowd_park();
+    let mut app = App::new();
+    app.insert_resource(Simulation(expected.clone()))
+        .insert_resource(ViewState {
+            speed: Speed::Fastest,
+            ..default()
+        })
+        .add_systems(Update, tick_simulation);
+    for _ in 0..150 {
+        app.update();
+        for _ in 0..4 {
+            expected.advance(Speed::Normal);
+        }
+    }
+    assert_eq!(app.world().resource::<Simulation>().0, expected);
+    assert!(expected.crowd_stats().arrivals > 0);
+    app.world_mut()
+        .resource_mut::<ViewState>()
+        .set_speed(Speed::Paused);
+    for _ in 0..20 {
+        app.update();
+    }
+    assert_eq!(app.world().resource::<Simulation>().0, expected);
+}
+
+#[test]
+fn moving_guests_update_their_mesh_without_rebuilding_static_terrain() {
+    let mut app = App::new();
+    app.insert_resource(Simulation(crowd_park()))
+        .insert_resource(ViewState::default())
+        .init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<ColorMaterial>>()
+        .add_systems(Startup, setup_scene)
+        .add_systems(Update, update_scene);
+    app.update();
+    let positions = |app: &App, guests: bool| {
+        let scene = app.world().resource::<SceneMeshes>();
+        let handle = if guests {
+            &scene.guests
+        } else {
+            &scene.landscape
+        };
+        app.world()
+            .resource::<Assets<Mesh>>()
+            .get(handle)
+            .unwrap()
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .unwrap()
+            .as_float3()
+            .unwrap()
+            .to_vec()
+    };
+    let initial_guests = positions(&app, true);
+    let initial_land = positions(&app, false);
+    assert!(!initial_guests.is_empty());
+    for _ in 0..90 {
+        app.world_mut()
+            .resource_mut::<Simulation>()
+            .0
+            .advance(Speed::Normal);
+    }
+    app.update();
+    assert_ne!(positions(&app, true), initial_guests);
+    assert_eq!(positions(&app, false), initial_land);
+}
+
+#[test]
+fn junction_path_stays_selectable_with_crowds_in_all_rotations_and_dpi() {
+    let mut park = crowd_park();
+    for _ in 0..600 {
+        park.advance(Speed::Normal);
+    }
+    let junction = park
+        .objects()
+        .iter()
+        .find(|o| o.kind == ObjectKind::Path && o.pos == (TilePos { x: 13, y: 16 }))
+        .unwrap()
+        .id;
+    for rotation in 0..4 {
+        for dpi in [1.0, 2.0] {
+            let point =
+                world::surface_center(&park, SurfaceId::Object(junction), rotation).unwrap();
+            let (mut app, window) = input_app(
+                park.clone(),
+                ViewState {
+                    rotation,
+                    zoom: 1.3,
+                    ..default()
+                },
+                dpi,
+            );
+            click_surface(&mut app, window, point, SurfaceId::Object(junction));
         }
     }
 }
