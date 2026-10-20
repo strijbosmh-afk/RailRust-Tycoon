@@ -1,10 +1,10 @@
 # Gameplay checklist
 
-Baseline: 19 October 2026. Reference: classic RCT1/RCT2 isometric construction and management. Read with [the development plan](../DEVELOPMENT_PLAN.md) and [product decisions](PRODUCT_DECISIONS.md).
+Updated: 20 October 2026 for the 0.2.0 terrain proof; original baseline: 19 October 2026. Reference: classic RCT1/RCT2 isometric construction and management. Read with [the development plan](../DEVELOPMENT_PLAN.md) and [product decisions](PRODUCT_DECISIONS.md).
 
 This is the implementation inventory for an original game with complete classic gameplay coverage. It is not a claim that the first executable contains these systems. The first playable park is an intermediate checkpoint; 1.0 requires every agreed entry below and the content audit. Original scenario files, artwork, sounds, historical bugs, and original save formats are not assumed deliverables.
 
-**Tracking rules.** `P` = planned; `I` = in progress; `V` = verified. An entry becomes `V` only when its acceptance example passes in a named build, with evidence recorded in the [foundation report](FOUNDATION_REPORT.md) or a later milestone report. The stage is the completion milestone, not a restriction on earlier prototypes. Every feature must persist through save/load and work through normal player controls where applicable; foundation 0.1.0 does not yet implement persistence.
+**Tracking rules.** `P` = planned; `I` = in progress; `V` = verified. An entry becomes `V` only when its acceptance example passes in a named build, with evidence recorded in the [foundation report](FOUNDATION_REPORT.md), [terrain report](TERRAIN_REPORT.md), or a later milestone report. The stage is the completion milestone, not a restriction on earlier prototypes. Every feature must persist through save/load and work through normal player controls where applicable; version 0.2.0 does not yet implement persistence.
 
 ## Foundation and technical proofs
 
@@ -12,11 +12,11 @@ This is the implementation inventory for an original game with complete classic 
 | --- | --- | --- | --- |
 | DEF-01 | 0 | P | Reconcile this inventory against the selected classic baseline; every gap has an ID and owner stage, and expansion-only items remain visibly separate. |
 | DEF-02 | 0 | P | Record supported Windows versions, reference PC, original visual direction, content targets, and naming decision; unmeasured performance stays labelled a target. |
-| FND-01 | 1 | V | A Rust Windows build opens an isometric tile map and closes cleanly; the packaged executable runs outside the source folder. Verified in 0.1.0 through native startup, rendered captures, diagnostic exit code 0, and extracted-ZIP relocation. |
-| FND-02 | 1 | I | Pan and zoom the camera and select a map tile; the highlighted tile matches the pointer and selection details match the world coordinate. |
-| FND-03 | 1 | I | Toolbar and status area expose the current tool, tile, simulation time, and pause/speed state; pause stops authoritative ticks and speed changes their rate. |
-| FND-04 | 1 | V | Simulation rules run without graphics; relevant tests, formatting, linting, and release compilation pass. Verified in 0.1.0: 16 tests, formatting, Clippy with warnings denied, and release compilation. |
-| PRF-01 | 2 | P | Render and pick stacked terrain, elevated paths, and underground track; hidden and visible surfaces do not select the wrong height. |
+| FND-01 | 1 | V | A Rust Windows build opens an isometric tile map and closes cleanly; the packaged executable runs outside the source folder. Reverified in 0.2.0 through native startup/close, rendered captures, diagnostic exit code 0, and extracted-ZIP relocation with 16 matching payload hashes. |
+| FND-02 | 1 | I | Pan and zoom the camera and select a map tile; the highlighted tile matches the pointer and selection details match the world coordinate. Native 0.2.0 checks covered roof/cliff selection, rotation, wheel zoom, and Fit. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
+| FND-03 | 1 | V | Toolbar and status area expose the current tool, tile, simulation time, and pause/speed state; pause stops authoritative ticks and speed changes their rate. Verified in 0.2.0 through native inspector/preset/speed/pause/resume/help checks plus authoritative simulation tests. The observed timer advanced at 4x, stayed at 02:36 through pause and help, then resumed at 4x; see the terrain report. |
+| FND-04 | 1 | V | Simulation rules run without graphics; relevant tests, formatting, linting, and release compilation pass. Foundation release verification is recorded in 0.1.0. Current 0.2.0 automated evidence: 34 tests passed (12 simulation, 10 geometry/picking, eight input-system, four existing main controls), formatting passed, and Clippy passed with warnings denied. The terrain report records current executable build evidence. |
+| PRF-01 | 2 | I | Render and pick stacked terrain, elevated paths, and underground track; hidden and visible surfaces do not select the wrong height. Version 0.2.0 implements the terrain-height slice with Flat/Terraced presets, top/cliff picking, occlusion, and height-aware camera fit. Elevated-path and underground-track overlap proofs remain planned; see the terrain report for actual verification. |
 | PRF-02 | 2 | P | A seeded crowd reaches destinations and recovers from path deletion; disconnected guests enter a defined lost/recovery behavior without invalid references. |
 | PRF-03 | 2 | P | A train completes a representative station/lift/drop/brake circuit with stable movement at different display frame rates. |
 | PRF-04 | 2 | P | Save and reload a seeded simulation; continuing the same commands reproduces the authoritative state for the same build. |

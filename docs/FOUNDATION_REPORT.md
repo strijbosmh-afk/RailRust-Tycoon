@@ -1,5 +1,7 @@
 # Foundation build report
 
+Historical 0.1.0 checkpoint. The current 0.2.0 implementation and verification are recorded in [the terrain report](TERRAIN_REPORT.md).
+
 Build: Parkbound 0.1.0, 19 October 2026. Parkbound is a temporary working title. This is the first executable foundation, not a completed park management game.
 
 ## Delivered behavior

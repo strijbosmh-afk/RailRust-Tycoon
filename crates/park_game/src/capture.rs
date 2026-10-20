@@ -12,7 +12,7 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
 };
-use park_sim::{Speed, TilePos};
+use park_sim::{Speed, TerrainProfile, TilePos};
 
 use crate::{MAP_SIZE, ViewState};
 
@@ -32,6 +32,9 @@ struct Capture {
     destination: PathBuf,
     temporary: PathBuf,
     scene: Scene,
+    rotation: Option<u8>,
+    terrain_profile: TerrainProfile,
+    small_window: bool,
     started: Instant,
     frames: u32,
     requested: bool,
@@ -76,6 +79,31 @@ pub(super) fn configure(app: &mut App) {
             },
         )
         .unwrap_or(Scene::Overview);
+    let rotation = arguments
+        .iter()
+        .position(|value| value == "--capture-rotation")
+        .map(|index| {
+            arguments
+                .get(index + 1)
+                .and_then(|value| value.to_str())
+                .and_then(|value| value.parse::<u8>().ok())
+                .filter(|value| *value < 4)
+                .expect("--capture-rotation must be 0, 1, 2, or 3")
+        });
+    let terrain_profile = arguments
+        .iter()
+        .position(|value| value == "--capture-map")
+        .map(
+            |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("flat") => TerrainProfile::Flat,
+                Some("terraced") => TerrainProfile::Terraced,
+                _ => panic!("--capture-map must be flat or terraced"),
+            },
+        )
+        .unwrap_or(TerrainProfile::Terraced);
+    let small_window = arguments
+        .iter()
+        .any(|value| value == "--capture-small-window");
 
     let directory = destination
         .parent()
@@ -94,6 +122,9 @@ pub(super) fn configure(app: &mut App) {
         destination,
         temporary,
         scene,
+        rotation,
+        terrain_profile,
+        small_window,
         started: Instant::now(),
         frames: 0,
         requested: false,
@@ -104,17 +135,33 @@ pub(super) fn configure(app: &mut App) {
     .add_systems(Last, capture_frame);
 }
 
-fn apply_preset(capture: Res<Capture>, mut view: ResMut<ViewState>) {
+fn apply_preset(
+    capture: Res<Capture>,
+    mut view: ResMut<ViewState>,
+    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+) {
+    view.capture_active = true;
     view.set_speed(Speed::Paused);
+    view.terrain_profile = capture.terrain_profile;
+    view.terrain_change_pending = true;
     view.help = matches!(capture.scene, Scene::Help);
     if matches!(capture.scene, Scene::Selection) {
         view.selected = Some(TilePos {
-            x: MAP_SIZE / 2,
+            x: MAP_SIZE * 2 / 5,
             y: MAP_SIZE / 2,
         });
         view.rotation = 1;
         view.zoom = 1.35;
         view.scene_dirty = true;
+    }
+    if let Some(rotation) = capture.rotation {
+        view.rotation = rotation;
+        view.scene_dirty = true;
+    }
+    if capture.small_window
+        && let Ok(mut window) = windows.single_mut()
+    {
+        window.resolution.set(1024.0, 680.0);
     }
 }
 

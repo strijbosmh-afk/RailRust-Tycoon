@@ -2,7 +2,7 @@
 
 Build a complete, free Windows game in Rust that recreates the construction and management experience of classic RollerCoaster Tycoon 1 and 2. Development proceeds through playable milestones, each with a demonstrable completion condition. Distribution, save compatibility, and original content are part of the design from the beginning.
 
-Planning baseline: 19 October 2026. Implementation has started with the first Windows foundation, under the temporary working title **Parkbound**. The [gameplay checklist](docs/GAMEPLAY_CHECKLIST.md) tracks feature acceptance, and the [foundation report](docs/FOUNDATION_REPORT.md) records demonstrated results and remaining checks. The full game remains a staged development project.
+Planning baseline: 19 October 2026; progress updated 20 October 2026. Under the temporary working title **Parkbound**, version 0.1.0 delivered the Windows foundation and version 0.2.0 begins Stage 2 with terrain-height rendering and picking. The [gameplay checklist](docs/GAMEPLAY_CHECKLIST.md) tracks feature acceptance. The [foundation report](docs/FOUNDATION_REPORT.md) preserves 0.1.0 evidence, and the [terrain report](docs/TERRAIN_REPORT.md) records the current proof and its remaining checks. The full game remains a staged development project.
 
 **Confirmed product direction**
 
@@ -125,12 +125,14 @@ Use a free itch.io download page as the initial public channel; GitHub Releases 
 
 All gameplay ships in the free download. Proposed release behavior includes no required account, paid unlocks, online activation, or server dependency. Code signing is a distribution decision to evaluate before public release, including its cost and behavior on the supported Windows configurations.
 
-Maintain an asset provenance register and third-party notices from the first imported dependency or asset. Choose the project's source-code license separately from asset licenses before publishing source. Contributors must provide redistribution rights for their submissions. Give each public build a version, changelog, checksums, and a clear save-compatibility statement.
+Maintain an asset provenance register and third-party notices from the first imported dependency or asset. Source publication in the dedicated GitHub repository is authorized; the project's source-code license remains undecided and must be chosen separately from asset licenses before granting reuse rights or accepting outside contributions. Contributors must provide redistribution rights for their submissions. Give each public build a version, changelog, checksums, and a clear save-compatibility statement.
 
 Public-release verification covers both new installations and upgrades from supported earlier releases. Keep migration test saves, preserve backups, report unsupported/corrupt saves without overwriting them, and preserve user saves on uninstall. Publish a short bug-report template requesting the game version, reproduction steps, and an optional save/log attachment.
 
-**First implementation session**
+**Current implementation and next slice**
 
-The first technical deliverable is implemented: a Rust workspace, isometric tile map, camera controls, selection, toolbar, and fixed-step simulation clock. Review the packaged build using the outstanding checks in the foundation report. Continue the content audit while beginning Stage 2 with height-aware rendering and picking, path connectivity and guest navigation, a representative train circuit, and save/reload determinism. Keep each proof independently reviewable before expanding content.
+The Rust workspace, camera controls, selection, toolbar, and fixed-step simulation clock form the foundation. Version 0.2.0 adds integer terrain heights, deterministic Flat/Terraced presets, top and front-cliff geometry/picking, terrain-aware occlusion, scenery anchors, and height-aware camera fit. It does not add terrain editing, paths, guests, rides, or saves. Native toolbar/time-control checks and simulation tests verify FND-03. Remaining panning/dragging, physical display, and clean-machine checks keep overall foundation acceptance open.
+
+Continue PRF-01 with elevated-path and underground-track overlap fixtures, consistent surface identity, visibility, and clearance. The terraced terrain proof alone does not complete that acceptance ID. Then prove path connectivity and guest recovery, a representative train circuit, save/reload determinism, and the proposed performance benchmark in that order. Continue the exact classic-content and expansion audit in parallel; it remains unresolved. Keep each proof independently reviewable before expanding content.
 
 Estimate later milestones after measuring the technical proofs and first complete park. Full classic gameplay coverage includes a substantial content, interface, balancing, and testing workload; it cannot be inferred from the time needed to display the first map.

@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod capture;
+#[cfg(test)]
+mod input_tests;
 mod ui;
 mod world;
 
@@ -10,7 +12,7 @@ use bevy::{
     prelude::*,
     window::{PresentMode, PrimaryWindow, WindowResolution},
 };
-use park_sim::{Park, Speed, TICKS_PER_SECOND, TilePos};
+use park_sim::{Park, Speed, TICKS_PER_SECOND, TerrainProfile, TilePos};
 
 const MAP_SIZE: u32 = 32;
 const SIDEBAR: f32 = 248.0;
@@ -34,6 +36,9 @@ struct ViewState {
     dragging: bool,
     ui_pointer_consumed: bool,
     scene_dirty: bool,
+    terrain_profile: TerrainProfile,
+    terrain_change_pending: bool,
+    capture_active: bool,
 }
 
 impl Default for ViewState {
@@ -51,6 +56,9 @@ impl Default for ViewState {
             dragging: false,
             ui_pointer_consumed: false,
             scene_dirty: false,
+            terrain_profile: TerrainProfile::Terraced,
+            terrain_change_pending: false,
+            capture_active: false,
         }
     }
 }
@@ -85,6 +93,14 @@ impl ViewState {
         self.zoom = 1.0;
         self.pan = Vec2::ZERO;
     }
+
+    fn toggle_terrain_profile(&mut self) {
+        self.terrain_profile = match self.terrain_profile {
+            TerrainProfile::Flat => TerrainProfile::Terraced,
+            TerrainProfile::Terraced => TerrainProfile::Flat,
+        };
+        self.terrain_change_pending = true;
+    }
 }
 
 #[derive(Resource)]
@@ -94,10 +110,12 @@ struct SceneMeshes {
 }
 
 fn main() -> AppExit {
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    park.apply_terrain_profile(TerrainProfile::Terraced);
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
-        .insert_resource(Simulation(Park::new(MAP_SIZE, MAP_SIZE)))
+        .insert_resource(Simulation(park))
         .init_resource::<ViewState>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -120,6 +138,7 @@ fn main() -> AppExit {
             (
                 ui::button_actions,
                 keyboard_input,
+                apply_terrain_profile,
                 pointer_input,
                 apply_camera,
                 update_scene,
@@ -140,9 +159,13 @@ fn setup_scene(
 ) {
     commands.spawn(Camera2d);
     let landscape = meshes.add(world::build_scene(&sim.0, view.rotation, view.grid));
-    let selection = meshes.add(world::selection_mesh(None, None, MAP_SIZE, view.rotation));
+    let selection = meshes.add(world::selection_mesh(None, None, &sim.0, view.rotation));
     let material = materials.add(ColorMaterial::from(Color::WHITE));
-    commands.spawn((Mesh2d(landscape.clone()), MeshMaterial2d(material.clone())));
+    commands.spawn((
+        Mesh2d(landscape.clone()),
+        MeshMaterial2d(material.clone()),
+        NoFrustumCulling,
+    ));
     // Its vertices move to different tiles; a cached initial bounding box
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((
@@ -161,6 +184,9 @@ fn tick_simulation(mut sim: ResMut<Simulation>, view: Res<ViewState>) {
 }
 
 fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: ResMut<ViewState>) {
+    if view.capture_active {
+        return;
+    }
     if keys.just_pressed(KeyCode::F1) || keys.just_pressed(KeyCode::KeyH) {
         view.help = !view.help;
     }
@@ -196,6 +222,9 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
         view.grid = !view.grid;
         view.scene_dirty = true;
     }
+    if keys.just_pressed(KeyCode::KeyT) {
+        view.toggle_terrain_profile();
+    }
     if keys.just_pressed(KeyCode::Home) {
         view.reset_camera();
     }
@@ -223,14 +252,26 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     view.pan = view.pan.clamp(Vec2::splat(-1800.0), Vec2::splat(1800.0));
 }
 
+fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.terrain_change_pending {
+        sim.0.apply_terrain_profile(view.terrain_profile);
+        view.terrain_change_pending = false;
+        view.hovered = None;
+        view.scene_dirty = true;
+    }
+}
+
 /// This formula uses logical pixels, just like cursor_position and the UI.
-fn camera_layout(window: &Window, view: &ViewState) -> (f32, Vec2) {
+fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) {
     let available_width = (window.width() - SIDEBAR - 72.0).max(1.0);
     let available_height = (window.height() - HEADER - FOOTER - 100.0).max(1.0);
-    let fit = (MAP_SIZE as f32 * world::TILE_WIDTH / available_width)
-        .max((MAP_SIZE as f32 * world::TILE_HEIGHT + 70.0) / available_height);
+    let elevation = f32::from(park.max_terrain_height()) * world::HEIGHT_STEP;
+    let fit = (park.width() as f32 * world::TILE_WIDTH / available_width)
+        .max((park.height() as f32 * world::TILE_HEIGHT + elevation + 70.0) / available_height);
     let scale = fit / view.zoom;
-    let center = view.pan + Vec2::new(-SIDEBAR * 0.5, (HEADER - FOOTER) * 0.5) * scale;
+    let center = view.pan
+        + Vec2::Y * elevation * 0.5
+        + Vec2::new(-SIDEBAR * 0.5, (HEADER - FOOTER) * 0.5) * scale;
     (scale, center)
 }
 
@@ -239,6 +280,7 @@ fn is_map_position(cursor: Vec2, window: &Window, help: bool) -> bool {
 }
 
 fn pointer_input(
+    sim: Res<Simulation>,
     windows: Query<&Window, With<PrimaryWindow>>,
     buttons: Res<ButtonInput<MouseButton>>,
     mut wheel: MessageReader<MouseWheel>,
@@ -252,6 +294,11 @@ fn pointer_input(
             MouseScrollUnit::Pixel => event.y / 60.0,
         })
         .sum();
+    if view.capture_active {
+        view.hovered = None;
+        *previous_cursor = None;
+        return;
+    }
     let Ok(window) = windows.single() else {
         return;
     };
@@ -282,7 +329,7 @@ fn pointer_input(
         view.dragging = false;
     }
     if view.dragging && !starting_drag {
-        let (scale, _) = camera_layout(window, &view);
+        let (scale, _) = camera_layout(window, &view, &sim.0);
         view.pan += Vec2::new(-movement.x, movement.y) * scale;
         view.pan = view.pan.clamp(Vec2::splat(-1800.0), Vec2::splat(1800.0));
     }
@@ -290,13 +337,13 @@ fn pointer_input(
         view.zoom_by((scroll.clamp(-5.0, 5.0) * 0.12).exp());
     }
     view.hovered = if over_map {
-        let (scale, center) = camera_layout(window, &view);
+        let (scale, center) = camera_layout(window, &view, &sim.0);
         let world = center
             + Vec2::new(
                 cursor.x - window.width() * 0.5,
                 window.height() * 0.5 - cursor.y,
             ) * scale;
-        world::pick_tile(world, MAP_SIZE, view.rotation)
+        world::pick_tile(world, &sim.0, view.rotation)
     } else {
         None
     };
@@ -306,6 +353,7 @@ fn pointer_input(
 }
 
 fn apply_camera(
+    sim: Res<Simulation>,
     windows: Query<&Window, With<PrimaryWindow>>,
     view: Res<ViewState>,
     mut cameras: Query<(&mut Transform, &mut Projection), With<Camera2d>>,
@@ -316,7 +364,7 @@ fn apply_camera(
     let Ok((mut transform, mut projection)) = cameras.single_mut() else {
         return;
     };
-    let (scale, center) = camera_layout(window, &view);
+    let (scale, center) = camera_layout(window, &view, &sim.0);
     transform.translation.x = center.x;
     transform.translation.y = center.y;
     if let Projection::Orthographic(ref mut ortho) = *projection {
@@ -333,16 +381,17 @@ fn update_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut last_selection: Local<Option<SelectionSnapshot>>,
 ) {
-    if view.scene_dirty {
+    let terrain_changed = view.scene_dirty;
+    if terrain_changed {
         if let Some(mesh) = meshes.get_mut(&scene.landscape) {
             *mesh = world::build_scene(&sim.0, view.rotation, view.grid);
         }
         view.scene_dirty = false;
     }
     let selection = (view.hovered, view.selected, view.rotation);
-    if *last_selection != Some(selection) {
+    if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
-            *mesh = world::selection_mesh(view.hovered, view.selected, MAP_SIZE, view.rotation);
+            *mesh = world::selection_mesh(view.hovered, view.selected, &sim.0, view.rotation);
         }
         *last_selection = Some(selection);
     }

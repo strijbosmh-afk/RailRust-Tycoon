@@ -1,4 +1,4 @@
-//! Original, asset-free isometric scenery and the matching picking transform.
+//! Isometric terrain surfaces shared by rendering, selection, and picking.
 
 use bevy::{
     asset::RenderAssetUsages, color::ColorToComponents, mesh::Indices, prelude::*,
@@ -8,8 +8,14 @@ use park_sim::{Park, Terrain, TilePos};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
+pub const HEIGHT_STEP: f32 = 16.0;
 const HALF_WIDTH: f32 = TILE_WIDTH / 2.0;
 const HALF_HEIGHT: f32 = TILE_HEIGHT / 2.0;
+const BASE_DEPTH: f32 = 20.0;
+const SOIL_BOTTOM: f32 = -27.0 / HEIGHT_STEP;
+const DETAIL_BIAS: f32 = 0.004;
+const HOVER_BIAS: f32 = 0.012;
+const SELECTION_BIAS: f32 = 0.016;
 type Ink = [f32; 4];
 
 /// Project a simulation tile into the centered, clockwise-rotated map.
@@ -21,21 +27,57 @@ pub fn tile_center(pos: TilePos, size: u32, rotation: u8) -> Vec2 {
     )
 }
 
-/// Pick the diamond under a world point. Shared edges belong to one tile only.
-pub fn pick_tile(world: Vec2, size: u32, rotation: u8) -> Option<TilePos> {
-    if size == 0 || !world.is_finite() {
+/// Height-aware roof center; the stable simulation coordinate never changes.
+pub fn elevated_tile_center(park: &Park, pos: TilePos, rotation: u8) -> Option<Vec2> {
+    if park.width() != park.height() {
         return None;
     }
+    let height = f32::from(park.tile(pos)?.height) * HEIGHT_STEP;
+    Some(tile_center(pos, park.width(), rotation) + Vec2::Y * height)
+}
+
+/// Pick the nearest rendered roof or exposed front cliff. Faces of a column
+/// all return that column's stable TilePos, including clicks on its cliff.
+pub fn pick_tile(world: Vec2, park: &Park, rotation: u8) -> Option<TilePos> {
+    if !world.is_finite() || park.width() != park.height() {
+        return None;
+    }
+    let size = park.width();
     let column = world.x / HALF_WIDTH;
-    let row = size as f32 - 1.0 - world.y / HALF_HEIGHT;
-    let x = ((row + column) / 2.0 + 0.5).floor();
-    let y = ((row - column) / 2.0 + 0.5).floor();
-    if x < 0.0 || y < 0.0 || x >= size as f32 || y >= size as f32 {
+    if column.abs() > size as f32 {
         return None;
     }
-    let (x, y) = (x as u32, y as u32);
+    let mut closest: Option<(f32, (u32, u32), TilePos)> = None;
+    // Every surface stays within its tile's horizontal diamond bounds.
+    // At most three columns per rotated row can contain the pointer.
+    for y in 0..size {
+        let min_x = (y as f32 + column - 1.0).ceil().max(0.0) as u32;
+        let max_x = (y as f32 + column + 1.0).floor().min(size as f32 - 1.0);
+        if max_x < min_x as f32 {
+            continue;
+        }
+        for x in min_x..=max_x as u32 {
+            let pos = unrotate(x, y, size, rotation);
+            for surface in column_surfaces(park, pos, rotation).into_iter().flatten() {
+                let Some(depth) = surface.hit_depth(world) else {
+                    continue;
+                };
+                let tie = (x + y, x);
+                if closest.is_none_or(|(old_depth, old_tie, _)| {
+                    depth > old_depth + 0.0001
+                        || ((depth - old_depth).abs() <= 0.0001 && tie > old_tie)
+                }) {
+                    closest = Some((depth, tie, pos));
+                }
+            }
+        }
+    }
+    closest.map(|(_, _, pos)| pos)
+}
+
+fn unrotate(x: u32, y: u32, size: u32, rotation: u8) -> TilePos {
     let last = size - 1;
-    Some(match rotation % 4 {
+    match rotation % 4 {
         0 => TilePos { x, y },
         1 => TilePos { x: y, y: last - x },
         2 => TilePos {
@@ -43,7 +85,7 @@ pub fn pick_tile(world: Vec2, size: u32, rotation: u8) -> Option<TilePos> {
             y: last - y,
         },
         _ => TilePos { x: last - y, y: x },
-    })
+    }
 }
 
 fn rotate(pos: TilePos, size: u32, rotation: u8) -> (u32, u32) {
@@ -54,6 +96,114 @@ fn rotate(pos: TilePos, size: u32, rotation: u8) -> (u32, u32) {
         2 => (last - pos.x, last - pos.y),
         _ => (pos.y, last - pos.x),
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SurfaceKind {
+    Top,
+    LeftCliff,
+    RightCliff,
+}
+
+#[derive(Clone, Copy)]
+struct TerrainSurface {
+    vertices: [Vec3; 4],
+    kind: SurfaceKind,
+}
+
+impl TerrainSurface {
+    /// Depth is an affine plane, so these values match GPU interpolation.
+    fn depth_at(self, point: Vec2) -> f32 {
+        let gradient = match self.kind {
+            SurfaceKind::Top => Vec2::new(0.0, -1.0 / HALF_HEIGHT),
+            SurfaceKind::LeftCliff => Vec2::new(1.0 / HALF_WIDTH, 0.0),
+            SurfaceKind::RightCliff => Vec2::new(-1.0 / HALF_WIDTH, 0.0),
+        };
+        self.vertices[0].z + gradient.dot(point - self.vertices[0].truncate())
+    }
+
+    fn point(self, point: Vec2, bias: f32) -> Vec3 {
+        point.extend(self.depth_at(point) + bias)
+    }
+
+    fn hit_depth(self, point: Vec2) -> Option<f32> {
+        let mut positive = false;
+        let mut negative = false;
+        for index in 0..4 {
+            let a = self.vertices[index].truncate();
+            let b = self.vertices[(index + 1) % 4].truncate();
+            let side = (b - a).perp_dot(point - a);
+            positive |= side > 0.0001;
+            negative |= side < -0.0001;
+            if positive && negative {
+                return None;
+            }
+        }
+        Some(self.depth_at(point))
+    }
+}
+
+/// u/v are rotated ground coordinates; height is in simulation terrain steps.
+/// Increasing u and v together moves toward the camera. Keeping this depth
+/// on every vertex gives both vertical cliffs and horizontal roofs the same
+/// physical ordering, rather than giving a whole tall tile one painter rank.
+fn project(u: f32, v: f32, height: f32, size: u32) -> Vec3 {
+    Vec3::new(
+        (u - v) * HALF_WIDTH,
+        -(u + v - (size as f32 - 1.0)) * HALF_HEIGHT + height * HEIGHT_STEP,
+        BASE_DEPTH + u + v,
+    )
+}
+
+fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<TerrainSurface>; 3] {
+    let Some(tile) = park.tile(pos) else {
+        return [None; 3];
+    };
+    let size = park.width();
+    let (x, y) = rotate(pos, size, rotation);
+    let (u, v) = (x as f32, y as f32);
+    let height = f32::from(tile.height);
+    let top = TerrainSurface {
+        vertices: [
+            project(u - 0.5, v - 0.5, height, size),
+            project(u - 0.5, v + 0.5, height, size),
+            project(u + 0.5, v + 0.5, height, size),
+            project(u + 0.5, v - 0.5, height, size),
+        ],
+        kind: SurfaceKind::Top,
+    };
+    let neighbor_height = |x: u32, y: u32| {
+        if x >= size || y >= size {
+            SOIL_BOTTOM
+        } else {
+            f32::from(
+                park.tile(unrotate(x, y, size, rotation))
+                    .expect("neighbor is inside square park")
+                    .height,
+            )
+        }
+    };
+    let left_height = neighbor_height(x, y + 1);
+    let right_height = neighbor_height(x + 1, y);
+    let left = (height > left_height).then(|| TerrainSurface {
+        vertices: [
+            top.vertices[1],
+            top.vertices[2],
+            project(u + 0.5, v + 0.5, left_height, size),
+            project(u - 0.5, v + 0.5, left_height, size),
+        ],
+        kind: SurfaceKind::LeftCliff,
+    });
+    let right = (height > right_height).then(|| TerrainSurface {
+        vertices: [
+            top.vertices[2],
+            top.vertices[3],
+            project(u + 0.5, v - 0.5, right_height, size),
+            project(u + 0.5, v + 0.5, right_height, size),
+        ],
+        kind: SurfaceKind::RightCliff,
+    });
+    [Some(top), left, right]
 }
 
 /// Build terrain, soil edges, trees, and a decorative entrance in one mesh.
@@ -72,7 +222,6 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
     let right = Vec2::new(half_x, 0.0);
     let bottom = Vec2::new(0.0, -half_y);
     let left = Vec2::new(-half_x, 0.0);
-    let drop = Vec2::new(0.0, -27.0);
 
     // A low, deliberately crisp shadow makes the whole map read as a diorama.
     mesh.polygon(
@@ -82,92 +231,98 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
             bottom + Vec2::new(10.0, -45.0),
             right + Vec2::new(18.0, -20.0),
         ],
-        10.0,
+        -10.0,
         rgb(24, 46, 48),
     );
-    mesh.quad(
-        [left, bottom, bottom + drop, left + drop],
-        11.0,
-        rgb(126, 94, 61),
-    );
-    mesh.quad(
-        [bottom, right, right + drop, bottom + drop],
-        11.0,
-        rgb(102, 76, 52),
-    );
-    mesh.line(
-        left + drop * 0.65,
-        bottom + drop * 0.65,
-        2.0,
-        11.1,
-        rgb(147, 111, 71),
-    );
-    mesh.line(
-        bottom + drop * 0.65,
-        right + drop * 0.65,
-        2.0,
-        11.1,
-        rgb(118, 89, 58),
-    );
 
-    // All terrain sits on the same plane. Ground details occupy a slight inset
-    // above it; depth-sorted scenery starts above those details.
     for y in 0..size {
         for x in 0..size {
             let pos = TilePos { x, y };
             let tile = park.tile(pos).expect("loop stays inside the park");
-            let center = tile_center(pos, size, rotation);
+            let center =
+                elevated_tile_center(park, pos, rotation).expect("loop stays inside square park");
             let variation = (noise(pos) % 5) as i16 - 2;
             let color = match tile.terrain {
                 Terrain::Grass => varied(108, 153, 88, variation),
                 Terrain::Water => varied(74, 157, 165, variation),
                 Terrain::Sand => varied(213, 196, 145, variation),
             };
-            mesh.diamond(center, 1.0, 15.0, color);
+            let surfaces = column_surfaces(park, pos, rotation);
+            let top = surfaces[0].expect("every tile has a roof");
+            for surface in surfaces.into_iter().flatten() {
+                let ink = match surface.kind {
+                    SurfaceKind::Top => color,
+                    SurfaceKind::LeftCliff => varied(143, 113, 75, variation),
+                    SurfaceKind::RightCliff => varied(112, 87, 58, variation),
+                };
+                mesh.surface(surface, ink);
+                if surface.kind != SurfaceKind::Top {
+                    let a = surface.vertices[0].truncate();
+                    let b = surface.vertices[1].truncate();
+                    let face_height = a.y - surface.vertices[3].y;
+                    let mut layer = HEIGHT_STEP;
+                    while layer < face_height {
+                        mesh.surface_line(
+                            surface,
+                            a - Vec2::Y * layer,
+                            b - Vec2::Y * layer,
+                            0.8,
+                            DETAIL_BIAS,
+                            rgb(157, 126, 83),
+                        );
+                        layer += HEIGHT_STEP;
+                    }
+                }
+            }
 
             match tile.terrain {
                 Terrain::Water => {
                     if !noise(pos).is_multiple_of(3) {
                         let offset = (noise(pos) % 11) as f32 - 5.0;
-                        mesh.line(
+                        mesh.surface_line(
+                            top,
                             center + Vec2::new(-11.0, offset),
                             center + Vec2::new(8.0, offset),
                             1.1,
-                            16.0,
+                            DETAIL_BIAS,
                             rgb(133, 197, 192),
                         );
-                        mesh.line(
+                        mesh.surface_line(
+                            top,
                             center + Vec2::new(2.0, offset + 4.0),
                             center + Vec2::new(9.0, offset + 4.0),
                             0.8,
-                            16.0,
+                            DETAIL_BIAS,
                             rgb(105, 179, 181),
                         );
                     }
                 }
                 Terrain::Grass if noise(pos).is_multiple_of(17) => {
                     let tuft = center + Vec2::new(-3.0, -1.0);
-                    mesh.line(
+                    mesh.surface_line(
+                        top,
                         tuft,
                         tuft + Vec2::new(-2.0, 3.0),
                         0.9,
-                        16.0,
+                        DETAIL_BIAS,
                         rgb(132, 173, 105),
                     );
-                    mesh.line(
+                    mesh.surface_line(
+                        top,
                         tuft + Vec2::new(3.0, 0.0),
                         tuft + Vec2::new(4.0, 4.0),
                         0.9,
-                        16.0,
+                        DETAIL_BIAS,
                         rgb(132, 173, 105),
                     );
                 }
                 Terrain::Sand if noise(pos).is_multiple_of(5) => {
-                    mesh.ellipse(
+                    mesh.surface_ellipse(
+                        top,
                         center + Vec2::new(4.0, 1.0),
                         2.4,
                         1.2,
-                        16.0,
+                        DETAIL_BIAS,
                         rgb(189, 176, 133),
                     );
                 }
@@ -180,26 +335,25 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
                     Terrain::Sand => rgb(201, 185, 137),
                 };
                 // Two edges per tile avoid double-width interior grid lines.
-                mesh.line(
+                mesh.surface_line(
+                    top,
                     center + Vec2::Y * HALF_HEIGHT,
                     center + Vec2::X * HALF_WIDTH,
                     0.65,
-                    16.5,
+                    DETAIL_BIAS * 2.0,
                     stroke,
                 );
-                mesh.line(
+                mesh.surface_line(
+                    top,
                     center + Vec2::X * HALF_WIDTH,
                     center - Vec2::Y * HALF_HEIGHT,
                     0.65,
-                    16.5,
+                    DETAIL_BIAS * 2.0,
                     stroke,
                 );
             }
         }
     }
-
-    mesh.line(left, bottom, 2.0, 17.0, rgb(164, 182, 103));
-    mesh.line(bottom, right, 2.0, 17.0, rgb(145, 164, 91));
 
     // Scenery is anchored to simulation coordinates, so it follows rotation.
     // The generous central clearing is reserved for later construction tools.
@@ -227,53 +381,54 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
             .total_cmp(&tile_center(*a, size, rotation).y)
     });
     for pos in trees {
-        let base = tile_center(pos, size, rotation);
-        let depth = 30.0 + (half_y - base.y) / (2.0 * half_y) * 50.0;
-        tree(&mut mesh, base, depth, noise(pos));
+        let base = elevated_tile_center(park, pos, rotation).expect("valid scenery tile");
+        let top = column_surfaces(park, pos, rotation)[0].expect("valid scenery roof");
+        tree(&mut mesh, base, top, noise(pos));
     }
 
     if size >= 12 {
         let entrance = TilePos { x: 1, y: size / 2 };
-        let base = tile_center(entrance, size, rotation);
-        let depth = 30.0 + (half_y - base.y) / (2.0 * half_y) * 50.0;
-        entrance_arch(&mut mesh, base, depth);
+        let base = elevated_tile_center(park, entrance, rotation).expect("valid entrance tile");
+        let top = column_surfaces(park, entrance, rotation)[0].expect("valid entrance roof");
+        entrance_arch(&mut mesh, base, top);
     }
     mesh.finish()
 }
 
-/// Build independent hover and selection outlines, always above scenery.
+/// Outline only the selected column's actual surfaces. A small depth bias
+/// prevents z-fighting while nearer terrain still hides the hidden edges.
 pub fn selection_mesh(
     hover: Option<TilePos>,
     selected: Option<TilePos>,
-    size: u32,
+    park: &Park,
     rotation: u8,
 ) -> Mesh {
     let mut mesh = Painter::default();
-    if let Some(pos) = hover.filter(|pos| pos.x < size && pos.y < size) {
-        mesh.outline(
-            tile_center(pos, size, rotation),
-            1.4,
-            200.0,
-            rgb(247, 246, 216),
-        );
+    if park.width() != park.height() {
+        return mesh.finish();
     }
-    if let Some(pos) = selected.filter(|pos| pos.x < size && pos.y < size) {
-        let center = tile_center(pos, size, rotation);
-        mesh.outline(center, 3.0, 202.0, rgb(255, 205, 96));
-        for point in diamond_points(center, 1.0) {
-            mesh.ellipse(point, 2.3, 2.3, 202.1, rgb(255, 225, 148));
+    for (pos, width, bias, ink) in [
+        (hover, 1.4, HOVER_BIAS, rgb(247, 246, 216)),
+        (selected, 3.0, SELECTION_BIAS, rgb(255, 205, 96)),
+    ] {
+        if let Some(pos) = pos {
+            for surface in column_surfaces(park, pos, rotation).into_iter().flatten() {
+                mesh.surface_outline(surface, width, bias, ink);
+            }
         }
     }
     mesh.finish()
 }
 
-fn tree(mesh: &mut Painter, base: Vec2, depth: f32, seed: u32) {
+fn tree(mesh: &mut Painter, base: Vec2, top: TerrainSurface, seed: u32) {
+    let depth = top.depth_at(base) + 0.025;
     let scale = 0.85 + (seed % 6) as f32 * 0.055;
-    mesh.ellipse(
+    mesh.surface_ellipse(
+        top,
         base + Vec2::new(6.0, -1.0),
         18.0 * scale,
         7.0 * scale,
-        18.0,
+        DETAIL_BIAS,
         rgb(87, 129, 74),
     );
     mesh.line(
@@ -287,7 +442,7 @@ fn tree(mesh: &mut Painter, base: Vec2, depth: f32, seed: u32) {
         base + Vec2::new(-1.0, 1.0),
         base + Vec2::new(-1.0, 24.0 * scale),
         1.3 * scale,
-        depth + 0.1,
+        depth + 0.001,
         rgb(159, 119, 73),
     );
     if seed.is_multiple_of(3) {
@@ -302,7 +457,7 @@ fn tree(mesh: &mut Painter, base: Vec2, depth: f32, seed: u32) {
                     base + Vec2::new(width, height) * scale,
                     base + Vec2::new(0.0, height + 24.0) * scale,
                 ],
-                depth + height / 100.0,
+                depth + height / 10_000.0,
                 ink,
             );
         }
@@ -311,32 +466,34 @@ fn tree(mesh: &mut Painter, base: Vec2, depth: f32, seed: u32) {
             base + Vec2::new(1.0, 34.0) * scale,
             21.0 * scale,
             24.0 * scale,
-            depth + 0.2,
+            depth + 0.002,
             rgb(51, 113, 72),
         );
         mesh.ellipse(
             base + Vec2::new(-6.0, 40.0) * scale,
             17.0 * scale,
             20.0 * scale,
-            depth + 0.3,
+            depth + 0.003,
             rgb(69, 133, 76),
         );
         mesh.ellipse(
             base + Vec2::new(-7.0, 48.0) * scale,
             11.0 * scale,
             12.0 * scale,
-            depth + 0.4,
+            depth + 0.004,
             rgb(94, 153, 85),
         );
     }
 }
 
-fn entrance_arch(mesh: &mut Painter, base: Vec2, depth: f32) {
-    mesh.ellipse(
+fn entrance_arch(mesh: &mut Painter, base: Vec2, top: TerrainSurface) {
+    let depth = top.depth_at(base) + 0.025;
+    mesh.surface_ellipse(
+        top,
         base + Vec2::new(4.0, -1.0),
         36.0,
         10.0,
-        18.0,
+        DETAIL_BIAS,
         rgb(91, 131, 73),
     );
     for offset in [-27.0, 27.0] {
@@ -352,14 +509,14 @@ fn entrance_arch(mesh: &mut Painter, base: Vec2, depth: f32) {
             foot + Vec2::new(2.0, 0.0),
             foot + Vec2::new(2.0, 49.0),
             2.0,
-            depth + 0.1,
+            depth + 0.001,
             rgb(184, 170, 133),
         );
         mesh.ellipse(
             foot + Vec2::new(0.0, 49.0),
             5.0,
             4.0,
-            depth + 0.2,
+            depth + 0.002,
             rgb(241, 192, 92),
         );
     }
@@ -370,14 +527,14 @@ fn entrance_arch(mesh: &mut Painter, base: Vec2, depth: f32) {
             base + Vec2::new(33.0, 47.0),
             base + Vec2::new(-33.0, 47.0),
         ],
-        depth + 0.3,
+        depth + 0.003,
         rgb(182, 82, 65),
     );
     mesh.line(
         base + Vec2::new(-30.0, 44.0),
         base + Vec2::new(30.0, 44.0),
         2.0,
-        depth + 0.4,
+        depth + 0.004,
         rgb(235, 176, 117),
     );
     // A small sun medallion is an original graphic, without borrowed branding.
@@ -385,14 +542,14 @@ fn entrance_arch(mesh: &mut Painter, base: Vec2, depth: f32) {
         base + Vec2::new(0.0, 41.0),
         6.5,
         6.5,
-        depth + 0.5,
+        depth + 0.005,
         rgb(250, 215, 141),
     );
     mesh.line(
         base + Vec2::new(0.0, 48.0),
         base + Vec2::new(0.0, 67.0),
         1.5,
-        depth + 0.6,
+        depth + 0.006,
         rgb(225, 212, 173),
     );
     mesh.triangle(
@@ -401,7 +558,7 @@ fn entrance_arch(mesh: &mut Painter, base: Vec2, depth: f32) {
             base + Vec2::new(15.0, 62.0),
             base + Vec2::new(0.0, 57.0),
         ],
-        depth + 0.7,
+        depth + 0.007,
         rgb(228, 140, 91),
     );
 }
@@ -426,15 +583,6 @@ fn varied(r: u8, g: u8, b: u8, amount: i16) -> Ink {
     )
 }
 
-fn diamond_points(center: Vec2, scale: f32) -> [Vec2; 4] {
-    [
-        center + Vec2::new(0.0, HALF_HEIGHT) * scale,
-        center + Vec2::new(-HALF_WIDTH, 0.0) * scale,
-        center + Vec2::new(0.0, -HALF_HEIGHT) * scale,
-        center + Vec2::new(HALF_WIDTH, 0.0) * scale,
-    ]
-}
-
 #[derive(Default)]
 struct Painter {
     positions: Vec<[f32; 3]>,
@@ -443,13 +591,17 @@ struct Painter {
 }
 
 impl Painter {
-    fn triangle(&mut self, points: [Vec2; 3], z: f32, ink: Ink) {
+    fn triangle_3d(&mut self, points: [Vec3; 3], ink: Ink) {
         let first = self.positions.len() as u32;
         for point in points {
-            self.positions.push([point.x, point.y, z]);
+            self.positions.push(point.to_array());
             self.colors.push(ink);
         }
         self.indices.extend([first, first + 1, first + 2]);
+    }
+
+    fn triangle(&mut self, points: [Vec2; 3], z: f32, ink: Ink) {
+        self.triangle_3d(points.map(|point| point.extend(z)), ink);
     }
 
     fn quad(&mut self, points: [Vec2; 4], z: f32, ink: Ink) {
@@ -462,8 +614,113 @@ impl Painter {
         }
     }
 
-    fn diamond(&mut self, center: Vec2, scale: f32, z: f32, ink: Ink) {
-        self.quad(diamond_points(center, scale), z, ink);
+    fn surface(&mut self, surface: TerrainSurface, ink: Ink) {
+        let [a, b, c, d] = surface.vertices;
+        self.triangle_3d([a, b, c], ink);
+        self.triangle_3d([a, c, d], ink);
+    }
+
+    /// Clip details to their supporting face so a shadow or thick line
+    /// cannot float off a cliff into the air above a lower neighboring tile.
+    fn paint_on_surface(&mut self, surface: TerrainSurface, points: &[Vec2], bias: f32, ink: Ink) {
+        let bounds = surface.vertices.map(Vec3::truncate);
+        let orientation = (bounds[1] - bounds[0])
+            .perp_dot(bounds[2] - bounds[1])
+            .signum();
+        let mut polygon = points.to_vec();
+        for edge in 0..4 {
+            let start = bounds[edge];
+            let direction = bounds[(edge + 1) % 4] - start;
+            let signed_distance = |point: Vec2| direction.perp_dot(point - start) * orientation;
+            let source = std::mem::take(&mut polygon);
+            if source.is_empty() {
+                return;
+            }
+            let mut previous = *source.last().expect("source is not empty");
+            let mut previous_distance = signed_distance(previous);
+            for point in source {
+                let distance = signed_distance(point);
+                if (distance >= 0.0) != (previous_distance >= 0.0) {
+                    let fraction = previous_distance / (previous_distance - distance);
+                    polygon.push(previous.lerp(point, fraction));
+                }
+                if distance >= 0.0 {
+                    polygon.push(point);
+                }
+                previous = point;
+                previous_distance = distance;
+            }
+        }
+        for index in 1..polygon.len().saturating_sub(1) {
+            self.triangle_3d(
+                [polygon[0], polygon[index], polygon[index + 1]]
+                    .map(|point| surface.point(point, bias)),
+                ink,
+            );
+        }
+    }
+
+    fn surface_line(
+        &mut self,
+        surface: TerrainSurface,
+        start: Vec2,
+        end: Vec2,
+        width: f32,
+        bias: f32,
+        ink: Ink,
+    ) {
+        let delta = end - start;
+        let side = Vec2::new(-delta.y, delta.x).normalize_or_zero() * width / 2.0;
+        self.paint_on_surface(
+            surface,
+            &[start + side, start - side, end - side, end + side],
+            bias,
+            ink,
+        );
+    }
+
+    fn surface_ellipse(
+        &mut self,
+        surface: TerrainSurface,
+        center: Vec2,
+        radius_x: f32,
+        radius_y: f32,
+        bias: f32,
+        ink: Ink,
+    ) {
+        let points = ellipse_points(center, radius_x, radius_y);
+        self.paint_on_surface(surface, &points, bias, ink);
+    }
+
+    fn surface_outline(&mut self, surface: TerrainSurface, width: f32, bias: f32, ink: Ink) {
+        let points = surface.vertices.map(Vec3::truncate);
+        let center = points.iter().copied().sum::<Vec2>() / 4.0;
+        let mut inner = [Vec2::ZERO; 4];
+        for index in 0..4 {
+            let previous = points[(index + 3) % 4];
+            let corner = points[index];
+            let next = points[(index + 1) % 4];
+            let first = (corner - previous).normalize();
+            let second = (next - corner).normalize();
+            let inward = |direction: Vec2| {
+                let normal = Vec2::new(-direction.y, direction.x);
+                normal * normal.dot(center - corner).signum()
+            };
+            let a = corner + inward(first) * width;
+            let b = corner + inward(second) * width;
+            inner[index] = a + first * ((b - a).perp_dot(second) / first.perp_dot(second));
+        }
+        // The outline stays inside the face, rather than projecting a stroke
+        // beyond a hidden tile and leaving a halo around its front occluder.
+        for index in 0..4 {
+            let next = (index + 1) % 4;
+            self.paint_on_surface(
+                surface,
+                &[points[index], points[next], inner[next], inner[index]],
+                bias,
+                ink,
+            );
+        }
     }
 
     fn line(&mut self, start: Vec2, end: Vec2, width: f32, z: f32, ink: Ink) {
@@ -473,20 +730,8 @@ impl Painter {
     }
 
     fn ellipse(&mut self, center: Vec2, radius_x: f32, radius_y: f32, z: f32, ink: Ink) {
-        let points: Vec<Vec2> = (0..12)
-            .map(|index| {
-                let angle = index as f32 * std::f32::consts::TAU / 12.0;
-                center + Vec2::new(angle.cos() * radius_x, angle.sin() * radius_y)
-            })
-            .collect();
+        let points = ellipse_points(center, radius_x, radius_y);
         self.polygon(&points, z, ink);
-    }
-
-    fn outline(&mut self, center: Vec2, width: f32, z: f32, ink: Ink) {
-        let points = diamond_points(center, 1.0);
-        for index in 0..4 {
-            self.line(points[index], points[(index + 1) % 4], width, z, ink);
-        }
     }
 
     fn finish(self) -> Mesh {
@@ -503,20 +748,30 @@ impl Painter {
     }
 }
 
+fn ellipse_points(center: Vec2, radius_x: f32, radius_y: f32) -> [Vec2; 12] {
+    std::array::from_fn(|index| {
+        let angle = index as f32 * std::f32::consts::TAU / 12.0;
+        center + Vec2::new(angle.cos() * radius_x, angle.sin() * radius_y)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::mesh::VertexAttributeValues;
+    use park_sim::MAX_TERRAIN_HEIGHT;
 
     #[test]
     fn every_tile_round_trips_through_every_rotation() {
         for size in [1, 2, 7, 32] {
+            let park = Park::new(size, size);
             for rotation in 0..4 {
                 for y in 0..size {
                     for x in 0..size {
                         let pos = TilePos { x, y };
                         let center = tile_center(pos, size, rotation);
                         for offset in [Vec2::ZERO, Vec2::new(15.0, 3.0), Vec2::new(-14.0, -4.0)] {
-                            assert_eq!(pick_tile(center + offset, size, rotation), Some(pos));
+                            assert_eq!(pick_tile(center + offset, &park, rotation), Some(pos));
                         }
                     }
                 }
@@ -536,37 +791,42 @@ mod tests {
 
     #[test]
     fn outside_diamond_and_non_finite_points_never_select_tiles() {
+        let park = Park::new(32, 32);
         for rotation in 0..4 {
             for point in [
                 Vec2::new(0.0, 512.1),
-                Vec2::new(0.0, -512.1),
+                Vec2::new(0.0, -540.0),
                 Vec2::new(1024.1, 0.0),
                 Vec2::new(-1024.1, 0.0),
                 Vec2::new(600.0, 400.0),
                 Vec2::new(f32::NAN, 0.0),
                 Vec2::new(0.0, f32::INFINITY),
             ] {
-                assert_eq!(pick_tile(point, 32, rotation), None);
+                assert_eq!(pick_tile(point, &park, rotation), None);
             }
         }
-        assert_eq!(pick_tile(Vec2::ZERO, 0, 0), None);
+        assert_eq!(pick_tile(Vec2::ZERO, &Park::new(7, 3), 0), None);
     }
 
     #[test]
     fn shared_half_tile_edges_have_consistent_ownership() {
         let left = TilePos { x: 5, y: 6 };
         let right = TilePos { x: 6, y: 6 };
+        let park = Park::new(32, 32);
         for rotation in 0..4 {
             let a = tile_center(left, 32, rotation);
             let b = tile_center(right, 32, rotation);
             let edge = (a + b) / 2.0;
             let direction = (b - a).normalize();
-            assert_eq!(pick_tile(edge - direction * 0.01, 32, rotation), Some(left));
             assert_eq!(
-                pick_tile(edge + direction * 0.01, 32, rotation),
+                pick_tile(edge - direction * 0.01, &park, rotation),
+                Some(left)
+            );
+            assert_eq!(
+                pick_tile(edge + direction * 0.01, &park, rotation),
                 Some(right)
             );
-            let on_edge = pick_tile(edge, 32, rotation);
+            let on_edge = pick_tile(edge, &park, rotation);
             assert!(on_edge == Some(left) || on_edge == Some(right));
         }
     }
@@ -577,7 +837,158 @@ mod tests {
         let grid = build_scene(&park, 0, true);
         let plain = build_scene(&park, 0, false);
         assert!(grid.count_vertices() > plain.count_vertices());
-        assert_eq!(selection_mesh(None, None, 12, 0).count_vertices(), 0);
-        assert!(selection_mesh(Some(TilePos { x: 3, y: 3 }), None, 12, 0).count_vertices() > 0);
+        assert_eq!(selection_mesh(None, None, &park, 0).count_vertices(), 0);
+        assert!(selection_mesh(Some(TilePos { x: 3, y: 3 }), None, &park, 0).count_vertices() > 0);
+    }
+
+    #[test]
+    fn roofs_and_both_front_cliffs_return_their_own_column_in_every_view() {
+        for rotation in 0..4 {
+            let mut park = Park::new(12, 12);
+            let pos = unrotate(6, 6, 12, rotation);
+            park.set_terrain_height(pos, 6).unwrap();
+            let center = elevated_tile_center(&park, pos, rotation).unwrap();
+            assert_eq!(pick_tile(center, &park, rotation), Some(pos));
+            for offset in [Vec2::new(-16.0, -56.0), Vec2::new(16.0, -56.0)] {
+                assert_eq!(pick_tile(center + offset, &park, rotation), Some(pos));
+            }
+            let surfaces = column_surfaces(&park, pos, rotation);
+            assert!(surfaces.into_iter().all(|face| face.is_some()));
+        }
+    }
+
+    #[test]
+    fn nearer_cliff_hides_the_low_roof_in_every_view() {
+        for rotation in 0..4 {
+            let mut park = Park::new(12, 12);
+            let low = unrotate(5, 5, 12, rotation);
+            let high = unrotate(6, 6, 12, rotation);
+            park.set_terrain_height(high, 6).unwrap();
+            let low_center = elevated_tile_center(&park, low, rotation).unwrap();
+            for offset in [Vec2::ZERO, Vec2::new(-8.0, 0.0), Vec2::new(8.0, 0.0)] {
+                assert_eq!(pick_tile(low_center + offset, &park, rotation), Some(high));
+            }
+        }
+    }
+
+    #[test]
+    fn equal_height_neighbors_do_not_emit_internal_cliffs() {
+        let mut park = Park::new(12, 12);
+        for rotation in 0..4 {
+            for (x, y) in [(5, 5), (6, 5), (5, 6)] {
+                park.set_terrain_height(unrotate(x, y, 12, rotation), 4)
+                    .unwrap();
+            }
+            let surfaces = column_surfaces(&park, unrotate(5, 5, 12, rotation), rotation);
+            assert!(surfaces[0].is_some());
+            assert!(surfaces[1].is_none());
+            assert!(surfaces[2].is_none());
+        }
+    }
+
+    #[test]
+    fn height_limits_invalid_coordinates_and_all_rotations_remain_finite() {
+        let mut park = Park::new(12, 12);
+        let pos = TilePos { x: 5, y: 5 };
+        park.set_terrain_height(pos, MAX_TERRAIN_HEIGHT).unwrap();
+        assert!(
+            park.set_terrain_height(pos, MAX_TERRAIN_HEIGHT + 1)
+                .is_err()
+        );
+        for rotation in 0..4 {
+            let center = elevated_tile_center(&park, pos, rotation).unwrap();
+            assert_eq!(pick_tile(center, &park, rotation), Some(pos));
+            assert_eq!(
+                center.y - tile_center(pos, 12, rotation).y,
+                f32::from(MAX_TERRAIN_HEIGHT) * HEIGHT_STEP
+            );
+            let invalid = TilePos { x: 12, y: u32::MAX };
+            assert!(elevated_tile_center(&park, invalid, rotation).is_none());
+            assert_eq!(
+                selection_mesh(Some(invalid), Some(invalid), &park, rotation).count_vertices(),
+                0
+            );
+            let mesh = build_scene(&park, rotation, true);
+            for point in positions(&mesh) {
+                assert!(point.iter().all(|coordinate| coordinate.is_finite()));
+                assert!(point[2].abs() < 1000.0, "inside Camera2d clipping range");
+            }
+        }
+    }
+
+    /// Independent triangle interpolation checks the emitted mesh, rather
+    /// than just calling the same surface hit-test used by the picker.
+    fn mesh_depth(mesh: &Mesh, point: Vec2) -> Option<f32> {
+        let points = positions(mesh);
+        let indices: Vec<usize> = mesh.indices().unwrap().iter().collect();
+        indices
+            .chunks_exact(3)
+            .filter_map(|triangle| {
+                let [a, b, c] =
+                    [triangle[0], triangle[1], triangle[2]].map(|index| Vec3::from(points[index]));
+                let ab = b.truncate() - a.truncate();
+                let ac = c.truncate() - a.truncate();
+                let ap = point - a.truncate();
+                let determinant = ab.perp_dot(ac);
+                if determinant.abs() < 0.00001 {
+                    return None;
+                }
+                let u = ap.perp_dot(ac) / determinant;
+                let v = ab.perp_dot(ap) / determinant;
+                (u >= -0.00001 && v >= -0.00001 && u + v <= 1.00001)
+                    .then_some(a.z + u * (b.z - a.z) + v * (c.z - a.z))
+            })
+            .max_by(f32::total_cmp)
+    }
+
+    fn positions(mesh: &Mesh) -> &[[f32; 3]] {
+        match mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() {
+            VertexAttributeValues::Float32x3(positions) => positions,
+            _ => panic!("mesh position format changed"),
+        }
+    }
+
+    #[test]
+    fn rendered_triangles_and_selection_obey_the_same_occlusion() {
+        for rotation in 0..4 {
+            let mut park = Park::new(12, 12);
+            let low = unrotate(5, 5, 12, rotation);
+            let high = unrotate(6, 6, 12, rotation);
+            park.set_terrain_height(high, 6).unwrap();
+            let low_center = elevated_tile_center(&park, low, rotation).unwrap();
+            let scene = build_scene(&park, rotation, false);
+            let low_outline = selection_mesh(None, Some(low), &park, rotation);
+            // This lies inside the low roof's top border, behind the cliff.
+            let hidden = low_center + Vec2::new(0.0, 14.0);
+            let terrain_depth = mesh_depth(&scene, hidden).unwrap();
+            let outline_depth = mesh_depth(&low_outline, hidden).unwrap();
+            assert!(terrain_depth > outline_depth + 1.0);
+            assert_eq!(pick_tile(hidden, &park, rotation), Some(high));
+
+            let high_roof = column_surfaces(&park, high, rotation)[0].unwrap();
+            let visible =
+                elevated_tile_center(&park, high, rotation).unwrap() + Vec2::new(0.0, 14.0);
+            let high_outline = selection_mesh(None, Some(high), &park, rotation);
+            let outline_depth = mesh_depth(&high_outline, visible).unwrap();
+            assert!((outline_depth - high_roof.depth_at(visible) - SELECTION_BIAS).abs() < 0.0001);
+            assert!(outline_depth > mesh_depth(&scene, visible).unwrap());
+            // No fixed global overlay depth: every emitted selection vertex
+            // belongs to an actual face and differs only by the small bias.
+            for point in positions(&high_outline) {
+                let point = Vec3::from(*point);
+                assert!(
+                    column_surfaces(&park, high, rotation)
+                        .into_iter()
+                        .flatten()
+                        .any(
+                            |face| face
+                                .hit_depth(point.truncate())
+                                .is_some_and(
+                                    |depth| (point.z - depth - SELECTION_BIAS).abs() < 0.0001
+                                )
+                        )
+                );
+            }
+        }
     }
 }

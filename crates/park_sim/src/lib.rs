@@ -9,6 +9,10 @@ pub const TICKS_PER_SECOND: u64 = 30;
 /// Largest supported number of tiles along either edge of a foundation map.
 pub const MAX_MAP_SIZE: u32 = 256;
 
+/// Highest permitted terrain elevation, measured in abstract simulation steps.
+/// The presentation layer decides how many pixels or world units a step uses.
+pub const MAX_TERRAIN_HEIGHT: u8 = 32;
+
 /// An integer tile coordinate, with the origin at the map's first corner.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub struct TilePos {
@@ -26,9 +30,41 @@ pub enum Terrain {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Tile {
     pub terrain: Terrain,
-    /// Height in future terrain steps. The foundation starts entirely flat.
+    /// Elevation in abstract simulation steps, between 0 and MAX_TERRAIN_HEIGHT.
     pub height: u8,
 }
+
+/// Repeatable elevation presets. Terrain materials and park time are preserved.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum TerrainProfile {
+    #[default]
+    Flat,
+    Terraced,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TerrainHeightError {
+    OutOfBounds { pos: TilePos },
+    HeightTooHigh { height: u8, max: u8 },
+}
+
+impl std::fmt::Display for TerrainHeightError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OutOfBounds { pos } => {
+                write!(formatter, "tile ({}, {}) is outside the park", pos.x, pos.y)
+            }
+            Self::HeightTooHigh { height, max } => {
+                write!(
+                    formatter,
+                    "terrain height {height} exceeds the maximum of {max} steps"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for TerrainHeightError {}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Speed {
@@ -106,6 +142,53 @@ impl Park {
         self.tiles.get((pos.y * self.width + pos.x) as usize)
     }
 
+    /// Replace elevations without changing terrain materials, positions, or time.
+    ///
+    /// The terraced preset leaves a four-tile border clear and keeps lake and
+    /// shore tiles at zero. Small maps may remain flat to preserve that border.
+    pub fn apply_terrain_profile(&mut self, profile: TerrainProfile) {
+        for (index, tile) in self.tiles.iter_mut().enumerate() {
+            let pos = TilePos {
+                x: index as u32 % self.width,
+                y: index as u32 / self.width,
+            };
+            tile.height = match profile {
+                TerrainProfile::Flat => 0,
+                TerrainProfile::Terraced if tile.terrain == Terrain::Grass => {
+                    terrace_height(pos, self.width, self.height)
+                }
+                TerrainProfile::Terraced => 0,
+            };
+        }
+    }
+
+    /// Set a single elevation after validating the coordinate and height.
+    ///
+    /// An error leaves the entire park unchanged. This low-level setter permits
+    /// every terrain material; gameplay-specific editing rules belong in the
+    /// future construction command layer.
+    pub fn set_terrain_height(
+        &mut self,
+        pos: TilePos,
+        height: u8,
+    ) -> Result<(), TerrainHeightError> {
+        if pos.x >= self.width || pos.y >= self.height {
+            return Err(TerrainHeightError::OutOfBounds { pos });
+        }
+        if height > MAX_TERRAIN_HEIGHT {
+            return Err(TerrainHeightError::HeightTooHigh {
+                height,
+                max: MAX_TERRAIN_HEIGHT,
+            });
+        }
+        self.tiles[(pos.y * self.width + pos.x) as usize].height = height;
+        Ok(())
+    }
+
+    pub fn max_terrain_height(&self) -> u8 {
+        self.tiles.iter().map(|tile| tile.height).max().unwrap_or(0)
+    }
+
     pub const fn ticks(&self) -> u64 {
         self.ticks
     }
@@ -120,6 +203,28 @@ impl Park {
     /// Saturation prevents the clock from wrapping if it reaches its limit.
     pub fn advance(&mut self, speed: Speed) {
         self.ticks = self.ticks.saturating_add(u64::from(speed.multiplier()));
+    }
+}
+
+fn terrace_height(pos: TilePos, width: u32, height: u32) -> u8 {
+    let edge = pos
+        .x
+        .min(pos.y)
+        .min(width - 1 - pos.x)
+        .min(height - 1 - pos.y);
+    if edge < 4 {
+        return 0;
+    }
+    // The same integer tile-center coordinates used for lake generation keep
+    // profiles repeatable across platforms and rectangular map dimensions.
+    let x = i64::from((pos.x * 2 + 1) * 500 / width);
+    let y = i64::from((pos.y * 2 + 1) * 500 / height);
+    let distance = ellipse_score(x - 400, y - 500, 260, 280);
+    match distance {
+        0..=1_600 => 6,
+        1_601..=4_900 => 4,
+        4_901..=10_000 => 2,
+        _ => 0,
     }
 }
 
@@ -232,5 +337,119 @@ mod tests {
         park.ticks = u64::MAX - 1;
         park.advance(Speed::Fastest);
         assert_eq!(park.ticks(), u64::MAX);
+    }
+
+    #[test]
+    fn terraced_profile_is_repeatable_multilevel_and_nested() {
+        let mut park = Park::new(32, 32);
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        let mut second = Park::new(32, 32);
+        second.apply_terrain_profile(TerrainProfile::Terraced);
+        assert_eq!(park, second);
+        assert_eq!(park.max_terrain_height(), 6);
+        for level in [0, 2, 4, 6] {
+            assert!(park.tiles.iter().any(|tile| tile.height == level));
+        }
+        // Cross the central hill from the flat border towards its summit.
+        for (x, expected) in [(3, 0), (5, 2), (8, 4), (12, 6)] {
+            assert_eq!(park.tile(TilePos { x, y: 16 }).unwrap().height, expected);
+        }
+        let snapshot = park.clone();
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        assert_eq!(
+            park, snapshot,
+            "reapplying a preset must not accumulate height"
+        );
+    }
+
+    #[test]
+    fn profiles_preserve_materials_dimensions_clock_and_flat_regression() {
+        let mut park = Park::new(32, 32);
+        for _ in 0..47 {
+            park.advance(Speed::Fast);
+        }
+        let original = park.clone();
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        assert_eq!((park.width(), park.height(), park.ticks()), (32, 32, 94));
+        for (index, tile) in park.tiles.iter().enumerate() {
+            assert_eq!(tile.terrain, original.tiles[index].terrain);
+            let x = index as u32 % park.width;
+            let y = index as u32 / park.width;
+            if tile.terrain != Terrain::Grass || x < 4 || y < 4 || x >= 28 || y >= 28 {
+                assert_eq!(tile.height, 0, "shore, water, and border must stay flat");
+            }
+        }
+        park.apply_terrain_profile(TerrainProfile::Flat);
+        assert_eq!(park, original);
+        assert_eq!(park.max_terrain_height(), 0);
+        assert_eq!(TerrainProfile::default(), TerrainProfile::Flat);
+    }
+
+    #[test]
+    fn profiles_handle_small_rectangular_and_maximum_maps() {
+        for (width, height) in [
+            (1, 1),
+            (7, 3),
+            (9, 9),
+            (20, 12),
+            (MAX_MAP_SIZE, MAX_MAP_SIZE),
+        ] {
+            let mut park = Park::new(width, height);
+            park.apply_terrain_profile(TerrainProfile::Terraced);
+            assert_eq!(park.tiles.len(), (width * height) as usize);
+            assert!(
+                park.tiles
+                    .iter()
+                    .all(|tile| tile.height <= MAX_TERRAIN_HEIGHT)
+            );
+            if width < 9 || height < 9 {
+                assert_eq!(park.max_terrain_height(), 0);
+            }
+        }
+    }
+
+    #[test]
+    fn terrain_setter_changes_only_requested_height_including_extremes() {
+        let mut park = Park::new(32, 32);
+        park.advance(Speed::Fastest);
+        let original = park.clone();
+        let pos = TilePos { x: 12, y: 16 };
+        assert_eq!(park.set_terrain_height(pos, MAX_TERRAIN_HEIGHT), Ok(()));
+        assert_eq!(park.tile(pos).unwrap().height, MAX_TERRAIN_HEIGHT);
+        assert_eq!(park.max_terrain_height(), MAX_TERRAIN_HEIGHT);
+        assert_eq!(park.ticks(), original.ticks());
+        assert_eq!(park.set_terrain_height(pos, 0), Ok(()));
+        assert_eq!(park, original);
+    }
+
+    #[test]
+    fn invalid_terrain_edits_are_atomic_and_never_wrap_rows() {
+        let mut park = Park::new(32, 32);
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        let snapshot = park.clone();
+        for pos in [
+            TilePos { x: 32, y: 0 },
+            TilePos { x: 0, y: 32 },
+            TilePos {
+                x: u32::MAX,
+                y: u32::MAX,
+            },
+        ] {
+            assert_eq!(
+                park.set_terrain_height(pos, 2),
+                Err(TerrainHeightError::OutOfBounds { pos })
+            );
+            assert_eq!(park, snapshot);
+        }
+        for height in [MAX_TERRAIN_HEIGHT + 1, u8::MAX] {
+            assert_eq!(
+                park.set_terrain_height(TilePos { x: 12, y: 16 }, height),
+                Err(TerrainHeightError::HeightTooHigh {
+                    height,
+                    max: MAX_TERRAIN_HEIGHT
+                })
+            );
+            assert_eq!(park, snapshot);
+        }
     }
 }

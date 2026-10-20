@@ -1,6 +1,6 @@
 # Product decisions
 
-Baseline: 19 October 2026. This records confirmed direction separately from implementation defaults and unresolved decisions. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the feature acceptance register; [the development plan](../DEVELOPMENT_PLAN.md) defines milestones.
+Updated: 20 October 2026 for the 0.2.0 terrain proof; original planning baseline: 19 October 2026. This records confirmed direction separately from implementation defaults and unresolved decisions. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the feature acceptance register; [the development plan](../DEVELOPMENT_PLAN.md) defines milestones.
 
 ## Confirmed by the user
 
@@ -10,7 +10,7 @@ Baseline: 19 October 2026. This records confirmed direction separately from impl
 | Implementation language | Rust. |
 | Platform | Windows only. |
 | Business model | Free distribution with all functionality included. |
-| Delivery process | Work in stages, retaining playable milestones; the current step is the detailed inventory and first runnable foundation. |
+| Delivery process | Work in stages, retaining playable milestones. The foundation is implemented; the current step begins Stage 2 with terrain heights, rendering, and picking. |
 | Source repository | Save the full source and a cross-PC handoff guide in the user's dedicated repository, [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). The repository is public. This does not select a source-code license. |
 | Final scope | Fully functional classic gameplay, rather than treating the first small park as a finished game. Coverage is tracked explicitly in the checklist. |
 
@@ -28,6 +28,9 @@ These choices let implementation proceed and can be revised when evidence warran
 | Simulation contract | Fixed ticks, explicit update order, seeded randomness, integer money, and validated atomic commands. Same-build reproducibility is tested before claiming it. |
 | Visual direction | Original isometric park art and interface, with four view orientations as the completed target. Simple geometric placeholder art is acceptable for the first executable. |
 | First deliverable | A 32 x 32 isometric map, camera movement/zoom, tile selection, toolbar/status, simulation clock, pause/speed controls, and packaged Windows executable. It does not yet promise rides, visitors, terrain editing, or park saves. |
+| Current terrain proof | Version 0.2.0 starts in a deterministic Terraced preset using heights 0/2/4/6. T or the preset button switches to Flat and back while preserving time, terrain materials, and selected world coordinates. Terrain tops and front cliffs share rendering/picking depth; scenery follows its terrain anchor and Fit accounts for height. This is a proof scene, not a terrain editor. |
+| Terrain height units | `park_sim` stores integer steps and validates a maximum of 32. The current renderer maps one step to 16 world units. This display conversion belongs to presentation; it is not a physical metre or a promised final clearance rule. |
+| PRF-01 scope | Terrain heights are the first part of the proof. Elevated paths, underground track, overlapping selectable objects, and visibility controls still need a representative scene before PRF-01 can be verified. |
 | Content ownership | Write original code and use original assets or assets with documented redistribution rights. Keep an asset/dependency provenance register; do not bundle original RCT files. |
 | Persistence | Versioned local saves with safe replacement, backups, validation, and supported migrations. User data remains separate from application files. |
 | Distribution path | Versioned ZIP builds first; installer and public download page before 1.0. Proposed first public channel: itch.io. |
@@ -64,4 +67,4 @@ Frame rate, memory consumption, startup time, and graphics compatibility still r
 
 ## Release completion rule
 
-The first executable is a foundation demonstration. Version 1.0 requires the agreed gameplay inventory, the original content catalogue, usable editors and scenarios, tested saves and upgrades, and a distributable Windows package. A clean-machine launch, save recovery, licensing records, and public-release checks remain open until demonstrated. A successful local build alone does not close them.
+Versions 0.1.0 and 0.2.0 are foundation and terrain demonstrations. The [foundation report](FOUNDATION_REPORT.md) and [terrain report](TERRAIN_REPORT.md) separate their evidence. Version 1.0 requires the agreed gameplay inventory, the original content catalogue, usable editors and scenarios, tested saves and upgrades, and a distributable Windows package. A clean-machine launch, save recovery, licensing records, and public-release checks remain open until demonstrated. A successful local build alone does not close them.

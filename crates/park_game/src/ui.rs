@@ -1,6 +1,6 @@
 use super::{FOOTER, HEADER, MAP_SIZE, SIDEBAR, Simulation, ViewState};
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
-use park_sim::{Speed, Terrain};
+use park_sim::{Speed, Terrain, TerrainProfile};
 
 const INK: Color = Color::srgb_u8(30, 62, 53);
 const MUTED: Color = Color::srgb_u8(91, 109, 95);
@@ -19,6 +19,7 @@ pub(super) enum Action {
     ZoomOut,
     Home,
     Grid,
+    Terrain,
     Help,
     CloseHelp,
 }
@@ -32,6 +33,7 @@ pub(super) enum Label {
     Status,
     Pause,
     Grid,
+    Terrain,
 }
 
 #[derive(Component)]
@@ -86,6 +88,7 @@ fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: 
         .with_children(|p| match action {
             Action::Pause => dynamic_label(p, text, 13.0, INK, Label::Pause),
             Action::Grid => dynamic_label(p, text, 13.0, INK, Label::Grid),
+            Action::Terrain => dynamic_label(p, text, 13.0, INK, Label::Terrain),
             _ => label(p, text, 13.0, INK),
         });
 }
@@ -191,6 +194,7 @@ pub(super) fn setup(mut commands: Commands) {
                     button(p, "+", Action::ZoomIn, 43.0);
                     button(p, "Grid: on", Action::Grid, 104.0);
                 });
+                button(p, "Terrain: hills [T]", Action::Terrain, 204.0);
                 dynamic_label(p, "View NE / Zoom 100%", 11.0, MUTED, Label::ViewInfo);
             });
             p.spawn((
@@ -234,12 +238,17 @@ pub(super) fn setup(mut commands: Commands) {
             .with_children(|p| {
                 label(
                     p,
-                    "Explore your park site.\nBuilding and rides follow.",
+                    "Use T to switch between\nflat land and hills.",
                     11.0,
                     MUTED,
                 );
             });
-            label(p, "v0.1.0 / foundation", 10.0, MUTED);
+            label(
+                p,
+                concat!("v", env!("CARGO_PKG_VERSION"), " / terrain study"),
+                10.0,
+                MUTED,
+            );
         });
 
     commands
@@ -262,7 +271,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "Drag right mouse: pan   Wheel: zoom   Q/E: rotate   H: help",
+                "Wheel: zoom   Q/E: rotate   T: terrain   H: help",
                 11.0,
                 MUTED,
             );
@@ -306,6 +315,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("Q / E", "Rotate the view"),
                     ("Home", "Fit the park in view"),
                     ("G", "Show or hide the grid"),
+                    ("T", "Switch flat / terraced terrain"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
                     ("Esc", "Close help or clear selection"),
                 ] {
@@ -315,7 +325,7 @@ pub(super) fn setup(mut commands: Commands) {
                             label(p, purpose, 11.0, MUTED);
                         });
                 }
-                label(p, "This first build lets you explore and inspect.\nBuilding tools, guests, rides and saves arrive later.", 12.0, MUTED);
+                label(p, "Inspect raised ground or its visible cliff faces.\nBuilding tools, guests, rides and saves arrive later.", 12.0, MUTED);
                 button(p, "Back to the park", Action::CloseHelp, 180.0);
             });
         });
@@ -328,6 +338,9 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
     // A button may close an overlay before pointer_input runs this frame.
     // Consume that press so it cannot also select the landscape beneath it.
     view.ui_pointer_consumed = false;
+    if view.capture_active {
+        return;
+    }
     for (interaction, action) in &interactions {
         if *interaction != Interaction::Pressed {
             continue;
@@ -348,6 +361,7 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
                 view.grid = !view.grid;
                 view.scene_dirty = true;
             }
+            Action::Terrain => view.toggle_terrain_profile(),
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -385,13 +399,13 @@ pub(super) fn refresh(
                 "Click the landscape to\ninspect a piece of land.".into(),
                 |tile| {
                     format!(
-                        "{}\nElevation: {}\n{}",
+                        "{}\nHeight: {} steps\n{}",
                         terrain_name(tile.terrain),
                         tile.height,
                         if tile.terrain == Terrain::Water {
                             "Water surface"
                         } else {
-                            "Open land"
+                            "Terrain surface"
                         }
                     )
                 },
@@ -403,7 +417,10 @@ pub(super) fn refresh(
             ),
             Label::Status => view.hovered.map_or(
                 format!("Meadow Lake  /  {MAP_SIZE} x {MAP_SIZE} tiles"),
-                |p| format!("Tile {}, {}  /  Click to inspect", p.x + 1, p.y + 1),
+                |p| {
+                    let height = sim.0.tile(p).map_or(0, |tile| tile.height);
+                    format!("Tile {}, {} / Height {height}", p.x + 1, p.y + 1)
+                },
             ),
             Label::Pause => if view.speed == Speed::Paused {
                 "Resume"
@@ -412,6 +429,11 @@ pub(super) fn refresh(
             }
             .into(),
             Label::Grid => if view.grid { "Grid: on" } else { "Grid: off" }.into(),
+            Label::Terrain => match view.terrain_profile {
+                TerrainProfile::Flat => "Terrain: flat [T]",
+                TerrainProfile::Terraced => "Terrain: hills [T]",
+            }
+            .into(),
         };
         if text.0 != value {
             text.0 = value;
@@ -422,11 +444,12 @@ pub(super) fn refresh(
             Action::Pause => view.speed == Speed::Paused,
             Action::Speed(speed) => view.speed == *speed,
             Action::Grid => view.grid,
+            Action::Terrain => view.terrain_profile == TerrainProfile::Terraced,
             _ => false,
         };
-        let color = if *interaction == Interaction::Pressed || active {
+        let color = if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD
-        } else if *interaction == Interaction::Hovered {
+        } else if !view.capture_active && *interaction == Interaction::Hovered {
             Color::srgb_u8(207, 220, 197)
         } else {
             BUTTON
