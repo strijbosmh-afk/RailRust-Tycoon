@@ -376,7 +376,7 @@ Do not start all of these systems in one change. Select a small observable behav
 
 ## 9. Work safely across two PCs
 
-Use GitHub as the shared source history. The existing working directory is the shared OneDrive folder recorded above; a separate clone on each PC is also an option. When continuing in the shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
+Use GitHub as the shared source history. The original PC used the shared OneDrive folder recorded above; this resumed checkout is the separate local clone in `Documents\ChatGPT\RailRust Tycoon`, with no verified OneDrive sync. For separate clones, push completed work to GitHub and fetch it on the receiving PC. When continuing in the original shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
 
 Before a work session:
 
