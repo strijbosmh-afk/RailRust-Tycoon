@@ -45,3 +45,16 @@ jobs:
             dist/Parkbound-*-windows-x64.zip.sha256
           if-no-files-found: error
           retention-days: 14
+      - name: Smoke test CPU performance reporting
+        shell: pwsh
+        run: |
+          $measurementDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound measurement é " + [guid]::NewGuid())
+          ./scripts/measure-performance.ps1 -OutputDirectory $measurementDirectory -Cases baseline -Repetitions 1 -BenchmarkTicks 30 -SkipFrames
+          Copy-Item -LiteralPath $measurementDirectory -Destination ./artifacts/performance-ci -Recurse
+      - name: Store measurement smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parkbound-measurement-smoke
+          path: artifacts/performance-ci
+          if-no-files-found: error
+          retention-days: 14
