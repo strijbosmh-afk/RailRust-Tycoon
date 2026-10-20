@@ -1,0 +1,822 @@
+{
+  "kind": "parkbound-measurement-wrapper",
+  "schema_version": 1,
+  "started_utc": "2026-10-20T12:48:13.3576333Z",
+  "finished_utc": "2026-10-20T12:50:19.4968696Z",
+  "status": "completed",
+  "executable_sha256": "06c10a106dd3afe8d51c604c8238b10b5f5266f594a660b3e7e7b919260f742b",
+  "executable_bytes": 45868032,
+  "executable_unchanged_after_runs": true,
+  "source": {
+    "checkout_commit": "e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559",
+    "checkout_dirty": false,
+    "workspace_declared_version": "0.7.0",
+    "note": "Checkout metadata identifies the source directory, not proof of how an arbitrary executable was built. Runtime report versions and executable SHA-256 identify the measured binary."
+  },
+  "hardware": {
+    "operating_system": {
+      "caption": "Microsoft Windows 11 Enterprise",
+      "version": "10.0.26200",
+      "build_number": "26200",
+      "architecture": "64 bits"
+    },
+    "processors": [
+      {
+        "name": "Intel(R) Core(TM) i5-9400T CPU @ 1.80GHz",
+        "cores": 6,
+        "logical_processors": 6,
+        "maximum_clock_mhz": 1800
+      }
+    ],
+    "graphics": [
+      {
+        "name": "Intel(R) UHD Graphics 630",
+        "driver_version": "31.0.101.2115"
+      }
+    ],
+    "total_physical_memory_bytes": 8453365760,
+    "unavailable": []
+  },
+  "configuration": {
+    "cases": [
+      "baseline",
+      "save-scale",
+      "stress"
+    ],
+    "repetitions": 3,
+    "benchmark_ticks": 300,
+    "profile_samples": 600,
+    "frame_profiles_enabled": true,
+    "execution": "Sequential child processes; no normal-player save or settings commands."
+  },
+  "runs": [
+    {
+      "name": "cpu-baseline-1",
+      "mode": "benchmark",
+      "case": "baseline",
+      "repetition": 1,
+      "report_file": "cpu-baseline-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "baseline",
+          "guests": 12,
+          "map_height": 32,
+          "map_width": 32,
+          "objects": 92,
+          "paths": 37,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 1024,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 0.0487,
+          "mean_ms": 0.015598333333333348,
+          "min_ms": 0.014199999999999999,
+          "p50_ms": 0.0146,
+          "p95_ms": 0.0224,
+          "p99_ms": 0.0261,
+          "samples": 300,
+          "total_ms": 4.679500000000004
+        },
+        "path_graph": {
+          "nodes": 37,
+          "undirected_edges": 38
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 19608.707,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 2,
+        "sampled_peak_working_set_bytes": 10547200,
+        "sampled_peak_private_bytes": 2793472,
+        "observed_os_peak_working_set_bytes": 15278080,
+        "observed_cpu_milliseconds": 171.875,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-baseline-2",
+      "mode": "benchmark",
+      "case": "baseline",
+      "repetition": 2,
+      "report_file": "cpu-baseline-2.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "baseline",
+          "guests": 12,
+          "map_height": 32,
+          "map_width": 32,
+          "objects": 92,
+          "paths": 37,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 1024,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 0.0277,
+          "mean_ms": 0.01544466666666664,
+          "min_ms": 0.0144,
+          "p50_ms": 0.0149,
+          "p95_ms": 0.022500000000000003,
+          "p99_ms": 0.0245,
+          "samples": 300,
+          "total_ms": 4.633399999999992
+        },
+        "path_graph": {
+          "nodes": 37,
+          "undirected_edges": 38
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 543.383,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 3,
+        "sampled_peak_working_set_bytes": 10395648,
+        "sampled_peak_private_bytes": 2834432,
+        "observed_os_peak_working_set_bytes": 15323136,
+        "observed_cpu_milliseconds": 187.5,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-baseline-3",
+      "mode": "benchmark",
+      "case": "baseline",
+      "repetition": 3,
+      "report_file": "cpu-baseline-3.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "baseline",
+          "guests": 12,
+          "map_height": 32,
+          "map_width": 32,
+          "objects": 92,
+          "paths": 37,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 1024,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 1.3754,
+          "mean_ms": 0.021639666666666644,
+          "min_ms": 0.014199999999999999,
+          "p50_ms": 0.015000000000000001,
+          "p95_ms": 0.0241,
+          "p99_ms": 0.0596,
+          "samples": 300,
+          "total_ms": 6.491899999999993
+        },
+        "path_graph": {
+          "nodes": 37,
+          "undirected_edges": 38
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 618.333,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 3,
+        "sampled_peak_working_set_bytes": 10158080,
+        "sampled_peak_private_bytes": 3063808,
+        "observed_os_peak_working_set_bytes": 15060992,
+        "observed_cpu_milliseconds": 140.625,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-save-scale-1",
+      "mode": "benchmark",
+      "case": "save-scale",
+      "repetition": 1,
+      "report_file": "cpu-save-scale-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "save-scale",
+          "guests": 256,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 34.2907,
+          "mean_ms": 9.224643333333331,
+          "min_ms": 6.6445,
+          "p50_ms": 8.0388,
+          "p95_ms": 15.329600000000001,
+          "p99_ms": 26.8415,
+          "samples": 300,
+          "total_ms": 2767.3929999999996
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 11663.098,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 53,
+        "sampled_peak_working_set_bytes": 98738176,
+        "sampled_peak_private_bytes": 182484992,
+        "observed_os_peak_working_set_bytes": 111501312,
+        "observed_cpu_milliseconds": 8437.5,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-save-scale-2",
+      "mode": "benchmark",
+      "case": "save-scale",
+      "repetition": 2,
+      "report_file": "cpu-save-scale-2.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "save-scale",
+          "guests": 256,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 53.709,
+          "mean_ms": 8.321549333333337,
+          "min_ms": 6.6131,
+          "p50_ms": 7.2620000000000005,
+          "p95_ms": 14.0907,
+          "p99_ms": 22.5318,
+          "samples": 300,
+          "total_ms": 2496.464800000001
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 11340.113,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 51,
+        "sampled_peak_working_set_bytes": 96665600,
+        "sampled_peak_private_bytes": 182484992,
+        "observed_os_peak_working_set_bytes": 111378432,
+        "observed_cpu_milliseconds": 8546.875,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-save-scale-3",
+      "mode": "benchmark",
+      "case": "save-scale",
+      "repetition": 3,
+      "report_file": "cpu-save-scale-3.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "save-scale",
+          "guests": 256,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 17.571900000000003,
+          "mean_ms": 7.448459333333333,
+          "min_ms": 6.262099999999999,
+          "p50_ms": 6.983,
+          "p95_ms": 10.402399999999998,
+          "p99_ms": 15.0486,
+          "samples": 300,
+          "total_ms": 2234.5378
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 8242.954,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 39,
+        "sampled_peak_working_set_bytes": 87384064,
+        "sampled_peak_private_bytes": 164401152,
+        "observed_os_peak_working_set_bytes": 113496064,
+        "observed_cpu_milliseconds": 7359.375,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-stress-1",
+      "mode": "benchmark",
+      "case": "stress",
+      "repetition": 1,
+      "report_file": "cpu-stress-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "stress",
+          "guests": 5000,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": false,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 13.1629,
+          "mean_ms": 7.790234333333325,
+          "min_ms": 6.3083,
+          "p50_ms": 7.5793,
+          "p95_ms": 9.5919,
+          "p99_ms": 11.350000000000001,
+          "samples": 300,
+          "total_ms": 2337.0702999999976
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "unsupported"
+      },
+      "elapsed_milliseconds": 12140.315,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 56,
+        "sampled_peak_working_set_bytes": 102391808,
+        "sampled_peak_private_bytes": 164814848,
+        "observed_os_peak_working_set_bytes": 112922624,
+        "observed_cpu_milliseconds": 10281.25,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-stress-2",
+      "mode": "benchmark",
+      "case": "stress",
+      "repetition": 2,
+      "report_file": "cpu-stress-2.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "stress",
+          "guests": 5000,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": false,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 18.3167,
+          "mean_ms": 8.32442133333333,
+          "min_ms": 6.504099999999999,
+          "p50_ms": 8.0327,
+          "p95_ms": 10.5398,
+          "p99_ms": 12.8013,
+          "samples": 300,
+          "total_ms": 2497.326399999999
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "unsupported"
+      },
+      "elapsed_milliseconds": 10536.782,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 49,
+        "sampled_peak_working_set_bytes": 97701888,
+        "sampled_peak_private_bytes": 166748160,
+        "observed_os_peak_working_set_bytes": 112979968,
+        "observed_cpu_milliseconds": 9484.375,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-stress-3",
+      "mode": "benchmark",
+      "case": "stress",
+      "repetition": 3,
+      "report_file": "cpu-stress-3.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "stress",
+          "guests": 5000,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": false,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 11.7045,
+          "mean_ms": 7.828762999999999,
+          "min_ms": 6.2863,
+          "p50_ms": 7.6703,
+          "p95_ms": 9.949,
+          "p99_ms": 11.0702,
+          "samples": 300,
+          "total_ms": 2348.6288999999997
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "unsupported"
+      },
+      "elapsed_milliseconds": 10835.495,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 51,
+        "sampled_peak_working_set_bytes": 98988032,
+        "sampled_peak_private_bytes": 147968000,
+        "observed_os_peak_working_set_bytes": 112992256,
+        "observed_cpu_milliseconds": 9984.375,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "frames-vsync",
+      "mode": "frames-vsync",
+      "case": "baseline",
+      "repetition": 1,
+      "report_file": "frames-vsync.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "interactive_frame_profile",
+      "runtime_status": "completed",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "measured_samples": 600,
+        "frame_interval_ms": {
+          "max_ms": 54.5699,
+          "mean_ms": 24.90676033333335,
+          "min_ms": 2.9676,
+          "p50_ms": 24.2536,
+          "p95_ms": 47.713100000000004,
+          "p99_ms": 50.4005,
+          "samples": 600,
+          "total_ms": 14944.05620000001
+        },
+        "mean_main_loop_fps": 40.14974194221782,
+        "window": {
+          "changed_configuration_intervals": 0,
+          "first_measured": {
+            "backend_scale_factor": 1.0,
+            "focused": true,
+            "logical_pixels": [
+              1920.0,
+              1080.0
+            ],
+            "physical_pixels": [
+              1920,
+              1080
+            ],
+            "present_mode": "AutoVsync",
+            "scale_factor": 1.0,
+            "visible": true
+          },
+          "hidden_intervals": 0,
+          "interpretation": "Focus, visibility, occlusion, size and present mode must be considered before comparing FPS; unknown occlusion is not evidence of visibility. Auto modes may choose a backend fallback that this probe cannot inspect.",
+          "last_observed": {
+            "backend_scale_factor": 1.0,
+            "focused": true,
+            "logical_pixels": [
+              1920.0,
+              1080.0
+            ],
+            "physical_pixels": [
+              1920,
+              1080
+            ],
+            "present_mode": "AutoVsync",
+            "scale_factor": 1.0,
+            "visible": true
+          },
+          "last_occlusion_event_state": null,
+          "non_requested_size_intervals": 0,
+          "occluded_intervals": 0,
+          "requested_physical_pixels": [
+            1920,
+            1080
+          ],
+          "requested_present_mode": "AutoVsync",
+          "unfocused_intervals": 0,
+          "unknown_occlusion_intervals": 600
+        },
+        "adapter": {
+          "backend": "Vulkan",
+          "device_id": 16018,
+          "device_type": "IntegratedGpu",
+          "driver": "Intel Corporation",
+          "driver_info": "Intel driver",
+          "name": "Intel(R) UHD Graphics 630",
+          "vendor_id": 32902
+        },
+        "simulation": {
+          "dropped_ticks": null,
+          "fixed_overstep_end_ms": 28.929514,
+          "fixed_overstep_start_ms": 16.281798,
+          "fixed_step_ms": 33.333333,
+          "note": "A wall-clock/tick shortfall alone does not count dropped simulation ticks. Virtual time caps discard long wall-clock gaps; fixed-step overstep also affects endpoint tick counts.",
+          "real_clock_elapsed_ms": 14945.9809,
+          "real_intervals_above_virtual_cap": 0,
+          "real_time_above_virtual_cap_ms": 0.0,
+          "speed": "Normal",
+          "ticks_advanced": 448,
+          "ticks_at_end": 542,
+          "ticks_at_measurement_start": 94,
+          "ticks_per_second": 30,
+          "virtual_clock_elapsed_ms": 14945.9809,
+          "virtual_max_delta_ms": 250.0,
+          "virtual_relative_speed": 1.0,
+          "wall_time_expected_ticks_estimate": 448.321686
+        }
+      },
+      "elapsed_milliseconds": 19139.29,
+      "timeout_seconds": 150,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 69,
+        "sampled_peak_working_set_bytes": 419766272,
+        "sampled_peak_private_bytes": 345636864,
+        "observed_os_peak_working_set_bytes": 420818944,
+        "observed_cpu_milliseconds": 13406.25,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "frames-uncapped",
+      "mode": "frames-uncapped",
+      "case": "baseline",
+      "repetition": 1,
+      "report_file": "frames-uncapped.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "interactive_frame_profile",
+      "runtime_status": "completed",
+      "runtime_version": "0.7.0",
+      "runtime_metrics": {
+        "measured_samples": 600,
+        "frame_interval_ms": {
+          "max_ms": 72.8547,
+          "mean_ms": 26.35453133333331,
+          "min_ms": 2.9916,
+          "p50_ms": 25.6723,
+          "p95_ms": 51.5288,
+          "p99_ms": 56.0687,
+          "samples": 600,
+          "total_ms": 15812.718799999986
+        },
+        "mean_main_loop_fps": 37.944138992720205,
+        "window": {
+          "changed_configuration_intervals": 0,
+          "first_measured": {
+            "backend_scale_factor": 1.0,
+            "focused": true,
+            "logical_pixels": [
+              1920.0,
+              1080.0
+            ],
+            "physical_pixels": [
+              1920,
+              1080
+            ],
+            "present_mode": "AutoNoVsync",
+            "scale_factor": 1.0,
+            "visible": true
+          },
+          "hidden_intervals": 0,
+          "interpretation": "Focus, visibility, occlusion, size and present mode must be considered before comparing FPS; unknown occlusion is not evidence of visibility. Auto modes may choose a backend fallback that this probe cannot inspect.",
+          "last_observed": {
+            "backend_scale_factor": 1.0,
+            "focused": true,
+            "logical_pixels": [
+              1920.0,
+              1080.0
+            ],
+            "physical_pixels": [
+              1920,
+              1080
+            ],
+            "present_mode": "AutoNoVsync",
+            "scale_factor": 1.0,
+            "visible": true
+          },
+          "last_occlusion_event_state": null,
+          "non_requested_size_intervals": 0,
+          "occluded_intervals": 0,
+          "requested_physical_pixels": [
+            1920,
+            1080
+          ],
+          "requested_present_mode": "AutoNoVsync",
+          "unfocused_intervals": 0,
+          "unknown_occlusion_intervals": 600
+        },
+        "adapter": {
+          "backend": "Vulkan",
+          "device_id": 16018,
+          "device_type": "IntegratedGpu",
+          "driver": "Intel Corporation",
+          "driver_info": "Intel driver",
+          "name": "Intel(R) UHD Graphics 630",
+          "vendor_id": 32902
+        },
+        "simulation": {
+          "dropped_ticks": null,
+          "fixed_overstep_end_ms": 12.987059,
+          "fixed_overstep_start_ms": 32.533034,
+          "fixed_step_ms": 33.333333,
+          "note": "A wall-clock/tick shortfall alone does not count dropped simulation ticks. Virtual time caps discard long wall-clock gaps; fixed-step overstep also affects endpoint tick counts.",
+          "real_clock_elapsed_ms": 15813.7872,
+          "real_intervals_above_virtual_cap": 0,
+          "real_time_above_virtual_cap_ms": 0.0,
+          "speed": "Normal",
+          "ticks_advanced": 475,
+          "ticks_at_end": 577,
+          "ticks_at_measurement_start": 102,
+          "ticks_per_second": 30,
+          "virtual_clock_elapsed_ms": 15813.7872,
+          "virtual_max_delta_ms": 250.0,
+          "virtual_relative_speed": 1.0,
+          "wall_time_expected_ticks_estimate": 474.381564
+        }
+      },
+      "elapsed_milliseconds": 19942.427,
+      "timeout_seconds": 150,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 72,
+        "sampled_peak_working_set_bytes": 419352576,
+        "sampled_peak_private_bytes": 343855104,
+        "observed_os_peak_working_set_bytes": 420405248,
+        "observed_cpu_milliseconds": 12906.25,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    }
+  ],
+  "limitations": [
+    "No performance threshold is imposed by this wrapper; preserve incomplete or unsupported runtime outcomes as measured evidence.",
+    "Frame profiles cover only the current baseline UI. Main-loop intervals are not GPU execution or physically presented-frame timings.",
+    "The full 256x256/5000-guest/50-ride target is unsupported by the current single-circuit model.",
+    "Absolute executable/output paths, account names, machine names, and serial numbers are omitted from this summary."
+  ]
+}

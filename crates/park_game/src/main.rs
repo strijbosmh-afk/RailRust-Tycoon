@@ -1,8 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod benchmark;
 mod capture;
+mod frame_probe;
 #[cfg(test)]
 mod input_tests;
+mod measurement;
 mod persistence;
 mod save_check;
 mod save_store;
@@ -159,7 +162,15 @@ struct SceneMeshes {
 }
 
 fn main() -> AppExit {
-    if let Some(result) = save_check::run(std::env::args_os().skip(1).collect()) {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if let Err(error) = measurement::validate_modes(&arguments) {
+        eprintln!("{error}");
+        return AppExit::error();
+    }
+    if let Some(result) = benchmark::run(&arguments) {
+        return result;
+    }
+    if let Some(result) = save_check::run(arguments) {
         return result;
     }
     let park = demonstration_park();
@@ -202,6 +213,10 @@ fn main() -> AppExit {
                 .chain(),
         );
     capture::configure(&mut app);
+    if let Err(error) = frame_probe::configure(&mut app) {
+        eprintln!("Frame profiling failed: {error}");
+        return AppExit::error();
+    }
     app.run()
 }
 
@@ -269,9 +284,21 @@ fn setup_scene(
     });
 }
 
-fn tick_simulation(mut sim: ResMut<Simulation>, view: Res<ViewState>) {
+fn tick_simulation(
+    mut sim: ResMut<Simulation>,
+    view: Res<ViewState>,
+    mut probe: Option<ResMut<frame_probe::Probe>>,
+) {
+    let timer = probe
+        .as_ref()
+        .filter(|p| p.is_measuring())
+        .map(|_| std::time::Instant::now());
+    let before = sim.0.ticks();
     if view.speed != Speed::Paused {
         sim.0.advance(view.speed);
+    }
+    if let (Some(start), Some(probe)) = (timer, probe.as_mut()) {
+        probe.record_simulation(start.elapsed(), sim.0.ticks() - before);
     }
 }
 
@@ -577,7 +604,12 @@ fn update_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut last_selection: Local<Option<SelectionSnapshot>>,
     mut last_guests: Local<Option<(u64, u8, world::ViewMode)>>,
+    mut probe: Option<ResMut<frame_probe::Probe>>,
 ) {
+    let timer = probe
+        .as_ref()
+        .filter(|p| p.is_measuring())
+        .map(|_| std::time::Instant::now());
     // Removed objects and invalid references must never leave a stale inspector
     // or outline. Valid hidden selections persist when switching view modes.
     view.selected = view
@@ -607,7 +639,9 @@ fn update_scene(
         *last_selection = Some(selection);
     }
     let guest_snapshot = (sim.0.ticks(), view.rotation, view.view_mode);
-    if terrain_changed || sim.is_changed() || *last_guests != Some(guest_snapshot) {
+    let dynamic_rebuild =
+        terrain_changed || sim.is_changed() || *last_guests != Some(guest_snapshot);
+    if dynamic_rebuild {
         if let Some(mesh) = meshes.get_mut(&scene.guests) {
             *mesh = world::guest_mesh(&sim.0, view.rotation, view.view_mode);
         }
@@ -615,6 +649,9 @@ fn update_scene(
             *mesh = world::train_mesh(&sim.0, view.rotation, view.view_mode);
         }
         *last_guests = Some(guest_snapshot);
+    }
+    if let (Some(start), Some(probe)) = (timer, probe.as_mut()) {
+        probe.record_scene(start.elapsed(), terrain_changed, dynamic_rebuild);
     }
 }
 

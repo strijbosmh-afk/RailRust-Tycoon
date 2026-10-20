@@ -262,7 +262,7 @@ fn paths_connect(a: &SurfaceObject, b: &SurfaceObject) -> bool {
 }
 
 /// SplitMix64; the full wrapping integer state belongs to Park and is cloned.
-fn next_random(state: &mut u64) -> u64 {
+pub(crate) fn next_random(state: &mut u64) -> u64 {
     *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
     let mut value = *state;
     value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
@@ -270,13 +270,13 @@ fn next_random(state: &mut u64) -> u64 {
     value ^ (value >> 31)
 }
 
-struct PathGraph {
-    nodes: BTreeMap<ObjectId, SurfaceObject>,
-    edges: BTreeMap<ObjectId, Vec<ObjectId>>,
+pub(crate) struct PathGraph {
+    pub(crate) nodes: BTreeMap<ObjectId, SurfaceObject>,
+    pub(crate) edges: BTreeMap<ObjectId, Vec<ObjectId>>,
 }
 
 impl PathGraph {
-    fn new(objects: &[SurfaceObject]) -> Self {
+    pub(crate) fn new(objects: &[SurfaceObject]) -> Self {
         let nodes: BTreeMap<_, _> = objects
             .iter()
             .filter(|object| object.kind == ObjectKind::Path)
@@ -309,6 +309,22 @@ impl PathGraph {
             }
         }
         parents
+    }
+
+    /// Diagnostic queries use the same complete traversal and reconstruction
+    /// as a guest choosing a destination. They never advance a guest or RNG.
+    pub(crate) fn route(
+        &self,
+        start: ObjectId,
+        destination: ObjectId,
+    ) -> Option<VecDeque<ObjectId>> {
+        if !self.nodes.contains_key(&start) || !self.nodes.contains_key(&destination) {
+            return None;
+        }
+        let parents = self.parents_from(start);
+        parents
+            .contains_key(&destination)
+            .then(|| route_from_parents(&parents, start, destination))
     }
 
     fn step_guest(&self, guest: &mut Guest, rng: &mut u64) {
@@ -372,18 +388,27 @@ impl PathGraph {
             return;
         }
         let destination = candidates[(next_random(rng) % candidates.len() as u64) as usize];
-        let mut route = VecDeque::new();
-        let mut cursor = destination;
-        while cursor != current {
-            route.push_front(cursor);
-            cursor = parents[&cursor].expect("reachable non-start path has a parent");
-        }
+        let mut route = route_from_parents(&parents, current, destination);
         guest.destination = Some(destination);
         guest.next = route.pop_front();
         guest.route = route;
         guest.progress = 0;
         guest.state = GuestState::Walking;
     }
+}
+
+fn route_from_parents(
+    parents: &BTreeMap<ObjectId, Option<ObjectId>>,
+    start: ObjectId,
+    destination: ObjectId,
+) -> VecDeque<ObjectId> {
+    let mut route = VecDeque::new();
+    let mut cursor = destination;
+    while cursor != start {
+        route.push_front(cursor);
+        cursor = parents[&cursor].expect("reachable non-start path has a parent");
+    }
+    route
 }
 
 #[cfg(test)]

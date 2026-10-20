@@ -4,6 +4,7 @@
 //! concerns outside this crate makes the simulation usable in headless tests.
 
 mod crowds;
+pub mod diagnostics;
 mod saves;
 mod surfaces;
 mod trains;

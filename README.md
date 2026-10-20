@@ -4,15 +4,15 @@ A free Windows theme park simulation in Rust, inspired by the classic isometric 
 
 Source repository: [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). **Continuing on another PC? Start with [RESUME_DEVELOPMENT.md](RESUME_DEVELOPMENT.md)** for setup, build commands, architecture, current status, and the next implementation steps.
 
-Version 0.6.0 adds a single save slot and an explicit backup load to the seeded park demonstration. Save the complete simulation, load it paused, and resume the same guests and train. The three-car station/lift/drop/brake circuit, twelve guests, path removal/recovery, terrain presets, and Surface/Underground inspection remain available.
+Version 0.7.0 adds opt-in simulation benchmarks, frame profiles, and a Windows measurement wrapper. The playable demonstration retains its single save slot/backup, three-car circuit, twelve guests, path removal/recovery, terrain presets, and Surface/Underground inspection.
 
-The PRF-04 save/reload continuation proof is verified through 131 passing tests, separate production processes, twelve inspected captures, and package relocation; see [the save report](docs/SAVE_REPORT.md). Native Save/Load/Backup controls remain unverified, along with earlier O/F/button and physical Delete retests. Performance measurement is next; track editing, boarding, ride revenue/ratings, and finances remain later milestones in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
+PRF-05 remains in progress. The reference PC measured 37.94–40.15 main-loop FPS for the baseline at 1080p, and 114.61–135.45 ms to generate the 5,000-guest mesh. See [the performance report](docs/PERFORMANCE_REPORT.md) for conditions, complete results, and limits. The full 5,000-guest/50-ride target remains unproven: diagnostics currently use one circuit, and normal play retains its 32 × 32 map. The [save report](docs/SAVE_REPORT.md) preserves accepted 0.6.0 continuation evidence. Native Save/Load/Backup, O/F/buttons, and physical Delete still need retests. Track editing, boarding, ride revenue/ratings, and finances remain later milestones.
 
 ## Play the Windows build
 
-Extract the entire `Parkbound-0.6.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. All 20 payload hashes and twelve guides matched after relocation; the extracted executable passed fresh-process continuation/backup checks and reproduced the loaded-park image exactly. A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder; see [the save report](docs/SAVE_REPORT.md) for exact evidence.
+Extract the entire `Parkbound-0.7.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. The package passed relocation checks with all 22 payload hashes and thirteen guides matching; see [the performance report](docs/PERFORMANCE_REPORT.md). A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder.
 
-The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Earlier milestone reports preserve their own results; they do not verify changed 0.6.0 code.
+The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Earlier milestone reports preserve their own results; they do not verify changed 0.7.0 code.
 
 ## Controls
 
@@ -72,6 +72,10 @@ For an automated render check, run the executable with `--capture-frame` followe
 
 Save diagnostics use `--save-check write` and a separate `--save-check verify` process with a new absolute `--save-dir`. Persistence render scenes `saved|loaded|backup|load-error` also require an explicit isolated save directory; `saved` writes its slot. See [the save report](docs/SAVE_REPORT.md) for exact setup and expected evidence.
 
+For repeatable measurements, build Release and run `scripts/measure-performance.ps1 -OutputDirectory <absolute-new-directory>` through PowerShell 7. It runs baseline/save-scale/stress CPU cases and two baseline frame profiles sequentially, records safe hardware metadata and sampled process memory, and preserves unsupported/incomplete outcomes. `-SkipFrames`, `-Cases`, and repetition/sample options allow targeted runs. Frame values describe main-loop pacing, not GPU or physically presented-frame timing. See [the performance report](docs/PERFORMANCE_REPORT.md) before interpreting results.
+
+The Windows ZIP also includes the wrapper. With PowerShell 7 installed, run `.\measure-performance.ps1 -Executable .\Parkbound.exe -OutputDirectory <absolute-new-directory>` from the extracted folder. PowerShell is only needed for this optional measurement tool.
+
 `park_sim` owns engine-independent terrain, stable identities, clearance, path connectivity, seeded guests, sampled circuit geometry, train operation, complete fixed ticks, and validated save encoding/decoding. `park_game` owns filesystem storage, projection, shared surface rendering/picking, separate guest/train meshes, visibility, controls, and UI. A separate content crate will be introduced when authored ride/scenario definitions justify it.
 
 ## Project documents
@@ -80,7 +84,8 @@ Save diagnostics use `--save-check write` and a separate `--save-check verify` p
 - [Development plan](DEVELOPMENT_PLAN.md): milestones and completion gates.
 - [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): feature inventory and acceptance criteria.
 - [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed choices, working defaults, and open decisions.
-- [Save report](docs/SAVE_REPORT.md): current 0.6.0 continuation proof, format/storage contract, and verification.
+- [Performance report](docs/PERFORMANCE_REPORT.md): current 0.7.0 measurement workloads, evidence, and scale limitations.
+- [Save report](docs/SAVE_REPORT.md): historical 0.6.0 continuation proof and format/storage contract.
 - [Train report](docs/TRAIN_REPORT.md): historical 0.5.0 circuit proof, verification, and remaining checks.
 - [Crowd report](docs/CROWD_REPORT.md): historical 0.4.0 navigation proof and evidence.
 - [Overlap report](docs/OVERLAP_REPORT.md): historical 0.3.0 overlap proof and evidence.
@@ -92,4 +97,4 @@ Save diagnostics use `--save-check write` and a separate `--save-check verify` p
 
 All planned gameplay will be included in the free download. The project's source-code license has not yet been selected; free binary distribution does not imply an open-source license. Dependency and embedded-font notices accompany the packaged build. No original RollerCoaster Tycoon code, graphics, music, or scenario files are included.
 
-Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. Version 0.6.0 implementation `d7a16f6` is pushed on `codex/save-load-continuation` in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), stacked on the unmerged train review. [Windows CI run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034) passed for that implementation. CI prepares a review artifact; it does not create a public release. Check the exact commit's run after further code changes.
+Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. The retained 0.6.0 implementation is in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), with [passing implementation CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034). The 0.7.0 implementation `e93eb99` is in [draft PR #5](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/5), stacked on the save review. All 147 local release tests and strict source checks pass; [implementation CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126) passed for that exact commit. CI prepares a review artifact; it does not create a public release. Check the exact commit's run after further code changes.
