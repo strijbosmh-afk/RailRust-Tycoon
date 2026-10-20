@@ -24,7 +24,9 @@ Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart T
 
 You can continue from that synced workspace or use a separate GitHub clone. The 0.3.0 checkout on the second PC was `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Both paths are retained intentionally. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
-The current feature branch is `codex/train-circuit`, based on crowd checkpoint `51a79e8` from `codex/path-crowds`. Its review is stacked on the crowd branch while that work remains unmerged. The crowd branch in turn contains the overlap work that was found on GitHub while `main` still held 0.2.0. Fetch the current feature branch when resuming; do not assume cloning `main` retrieves the newest checkpoint. Check actual branch/PR state before choosing a base or changing review ancestry.
+The current feature branch is [`codex/train-circuit`](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/train-circuit), based on crowd checkpoint `51a79e8` from `codex/path-crowds`. Implementation commit `bd227f147998b8ab7dbe5af7bc44a2896079220a` is pushed and reviewed in [draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), stacked on the crowd branch. The crowd branch in turn contains the overlap work found on GitHub while `main` still held 0.2.0. The review stack remains unmerged. Fetch the current feature branch when resuming; do not assume cloning `main` retrieves the newest checkpoint. Check actual branch/PR state before choosing a base or changing review ancestry.
+
+[Hosted Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. The local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report records executable/capture hashes and the remaining manual-input and clean-machine gaps. Documentation-only follow-up commits retain the same runtime source; repackage them and verify all guides/hashes before handoff.
 
 The retained crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation checkpoint `51a79e8`. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); they were unmerged when the train work began. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. Its local ZIP passed relocation and all 18 payload hashes. This historical evidence does not verify the changed train code; record 0.5.0 evidence in the train report.
 
@@ -97,10 +99,10 @@ Keyboard panning was not clearly established in the 0.3.0 native session, and ri
 | IDs | State | Meaning |
 | --- | --- | --- |
 | DEF-01, DEF-02 | Planned | Exact content/expansion audit and final product/platform decisions remain open. |
-| FND-01 | Verified | Reverified in 0.3.0 through native launch/close, 14 inspected diagnostic captures, and relocated ZIP launch with all 17 payload hashes matching. |
+| FND-01 | Verified | Reverified in 0.5.0 through sixteen inspected captures and relocated ZIP launch with all 19 payload hashes matching; the parked-train capture from C:\Windows exited 0 and matched the original image exactly. |
 | FND-02 | In progress | Native selection, four rotations, wheel zoom, and Fit passed in 0.3.0. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
 | FND-03 | Verified | Earlier speed/inspector/visibility evidence is retained; 0.4.0 reverified native pause/resume, path-edit buttons, counters, and help, with complete-step speed/pause tests. |
-| FND-04 | Verified | Reverified locally in 0.5.0 through 99 tests, formatting, strict Clippy, and release compilation. Current package/hosted-CI verification remains separate in the train report. |
+| FND-04 | Verified | Reverified in 0.5.0 through 99 tests, formatting, strict Clippy, release compilation, local package checks, and successful Windows CI run 39417086959. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
 | PRF-01 | Verified | Named 0.3.0 tests, captures, native identity/visibility/preset checks, and package relocation establish the overlap baseline. New changes require regression checks. |
 | PRF-02 | Verified | 0.4.0 automated invariants, eleven inspected captures, and native path deletion/restoration/recovery establish the proof. Physical Delete shortcut retesting remains explicit; Remove path is verified. |
@@ -283,7 +285,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 
 Only use `-SkipBuild` immediately after a successful build of the current source. It does not prove an existing executable is up to date. The script assumes the normal host target output `release/parkbound.exe`; do not add a different `--target` layout or change its binary assumptions without updating and testing packaging.
 
-For version 0.5.0, expected output after successful packaging is:
+The version 0.5.0 local package output is:
 
 ```text
 dist/
@@ -491,8 +493,9 @@ The following hosted runs were verified successful on 20 October 2026:
 | `dc832fa` (0.2.0 starting baseline) | [Successful run 39381924927](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39381924927) |
 | `0220c7b` (0.3.0 overlap runtime source) | [Successful run 39406042854](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39406042854): 51 tests, formatting, release Clippy, and Windows package |
 | `20cbc76` (0.4.0 crowd runtime source) | [Successful run 39412913892](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892): tests, formatting, release Clippy, Windows package, and artifact upload |
+| `bd227f1` (0.5.0 train runtime source) | [Successful PR run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959): source checks and Windows packaging for draft PR #3 |
 
-These results belong to their exact commits. The 0.3.0 and 0.4.0 executables were also exercised locally through captures, native input, and relocation. Current 0.5.0 source, render, and limited native results are recorded in the train report, with hosted CI tracked separately; documentation-only evidence updates do not replace the runtime-source identity.
+These results belong to their exact commits. The 0.3.0 and 0.4.0 executables were also exercised locally through captures, native input, and relocation. Current 0.5.0 source, render, limited native, successful hosted-CI, and package results are recorded in the train report. Documentation-only evidence updates do not replace the runtime-source identity. Archive hashes change when guides are repackaged; use the adjacent `.zip.sha256` and verify all 19 payload hashes and eleven guides against the final snapshot.
 
 There is no selected project source-code license yet. Free gameplay distribution and permission to reuse source are separate decisions. Saving source in this GitHub repository does not by itself select MIT, Apache, GPL, or another project license. Decide source licensing before making reuse promises or accepting outside contributions. Keep all third-party licenses and asset provenance intact.
 
@@ -511,7 +514,10 @@ docs/PRODUCT_DECISIONS.md, docs/GAMEPLAY_CHECKLIST.md, and DEVELOPMENT_PLAN.md,
 then inspect the actual source and current Git state. Preserve unrelated local
 changes and remote history. Current feature branch is codex/train-circuit, based
 on crowd checkpoint 51a79e8 from codex/path-crowds, which depends on the overlap
-branch. Inspect the review stack/merge state before choosing a base.
+branch. Runtime source bd227f147998b8ab7dbe5af7bc44a2896079220a is pushed in draft
+PR #3. Hosted Windows CI run 39417086959 passed; the local ZIP passed all 19 payload
+hashes, eleven guide checks, and a byte-identical relocated parked-train capture.
+Inspect the review stack/merge state before choosing a base.
 Main may still be older. The current session uses the original shared
 OneDrive path; the separate second-PC path and single-active-session workflow are
 also recorded in the guide.

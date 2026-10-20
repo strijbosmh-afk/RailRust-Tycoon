@@ -10,7 +10,7 @@ The PRF-03 automatic circuit proof is verified through 99 tests, sixteen inspect
 
 ## Play the Windows build
 
-Extract the entire `Parkbound-0.5.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. Check the train report for this version's actual package verification. A separate clean Windows machine without development tools remains untested; generated binaries stay in the ignored local `dist` folder.
+Extract the entire `Parkbound-0.5.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. Its ZIP passed relocation with all 19 payload hashes and eleven guides verified; the extracted executable rendered successfully from an unrelated working directory. A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder; see [the train report](docs/TRAIN_REPORT.md) for exact evidence.
 
 The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. The crowd, overlap, terrain, and foundation reports preserve earlier results; they do not verify changed 0.5.0 code.
 
@@ -80,4 +80,4 @@ For an automated render check, run the executable with `--capture-frame` followe
 
 All planned gameplay will be included in the free download. The project's source-code license has not yet been selected; free binary distribution does not imply an open-source license. Dependency and embedded-font notices accompany the packaged build. No original RollerCoaster Tycoon code, graphics, music, or scenario files are included.
 
-Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. The [Windows CI workflow](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions) runs checks and prepares a build artifact; it does not create a public release. Check the run for the exact source commit rather than assuming an earlier successful run covers a new build.
+Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. The train implementation is saved in [draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), with [passing Windows CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959). CI prepares a review artifact; it does not create a public release. Check the exact commit's run after further code changes.

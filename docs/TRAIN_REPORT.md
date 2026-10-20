@@ -74,7 +74,7 @@ The complete release test suite passed **99 tests**: 43 simulation, 27 world/ren
 
 A Bevy fixed-update regression ran 120 simulated seconds with 30, 60, and 144 Hz display-update schedules and obtained equal whole-Park state. This verifies schedule-independent simulation, including both guests and train; it is a synthetic scheduling test, not a measured hardware frame-rate result. Rendering regressions also cover degenerate edge-on faces and picking against the triangles actually emitted to the mesh.
 
-The checked release executable SHA-256 is:
+Runtime source is implementation commit `bd227f147998b8ab7dbe5af7bc44a2896079220a` on `codex/train-circuit`; later documentation-only commits preserve this runtime checkpoint. The checked release executable SHA-256 is:
 
 ```text
 0cd409dc5e9574507bc7bcc93111dfb3c0d5415bdddde35cb16c62b54c491d64
@@ -120,14 +120,24 @@ Physical display-rate/hardware performance, the earlier Delete shortcut, keyboar
 
 ### Package and hosted CI
 
-**Pending:** final package checksums/payload verification/relocation and hosted CI for the delivered commit. These delivery checks are separate from PRF-03's demonstrated automatic-circuit behavior. The 0.4.0 captures, package hashes, and successful workflow remain historical evidence.
+The local Windows ZIP was generated successfully. Its adjacent checksum, all **19 payload hashes**, and all **11 packaged Markdown guides** were verified after extraction into a fresh temporary directory containing spaces and `é`. The relocated executable matched the SHA-256 above. Launched from `C:\Windows` with `--capture-scene train-closed`, it exited with code 0 and produced a PNG byte-for-byte identical to the inspected original `closed.png`.
 
-Package with `pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild` after building the exact checked binary. Verify the ZIP checksum and all payload checksums, then launch the extracted executable from an unrelated working directory after relocation into a folder containing spaces/non-ASCII characters. Packaged Markdown must match the final source documents.
+The relocated capture SHA-256 is:
+
+```text
+ff3f341118fe6721592476b1a2ff28afc05e2bc08336784cb6ccdfa8126e7a26
+```
+
+The package contains notices for 288 dependencies and the embedded font, Rust standard-library notices, and one imported MSVC runtime DLL (`VCRUNTIME140.dll`). This is relocation evidence on the development PC, not a clean-machine/offline/standard-user acceptance result.
+
+[Hosted Windows PR CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. It ran source checks and Windows packaging for [draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3). Check the [train branch's runs](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions?query=branch%3Acodex%2Ftrain-circuit) for later commits rather than extending this success to changed runtime code.
+
+Repackage documentation-only updates with `pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild`, then reverify all 11 guides and 19 payload hashes against the final source snapshot. The archive checksum changes when packaged Markdown changes; its adjacent `.zip.sha256` is authoritative. Do not embed the ZIP's own checksum in a report inside that ZIP.
 
 ## Delivery and continuation
 
-Expected local output after successful packaging is `dist/Parkbound-0.5.0-windows-x64.zip`, its `.sha256`, and the extracted `Parkbound-0.5.0-windows-x64` directory. No current package or hosted-CI success is claimed until recorded above. This remains an unsigned local checkpoint; a source push or CI artifact is not a public binary release.
+Local output is `dist/Parkbound-0.5.0-windows-x64.zip`, its `.sha256`, and the extracted `Parkbound-0.5.0-windows-x64` directory. The package and hosted CI passed the checks above. This remains an unsigned local checkpoint; a source push or CI artifact is not a public binary release.
 
-The current checkout is the original OneDrive folder in [the resume guide](../RESUME_DEVELOPMENT.md), which retains both recorded PC paths. Branch `codex/train-circuit` starts from crowd checkpoint `51a79e8`. While [crowd PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) remains unmerged, the train review is stacked on `codex/path-crowds`; the overlap review remains its earlier dependency. Inspect actual merge state before changing bases.
+The current checkout is the original OneDrive folder in [the resume guide](../RESUME_DEVELOPMENT.md), which retains both recorded PC paths. Branch [`codex/train-circuit`](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/train-circuit) starts from crowd checkpoint `51a79e8`. [Draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3) targets `codex/path-crowds` and is stacked on [crowd PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2); [overlap PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1) remains the earlier dependency. The stack has not been merged in this session. Inspect actual merge state before changing bases.
 
 PRF-03 is **V** for its stated technical criterion: completing the station/lift/drop/brake circuit with simulation independent of display-update scheduling. Normal launch showed lap 1 and Space paused successfully; O/F/buttons still need native retesting. The next implementation is **PRF-04 save/reload continuation**: version all authoritative terrain/object/guest/circuit/train state, identities, clocks, timers, and RNG; validate before mutation; and compare uninterrupted execution with saved/reloaded continuation. Carry the explicit manual-input and delivery gaps forward. Performance measurement (PRF-05) and the first complete park remain later milestones.
