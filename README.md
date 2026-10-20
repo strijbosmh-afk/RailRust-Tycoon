@@ -4,19 +4,19 @@ A free Windows theme park simulation in Rust, inspired by the classic isometric 
 
 Source repository: [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). **Continuing on another PC? Start with [RESUME_DEVELOPMENT.md](RESUME_DEVELOPMENT.md)** for setup, build commands, architecture, current status, and the next implementation steps.
 
-Version 0.2.0 adds the first terrain-height proof: explore a 32 by 32 terraced woodland park, switch to a flat comparison map, rotate the view, and inspect terrain at different heights. The camera fits the elevated landscape, and terrain selection follows the visible top and cliff surfaces. Construction, paths, guests, rides, finances, and park saves are later milestones. The full scope is recorded in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
+Version 0.3.0 extends the terrain proof with elevated-path and underground-track fixtures. Explore a 32 by 32 terraced woodland park, inspect independently identified surfaces, and switch between Surface and Underground views. Flat and Terraced presets preserve the same objects and their heights. This is a construction-visibility proof; player path construction, guests, ride operation, finances, and park saves remain later milestones. Verification and remaining acceptance checks are recorded in [the overlap report](docs/OVERLAP_REPORT.md); the full scope is recorded in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
 
 ## Play the Windows build
 
-Extract the entire `Parkbound-0.2.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. This build targets Windows 11 x64. Rust, Visual Studio, an internet connection, and an RCT installation are not needed to play. The game includes its procedural landscape and default font.
+After producing or downloading a verified `Parkbound-0.3.0-windows-x64.zip`, extract the entire archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape and default font. Check the overlap report for actual package and clean-machine evidence before assuming a source checkout includes a verified binary.
 
-The release has not been signed. Minimum hardware and additional supported Windows versions will be established through further testing. Current verification and known limitations belong in [the terrain report](docs/TERRAIN_REPORT.md); the [foundation report](docs/FOUNDATION_REPORT.md) preserves the 0.1.0 results.
+The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Current evidence belongs in [the overlap report](docs/OVERLAP_REPORT.md); the [terrain report](docs/TERRAIN_REPORT.md) and [foundation report](docs/FOUNDATION_REPORT.md) preserve the 0.2.0 and 0.1.0 results.
 
 ## Controls
 
 | Input | Action |
 | --- | --- |
-| Left click | Select and inspect a tile |
+| Left click | Select and inspect the nearest visible terrain, path, or track surface |
 | Right or middle mouse drag | Pan the camera |
 | WASD or arrow keys | Pan with the keyboard |
 | Mouse wheel, + or - | Zoom |
@@ -24,13 +24,16 @@ The release has not been signed. Minimum hardware and additional supported Windo
 | Home or Fit button | Fit the park in the available viewport |
 | G | Toggle the tile grid |
 | T / terrain preset button | Switch between Terraced and Flat maps |
+| U / visibility button | Switch between Surface and Underground views |
 | Space | Pause or resume the previous simulation speed |
 | 1 / 2 / 3 | Set simulation speed to 1x / 2x / 4x |
 | H / F1 | Open or close help |
-| Escape | Close help, or clear tile selection |
+| Escape | Close help, or clear selection |
 | Window close button / Alt+F4 | Exit |
 
-Tile coordinates in the inspector start at 1. Terrain heights are simulation steps; the Terraced preset uses levels 0, 2, 4, and 6. Switching presets preserves elapsed time, terrain materials, and the selected world tile. This comparison control is not a terrain editor. The displayed timer is elapsed simulation time, not a park calendar. Trees and the entrance arch remain decorative. Every launch starts a new exploration session.
+Tile coordinates in the inspector start at 1. Terrain heights are simulation steps; the Terraced preset uses levels 0, 2, 4, and 6. The fixture contains 12 path tiles at height 8 and nine track tiles at height 0, each with two steps of clearance. Flat terrain exposes the same track that Terraced terrain buries. Switching presets preserves elapsed time, materials, object identities, and object heights. Underground view removes terrain from rendering and picking; its reference floor is decorative and cannot be selected. Hidden selections retain their identity but do not show through occluding surfaces.
+
+These comparison controls are not terrain or path editors. The displayed timer is elapsed simulation time, not a park calendar. Trees and the entrance arch remain decorative. Every launch starts a new exploration session.
 
 ## Develop
 
@@ -46,9 +49,9 @@ pwsh -NoProfile -File scripts/package-windows.ps1
 
 The first Bevy build compiles the rendering engine and takes substantially longer than subsequent changes. On a machine with 8 GB RAM, use `-j 2` with Cargo builds if memory becomes constrained.
 
-For an automated render check, run the executable with `--capture-frame` followed by an absolute `.png` output path. It waits for rendering, saves a frame, and exits. Use `--capture-scene overview|selection|help`, `--capture-map flat|terraced`, and `--capture-rotation 0|1|2|3` to choose the diagnostic view. Add `--capture-small-window` for the 1024 by 680 minimum window. These checks inspect rendered output and do not replace testing normal mouse and keyboard controls; detailed commands are in the resume guide.
+For an automated render check, run the executable with `--capture-frame` followed by an absolute `.png` output path. It waits for rendering, saves a frame, and exits. Use `--capture-scene overview|selection|path|track|help`, `--capture-map flat|terraced`, `--capture-view surface|underground`, and `--capture-rotation 0|1|2|3` to choose the diagnostic view. Add `--capture-small-window` for the 1024 by 680 minimum window. These checks inspect rendered output and do not replace testing normal mouse and keyboard controls; detailed commands are in the resume guide.
 
-`park_sim` owns engine-independent terrain and simulation time. `park_game` owns the isometric projection, procedural graphics, controls, and UI. A separate content crate will be introduced when there are authored ride/scenario definitions to validate.
+`park_sim` owns engine-independent terrain, stable surface-object identities, atomic clearance validation, and simulation time. `park_game` owns the isometric projection, shared rendering/picking geometry, visibility, controls, and UI. A separate content crate will be introduced when there are authored ride/scenario definitions to validate.
 
 ## Project documents
 
@@ -56,7 +59,8 @@ For an automated render check, run the executable with `--capture-frame` followe
 - [Development plan](DEVELOPMENT_PLAN.md): milestones and completion gates.
 - [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): feature inventory and acceptance criteria.
 - [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed choices, working defaults, and open decisions.
-- [Terrain report](docs/TERRAIN_REPORT.md): 0.2.0 terrain proof, verification, and remaining checks.
+- [Overlap report](docs/OVERLAP_REPORT.md): current 0.3.0 overlap proof, evidence, and acceptance gaps.
+- [Terrain report](docs/TERRAIN_REPORT.md): historical 0.2.0 terrain proof and verification.
 - [Foundation report](docs/FOUNDATION_REPORT.md): historical 0.1.0 evidence and acceptance gaps.
 - [Asset provenance](docs/ASSET_PROVENANCE.md): original assets and third-party attribution.
 

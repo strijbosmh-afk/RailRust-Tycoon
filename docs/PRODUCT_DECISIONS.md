@@ -1,6 +1,6 @@
 # Product decisions
 
-Updated: 20 October 2026 for the 0.2.0 terrain proof; original planning baseline: 19 October 2026. This records confirmed direction separately from implementation defaults and unresolved decisions. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the feature acceptance register; [the development plan](../DEVELOPMENT_PLAN.md) defines milestones.
+Updated: 20 October 2026 for the 0.3.0 overlap proof; original planning baseline: 19 October 2026. This records confirmed direction separately from implementation defaults and unresolved decisions. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the feature acceptance register; [the development plan](../DEVELOPMENT_PLAN.md) defines milestones; [the overlap report](OVERLAP_REPORT.md) records current verification.
 
 ## Confirmed by the user
 
@@ -10,7 +10,7 @@ Updated: 20 October 2026 for the 0.2.0 terrain proof; original planning baseline
 | Implementation language | Rust. |
 | Platform | Windows only. |
 | Business model | Free distribution with all functionality included. |
-| Delivery process | Work in stages, retaining playable milestones. The foundation is implemented; the current step begins Stage 2 with terrain heights, rendering, and picking. |
+| Delivery process | Work in stages, retaining playable milestones. The current Stage 2 slice extends terrain rendering/picking with overlapping path/track fixtures and shared clearance. Acceptance still depends on recorded evidence. |
 | Source repository | Save the full source and a cross-PC handoff guide in the user's dedicated repository, [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). The repository is public. This does not select a source-code license. |
 | Final scope | Fully functional classic gameplay, rather than treating the first small park as a finished game. Coverage is tracked explicitly in the checklist. |
 
@@ -20,7 +20,7 @@ These choices let implementation proceed and can be revised when evidence warran
 
 | Decision | Default and rationale |
 | --- | --- |
-| Working title | **Parkbound**, a temporary original-name proposal. Availability and trademark clearance have not been checked; do not publish under this name without review. The `Railroad Tycoon` directory is only the existing workspace label. |
+| Working title | **Parkbound**, a temporary original-name proposal. Availability and trademark clearance have not been checked; do not publish under this name without review. Local directory names are workspace labels, not public branding. |
 | Play model | Offline single-player with local saves. A downloadable build should remain playable without a service account or an active server. |
 | First build target | Windows 11 x64. The development-machine version and actual executable verification belong in each build report; this is not yet a minimum Windows requirement. |
 | Engine candidate | Bevy 0.17.3, deliberately pinned for the selected Rust 1.93.1 toolchain and API compatibility; it is not presented as the newest release. Stage 2 proves rendering, selection, crowd simulation, and coaster behavior before large-scale content production. |
@@ -28,9 +28,11 @@ These choices let implementation proceed and can be revised when evidence warran
 | Simulation contract | Fixed ticks, explicit update order, seeded randomness, integer money, and validated atomic commands. Same-build reproducibility is tested before claiming it. |
 | Visual direction | Original isometric park art and interface, with four view orientations as the completed target. Simple geometric placeholder art is acceptable for the first executable. |
 | First deliverable | A 32 x 32 isometric map, camera movement/zoom, tile selection, toolbar/status, simulation clock, pause/speed controls, and packaged Windows executable. It does not yet promise rides, visitors, terrain editing, or park saves. |
-| Current terrain proof | Version 0.2.0 starts in a deterministic Terraced preset using heights 0/2/4/6. T or the preset button switches to Flat and back while preserving time, terrain materials, and selected world coordinates. Terrain tops and front cliffs share rendering/picking depth; scenery follows its terrain anchor and Fit accounts for height. This is a proof scene, not a terrain editor. |
+| Current overlap proof | Version 0.3.0 retains deterministic Terraced heights 0/2/4/6 and adds 12 X-axis path tiles at height 8 and nine Y-axis track tiles at height 0, with clearance 2. T/the preset button preserves time, materials, object IDs, and object heights; Flat exposes the same track. These are proof objects, not an editor or an operating ride. |
 | Terrain height units | `park_sim` stores integer steps and validates a maximum of 32. The current renderer maps one step to 16 world units. This display conversion belongs to presentation; it is not a physical metre or a promised final clearance rule. |
-| PRF-01 scope | Terrain heights are the first part of the proof. Elevated paths, underground track, overlapping selectable objects, and visibility controls still need a representative scene before PRF-01 can be verified. |
+| Selectable identity and visibility | Terrain uses `SurfaceId::Terrain(TilePos)`; each path/track object uses `SurfaceId::Object(ObjectId)`. IDs are stable and never reused. U/the visibility button switches Surface and Underground views. Buried track is excluded from ordinary picking; Underground removes terrain from rendering and picking and uses a non-selectable reference floor. |
+| Clearance proof | Objects occupy one tile and a half-open integer interval `[height, height + clearance)`, within 0–32. Touching intervals may stack; overlapping ones are rejected atomically. Paths must be on/above terrain; track must be on/above terrain or fully buried. Terrain edits/presets must preserve these invariants. This does not yet implement land rights, slopes, water-volume rules, or construction costs. |
+| PRF-01 scope | The 0.3.0 fixture supplies the missing representative scene. PRF-01 remains in progress until shared geometry/occlusion/picking, stable identity, visibility, clearance, normal input, and the packaged demonstration pass. Consult the overlap report; prior-build evidence does not certify these changes. |
 | Content ownership | Write original code and use original assets or assets with documented redistribution rights. Keep an asset/dependency provenance register; do not bundle original RCT files. |
 | Persistence | Versioned local saves with safe replacement, backups, validation, and supported migrations. User data remains separate from application files. |
 | Distribution path | Versioned ZIP builds first; installer and public download page before 1.0. Proposed first public channel: itch.io. |
@@ -67,4 +69,4 @@ Frame rate, memory consumption, startup time, and graphics compatibility still r
 
 ## Release completion rule
 
-Versions 0.1.0 and 0.2.0 are foundation and terrain demonstrations. The [foundation report](FOUNDATION_REPORT.md) and [terrain report](TERRAIN_REPORT.md) separate their evidence. Version 1.0 requires the agreed gameplay inventory, the original content catalogue, usable editors and scenarios, tested saves and upgrades, and a distributable Windows package. A clean-machine launch, save recovery, licensing records, and public-release checks remain open until demonstrated. A successful local build alone does not close them.
+Versions 0.1.0, 0.2.0, and 0.3.0 are foundation, terrain, and overlap demonstrations. The [foundation report](FOUNDATION_REPORT.md), [terrain report](TERRAIN_REPORT.md), and [overlap report](OVERLAP_REPORT.md) separate their evidence. Version 1.0 requires the agreed gameplay inventory, the original content catalogue, usable editors and scenarios, tested saves and upgrades, and a distributable Windows package. A clean-machine launch, save recovery, licensing records, and public-release checks remain open until demonstrated. A successful local build alone does not close them.

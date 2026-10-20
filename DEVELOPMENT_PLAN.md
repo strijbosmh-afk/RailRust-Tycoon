@@ -2,7 +2,7 @@
 
 Build a complete, free Windows game in Rust that recreates the construction and management experience of classic RollerCoaster Tycoon 1 and 2. Development proceeds through playable milestones, each with a demonstrable completion condition. Distribution, save compatibility, and original content are part of the design from the beginning.
 
-Planning baseline: 19 October 2026; progress updated 20 October 2026. Under the temporary working title **Parkbound**, version 0.1.0 delivered the Windows foundation and version 0.2.0 begins Stage 2 with terrain-height rendering and picking. The [gameplay checklist](docs/GAMEPLAY_CHECKLIST.md) tracks feature acceptance. The [foundation report](docs/FOUNDATION_REPORT.md) preserves 0.1.0 evidence, and the [terrain report](docs/TERRAIN_REPORT.md) records the current proof and its remaining checks. The full game remains a staged development project.
+Planning baseline: 19 October 2026; progress updated 20 October 2026. Under the temporary working title **Parkbound**, version 0.1.0 delivered the Windows foundation, version 0.2.0 introduced terrain-height rendering and picking, and version 0.3.0 extends Stage 2 with elevated-path and underground-track overlap fixtures. The [gameplay checklist](docs/GAMEPLAY_CHECKLIST.md) tracks acceptance. The [overlap report](docs/OVERLAP_REPORT.md) records current evidence and remaining checks; the [foundation report](docs/FOUNDATION_REPORT.md) and [terrain report](docs/TERRAIN_REPORT.md) preserve earlier results. The full game remains a staged development project.
 
 **Confirmed product direction**
 
@@ -17,7 +17,7 @@ Planning baseline: 19 October 2026; progress updated 20 October 2026. Under the 
 | Distribution | Self-contained download; players do not need Rust or an original RCT installation |
 | Source availability | Public source repository: strijbosmh-afk/RailRust-Tycoon; source-code license remains undecided |
 
-The development folder's existing name, Railroad Tycoon, is only a workspace label. Choose an original public game name during product definition.
+Local folder names such as Railroad Tycoon or RailRust Tycoon are workspace labels. Choose an original public game name during product definition.
 
 Use RCT1/RCT2 as the gameplay reference. Produce our own code, artwork, sounds, music, maps, scenarios, and interface presentation, or use assets with documented redistribution rights. OpenRCT2 requires original RCT2 files and uses GPL-3.0-or-later; it is a useful reference project, but its code and the original game's assets are not an unrestricted content supply. Any proposed reuse needs its license assessed before adoption. [OpenRCT2 project documentation](https://github.com/OpenRCT2/OpenRCT2)
 
@@ -131,8 +131,10 @@ Public-release verification covers both new installations and upgrades from supp
 
 **Current implementation and next slice**
 
-The Rust workspace, camera controls, selection, toolbar, and fixed-step simulation clock form the foundation. Version 0.2.0 adds integer terrain heights, deterministic Flat/Terraced presets, top and front-cliff geometry/picking, terrain-aware occlusion, scenery anchors, and height-aware camera fit. It does not add terrain editing, paths, guests, rides, or saves. Native toolbar/time-control checks and simulation tests verify FND-03. Remaining panning/dragging, physical display, and clean-machine checks keep overall foundation acceptance open.
+The Rust workspace, camera controls, selection, toolbar, and fixed-step simulation clock form the foundation. Version 0.2.0 established integer terrain heights, deterministic Flat/Terraced presets, top/front-cliff geometry and picking, scenery anchors, and height-aware camera fit. Version 0.3.0 adds stable surface-object IDs, atomic shared clearance checks, and a 21-object fixture: 12 elevated path tiles at height 8 and nine track tiles at height 0, each with two steps of clearance. Surface/Underground visibility changes rendering and picking together; the reference floor is not selectable. The same track becomes exposed under Flat terrain without replacement or relocation.
 
-Continue PRF-01 with elevated-path and underground-track overlap fixtures, consistent surface identity, visibility, and clearance. The terraced terrain proof alone does not complete that acceptance ID. Then prove path connectivity and guest recovery, a representative train circuit, save/reload determinism, and the proposed performance benchmark in that order. Continue the exact classic-content and expansion audit in parallel; it remains unresolved. Keep each proof independently reviewable before expanding content.
+PRF-01 remains in progress until the full overlap demonstration, normal-input checks, and relevant regression/build checks are recorded in the overlap report. Earlier 0.2.0 evidence does not verify the changed 0.3.0 implementation. Player terrain/path editing, guests, operating rides, and saves are not part of this fixture. Remaining panning/dragging, physical display, and clean-machine checks also keep overall foundation acceptance open.
+
+After accepting PRF-01, prove height-aware path connectivity and guest recovery (PRF-02), a representative train circuit (PRF-03), save/reload determinism (PRF-04), and the proposed performance benchmark (PRF-05), in that order. Before adding moving systems, accelerated speed must run each authoritative step rather than only increment the clock. Continue the exact classic-content and expansion audit in parallel; it remains unresolved. Keep each proof independently reviewable before expanding content.
 
 Estimate later milestones after measuring the technical proofs and first complete park. Full classic gameplay coverage includes a substantial content, interface, balancing, and testing workload; it cannot be inferred from the time needed to display the first map.

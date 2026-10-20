@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-This is the handoff guide for **RailRust-Tycoon**, the repository for an original Rust theme park simulation inspired by classic RollerCoaster Tycoon 1 and 2. The application currently displays **Parkbound**, a temporary working title; the repository name does not rename the application. Current milestone: terrain proof **0.2.0**, 20 October 2026, following foundation 0.1.0.
+This is the handoff guide for **RailRust-Tycoon**, the repository for an original Rust theme park simulation inspired by classic RollerCoaster Tycoon 1 and 2. The application currently displays **Parkbound**, a temporary working title; the repository name does not rename the application. Current milestone: overlap proof **0.3.0**, 20 October 2026, following foundation 0.1.0 and terrain 0.2.0. Read [the overlap report](docs/OVERLAP_REPORT.md) for actual verification; implementation and acceptance are tracked separately.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
 
@@ -8,7 +8,7 @@ The repository contains the source, locked dependencies, build scripts, notices,
 
 ### Shared OneDrive working folder
 
-The existing workspace is in the user's shared OneDrive folder. Its full local path on the original PC, recorded on 20 October 2026, is:
+The original PC's workspace was in the user's shared OneDrive folder. Its full local path, recorded on 20 October 2026, was:
 
 ```text
 C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon
@@ -22,7 +22,7 @@ On the original PC, open the workspace in PowerShell with:
 Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon'
 ```
 
-You can continue from this synced workspace or use a separate GitHub clone. For the shared workspace, let OneDrive finish syncing before continuing and follow the two-PC workflow in section 9. The clone commands below are for setting up a separate checkout; they are unnecessary if you are opening the existing synced workspace.
+You can continue from that synced workspace or use a separate GitHub clone. The resumed checkout on the second PC is `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
 ## 1. Read this first
 
@@ -38,39 +38,41 @@ Current defaults are offline single-player, an independent simulation library, o
 
 Read the project records in this order:
 
-1. [Terrain report](docs/TERRAIN_REPORT.md): current 0.2.0 proof, actual verification, and remaining checks.
-2. [Foundation report](docs/FOUNDATION_REPORT.md): historical 0.1.0 evidence and initial acceptance gaps.
-3. [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed direction, defaults, and open decisions.
-4. [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): stable acceptance IDs and their states.
-5. [Development plan](DEVELOPMENT_PLAN.md): stages, architecture, and completion gates.
-6. [Asset provenance](docs/ASSET_PROVENANCE.md): asset ownership and attribution.
+1. [Overlap report](docs/OVERLAP_REPORT.md): current 0.3.0 implementation, verification, and remaining checks.
+2. [Terrain report](docs/TERRAIN_REPORT.md): historical 0.2.0 evidence.
+3. [Foundation report](docs/FOUNDATION_REPORT.md): historical 0.1.0 evidence.
+4. [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed direction, defaults, and open decisions.
+5. [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): stable acceptance IDs and their states.
+6. [Development plan](DEVELOPMENT_PLAN.md): stages, architecture, and completion gates.
+7. [Asset provenance](docs/ASSET_PROVENANCE.md): asset ownership and attribution.
 
 This guide is a continuation aid. Update the checklist and milestone reports as evidence changes rather than letting this dated baseline override later results.
 
 ## 2. What exists today
 
-| Area | Implemented in 0.2.0 |
+| Area | Implementation for 0.3.0 |
 | --- | --- |
 | Park | Deterministic 32 × 32 site with grass, water, and sand. Starts in Terraced mode at heights 0/2/4/6; Flat mode remains available for comparison. |
-| Presentation | Original terrain-top and front-cliff geometry, depth-aware selection occlusion, lake/shore, shadows, and decorative trees/entrance anchored to terrain. No external game art is required. |
-| Camera | Four rotations, keyboard and right/middle-drag panning, zoom, terrain-height-aware fit, and grid toggle. |
-| Inspection | Hover and selected-tile highlights; picking follows visible top/cliff geometry and shared depth. Inspector reports terrain, height, and coordinates. |
-| UI | Header, sidebar, footer, pause/resume, 1x/2x/4x speeds, terrain preset button/T shortcut, and help modal. |
-| Simulation | Separate dependency-free Rust library with bounded map storage, validated integer terrain heights, deterministic presets, and a fixed-step clock. |
-| Diagnostics | Overview, selection, and help captures; selectable map profile and rotation; a minimum-window preset; PNG verification and exit status. |
+| Overlap fixture | 21 stable objects: 12 X-axis path tiles at zero-based x8..19/y16, height 8; nine Y-axis track tiles at x13/y12..20, height 0. Each occupies two height steps. |
+| Presentation | Original terrain, cliffs, path decks, and rails with shared depth and selection geometry. Surface mode hides buried track. Underground removes terrain and uses a non-selectable reference floor. No external game art is required. |
+| Camera | Four rotations, keyboard and right/middle-drag panning, zoom, surface-height-aware fit, and grid toggle. |
+| Inspection | Hover and selected-surface highlights with stable terrain/object identity; inspector distinguishes kind, object ID, tile, and height. Hidden surfaces cannot be picked through ordinary terrain. |
+| UI | Header, sidebar, footer, pause/resume, 1x/2x/4x speeds, terrain preset button/T shortcut, Surface/Underground button/U shortcut, and help modal. |
+| Simulation | Separate dependency-free Rust library with bounded terrain, stable non-reused object IDs, half-open clearance intervals, atomic placement/terrain validation, deterministic fixtures/presets, and clock. |
+| Diagnostics | Overview, terrain selection, path, track, and help captures; selectable map profile, visibility, and rotation; minimum-window preset; PNG verification and exit status. |
 | Delivery | Windows packaging, native-runtime inspection/copying, dependency/font notices, checksums, and a GitHub Actions workflow. |
 
-**Not implemented:** a terrain editor, slopes, player construction, paths or elevated path objects, underground track objects, guests, queues, ride operations, coaster design, staff, economy, scenarios, research, audio, persistent settings, park saves, or loading. Preset switching is a technical comparison control, not a construction tool. It changes elevation while preserving time, terrain materials, and selected world coordinates. Each normal launch creates a fresh park. The trees and entrance arch are decoration, not simulation objects or usable facilities.
+**Not implemented:** terrain/path/track editors, slopes, player construction, path connectivity, guests, queues, ride operations, coaster design, staff, economy, scenarios, research, audio, persistent settings, park saves, or loading. The fixture's path and track are independently selectable proof objects, not usable attractions or guest routes. Preset switching preserves time, terrain materials, object identities, and object heights; Flat exposes the same track that Terraced buries. Each normal launch creates a fresh park. Trees, entrance arch, and underground reference floor are decorative.
 
-Version **0.2.0** has 34 passing automated tests: 12 simulation, 10 world geometry/picking, eight input-system, and four existing main control tests. Formatting and Clippy with warnings denied also passed. Seven engine-rendered captures were inspected: all four terraced rotations at 1280 × 800, a flat comparison at 1280 × 800, and selection/help views at 1024 × 680. Every capture process exited with code 0. Use the terrain report for current executable and package evidence and the detailed verification record.
+Current **0.3.0** verification belongs in the overlap report. Do not infer passing tests, native input, rendering, packaging, or hosted CI from earlier builds. PRF-01 remains in progress until the complete overlap acceptance passes.
 
-The 0.2.0 release executable and Windows ZIP were rebuilt. The ZIP's 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. The current local ZIP is `dist/Parkbound-0.2.0-windows-x64.zip`. Its documentation includes this guide and the terrain report. This remains development-host verification; clean-machine testing is open.
+Historical **0.2.0** evidence includes 34 passing tests, formatting, Clippy with warnings denied, seven inspected engine captures, and a release Windows ZIP. Its 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. See the terrain report. Clean-machine testing remains open; these results do not verify 0.3.0.
 
-The historical **0.1.0** foundation report records 16 passing tests, release compilation, formatting, and Clippy. Three engine-rendered images were inspected. Its extracted ZIP ran outside the source folder, from a path containing spaces and an accented character; its payload hashes matched. **Those rendering and package checks are prior-build results.** Do not carry them forward to 0.2.0 without verification.
+The historical **0.1.0** foundation report records 16 passing tests, release compilation, formatting, Clippy, three inspected images, and a relocated ZIP launch with matching payload hashes. Keep these results attached to their named checkpoint.
 
 Normal desktop input was checked in 0.2.0 at 1280 × 800. Roof and visible cliff selection updated the inspector; T and the preset button preserved the selected tile while changing its elevation; rotation preserved selection; wheel zoom, Fit, and grid toggle worked. The timer advanced at 4x, Space paused it at 02:36, opening/closing help preserved that time and selection, Resume restored 4x, and the native close button ended the process. These observations plus authoritative clock tests verify FND-03.
 
-Camera panning was not visibly verified, and right/middle dragging was unavailable through the desktop helper. Physical display scaling and multiple monitors remain untested, so FND-02 stays in progress. Clean-machine testing without development tools is also pending. Earlier hosted CI runs succeeded as recorded in section 10; they do not establish CI success for a new 0.2.0 commit.
+Camera panning was not visibly verified in 0.2.0, and right/middle dragging was unavailable through that desktop helper. Physical display scaling and multiple monitors remain untested, so FND-02 stays in progress. Clean-machine testing without development tools is also pending. The exact starting commit `dc832fa` passed hosted Windows CI run 39381924927; that result does not certify the new overlap changes.
 
 ### Checklist state at this handoff
 
@@ -80,13 +82,13 @@ Camera panning was not visibly verified, and right/middle dragging was unavailab
 | FND-01 | Verified | Native startup, rendering, diagnostic clean exit, and relocated ZIP launch were demonstrated. |
 | FND-02 | In progress | Native selection, rotation, wheel zoom, and Fit were checked. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
 | FND-03 | Verified | Native toolbar, inspector, timer, speed, pause/resume, and help checks passed in 0.2.0, supported by authoritative simulation tests. |
-| FND-04 | Verified | Foundation release verification is recorded historically; current 0.2.0 automated evidence is 34 passing tests, formatting, and Clippy with warnings denied. See the terrain report for the current executable build evidence. |
+| FND-04 | Verified | Named-build evidence exists for 0.1.0/0.2.0. See the overlap report for 0.3.0 checks; prior success is not verification of changed code. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
-| PRF-01 | In progress | The terrain-height slice is implemented. Elevated-path and underground-track overlap proofs remain outstanding; consult the terrain report for verified cases. |
+| PRF-01 | In progress | Terrain, stable overlapping path/track fixtures, visibility, and clearance are implemented for 0.3.0. Complete acceptance requires recorded regressions, rendering, ordinary input, and package evidence. |
 | PRF-02 through PRF-05 | Planned | Crowd recovery, train operation, save continuation, and benchmark proofs follow the remaining overlap work. |
 | Remaining gameplay/release entries | Planned | Consult the checklist for individual acceptance requirements. |
 
-Stage 1 is not fully accepted until its remaining panning/dragging, display, and fresh-machine requirements pass. Stage 2 is underway with terrain heights; its full PRF-01 acceptance still requires overlapping path/track surfaces. Do not mark the whole proof verified from a terraced map alone.
+Stage 1 is not fully accepted until its remaining panning/dragging, display, and fresh-machine requirements pass. Stage 2 is underway with the overlap fixture; do not mark PRF-01 verified from implementation or an automated screenshot alone.
 
 ## 3. Set up the new PC
 
@@ -166,21 +168,22 @@ The development executable is `target\release\parkbound.exe`; the packaged execu
 
 | Input | Expected result |
 | --- | --- |
-| Left click on map | Select the tile under the pointer; inspector and highlight agree. |
+| Left click on map | Select the nearest visible terrain/path/track surface; inspector identity and highlight agree. |
 | Right or middle drag | Pan without a jump when dragging begins. |
 | WASD / arrow keys | Pan with the keyboard. |
 | Wheel / + / - | Zoom while preserving usable selection behavior. |
-| Q / E | Rotate through four views; selected world tile remains the same. |
+| Q / E | Rotate through four views; selected simulation surface remains the same. |
 | Home / Fit | Reset zoom and pan; preserve selection. |
 | G | Toggle grid. |
-| T / terrain preset button | Switch Flat ↔ Terraced while preserving time, terrain materials, and selected tile coordinates. |
+| T / terrain preset button | Switch Flat ↔ Terraced while preserving time, materials, object IDs/heights, and selected identity. |
+| U / visibility button | Switch Surface ↔ Underground; hidden terrain and the decorative reference floor cannot be selected underground. |
 | Space | Pause; resume the previously chosen speed. |
 | 1 / 2 / 3 | Choose 1x / 2x / 4x simulation speed. |
 | H / F1 | Toggle help. |
 | Escape | Close help, otherwise clear selection. |
 | Window close / Alt+F4 | Exit. |
 
-Also test toolbar buttons, help-close click consumption, selection beside UI borders, dragging after focus changes, minimum window size, and display scaling. In both terrain presets, rotate through all four views and select visible tops and cliffs; foreground terrain should hide a selected surface behind it. Switch presets with a tile selected and confirm its world coordinates and elapsed time persist. Pause and confirm the simulation timer stops; help itself does not automatically pause normal play. The inspector displays one-based coordinates, while `TilePos` uses zero-based coordinates. The timer represents elapsed simulation time, not a park calendar.
+Also test toolbar buttons, help-close click consumption, selection beside UI borders, dragging after focus changes, minimum window size, and display scaling. In both terrain presets and visibility modes, rotate through all four views and inspect the shared crossing. Buried track must not be selected through terrain in Surface view; the nearest visible path/track surface must win underground. Select a track in Underground, return to Surface, and verify its hidden outline does not show through terrain. Switch to Flat and confirm the same ID becomes exposed without moving. Check that the underground floor and absent terrain are never selected. Pause and confirm the timer stops; help itself does not automatically pause normal play. The inspector displays one-based coordinates, while `TilePos` uses zero-based coordinates.
 
 FND-03 is verified by the recorded 0.2.0 native controls and simulation tests. Record remaining panning/dragging and display results, Windows/GPU details, and limitations in a milestone report before marking FND-02 verified. Repeat relevant checks when controls or layout change.
 
@@ -190,13 +193,14 @@ The app supports:
 
 ```text
 parkbound.exe --capture-frame <absolute-output.png>
-  [--capture-scene overview|selection|help]
+  [--capture-scene overview|selection|path|track|help]
   [--capture-map flat|terraced]
+  [--capture-view surface|underground]
   [--capture-rotation 0|1|2|3]
   [--capture-small-window]
 ```
 
-It installs diagnostic systems only when `--capture-frame` is present. The capture preset pauses simulation and suppresses keyboard, map-pointer, and UI-button actions and hover tinting so normal input cannot alter the diagnostic view; `selection` zooms to 135% and selects a demonstration tile. Specify map and rotation explicitly when comparing views. `--capture-small-window` requests 1024 × 680, the app's minimum window size. A successful capture waits at least 90 frames and two seconds, checks the PNG, and exits with code 0. The timeout is 120 seconds. This requires a real rendering environment and is not a substitute for ordinary input testing.
+It installs diagnostic systems only when `--capture-frame` is present. The capture preset pauses simulation and suppresses keyboard, map-pointer, and UI-button actions and hover tinting so normal input cannot alter the view. `selection` chooses terrain; `path` and `track` choose fixture objects with stable IDs. Specify map, visibility, and rotation explicitly when comparing views. A selected buried track can intentionally remain invisible in Surface view. `--capture-small-window` requests 1024 × 680. A successful capture waits at least 90 frames and two seconds, checks the PNG, and exits with code 0; timeout is 120 seconds. This requires a rendering environment and is not ordinary-input evidence.
 
 Use a fresh output filename for each run. The implementation saves through a temporary file and renames it; an existing destination may cause failure on Windows. The following PowerShell example handles paths containing spaces and waits for the GUI process to exit:
 
@@ -204,15 +208,15 @@ Use a fresh output filename for each run. The implementation saves through a tem
 $repoDirectory = (Get-Location).Path
 $captureDirectory = Join-Path $repoDirectory 'artifacts'
 New-Item -ItemType Directory -Path $captureDirectory -Force
-$capturePath = Join-Path $captureDirectory ("selection-{0}.png" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+$capturePath = Join-Path $captureDirectory ("track-underground-{0}.png" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $gameExecutable = Join-Path $repoDirectory 'target\release\parkbound.exe'
-$captureArguments = '--capture-frame "{0}" --capture-scene selection --capture-map terraced --capture-rotation 1' -f $capturePath
+$captureArguments = '--capture-frame "{0}" --capture-scene track --capture-map terraced --capture-view underground --capture-rotation 1' -f $capturePath
 $captureProcess = Start-Process -FilePath $gameExecutable -ArgumentList $captureArguments -WindowStyle Hidden -Wait -PassThru
 if ($captureProcess.ExitCode -ne 0) { throw "Capture failed: exit code $($captureProcess.ExitCode)" }
 Get-Item -LiteralPath $capturePath
 ```
 
-Repeat with `overview` and `help`; compare Flat and Terraced maps at rotations 0, 1, 2, and 3, including minimum-window captures. Inspect the actual images for clipped terrain, top/cliff alignment, misplaced scenery, selection showing through foreground terrain, and unreadable or overlapping controls. A valid PNG and successful exit do not prove the scene is visually correct. Do not report a screenshot from another application as game evidence. `artifacts` is ignored by Git; share selected evidence intentionally or describe it in the milestone report.
+Repeat with `overview`, `selection`, `path`, and `help`; compare Flat/Terraced and Surface/Underground at rotations 0, 1, 2, and 3, including minimum-window captures. Inspect crossing occlusion, terrain/cliff alignment, exposed versus buried track, selection outlines, scenery, and controls. A valid PNG and successful exit do not prove visual correctness. Do not report another application's screenshot as game evidence. `artifacts` is ignored by Git; describe the exact evidence in the overlap report.
 
 ## 6. Package a portable Windows build
 
@@ -233,15 +237,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 
 Only use `-SkipBuild` immediately after a successful build of the current source. It does not prove an existing executable is up to date. The script assumes the normal host target output `release/parkbound.exe`; do not add a different `--target` layout or change its binary assumptions without updating and testing packaging.
 
-For version 0.2.0, output is:
+For version 0.3.0, expected output after successful packaging is:
 
 ```text
 dist/
-  Parkbound-0.2.0-windows-x64/
+  Parkbound-0.3.0-windows-x64/
     Parkbound.exe
     ...runtime, notices, documentation, manifests...
-  Parkbound-0.2.0-windows-x64.zip
-  Parkbound-0.2.0-windows-x64.zip.sha256
+  Parkbound-0.3.0-windows-x64.zip
+  Parkbound-0.3.0-windows-x64.zip.sha256
 ```
 
 Packaging derives the version from Cargo metadata. It collects the locked Windows dependency notices, the embedded font license, Rust standard-library notices, and required MSVC redistributable DLLs. It writes `DEPENDENCIES.json`, `NATIVE_DEPENDENCIES.json`, `THIRD_PARTY_NOTICES.txt`, and `SHA256SUMS.txt`. Existing extracted package directories are preserved with a `.previous-...` suffix; the current ZIP is replaced. Check `dist` occasionally for accumulated previous packages.
@@ -253,8 +257,8 @@ If packaging reports missing Rust standard-library notices, install `rust-docs` 
 Check the ZIP hash against its adjacent `.sha256` file:
 
 ```powershell
-Get-FileHash -LiteralPath 'dist\Parkbound-0.2.0-windows-x64.zip' -Algorithm SHA256
-Get-Content -LiteralPath 'dist\Parkbound-0.2.0-windows-x64.zip.sha256'
+Get-FileHash -LiteralPath 'dist\Parkbound-0.3.0-windows-x64.zip' -Algorithm SHA256
+Get-Content -LiteralPath 'dist\Parkbound-0.3.0-windows-x64.zip.sha256'
 ```
 
 Extract **the entire ZIP**, then run `Parkbound.exe` from the extracted package. Test with an unrelated working directory, standard-user permissions, and a path containing spaces and non-ASCII characters. Run the same package on a clean Windows PC without Rust or Visual Studio and without networking before claiming portable release compatibility. Keep its required DLLs and notices beside the executable.
@@ -270,10 +274,11 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 | `rust-toolchain.toml` | Tested Rust toolchain and component pin for new PCs. |
 | `.gitattributes` | Normalizes source text to LF while preserving exact bytes under `scripts/notices/`. |
 | `crates/park_sim/src/lib.rs` | Authoritative terrain/map storage, validated heights, Flat/Terraced profiles, clock, speed enum, and simulation tests. |
+| `crates/park_sim/src/surfaces.rs` | Stable terrain/object identity, placement/removal, shared clearance, deterministic overlap fixture, and invariant tests. |
 | `crates/park_game/src/main.rs` | Bevy app setup, resources, fixed update, camera layout, keyboard/pointer input, scene refresh, and input-state tests. |
-| `crates/park_game/src/world.rs` | Height-aware isometric projection, top/cliff geometry and picking, shared depth, scenery anchors, selection mesh, and geometry tests. |
+| `crates/park_game/src/world.rs` | Terrain/object projection, shared render/pick/selection geometry, visibility, underground reference floor, and geometry tests. |
 | `crates/park_game/src/ui.rs` | UI layout, actions, labels, help modal, button state, and refresh. |
-| `crates/park_game/src/capture.rs` | Opt-in scene/map/rotation/window capture presets, screenshot receipt, PNG validation, and diagnostic exit. |
+| `crates/park_game/src/capture.rs` | Opt-in scene/map/visibility/rotation/window capture presets, screenshot receipt, PNG validation, and diagnostic exit. |
 | `scripts/package-windows.ps1` | Release build/staging, metadata, package documentation, notices, archive, and hashes. |
 | `scripts/write-third-party-notices.ps1` | Locked dependency traversal and license text collection. |
 | `scripts/copy-windows-runtime.ps1` | Native import inspection, MSVC runtime copying, and native manifest. |
@@ -283,11 +288,15 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 
 ### Simulation boundary
 
-`park_sim` has no Bevy dependency. `Park` owns dimensions, a row-major `Vec<Tile>`, and a `u64` tick count. Dimensions are validated in `1..=256`; invalid construction currently panics. Tile access is bounds checked. A `Tile` has a `Terrain` enum and `height: u8`, measured in abstract simulation steps. `MAX_TERRAIN_HEIGHT` is 32; the setter rejects out-of-bounds tiles and excessive heights without changing the park.
+`park_sim` has no Bevy dependency. `Park` owns dimensions, a row-major `Vec<Tile>`, a `u64` tick count, `Vec<SurfaceObject>`, and a monotonically increasing object-ID allocator. Dimensions are validated in `1..=256`; invalid map construction panics. Tile access is bounds checked. A `Tile` has a `Terrain` enum and `height: u8` in abstract steps; `MAX_TERRAIN_HEIGHT` is 32.
 
-`Park::new` still creates the flat baseline. The game applies `TerrainProfile::Terraced` for normal startup. `apply_terrain_profile` replaces elevations deterministically and preserves materials and time; Flat resets elevations, while Terraced uses levels 0/2/4/6 with a clear border and flat lake/shore. `set_terrain_height` is a validated simulation API for individual heights; it is not a player editor, clearance validator, or complete construction command. Preserve atomic rejection and preset repeatability when extending this API.
+`Park::new` creates flat terrain without objects. Normal startup applies Terraced and installs the overlap fixture. `try_apply_terrain_profile` validates every proposed height before mutation; it preserves materials, time, IDs, and object heights. `apply_terrain_profile` remains a convenience wrapper that panics on a rejected profile without changing state; use the fallible API for player actions. `set_terrain_height` validates bounds, height, and object clearance atomically.
 
-Initial terrain uses deterministic integer formulas. There is no seeded random-generator state, command queue, object-ID allocation, navigation graph, guest system, train simulation, or serialization yet. These are planned contracts, not implemented capabilities.
+`SurfaceId` distinguishes `Terrain(TilePos)` from `Object(ObjectId)`. A `SurfaceObject` contains ID, tile, `Path`/`Track` kind, X/Y axis, height, and clearance. `place_object(pos, kind, axis, height, clearance)` returns a stable ID or `PlacementError`; `remove_object(id)` returns the removed object or `None`, and never recycles an ID. Occupied intervals are half-open, with positive clearance and total height at most 32. Shared-tile overlaps are rejected. Paths stay on/above terrain; track can also be wholly buried. Terrain cannot bisect an object.
+
+Read-only APIs are `objects()`, `object(id)`, `surface_position(id)`, `surface_height(id)`, `is_underground(id)`, and `max_surface_height()`. Invalid/removed references resolve to `None`, or `false` for the burial query. Maximum surface height excludes the empty clearance above it. `install_overlap_fixture()` is atomic, requires a 32 × 32 map, and preserves already matching objects on repeat installation.
+
+Terrain and fixtures use deterministic integer data. There is no seeded RNG state, gameplay command queue, navigation graph, guest system, train simulation, money, or serialization yet. The placement API is a clearance foundation, not a complete ownership/cost/connectivity construction command.
 
 The app schedules `FixedUpdate` at 30 Hz and calls `Park::advance(speed)`. That currently increments time by 0, 1, 2, or 4 ticks with saturating arithmetic. **When real systems are added, each accelerated tick must execute the complete authoritative step in explicit order.** Merely increasing the clock counter would make the simulated behavior disagree with displayed speed.
 
@@ -295,7 +304,7 @@ The intended extension remains: validated atomic commands → fixed-step simulat
 
 ### Presentation boundary
 
-`Simulation(Park)` and `ViewState` are Bevy resources. `ViewState` owns presentation state and current speed: rotation, zoom, pan, grid, hover/selection, help state, drag state, and flags. `park_sim` remains authoritative for park data. A separate `park_content` crate is planned only when real authored content definitions justify it; it does not exist yet.
+`Simulation(Park)` and `ViewState` are Bevy resources. `ViewState` owns presentation state and current speed: rotation, zoom, pan, grid, Surface/Underground visibility, `SurfaceId` hover/selection, help state, drag state, and flags. `park_sim` remains authoritative for park data. A separate `park_content` crate is planned only when authored content definitions justify it; it does not exist yet.
 
 The Update systems are chained deliberately:
 
@@ -306,13 +315,13 @@ UI button actions → keyboard input → apply pending terrain preset → pointe
 
 Button actions clear and then set `ui_pointer_consumed` for that frame. Pointer handling checks it so a click that closes help cannot also select a tile behind the modal. Pending terrain presets apply before picking, so a frame does not inspect stale elevations. Preserve this ordering and its regression tests when refactoring UI.
 
-`world.rs` uses 64 × 32 world-unit diamonds. `HEIGHT_STEP = 16` converts one simulation height step to presentation units. Projection, top/front-cliff geometry, depth, and picking must agree: a flat inverse diamond formula cannot choose the correct visible surface when elevations overlap. `pick_tile` checks the same surfaces as rendering and returns the nearest column's stable `TilePos`; clicking a cliff selects its terrain column. Selection uses terrain depth so foreground terrain can occlude it; it must not be forced above the entire scene. Scenery anchors use the underlying terrain height. General map sizes require coordinated changes to the current 32 × 32 game and square-map presentation assumptions, not only a larger `Park`.
+`world.rs` uses 64 × 32 world-unit diamonds. `HEIGHT_STEP = 16` converts one simulation height step to presentation units. Geometry, depth, visibility, picking, and selection must agree across terrain and object layers. A cliff selects its terrain column; a path or track surface selects its own object ID. Ordinary picking excludes buried objects. Underground mode removes terrain from rendering/picking; its reference floor is non-selectable. Selection must obey scene occlusion rather than being forced above it. The legacy terrain-only picking wrapper remains for baseline tests. General map sizes require coordinated changes to square-map presentation assumptions, not only a larger `Park`.
 
 The camera and pointer transform use logical window pixels consistently. Mouse dragging uses successive logical cursor positions; replacing that with raw mouse-motion counts can reintroduce DPI-dependent behavior. UI exclusion bounds and camera offsets depend on `SIDEBAR`, `HEADER`, and `FOOTER`; change the layout and these boundaries together.
 
-The landscape is one procedural mesh, rebuilt when the view marks it dirty. Preset changes must invalidate both landscape and selection geometry even if the selected tile coordinate stays unchanged. Selection is a separate mesh. Both currently use `NoFrustumCulling`: replacing moving vertices without updating a cached bounding box can hide geometry incorrectly. Retain that treatment or correctly refresh bounds during refactors. Dynamic entities and large parks still need a measured update strategy; the current monolithic mesh is a small proof implementation, not a proven large-park architecture.
+The scene is one procedural mesh, rebuilt when the view marks it dirty. Preset and visibility changes must invalidate scene and selection geometry even if selected identity stays unchanged. Selection is a separate mesh. Both currently use `NoFrustumCulling`: replacing vertices without updating a cached bounding box can hide geometry incorrectly. Retain that treatment or correctly refresh bounds during refactors. Dynamic entities and large parks still need a measured update strategy; the monolithic mesh remains a small proof implementation.
 
-Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retaining selection and accounts for terrain height. Keep the same camera layout calculation in rendering and pointer conversion. Rendering uses opaque white materials with vertex colors. Release builds use the Windows GUI subsystem, so opening the executable does not supply a normal console log window. Use capture exit status and the relevant debugger/log strategy when diagnosing a silent launch failure.
+Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retaining selection and accounts for terrain/object height. Keep the same camera layout calculation in rendering and pointer conversion. Rendering uses opaque white materials with vertex colors. Release builds use the Windows GUI subsystem, so opening the executable does not supply a normal console log window. Use capture exit status and the relevant debugger/log strategy when diagnosing a silent launch failure.
 
 ## 8. Resume work in this sequence
 
@@ -320,22 +329,22 @@ Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retainin
 
 Build from the existing or newly cloned repository using the pinned toolchain; record the commit, Windows version, graphics driver, and check results. Complete ordinary input checks and clean-machine package checks where the new PC makes that possible. Update individual IDs only after their acceptance criteria pass. Keep the scope/catalogue audit visible rather than treating it as finished because coding has started.
 
-### B. Continue PRF-01 with elevated-path and underground-track overlaps
+### B. Complete PRF-01 overlap acceptance
 
-The first terrain-height slice is implemented in 0.2.0. Preserve both Flat and Terraced behavior, height validation, visible top/cliff picking, selection occlusion, scenery anchors, and camera fit as the regression baseline. Check the terrain report for any remaining defects or unverified cases before expanding the scene.
+The 0.3.0 implementation adds the missing overlap fixture, object identity, visibility controls, and shared clearance. Preserve the 0.2.0 terrain baseline and read the overlap report before deciding which checks remain. Do not replace the fixture with a full editor while this acceptance is still open.
 
-1. Define stable identity for independently selectable terrain, path, and track surfaces sharing a tile. Keep simulation heights distinct from presentation depth.
-2. Add a small original elevated-path fixture above terrain and a representative underground-track fixture. Introduce only the data needed for the proof; a full path editor or ride simulation is not required yet.
-3. Extend geometry, occlusion, picking, and shared clearance together. Define how hidden underground surfaces become inspectable through an explicit visibility mode; ordinary picking must not silently choose an obscured layer.
-4. Demonstrate visible and hidden surfaces at different heights in all four rotations, with zoom, pan, UI exclusion, boundaries, and stable selected object identity.
-5. Add regressions for overlapping layers, invalid references, and rejected clearance. Preserve both existing terrain presets and their selected-tile/time behavior.
-6. Record a rendered demonstration and normal-input results, then package the checkpoint. Mark PRF-01 verified only when its complete terrain/path/underground acceptance passes.
+1. Run simulation, geometry, input, formatting, lint, and release checks on the exact current source; inspect hosted CI for that commit.
+2. Demonstrate the shared crossing in all four rotations and both visibility modes, including Flat/Terraced comparison, zoom, pan, UI exclusion, and boundaries.
+3. Verify hidden track and hidden selection do not show through terrain; check the underground reference floor cannot be selected.
+4. Verify IDs and object heights survive view/preset changes; rejected clearance and removed references remain safe.
+5. Record normal mouse/keyboard behavior and outstanding physical display or hardware limitations separately from synthetic tests.
+6. Package and inspect the exact build, recording hashes and relocation results. Mark PRF-01 verified only when its complete acceptance passes.
 
 Shared clearance and surface rules should become the foundation for paths, track, scenery, and construction. Reject illegal placement atomically once commands are introduced.
 
 ### C. Prove paths and crowd recovery: PRF-02
 
-Introduce height-aware path connectivity, stable IDs, destination selection, and a small seeded guest simulation in `park_sim`. Start with a tiny deterministic test park. Test junctions, disconnected regions, and deletion of occupied/destination paths. Guests must enter a defined lost/recovery state rather than retaining invalid references. Render the result and verify behavior at different display frame rates before optimizing crowd size. Queue rules belong in connectivity semantics, even if detailed ride boarding comes later.
+After PRF-01 acceptance, reuse its stable IDs and clearance to introduce height-aware path connectivity, destination selection, and a small seeded guest simulation in `park_sim`. First make accelerated speed execute every fixed simulation step. Start with a tiny deterministic test park; test junctions, disconnected regions, and deletion of occupied/destination paths. Guests must enter a defined lost/recovery state rather than retain invalid references. Render and compare display frame rates before optimizing crowd size. Queue rules belong in connectivity semantics even before detailed boarding.
 
 ### D. Prove one moving train: PRF-03
 
@@ -410,8 +419,9 @@ The following earlier hosted runs were verified successful through the GitHub AP
 | --- | --- |
 | `e4a8d2f` | [Successful run 39265273354](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39265273354) |
 | `2ec6bf9` | [Successful run 39379555949](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39379555949) |
+| `dc832fa` (0.2.0 starting baseline) | [Successful run 39381924927](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39381924927) |
 
-These results belong to the earlier source checkpoints. The 0.2.0 source needs its own pushed-commit CI result; consult Actions and the terrain report before claiming that result.
+These results belong to their exact earlier checkpoints. The 0.3.0 overlap changes need their own pushed-commit CI result; consult Actions and the overlap report before claiming that result.
 
 There is no selected project source-code license yet. Free gameplay distribution and permission to reuse source are separate decisions. Saving source in this GitHub repository does not by itself select MIT, Apache, GPL, or another project license. Decide source licensing before making reuse promises or accepting outside contributions. Keep all third-party licenses and asset provenance intact.
 
@@ -424,7 +434,7 @@ Public naming, final hardware/Windows requirements, signing, installer choice, s
 ```text
 Continue this existing Rust project from https://github.com/strijbosmh-afk/RailRust-Tycoon.
 The repository is RailRust-Tycoon; Parkbound is only the temporary application title.
-Read RESUME_DEVELOPMENT.md, docs/TERRAIN_REPORT.md, docs/FOUNDATION_REPORT.md,
+Read RESUME_DEVELOPMENT.md, docs/OVERLAP_REPORT.md, docs/TERRAIN_REPORT.md, docs/FOUNDATION_REPORT.md,
 docs/PRODUCT_DECISIONS.md, docs/GAMEPLAY_CHECKLIST.md, and DEVELOPMENT_PLAN.md,
 then inspect the actual source and current Git state. Preserve unrelated local
 changes and remote history. The shared OneDrive path and single-active-session
@@ -432,26 +442,27 @@ workflow are recorded in the guide; continue there or use a separate clone.
 
 The confirmed product is a free, fully featured, Windows-only classic RCT1/RCT2-style
 isometric park simulation in Rust, developed in stages with original assets. We have
-a version 0.2.0 terrain proof, not a finished game. Default Terraced and comparison
-Flat presets have validated integer heights, visible top/cliff picking, selection
-occlusion, terrain-anchored scenery, and height-aware camera fit. T/the preset button
-preserves time, materials, and selected tile coordinates. No terrain editor, paths,
-underground track objects, guests, rides, finances, saves, or audio exist yet. Do not
-mark planned contracts as implemented. FND-03 is verified by normal-input and clock
-tests. FND-02 remains open for panning/dragging and physical display checks;
-clean-machine compatibility also remains open unless later reports close it.
+a version 0.3.0 overlap implementation, not a finished game. It retains Flat/Terraced
+terrain and adds 12 elevated path objects at height 8 and nine track objects at
+height 0, all clearance 2. Stable IDs, shared clearance, and U-controlled visibility
+connect simulation, rendering, picking, and inspection. Flat exposes the same track
+without moving it. Underground removes terrain and uses a non-selectable floor.
+No path/terrain editor, guests, operating rides, finances, saves, or audio exist.
+Read the report for actual 0.3.0 checks rather than carrying forward prior results.
+PRF-01 remains in progress until complete acceptance. FND-02 and clean-machine
+compatibility remain open unless later reports explicitly close them.
 
 Use the repository-pinned Rust 1.93.1 MSVC toolchain and Bevy 0.17.3 with Cargo.lock.
 On an 8 GB machine use -j 2. First reproduce the baseline checks and inspect CI for
 the current commit. Keep park_sim independent of Bevy. Read the input-ordering,
 logical-pixel, mesh-culling, and accelerated-tick notes before refactoring them.
 
-Implement the next small PRF-01 slice: overlapping elevated-path and underground-track
-fixtures, preserving the Flat/Terraced terrain behavior and all four rotations.
-Define selectable object/layer identity, explicit underground visibility, and shared
-clearance; prove occlusion and correct selection with tests and a demonstration.
-PRF-01 remains in progress until its full overlap acceptance passes. Keep crowd
-navigation, train circuit, save/reload determinism, and benchmarks as later slices.
+Finish any missing PRF-01 checks and defects first, preserving terrain and identity
+across all four rotations, both presets, and both visibility modes. After acceptance,
+the next implementation is PRF-02: height-aware paths and a tiny seeded crowd that
+recovers safely from deletions. Before moving entities, make accelerated time run
+each complete authoritative tick. Keep train operation, saves, and benchmarks as
+later independent proofs. Continue the exact content/expansion audit in parallel.
 
 Run relevant tests, formatting, Clippy, a release build, render inspection, and normal
 input checks where available. Document actual evidence and limitations, update the

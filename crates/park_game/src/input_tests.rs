@@ -65,6 +65,10 @@ fn frame(app: &mut App) {
 }
 
 fn click_world(app: &mut App, window: Entity, point: Vec2, expected: TilePos) {
+    click_surface(app, window, point, SurfaceId::Terrain(expected));
+}
+
+fn click_surface(app: &mut App, window: Entity, point: Vec2, expected: SurfaceId) {
     let cursor = cursor_for_world(app, window, point);
     assert!(
         is_map_position(cursor, app.world().get::<Window>(window).unwrap(), false),
@@ -157,8 +161,8 @@ fn ui_regions_help_and_consumed_clicks_block_selection_and_wheel_zoom() {
         let (mut app, window) = input_app(
             Park::new(MAP_SIZE, MAP_SIZE),
             ViewState {
-                selected: Some(selected),
-                hovered: Some(selected),
+                selected: Some(SurfaceId::Terrain(selected)),
+                hovered: Some(SurfaceId::Terrain(selected)),
                 help,
                 ui_pointer_consumed: consumed,
                 ..default()
@@ -179,7 +183,7 @@ fn ui_regions_help_and_consumed_clicks_block_selection_and_wheel_zoom() {
             });
         frame(&mut app);
         let view = app.world().resource::<ViewState>();
-        assert_eq!(view.selected, Some(selected));
+        assert_eq!(view.selected, Some(SurfaceId::Terrain(selected)));
         assert_eq!(view.hovered, None);
         assert_eq!(view.zoom, 1.0);
     }
@@ -337,7 +341,7 @@ fn terrain_button_preserves_selected_identity_clock_and_materials() {
     let mut app = App::new();
     app.insert_resource(Simulation(park))
         .insert_resource(ViewState {
-            selected: Some(selected),
+            selected: Some(SurfaceId::Terrain(selected)),
             ..default()
         })
         .add_systems(Update, (ui::button_actions, apply_terrain_profile).chain());
@@ -350,7 +354,7 @@ fn terrain_button_preserves_selected_identity_clock_and_materials() {
     for expected in [TerrainProfile::Flat, TerrainProfile::Terraced] {
         let view = app.world().resource::<ViewState>();
         let park = &app.world().resource::<Simulation>().0;
-        assert_eq!(view.selected, Some(selected));
+        assert_eq!(view.selected, Some(SurfaceId::Terrain(selected)));
         assert_eq!(view.terrain_profile, expected);
         assert!(!view.terrain_change_pending);
         assert_eq!(park.ticks(), ticks);
@@ -397,7 +401,7 @@ fn selection_mesh_follows_height_changes_without_changing_selected_tile_or_rotat
     let mut app = App::new();
     app.insert_resource(Simulation(park))
         .insert_resource(ViewState {
-            selected: Some(selected),
+            selected: Some(SurfaceId::Terrain(selected)),
             rotation: 2,
             ..default()
         })
@@ -420,7 +424,7 @@ fn selection_mesh_follows_height_changes_without_changing_selected_tile_or_rotat
         assert!((raised[1] - flat[1] - elevation).abs() < 0.001);
     }
     let view = app.world().resource::<ViewState>();
-    assert_eq!(view.selected, Some(selected));
+    assert_eq!(view.selected, Some(SurfaceId::Terrain(selected)));
     assert_eq!(view.rotation, 2);
 
     app.world_mut()
@@ -428,4 +432,184 @@ fn selection_mesh_follows_height_changes_without_changing_selected_tile_or_rotat
         .toggle_terrain_profile();
     app.update();
     assert_eq!(selected_mesh_positions(&app), raised_positions);
+}
+
+#[test]
+fn layered_pointer_selection_and_visibility_survive_camera_and_dpi_changes() {
+    use park_sim::{Axis, ObjectKind};
+    let pos = TilePos { x: 15, y: 16 };
+    for rotation in 0..4 {
+        for dpi in [1.0, 2.0] {
+            let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+            park.set_terrain_height(pos, 6).unwrap();
+            let path = SurfaceId::Object(
+                park.place_object(pos, ObjectKind::Path, Axis::X, 8, 2)
+                    .unwrap(),
+            );
+            let track = SurfaceId::Object(
+                park.place_object(pos, ObjectKind::Track, Axis::Y, 0, 2)
+                    .unwrap(),
+            );
+            let path_center = world::surface_center(&park, path, rotation).unwrap();
+            let track_center = world::surface_center(&park, track, rotation).unwrap();
+            assert_ne!(
+                world::pick_surface(track_center, &park, rotation, world::ViewMode::Surface),
+                Some(track)
+            );
+            let (mut app, window) = input_app(
+                park,
+                ViewState {
+                    rotation,
+                    zoom: 1.5,
+                    pan: Vec2::new(35.0, -20.0),
+                    ..default()
+                },
+                dpi,
+            );
+            click_surface(&mut app, window, path_center, path);
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::KeyU);
+            frame(&mut app);
+            assert_eq!(
+                app.world().resource::<ViewState>().view_mode,
+                world::ViewMode::Underground
+            );
+            assert_eq!(app.world().resource::<ViewState>().selected, Some(path));
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .reset_all();
+            click_surface(&mut app, window, track_center, track);
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::KeyU);
+            frame(&mut app);
+            assert_eq!(
+                app.world().resource::<ViewState>().view_mode,
+                world::ViewMode::Surface
+            );
+            assert_eq!(app.world().resource::<ViewState>().selected, Some(track));
+        }
+    }
+}
+
+#[test]
+fn underground_button_rebuilds_hidden_outlines_and_removal_clears_selection() {
+    use park_sim::{Axis, ObjectKind};
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    let pos = TilePos { x: 13, y: 16 };
+    park.set_terrain_height(pos, 6).unwrap();
+    let id = park
+        .place_object(pos, ObjectKind::Track, Axis::Y, 0, 2)
+        .unwrap();
+    let selected = SurfaceId::Object(id);
+    let mut app = App::new();
+    app.insert_resource(Simulation(park))
+        .insert_resource(ViewState {
+            selected: Some(selected),
+            ..default()
+        })
+        .init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<ColorMaterial>>()
+        .add_systems(Startup, setup_scene)
+        .add_systems(Update, (ui::button_actions, update_scene).chain());
+    app.update();
+    assert!(
+        selected_mesh_positions(&app).is_empty(),
+        "buried selections cannot show through terrain"
+    );
+    let button = app
+        .world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::Underground))
+        .id();
+    app.update();
+    assert_eq!(app.world().resource::<ViewState>().selected, Some(selected));
+    assert!(app.world().resource::<ViewState>().ui_pointer_consumed);
+    assert!(!selected_mesh_positions(&app).is_empty());
+    app.world_mut().entity_mut(button).insert(Interaction::None);
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .remove_object(id)
+        .unwrap();
+    app.world_mut().resource_mut::<ViewState>().scene_dirty = true;
+    app.update();
+    assert_eq!(app.world().resource::<ViewState>().selected, None);
+    assert!(selected_mesh_positions(&app).is_empty());
+}
+
+#[test]
+fn presets_keep_object_identity_and_reject_conflicting_terrain_atomically() {
+    use park_sim::{Axis, ObjectKind};
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    park.install_overlap_fixture().unwrap();
+    let selected = SurfaceId::Object(park.objects().last().unwrap().id);
+    let objects = park.objects().to_vec();
+    let mut app = App::new();
+    app.insert_resource(Simulation(park))
+        .insert_resource(ViewState {
+            terrain_profile: TerrainProfile::Flat,
+            selected: Some(selected),
+            ..default()
+        })
+        .add_systems(Update, apply_terrain_profile);
+    for expected in [TerrainProfile::Terraced, TerrainProfile::Flat] {
+        app.world_mut()
+            .resource_mut::<ViewState>()
+            .toggle_terrain_profile();
+        app.update();
+        assert_eq!(app.world().resource::<Simulation>().0.objects(), objects);
+        let view = app.world().resource::<ViewState>();
+        assert_eq!(view.selected, Some(selected));
+        assert_eq!(view.terrain_profile, expected);
+        assert!(view.terrain_error.is_none());
+    }
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .place_object(TilePos { x: 12, y: 15 }, ObjectKind::Path, Axis::X, 0, 2)
+        .unwrap();
+    let before = app.world().resource::<Simulation>().0.clone();
+    app.world_mut()
+        .resource_mut::<ViewState>()
+        .toggle_terrain_profile();
+    app.update();
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    let view = app.world().resource::<ViewState>();
+    assert_eq!(view.terrain_profile, TerrainProfile::Flat);
+    assert!(view.terrain_error.is_some());
+    assert!(!view.terrain_change_pending);
+}
+
+#[test]
+fn fitting_includes_elevated_objects_above_flat_terrain() {
+    use park_sim::{Axis, ObjectKind};
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    for pos in [
+        TilePos { x: 0, y: 0 },
+        TilePos { x: 31, y: 0 },
+        TilePos { x: 0, y: 31 },
+        TilePos { x: 31, y: 31 },
+    ] {
+        park.place_object(pos, ObjectKind::Path, Axis::X, 30, 2)
+            .unwrap();
+    }
+    let window = test_window(1024, 680, 2.0);
+    for rotation in 0..4 {
+        let view = ViewState {
+            rotation,
+            ..default()
+        };
+        let (scale, center) = camera_layout(&window, &view, &park);
+        for object in park.objects() {
+            let point =
+                world::surface_center(&park, SurfaceId::Object(object.id), rotation).unwrap();
+            let relative = (point - center) / scale;
+            let cursor = Vec2::new(
+                window.width() * 0.5 + relative.x,
+                window.height() * 0.5 - relative.y,
+            );
+            assert!(is_map_position(cursor, &window, false) && cursor.x < window.width());
+        }
+    }
 }

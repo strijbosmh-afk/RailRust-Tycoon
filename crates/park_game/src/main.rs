@@ -12,7 +12,9 @@ use bevy::{
     prelude::*,
     window::{PresentMode, PrimaryWindow, WindowResolution},
 };
-use park_sim::{Park, Speed, TICKS_PER_SECOND, TerrainProfile, TilePos};
+#[cfg(test)]
+use park_sim::TilePos;
+use park_sim::{Park, Speed, SurfaceId, TICKS_PER_SECOND, TerrainProfile};
 
 const MAP_SIZE: u32 = 32;
 const SIDEBAR: f32 = 248.0;
@@ -30,14 +32,16 @@ struct ViewState {
     grid: bool,
     speed: Speed,
     resume_speed: Speed,
-    selected: Option<TilePos>,
-    hovered: Option<TilePos>,
+    selected: Option<SurfaceId>,
+    hovered: Option<SurfaceId>,
+    view_mode: world::ViewMode,
     help: bool,
     dragging: bool,
     ui_pointer_consumed: bool,
     scene_dirty: bool,
     terrain_profile: TerrainProfile,
     terrain_change_pending: bool,
+    terrain_error: Option<String>,
     capture_active: bool,
 }
 
@@ -52,12 +56,14 @@ impl Default for ViewState {
             resume_speed: Speed::Normal,
             selected: None,
             hovered: None,
+            view_mode: world::ViewMode::Surface,
             help: false,
             dragging: false,
             ui_pointer_consumed: false,
             scene_dirty: false,
             terrain_profile: TerrainProfile::Terraced,
             terrain_change_pending: false,
+            terrain_error: None,
             capture_active: false,
         }
     }
@@ -101,6 +107,15 @@ impl ViewState {
         };
         self.terrain_change_pending = true;
     }
+
+    fn toggle_underground(&mut self) {
+        self.view_mode = match self.view_mode {
+            world::ViewMode::Surface => world::ViewMode::Underground,
+            world::ViewMode::Underground => world::ViewMode::Surface,
+        };
+        self.hovered = None;
+        self.scene_dirty = true;
+    }
 }
 
 #[derive(Resource)]
@@ -112,6 +127,8 @@ struct SceneMeshes {
 fn main() -> AppExit {
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);
     park.apply_terrain_profile(TerrainProfile::Terraced);
+    park.install_overlap_fixture()
+        .expect("the demonstration fixtures must fit the initial park");
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
@@ -158,8 +175,19 @@ fn setup_scene(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn(Camera2d);
-    let landscape = meshes.add(world::build_scene(&sim.0, view.rotation, view.grid));
-    let selection = meshes.add(world::selection_mesh(None, None, &sim.0, view.rotation));
+    let landscape = meshes.add(world::build_scene(
+        &sim.0,
+        view.rotation,
+        view.grid,
+        view.view_mode,
+    ));
+    let selection = meshes.add(world::selection_mesh(
+        None,
+        None,
+        &sim.0,
+        view.rotation,
+        view.view_mode,
+    ));
     let material = materials.add(ColorMaterial::from(Color::WHITE));
     commands.spawn((
         Mesh2d(landscape.clone()),
@@ -225,6 +253,9 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if keys.just_pressed(KeyCode::KeyT) {
         view.toggle_terrain_profile();
     }
+    if keys.just_pressed(KeyCode::KeyU) {
+        view.toggle_underground();
+    }
     if keys.just_pressed(KeyCode::Home) {
         view.reset_camera();
     }
@@ -254,7 +285,15 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
 
 fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
     if view.terrain_change_pending {
-        sim.0.apply_terrain_profile(view.terrain_profile);
+        if let Err(error) = sim.0.try_apply_terrain_profile(view.terrain_profile) {
+            view.terrain_error = Some(format!("Terrain unchanged: {error}"));
+            view.terrain_profile = match view.terrain_profile {
+                TerrainProfile::Flat => TerrainProfile::Terraced,
+                TerrainProfile::Terraced => TerrainProfile::Flat,
+            };
+        } else {
+            view.terrain_error = None;
+        }
         view.terrain_change_pending = false;
         view.hovered = None;
         view.scene_dirty = true;
@@ -265,7 +304,7 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
 fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) {
     let available_width = (window.width() - SIDEBAR - 72.0).max(1.0);
     let available_height = (window.height() - HEADER - FOOTER - 100.0).max(1.0);
-    let elevation = f32::from(park.max_terrain_height()) * world::HEIGHT_STEP;
+    let elevation = f32::from(park.max_surface_height()) * world::HEIGHT_STEP;
     let fit = (park.width() as f32 * world::TILE_WIDTH / available_width)
         .max((park.height() as f32 * world::TILE_HEIGHT + elevation + 70.0) / available_height);
     let scale = fit / view.zoom;
@@ -343,7 +382,7 @@ fn pointer_input(
                 cursor.x - window.width() * 0.5,
                 window.height() * 0.5 - cursor.y,
             ) * scale;
-        world::pick_tile(world, &sim.0, view.rotation)
+        world::pick_surface(world, &sim.0, view.rotation, view.view_mode)
     } else {
         None
     };
@@ -372,7 +411,7 @@ fn apply_camera(
     }
 }
 
-type SelectionSnapshot = (Option<TilePos>, Option<TilePos>, u8);
+type SelectionSnapshot = (Option<SurfaceId>, Option<SurfaceId>, u8, world::ViewMode);
 
 fn update_scene(
     sim: Res<Simulation>,
@@ -381,17 +420,31 @@ fn update_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut last_selection: Local<Option<SelectionSnapshot>>,
 ) {
+    // Removed objects and invalid references must never leave a stale inspector
+    // or outline. Valid hidden selections persist when switching view modes.
+    view.selected = view
+        .selected
+        .filter(|id| sim.0.surface_position(*id).is_some());
+    view.hovered = view
+        .hovered
+        .filter(|id| sim.0.surface_position(*id).is_some());
     let terrain_changed = view.scene_dirty;
     if terrain_changed {
         if let Some(mesh) = meshes.get_mut(&scene.landscape) {
-            *mesh = world::build_scene(&sim.0, view.rotation, view.grid);
+            *mesh = world::build_scene(&sim.0, view.rotation, view.grid, view.view_mode);
         }
         view.scene_dirty = false;
     }
-    let selection = (view.hovered, view.selected, view.rotation);
+    let selection = (view.hovered, view.selected, view.rotation, view.view_mode);
     if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
-            *mesh = world::selection_mesh(view.hovered, view.selected, &sim.0, view.rotation);
+            *mesh = world::selection_mesh(
+                view.hovered,
+                view.selected,
+                &sim.0,
+                view.rotation,
+                view.view_mode,
+            );
         }
         *last_selection = Some(selection);
     }
@@ -414,7 +467,7 @@ mod tests {
     #[test]
     fn camera_controls_stay_bounded_and_reset_without_changing_selection() {
         let mut view = ViewState {
-            selected: Some(TilePos { x: 3, y: 7 }),
+            selected: Some(SurfaceId::Terrain(TilePos { x: 3, y: 7 })),
             ..default()
         };
         view.zoom_by(1000.0);
@@ -427,7 +480,10 @@ mod tests {
         assert_eq!(view.rotation, 0);
         view.reset_camera();
         assert_eq!(view.zoom, 1.0);
-        assert_eq!(view.selected, Some(TilePos { x: 3, y: 7 }));
+        assert_eq!(
+            view.selected,
+            Some(SurfaceId::Terrain(TilePos { x: 3, y: 7 }))
+        );
     }
 
     #[test]
@@ -448,7 +504,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(ViewState {
             help: true,
-            selected: Some(TilePos { x: 3, y: 7 }),
+            selected: Some(SurfaceId::Terrain(TilePos { x: 3, y: 7 })),
             ..default()
         })
         .add_systems(Update, ui::button_actions);
@@ -458,7 +514,10 @@ mod tests {
         let view = app.world().resource::<ViewState>();
         assert!(!view.help);
         assert!(view.ui_pointer_consumed);
-        assert_eq!(view.selected, Some(TilePos { x: 3, y: 7 }));
+        assert_eq!(
+            view.selected,
+            Some(SurfaceId::Terrain(TilePos { x: 3, y: 7 }))
+        );
         app.update();
         assert!(!app.world().resource::<ViewState>().ui_pointer_consumed);
     }

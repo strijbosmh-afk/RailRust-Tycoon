@@ -1,10 +1,10 @@
-//! Isometric terrain surfaces shared by rendering, selection, and picking.
+//! Isometric surfaces shared by rendering, selection, and picking.
 
 use bevy::{
     asset::RenderAssetUsages, color::ColorToComponents, mesh::Indices, prelude::*,
     render::render_resource::PrimitiveTopology,
 };
-use park_sim::{Park, Terrain, TilePos};
+use park_sim::{Axis, ObjectKind, Park, SurfaceId, SurfaceObject, Terrain, TilePos};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
@@ -17,6 +17,15 @@ const DETAIL_BIAS: f32 = 0.004;
 const HOVER_BIAS: f32 = 0.012;
 const SELECTION_BIAS: f32 = 0.016;
 type Ink = [f32; 4];
+
+/// The cutaway removes terrain and scenery, including their hit targets.
+/// Its low context grid is a guide, not a selectable replacement terrain.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ViewMode {
+    #[default]
+    Surface,
+    Underground,
+}
 
 /// Project a simulation tile into the centered, clockwise-rotated map.
 pub fn tile_center(pos: TilePos, size: u32, rotation: u8) -> Vec2 {
@@ -36,9 +45,30 @@ pub fn elevated_tile_center(park: &Park, pos: TilePos, rotation: u8) -> Option<V
     Some(tile_center(pos, park.width(), rotation) + Vec2::Y * height)
 }
 
-/// Pick the nearest rendered roof or exposed front cliff. Faces of a column
-/// all return that column's stable TilePos, including clicks on its cliff.
-pub fn pick_tile(world: Vec2, park: &Park, rotation: u8) -> Option<TilePos> {
+/// Center of a surface's visible roof; object base heights remain simulation data.
+pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> {
+    if park.width() != park.height() {
+        return None;
+    }
+    match id {
+        SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
+        SurfaceId::Object(id) => {
+            let object = park.object(id)?;
+            Some(object_point(
+                object,
+                0.0,
+                0.0,
+                object_top(object),
+                park.width(),
+                rotation,
+            ))
+        }
+    }
+}
+
+/// Pick the nearest selectable face, with the exact visibility rules used by
+/// scene and outline geometry. Hidden objects never become fallback hits.
+pub fn pick_surface(world: Vec2, park: &Park, rotation: u8, mode: ViewMode) -> Option<SurfaceId> {
     if !world.is_finite() || park.width() != park.height() {
         return None;
     }
@@ -47,7 +77,17 @@ pub fn pick_tile(world: Vec2, park: &Park, rotation: u8) -> Option<TilePos> {
     if column.abs() > size as f32 {
         return None;
     }
-    let mut closest: Option<(f32, (u32, u32), TilePos)> = None;
+    let mut closest: Option<(f32, (u32, u32, u64), SurfaceId)> = None;
+    let mut consider = |surface: Surface, tie, id| {
+        let Some(depth) = surface.hit_depth(world) else {
+            return;
+        };
+        if closest.is_none_or(|(old_depth, old_tie, _)| {
+            depth > old_depth + 0.0001 || ((depth - old_depth).abs() <= 0.0001 && tie > old_tie)
+        }) {
+            closest = Some((depth, tie, id));
+        }
+    };
     // Every surface stays within its tile's horizontal diamond bounds.
     // At most three columns per rotated row can contain the pointer.
     for y in 0..size {
@@ -58,21 +98,34 @@ pub fn pick_tile(world: Vec2, park: &Park, rotation: u8) -> Option<TilePos> {
         }
         for x in min_x..=max_x as u32 {
             let pos = unrotate(x, y, size, rotation);
-            for surface in column_surfaces(park, pos, rotation).into_iter().flatten() {
-                let Some(depth) = surface.hit_depth(world) else {
-                    continue;
-                };
-                let tie = (x + y, x);
-                if closest.is_none_or(|(old_depth, old_tie, _)| {
-                    depth > old_depth + 0.0001
-                        || ((depth - old_depth).abs() <= 0.0001 && tie > old_tie)
-                }) {
-                    closest = Some((depth, tie, pos));
+            if mode == ViewMode::Surface {
+                for surface in column_surfaces(park, pos, rotation).into_iter().flatten() {
+                    consider(surface, (x + y, x, 0), SurfaceId::Terrain(pos));
                 }
             }
         }
     }
-    closest.map(|(_, _, pos)| pos)
+    for object in park.objects() {
+        if object_visible(park, object, mode) {
+            let (x, y) = rotate(object.pos, size, rotation);
+            for surface in object_surfaces(object, size, rotation) {
+                consider(
+                    surface,
+                    (x + y, x, object.id.0),
+                    SurfaceId::Object(object.id),
+                );
+            }
+        }
+    }
+    closest.map(|(_, _, id)| id)
+}
+
+#[cfg(test)]
+fn pick_tile(world: Vec2, park: &Park, rotation: u8) -> Option<TilePos> {
+    match pick_surface(world, park, rotation, ViewMode::Surface)? {
+        SurfaceId::Terrain(pos) => Some(pos),
+        SurfaceId::Object(_) => None,
+    }
 }
 
 fn unrotate(x: u32, y: u32, size: u32, rotation: u8) -> TilePos {
@@ -106,12 +159,12 @@ enum SurfaceKind {
 }
 
 #[derive(Clone, Copy)]
-struct TerrainSurface {
+struct Surface {
     vertices: [Vec3; 4],
     kind: SurfaceKind,
 }
 
-impl TerrainSurface {
+impl Surface {
     /// Depth is an affine plane, so these values match GPU interpolation.
     fn depth_at(self, point: Vec2) -> f32 {
         let gradient = match self.kind {
@@ -155,7 +208,7 @@ fn project(u: f32, v: f32, height: f32, size: u32) -> Vec3 {
     )
 }
 
-fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<TerrainSurface>; 3] {
+fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<Surface>; 3] {
     let Some(tile) = park.tile(pos) else {
         return [None; 3];
     };
@@ -163,7 +216,7 @@ fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<TerrainSu
     let (x, y) = rotate(pos, size, rotation);
     let (u, v) = (x as f32, y as f32);
     let height = f32::from(tile.height);
-    let top = TerrainSurface {
+    let top = Surface {
         vertices: [
             project(u - 0.5, v - 0.5, height, size),
             project(u - 0.5, v + 0.5, height, size),
@@ -185,7 +238,7 @@ fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<TerrainSu
     };
     let left_height = neighbor_height(x, y + 1);
     let right_height = neighbor_height(x + 1, y);
-    let left = (height > left_height).then(|| TerrainSurface {
+    let left = (height > left_height).then(|| Surface {
         vertices: [
             top.vertices[1],
             top.vertices[2],
@@ -194,7 +247,7 @@ fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<TerrainSu
         ],
         kind: SurfaceKind::LeftCliff,
     });
-    let right = (height > right_height).then(|| TerrainSurface {
+    let right = (height > right_height).then(|| Surface {
         vertices: [
             top.vertices[2],
             top.vertices[3],
@@ -206,14 +259,233 @@ fn column_surfaces(park: &Park, pos: TilePos, rotation: u8) -> [Option<TerrainSu
     [Some(top), left, right]
 }
 
+fn object_visible(park: &Park, object: &SurfaceObject, mode: ViewMode) -> bool {
+    mode == ViewMode::Underground || !park.is_underground(object.id)
+}
+
+fn object_top(object: &SurfaceObject) -> f32 {
+    f32::from(object.height)
+        + match object.kind {
+            ObjectKind::Path => 0.22,
+            ObjectKind::Track => 0.12,
+        }
+}
+
+fn object_point(
+    object: &SurfaceObject,
+    along: f32,
+    across: f32,
+    height: f32,
+    size: u32,
+    rotation: u8,
+) -> Vec2 {
+    let (x, y) = rotate(object.pos, size, rotation);
+    let (dx, dy) = match object.axis {
+        Axis::X => (along, across),
+        Axis::Y => (across, along),
+    };
+    let (du, dv) = match rotation % 4 {
+        0 => (dx, dy),
+        1 => (-dy, dx),
+        2 => (-dx, -dy),
+        _ => (dy, -dx),
+    };
+    project(x as f32 + du, y as f32 + dv, height, size).truncate()
+}
+
+/// A narrow horizontal deck and its two front faces. Detail strokes are
+/// clipped to the top, so every painted pixel has the same selectable owner.
+fn object_surfaces(object: &SurfaceObject, size: u32, rotation: u8) -> [Surface; 3] {
+    let (x, y) = rotate(object.pos, size, rotation);
+    let (u, v) = (x as f32, y as f32);
+    let across = match object.kind {
+        ObjectKind::Path => 0.34,
+        ObjectKind::Track => 0.31,
+    };
+    let along_u = matches!(object.axis, Axis::X) != (rotation % 2 == 1);
+    let (half_u, half_v) = if along_u {
+        (0.5, across)
+    } else {
+        (across, 0.5)
+    };
+    let height = object_top(object);
+    let bottom = f32::from(object.height);
+    let top = Surface {
+        vertices: [
+            project(u - half_u, v - half_v, height, size),
+            project(u - half_u, v + half_v, height, size),
+            project(u + half_u, v + half_v, height, size),
+            project(u + half_u, v - half_v, height, size),
+        ],
+        kind: SurfaceKind::Top,
+    };
+    [
+        top,
+        Surface {
+            vertices: [
+                top.vertices[1],
+                top.vertices[2],
+                project(u + half_u, v + half_v, bottom, size),
+                project(u - half_u, v + half_v, bottom, size),
+            ],
+            kind: SurfaceKind::LeftCliff,
+        },
+        Surface {
+            vertices: [
+                top.vertices[2],
+                top.vertices[3],
+                project(u + half_u, v - half_v, bottom, size),
+                project(u + half_u, v + half_v, bottom, size),
+            ],
+            kind: SurfaceKind::RightCliff,
+        },
+    ]
+}
+
+fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode) -> Vec<Surface> {
+    match id {
+        SurfaceId::Terrain(pos) if mode == ViewMode::Surface => {
+            column_surfaces(park, pos, rotation)
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        SurfaceId::Object(id) => park
+            .object(id)
+            .filter(|object| object_visible(park, object, mode))
+            .map(|object| object_surfaces(object, park.width(), rotation).to_vec())
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) {
+    for object in park.objects() {
+        if !object_visible(park, object, mode) {
+            continue;
+        }
+        let surfaces = object_surfaces(object, park.width(), rotation);
+        let top = surfaces[0];
+        for surface in surfaces {
+            let ink = match (object.kind, surface.kind) {
+                (ObjectKind::Path, SurfaceKind::Top) => rgb(224, 189, 128),
+                (ObjectKind::Path, SurfaceKind::LeftCliff) => rgb(155, 108, 65),
+                (ObjectKind::Path, SurfaceKind::RightCliff) => rgb(116, 76, 47),
+                (ObjectKind::Track, SurfaceKind::Top) => rgb(65, 79, 84),
+                (ObjectKind::Track, SurfaceKind::LeftCliff) => rgb(48, 60, 65),
+                (ObjectKind::Track, SurfaceKind::RightCliff) => rgb(37, 48, 54),
+            };
+            mesh.surface(surface, ink);
+        }
+        let point = |along, across| {
+            object_point(
+                object,
+                along,
+                across,
+                object_top(object),
+                park.width(),
+                rotation,
+            )
+        };
+        match object.kind {
+            ObjectKind::Path => {
+                // Original timber planks and a dark inset edge make the
+                // raised walkway readable even at the overview fit.
+                for along in [-0.4, -0.2, 0.0, 0.2, 0.4] {
+                    mesh.surface_line(
+                        top,
+                        point(along, -0.32),
+                        point(along, 0.32),
+                        0.8,
+                        DETAIL_BIAS,
+                        rgb(188, 143, 88),
+                    );
+                }
+                for across in [-0.29, 0.29] {
+                    mesh.surface_line(
+                        top,
+                        point(-0.5, across),
+                        point(0.5, across),
+                        1.8,
+                        DETAIL_BIAS * 2.0,
+                        rgb(139, 91, 54),
+                    );
+                }
+            }
+            ObjectKind::Track => {
+                for along in [-0.4, -0.2, 0.0, 0.2, 0.4] {
+                    mesh.surface_line(
+                        top,
+                        point(along, -0.26),
+                        point(along, 0.26),
+                        2.3,
+                        DETAIL_BIAS,
+                        rgb(146, 109, 78),
+                    );
+                }
+                for across in [-0.17, 0.17] {
+                    mesh.surface_line(
+                        top,
+                        point(-0.5, across),
+                        point(0.5, across),
+                        2.2,
+                        DETAIL_BIAS * 2.0,
+                        rgb(213, 224, 220),
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn cutaway_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
+    let mut mesh = Painter::default();
+    let size = park.width();
+    for y in 0..size {
+        for x in 0..size {
+            let (u, v) = (x as f32, y as f32);
+            let floor = Surface {
+                vertices: [
+                    project(u - 0.5, v - 0.5, -1.0, size),
+                    project(u - 0.5, v + 0.5, -1.0, size),
+                    project(u + 0.5, v + 0.5, -1.0, size),
+                    project(u + 0.5, v - 0.5, -1.0, size),
+                ],
+                kind: SurfaceKind::Top,
+            };
+            let pos = unrotate(x, y, size, rotation);
+            let height = park.tile(pos).expect("floor stays inside park").height;
+            let shade = i16::from(height.min(6)) * 2;
+            mesh.surface(floor, varied(199, 210, 199, -shade));
+            if grid {
+                for edge in [0, 1] {
+                    mesh.surface_line(
+                        floor,
+                        floor.vertices[edge].truncate(),
+                        floor.vertices[edge + 1].truncate(),
+                        0.65,
+                        DETAIL_BIAS,
+                        rgb(173, 190, 179),
+                    );
+                }
+            }
+        }
+    }
+    paint_objects(&mut mesh, park, rotation, ViewMode::Underground);
+    mesh.finish()
+}
+
 /// Build terrain, soil edges, trees, and a decorative entrance in one mesh.
 /// The material should be opaque white so per-vertex colors and depth apply.
-pub fn build_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
+pub fn build_scene(park: &Park, rotation: u8, grid: bool, mode: ViewMode) -> Mesh {
     assert_eq!(
         park.width(),
         park.height(),
         "isometric scene expects a square park"
     );
+    if mode == ViewMode::Underground {
+        return cutaway_scene(park, rotation, grid);
+    }
     let size = park.width();
     let mut mesh = Painter::default();
     let half_x = size as f32 * HALF_WIDTH;
@@ -392,27 +664,29 @@ pub fn build_scene(park: &Park, rotation: u8, grid: bool) -> Mesh {
         let top = column_surfaces(park, entrance, rotation)[0].expect("valid entrance roof");
         entrance_arch(&mut mesh, base, top);
     }
+    paint_objects(&mut mesh, park, rotation, mode);
     mesh.finish()
 }
 
-/// Outline only the selected column's actual surfaces. A small depth bias
-/// prevents z-fighting while nearer terrain still hides the hidden edges.
+/// Outline only the selected owner's visible surfaces. A small depth bias
+/// prevents z-fighting while nearer terrain and objects still hide its edges.
 pub fn selection_mesh(
-    hover: Option<TilePos>,
-    selected: Option<TilePos>,
+    hover: Option<SurfaceId>,
+    selected: Option<SurfaceId>,
     park: &Park,
     rotation: u8,
+    mode: ViewMode,
 ) -> Mesh {
     let mut mesh = Painter::default();
     if park.width() != park.height() {
         return mesh.finish();
     }
-    for (pos, width, bias, ink) in [
+    for (id, width, bias, ink) in [
         (hover, 1.4, HOVER_BIAS, rgb(247, 246, 216)),
         (selected, 3.0, SELECTION_BIAS, rgb(255, 205, 96)),
     ] {
-        if let Some(pos) = pos {
-            for surface in column_surfaces(park, pos, rotation).into_iter().flatten() {
+        if let Some(id) = id {
+            for surface in selectable_surfaces(park, id, rotation, mode) {
                 mesh.surface_outline(surface, width, bias, ink);
             }
         }
@@ -420,7 +694,7 @@ pub fn selection_mesh(
     mesh.finish()
 }
 
-fn tree(mesh: &mut Painter, base: Vec2, top: TerrainSurface, seed: u32) {
+fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
     let depth = top.depth_at(base) + 0.025;
     let scale = 0.85 + (seed % 6) as f32 * 0.055;
     mesh.surface_ellipse(
@@ -486,7 +760,7 @@ fn tree(mesh: &mut Painter, base: Vec2, top: TerrainSurface, seed: u32) {
     }
 }
 
-fn entrance_arch(mesh: &mut Painter, base: Vec2, top: TerrainSurface) {
+fn entrance_arch(mesh: &mut Painter, base: Vec2, top: Surface) {
     let depth = top.depth_at(base) + 0.025;
     mesh.surface_ellipse(
         top,
@@ -614,7 +888,7 @@ impl Painter {
         }
     }
 
-    fn surface(&mut self, surface: TerrainSurface, ink: Ink) {
+    fn surface(&mut self, surface: Surface, ink: Ink) {
         let [a, b, c, d] = surface.vertices;
         self.triangle_3d([a, b, c], ink);
         self.triangle_3d([a, c, d], ink);
@@ -622,7 +896,7 @@ impl Painter {
 
     /// Clip details to their supporting face so a shadow or thick line
     /// cannot float off a cliff into the air above a lower neighboring tile.
-    fn paint_on_surface(&mut self, surface: TerrainSurface, points: &[Vec2], bias: f32, ink: Ink) {
+    fn paint_on_surface(&mut self, surface: Surface, points: &[Vec2], bias: f32, ink: Ink) {
         let bounds = surface.vertices.map(Vec3::truncate);
         let orientation = (bounds[1] - bounds[0])
             .perp_dot(bounds[2] - bounds[1])
@@ -662,7 +936,7 @@ impl Painter {
 
     fn surface_line(
         &mut self,
-        surface: TerrainSurface,
+        surface: Surface,
         start: Vec2,
         end: Vec2,
         width: f32,
@@ -681,7 +955,7 @@ impl Painter {
 
     fn surface_ellipse(
         &mut self,
-        surface: TerrainSurface,
+        surface: Surface,
         center: Vec2,
         radius_x: f32,
         radius_y: f32,
@@ -692,8 +966,14 @@ impl Painter {
         self.paint_on_surface(surface, &points, bias, ink);
     }
 
-    fn surface_outline(&mut self, surface: TerrainSurface, width: f32, bias: f32, ink: Ink) {
+    fn surface_outline(&mut self, surface: Surface, width: f32, bias: f32, ink: Ink) {
         let points = surface.vertices.map(Vec3::truncate);
+        // Thin deck edges need a smaller inset than a full terrain cliff.
+        // Otherwise the inner corners cross and the outline fills its face.
+        let shortest_edge = (0..4)
+            .map(|index| points[index].distance(points[(index + 1) % 4]))
+            .fold(f32::INFINITY, f32::min);
+        let width = width.min(shortest_edge * 0.3);
         let center = points.iter().copied().sum::<Vec2>() / 4.0;
         let mut inner = [Vec2::ZERO; 4];
         for index in 0..4 {
@@ -759,7 +1039,7 @@ fn ellipse_points(center: Vec2, radius_x: f32, radius_y: f32) -> [Vec2; 12] {
 mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
-    use park_sim::MAX_TERRAIN_HEIGHT;
+    use park_sim::{MAX_TERRAIN_HEIGHT, ObjectId, TerrainProfile};
 
     #[test]
     fn every_tile_round_trips_through_every_rotation() {
@@ -834,11 +1114,24 @@ mod tests {
     #[test]
     fn disabling_grid_removes_geometry_and_selection_is_separate() {
         let park = Park::new(12, 12);
-        let grid = build_scene(&park, 0, true);
-        let plain = build_scene(&park, 0, false);
+        let grid = build_scene(&park, 0, true, ViewMode::Surface);
+        let plain = build_scene(&park, 0, false, ViewMode::Surface);
         assert!(grid.count_vertices() > plain.count_vertices());
-        assert_eq!(selection_mesh(None, None, &park, 0).count_vertices(), 0);
-        assert!(selection_mesh(Some(TilePos { x: 3, y: 3 }), None, &park, 0).count_vertices() > 0);
+        assert_eq!(
+            selection_mesh(None, None, &park, 0, ViewMode::Surface).count_vertices(),
+            0
+        );
+        assert!(
+            selection_mesh(
+                Some(SurfaceId::Terrain(TilePos { x: 3, y: 3 })),
+                None,
+                &park,
+                0,
+                ViewMode::Surface
+            )
+            .count_vertices()
+                > 0
+        );
     }
 
     #[test]
@@ -905,10 +1198,17 @@ mod tests {
             let invalid = TilePos { x: 12, y: u32::MAX };
             assert!(elevated_tile_center(&park, invalid, rotation).is_none());
             assert_eq!(
-                selection_mesh(Some(invalid), Some(invalid), &park, rotation).count_vertices(),
+                selection_mesh(
+                    Some(SurfaceId::Terrain(invalid)),
+                    Some(SurfaceId::Terrain(invalid)),
+                    &park,
+                    rotation,
+                    ViewMode::Surface
+                )
+                .count_vertices(),
                 0
             );
-            let mesh = build_scene(&park, rotation, true);
+            let mesh = build_scene(&park, rotation, true, ViewMode::Surface);
             for point in positions(&mesh) {
                 assert!(point.iter().all(|coordinate| coordinate.is_finite()));
                 assert!(point[2].abs() < 1000.0, "inside Camera2d clipping range");
@@ -956,8 +1256,14 @@ mod tests {
             let high = unrotate(6, 6, 12, rotation);
             park.set_terrain_height(high, 6).unwrap();
             let low_center = elevated_tile_center(&park, low, rotation).unwrap();
-            let scene = build_scene(&park, rotation, false);
-            let low_outline = selection_mesh(None, Some(low), &park, rotation);
+            let scene = build_scene(&park, rotation, false, ViewMode::Surface);
+            let low_outline = selection_mesh(
+                None,
+                Some(SurfaceId::Terrain(low)),
+                &park,
+                rotation,
+                ViewMode::Surface,
+            );
             // This lies inside the low roof's top border, behind the cliff.
             let hidden = low_center + Vec2::new(0.0, 14.0);
             let terrain_depth = mesh_depth(&scene, hidden).unwrap();
@@ -968,7 +1274,13 @@ mod tests {
             let high_roof = column_surfaces(&park, high, rotation)[0].unwrap();
             let visible =
                 elevated_tile_center(&park, high, rotation).unwrap() + Vec2::new(0.0, 14.0);
-            let high_outline = selection_mesh(None, Some(high), &park, rotation);
+            let high_outline = selection_mesh(
+                None,
+                Some(SurfaceId::Terrain(high)),
+                &park,
+                rotation,
+                ViewMode::Surface,
+            );
             let outline_depth = mesh_depth(&high_outline, visible).unwrap();
             assert!((outline_depth - high_roof.depth_at(visible) - SELECTION_BIAS).abs() < 0.0001);
             assert!(outline_depth > mesh_depth(&scene, visible).unwrap());
@@ -988,6 +1300,253 @@ mod tests {
                                 )
                         )
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn buried_track_is_hidden_until_cutaway_and_context_has_no_phantom_hits() {
+        let mut park = Park::new(12, 12);
+        let pos = TilePos { x: 5, y: 5 };
+        park.set_terrain_height(pos, 4).unwrap();
+        let id = SurfaceId::Object(
+            park.place_object(pos, ObjectKind::Track, Axis::Y, 0, 2)
+                .unwrap(),
+        );
+        for rotation in 0..4 {
+            let center = surface_center(&park, id, rotation).unwrap();
+            assert_ne!(
+                pick_surface(center, &park, rotation, ViewMode::Surface),
+                Some(id)
+            );
+            assert_eq!(
+                selection_mesh(None, Some(id), &park, rotation, ViewMode::Surface).count_vertices(),
+                0,
+            );
+            assert_eq!(
+                pick_surface(center, &park, rotation, ViewMode::Underground),
+                Some(id),
+            );
+            let visible = selection_mesh(None, Some(id), &park, rotation, ViewMode::Underground);
+            assert!(visible.count_vertices() > 0);
+            let scene = build_scene(&park, rotation, true, ViewMode::Underground);
+            let top = selectable_surfaces(&park, id, rotation, ViewMode::Underground)[0];
+            assert!((mesh_depth(&scene, center).unwrap() - top.depth_at(center)).abs() < 0.01);
+            let ground = tile_center(TilePos { x: 1, y: 1 }, 12, rotation);
+            assert_eq!(
+                pick_surface(ground, &park, rotation, ViewMode::Underground),
+                None
+            );
+            assert_eq!(
+                selection_mesh(
+                    None,
+                    Some(SurfaceId::Terrain(pos)),
+                    &park,
+                    rotation,
+                    ViewMode::Underground
+                )
+                .count_vertices(),
+                0,
+            );
+        }
+    }
+
+    #[test]
+    fn overlapping_path_hides_track_and_its_outline_with_matching_mesh_depth() {
+        for rotation in 0..4 {
+            for axis in [Axis::X, Axis::Y] {
+                let mut park = Park::new(12, 12);
+                let track = park
+                    .place_object(unrotate(4, 4, 12, rotation), ObjectKind::Track, axis, 0, 2)
+                    .unwrap();
+                let path = park
+                    .place_object(unrotate(7, 7, 12, rotation), ObjectKind::Path, axis, 6, 2)
+                    .unwrap();
+                let track_object = park.object(track).unwrap();
+                // Their projections overlap: six height steps cancel the
+                // six-ground-step difference toward the camera.
+                let center = surface_center(&park, SurfaceId::Object(track), rotation).unwrap();
+                let border = object_point(
+                    track_object,
+                    0.0,
+                    0.27,
+                    object_top(track_object),
+                    12,
+                    rotation,
+                );
+                for mode in [ViewMode::Surface, ViewMode::Underground] {
+                    assert_eq!(
+                        pick_surface(center, &park, rotation, mode),
+                        Some(SurfaceId::Object(path))
+                    );
+                    assert_eq!(
+                        pick_surface(border, &park, rotation, mode),
+                        Some(SurfaceId::Object(path))
+                    );
+                    let scene = build_scene(&park, rotation, false, mode);
+                    let outline =
+                        selection_mesh(None, Some(SurfaceId::Object(track)), &park, rotation, mode);
+                    assert!(
+                        mesh_depth(&scene, border).unwrap()
+                            > mesh_depth(&outline, border).unwrap() + 5.0
+                    );
+                    let path_top = object_surfaces(park.object(path).unwrap(), 12, rotation)[0];
+                    assert!(
+                        (mesh_depth(&scene, center).unwrap() - path_top.depth_at(center)).abs()
+                            < 0.01
+                    );
+                    let path_outline =
+                        selection_mesh(None, Some(SurfaceId::Object(path)), &park, rotation, mode);
+                    for point in positions(&path_outline) {
+                        let point = Vec3::from(*point);
+                        assert!(point.is_finite());
+                        assert!(
+                            object_surfaces(park.object(path).unwrap(), 12, rotation)
+                                .into_iter()
+                                .any(|face| {
+                                    face.hit_depth(point.truncate()).is_some_and(|depth| {
+                                        (point.z - depth - SELECTION_BIAS).abs() < 0.0001
+                                    })
+                                })
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ground_track_covers_terrain_but_its_narrow_sides_leave_land_selectable() {
+        let pos = TilePos { x: 5, y: 5 };
+        for rotation in 0..4 {
+            for axis in [Axis::X, Axis::Y] {
+                let mut park = Park::new(12, 12);
+                let id = park
+                    .place_object(pos, ObjectKind::Track, axis, 0, 2)
+                    .unwrap();
+                let object = park.object(id).unwrap();
+                let center = surface_center(&park, SurfaceId::Object(id), rotation).unwrap();
+                assert_eq!(
+                    pick_surface(center, &park, rotation, ViewMode::Surface),
+                    Some(SurfaceId::Object(id)),
+                );
+                let outside = object_point(object, 0.0, 0.45, 0.0, 12, rotation);
+                assert_eq!(
+                    pick_surface(outside, &park, rotation, ViewMode::Surface),
+                    Some(SurfaceId::Terrain(pos)),
+                );
+                let scene = build_scene(&park, rotation, false, ViewMode::Surface);
+                let object_depth = object_surfaces(object, 12, rotation)[0].depth_at(center);
+                assert!((mesh_depth(&scene, center).unwrap() - object_depth).abs() < 0.01);
+            }
+        }
+    }
+
+    #[test]
+    fn adjacent_decks_keep_boundary_ownership_and_front_faces_select_their_owner() {
+        for rotation in 0..4 {
+            let mut park = Park::new(12, 12);
+            let first = park
+                .place_object(TilePos { x: 4, y: 5 }, ObjectKind::Path, Axis::X, 4, 2)
+                .unwrap();
+            let second = park
+                .place_object(TilePos { x: 5, y: 5 }, ObjectKind::Path, Axis::X, 4, 2)
+                .unwrap();
+            let a = surface_center(&park, SurfaceId::Object(first), rotation).unwrap();
+            let b = surface_center(&park, SurfaceId::Object(second), rotation).unwrap();
+            let edge = (a + b) * 0.5;
+            let direction = (b - a).normalize();
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                assert_eq!(
+                    pick_surface(edge - direction * 0.01, &park, rotation, mode),
+                    Some(SurfaceId::Object(first))
+                );
+                assert_eq!(
+                    pick_surface(edge + direction * 0.01, &park, rotation, mode),
+                    Some(SurfaceId::Object(second))
+                );
+                let at_edge = pick_surface(edge, &park, rotation, mode);
+                assert!(
+                    at_edge == Some(SurfaceId::Object(first))
+                        || at_edge == Some(SurfaceId::Object(second))
+                );
+            }
+            // Remove the neighbor so both front faces are actually exposed.
+            park.remove_object(second).unwrap();
+            let scene = build_scene(&park, rotation, false, ViewMode::Surface);
+            for face in object_surfaces(park.object(first).unwrap(), 12, rotation)
+                .into_iter()
+                .skip(1)
+            {
+                let center = face
+                    .vertices
+                    .iter()
+                    .map(|point| point.truncate())
+                    .sum::<Vec2>()
+                    * 0.25;
+                assert_eq!(
+                    pick_surface(center, &park, rotation, ViewMode::Surface),
+                    Some(SurfaceId::Object(first))
+                );
+                assert!(
+                    (mesh_depth(&scene, center).unwrap() - face.depth_at(center)).abs() < 0.0001
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fixture_identity_and_exposure_follow_presets_without_replacing_objects() {
+        let mut park = Park::new(32, 32);
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        park.install_overlap_fixture().unwrap();
+        let track = *park
+            .objects()
+            .iter()
+            .find(|object| {
+                object.kind == ObjectKind::Track && object.pos == TilePos { x: 13, y: 16 }
+            })
+            .unwrap();
+        let id = SurfaceId::Object(track.id);
+        assert!(park.is_underground(track.id));
+        for rotation in 0..4 {
+            assert!(selectable_surfaces(&park, id, rotation, ViewMode::Surface).is_empty());
+            assert_eq!(
+                selectable_surfaces(&park, id, rotation, ViewMode::Underground).len(),
+                3
+            );
+        }
+        park.apply_terrain_profile(TerrainProfile::Flat);
+        assert_eq!(park.object(track.id), Some(&track));
+        assert!(!park.is_underground(track.id));
+        for rotation in 0..4 {
+            assert_eq!(
+                selectable_surfaces(&park, id, rotation, ViewMode::Surface).len(),
+                3
+            );
+        }
+    }
+
+    #[test]
+    fn missing_or_removed_objects_never_render_selectable_faces() {
+        let mut park = Park::new(12, 12);
+        let removed = park
+            .place_object(TilePos { x: 5, y: 5 }, ObjectKind::Path, Axis::X, 6, 2)
+            .unwrap();
+        park.remove_object(removed).unwrap();
+        for id in [
+            SurfaceId::Object(removed),
+            SurfaceId::Object(ObjectId(u64::MAX)),
+        ] {
+            for rotation in 0..4 {
+                assert_eq!(surface_center(&park, id, rotation), None);
+                for mode in [ViewMode::Surface, ViewMode::Underground] {
+                    assert!(selectable_surfaces(&park, id, rotation, mode).is_empty());
+                    assert_eq!(
+                        selection_mesh(Some(id), Some(id), &park, rotation, mode).count_vertices(),
+                        0
+                    );
+                }
             }
         }
     }

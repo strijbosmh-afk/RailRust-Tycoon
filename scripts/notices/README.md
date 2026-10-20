@@ -1,5 +1,11 @@
 # Supplemental distribution notices
 
+The 0.3.0 overlap proof adds original procedural geometry and simulation data;
+it does not introduce external assets or dependencies. Preserve the existing
+notices and manifest hashes. Current package evidence belongs in
+[the overlap report](../../docs/OVERLAP_REPORT.md), and asset ownership is tracked
+in [the provenance register](../../docs/ASSET_PROVENANCE.md).
+
 Some crates omit their workspace license files when published to crates.io.
 These copies fill those omissions, and include the SIL Open Font License for
 Bevy's embedded Fira Mono font. `sources.json` records the exact crate version,

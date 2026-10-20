@@ -1,6 +1,6 @@
 # Foundation build report
 
-Historical 0.1.0 checkpoint. The current 0.2.0 implementation and verification are recorded in [the terrain report](TERRAIN_REPORT.md).
+Historical 0.1.0 checkpoint. The later 0.2.0 terrain evidence is preserved in [the terrain report](TERRAIN_REPORT.md); the current 0.3.0 implementation and acceptance record belong in [the overlap report](OVERLAP_REPORT.md). Results below describe only 0.1.0 and do not verify later changes.
 
 Build: Parkbound 0.1.0, 19 October 2026. Parkbound is a temporary working title. This is the first executable foundation, not a completed park management game.
 
@@ -11,9 +11,9 @@ Build: Parkbound 0.1.0, 19 October 2026. Parkbound is a temporary working title.
 - Tile selection and a terrain inspector. Rendering and picking share the same projection, including all four rotations.
 - A toolbar, simulation timer, pause/resume, three simulation speeds, and an in-game controls panel.
 - A separate Rust simulation library that runs without Bevy or a window.
-- A Windows packaging script that collects native runtime dependencies, dependency/font licenses, and SHA-256 checksums. A Windows CI configuration performs checks and builds an artifact; it has not yet run on a hosted repository.
+- A Windows packaging script that collects native runtime dependencies, dependency/font licenses, and SHA-256 checksums. Windows CI was configured at this checkpoint but had not yet run on a hosted repository; later hosted results are recorded in the resume guide.
 
-Construction, elevation editing, paths, guests, rides, coaster construction, finances, sound, settings persistence, and park saves are not implemented yet. Each launch starts a fresh session.
+Construction, elevation editing, paths, guests, rides, coaster construction, finances, sound, settings persistence, and park saves were absent from 0.1.0. Each launch started a fresh session.
 
 ## Verification evidence
 
@@ -46,6 +46,6 @@ Checklist acceptance: FND-01 (startup, rendering, diagnostic clean exit, and rel
 
 The build is unsigned and has not been published. No original RollerCoaster Tycoon files are required or bundled.
 
-## Next implementation slice
+## Next implementation slice recorded at 0.1.0
 
-Begin Stage 2 with height-aware terrain and picking, then prove path connectivity and guest navigation on a small test park. Add the first representative train circuit and save/reload determinism before scaling to the proposed large-park benchmark. Each proof has its own acceptance ID in [the gameplay checklist](GAMEPLAY_CHECKLIST.md).
+The next step at this checkpoint was height-aware terrain and picking. That slice was implemented in 0.2.0; 0.3.0 adds representative elevated-path and underground-track overlaps. Current work must finish PRF-01 acceptance before path connectivity/crowd recovery, the train circuit, save continuation, and benchmarks. Follow [the resume guide](../RESUME_DEVELOPMENT.md) and [the overlap report](OVERLAP_REPORT.md) for the current sequence and evidence.
