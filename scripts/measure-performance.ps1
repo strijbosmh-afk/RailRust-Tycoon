@@ -170,8 +170,11 @@ function Read-MeasurementReport([string] $Path, [string] $Mode, [string] $CaseNa
                     ($render.stats_after.updates - $render.stats_before.updates) -ne $render.moving_update.samples_ms.Count) {
                     throw 'Inconsistent moving render workload'
                 }
-                if ($render.moving_update.status -eq 'complete' -and $render.legacy_moving.status -eq 'complete' -and
-                    (-not $render.matched_moving_workloads -or $render.moving_update.work_units -ne $render.legacy_moving.work_units)) {
+                $bothMovingComplete = $render.moving_update.status -eq 'complete' -and $render.legacy_moving.status -eq 'complete'
+                if ($render.matched_moving_workloads -isnot [bool] -or $render.matched_moving_workloads -ne $bothMovingComplete) {
+                    throw 'Inconsistent matched moving workload claim'
+                }
+                if ($bothMovingComplete -and $render.moving_update.work_units -ne $render.legacy_moving.work_units) {
                     throw 'Mismatched optimized and legacy render workloads'
                 }
             }
