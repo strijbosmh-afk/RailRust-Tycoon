@@ -3,6 +3,10 @@
 //! Rendering, input, and wall-clock time belong to the application. Keeping those
 //! concerns outside this crate makes the simulation usable in headless tests.
 
+mod surfaces;
+
+pub use surfaces::{Axis, ObjectId, ObjectKind, PlacementError, SurfaceId, SurfaceObject};
+
 /// Number of normal-speed simulation ticks in one second.
 pub const TICKS_PER_SECOND: u64 = 30;
 
@@ -46,6 +50,7 @@ pub enum TerrainProfile {
 pub enum TerrainHeightError {
     OutOfBounds { pos: TilePos },
     HeightTooHigh { height: u8, max: u8 },
+    ObjectIntersection { pos: TilePos, object: ObjectId },
 }
 
 impl std::fmt::Display for TerrainHeightError {
@@ -60,6 +65,11 @@ impl std::fmt::Display for TerrainHeightError {
                     "terrain height {height} exceeds the maximum of {max} steps"
                 )
             }
+            Self::ObjectIntersection { pos, object } => write!(
+                formatter,
+                "terrain at ({}, {}) would intersect object {}",
+                pos.x, pos.y, object.0
+            ),
         }
     }
 }
@@ -93,6 +103,8 @@ pub struct Park {
     height: u32,
     tiles: Vec<Tile>,
     ticks: u64,
+    objects: Vec<SurfaceObject>,
+    next_object_id: u64,
 }
 
 impl Park {
@@ -123,6 +135,8 @@ impl Park {
             height,
             tiles,
             ticks: 0,
+            objects: Vec::new(),
+            next_object_id: 1,
         }
     }
 
@@ -146,27 +160,58 @@ impl Park {
     ///
     /// The terraced preset leaves a four-tile border clear and keeps lake and
     /// shore tiles at zero. Small maps may remain flat to preserve that border.
+    ///
+    /// # Panics
+    ///
+    /// Panics without changing the park if a placed object would intersect the
+    /// new terrain. Use `try_apply_terrain_profile` for fallible player actions.
     pub fn apply_terrain_profile(&mut self, profile: TerrainProfile) {
-        for (index, tile) in self.tiles.iter_mut().enumerate() {
+        self.try_apply_terrain_profile(profile)
+            .expect("terrain profile must preserve placed-object clearance");
+    }
+
+    /// Validate every proposed height before replacing any part of the terrain.
+    /// Object identities, elevations, materials, and time remain unchanged.
+    pub fn try_apply_terrain_profile(
+        &mut self,
+        profile: TerrainProfile,
+    ) -> Result<(), TerrainHeightError> {
+        let heights: Vec<_> = self
+            .tiles
+            .iter()
+            .enumerate()
+            .map(|(index, tile)| {
+                let pos = TilePos {
+                    x: index as u32 % self.width,
+                    y: index as u32 / self.width,
+                };
+                match profile {
+                    TerrainProfile::Flat => 0,
+                    TerrainProfile::Terraced if tile.terrain == Terrain::Grass => {
+                        terrace_height(pos, self.width, self.height)
+                    }
+                    TerrainProfile::Terraced => 0,
+                }
+            })
+            .collect();
+        for (index, &height) in heights.iter().enumerate() {
             let pos = TilePos {
                 x: index as u32 % self.width,
                 y: index as u32 / self.width,
             };
-            tile.height = match profile {
-                TerrainProfile::Flat => 0,
-                TerrainProfile::Terraced if tile.terrain == Terrain::Grass => {
-                    terrace_height(pos, self.width, self.height)
-                }
-                TerrainProfile::Terraced => 0,
-            };
+            self.validate_terrain_clearance(pos, height)?;
         }
+        for (tile, height) in self.tiles.iter_mut().zip(heights) {
+            tile.height = height;
+        }
+        Ok(())
     }
 
     /// Set a single elevation after validating the coordinate and height.
     ///
     /// An error leaves the entire park unchanged. This low-level setter permits
-    /// every terrain material; gameplay-specific editing rules belong in the
-    /// future construction command layer.
+    /// every terrain material and preserves placed-object clearance. Ownership,
+    /// cost, and other gameplay editing rules belong in the future command layer.
     pub fn set_terrain_height(
         &mut self,
         pos: TilePos,
@@ -181,6 +226,7 @@ impl Park {
                 max: MAX_TERRAIN_HEIGHT,
             });
         }
+        self.validate_terrain_clearance(pos, height)?;
         self.tiles[(pos.y * self.width + pos.x) as usize].height = height;
         Ok(())
     }

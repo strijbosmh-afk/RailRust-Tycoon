@@ -12,9 +12,12 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
 };
-use park_sim::{Speed, TerrainProfile, TilePos};
+use park_sim::{ObjectKind, Speed, SurfaceId, TerrainProfile, TilePos};
 
-use crate::{MAP_SIZE, ViewState};
+use crate::{
+    MAP_SIZE, Simulation, ViewState,
+    world::{self, ViewMode},
+};
 
 const WARMUP_FRAMES: u32 = 90;
 const WARMUP_TIME: Duration = Duration::from_secs(2);
@@ -25,6 +28,8 @@ enum Scene {
     Overview,
     Help,
     Selection,
+    Path,
+    Track,
 }
 
 #[derive(Resource)]
@@ -34,6 +39,7 @@ struct Capture {
     scene: Scene,
     rotation: Option<u8>,
     terrain_profile: TerrainProfile,
+    view_mode: ViewMode,
     small_window: bool,
     started: Instant,
     frames: u32,
@@ -43,7 +49,7 @@ struct Capture {
 }
 
 /// Install diagnostics only when `--capture-frame <absolute PNG path>` is set.
-/// Optional `--capture-scene overview|help|selection` selects a stable preset.
+/// Optional `--capture-scene overview|help|selection|path|track` selects a preset.
 pub(super) fn configure(app: &mut App) {
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
     let Some(index) = arguments
@@ -75,7 +81,9 @@ pub(super) fn configure(app: &mut App) {
                 Some("overview") => Scene::Overview,
                 Some("help") => Scene::Help,
                 Some("selection") => Scene::Selection,
-                _ => panic!("--capture-scene must be overview, help, or selection"),
+                Some("path") => Scene::Path,
+                Some("track") => Scene::Track,
+                _ => panic!("--capture-scene must be overview, help, selection, path, or track"),
             },
         )
         .unwrap_or(Scene::Overview);
@@ -101,6 +109,17 @@ pub(super) fn configure(app: &mut App) {
             },
         )
         .unwrap_or(TerrainProfile::Terraced);
+    let view_mode = arguments
+        .iter()
+        .position(|value| value == "--capture-view")
+        .map(
+            |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("surface") => ViewMode::Surface,
+                Some("underground") => ViewMode::Underground,
+                _ => panic!("--capture-view must be surface or underground"),
+            },
+        )
+        .unwrap_or(ViewMode::Surface);
     let small_window = arguments
         .iter()
         .any(|value| value == "--capture-small-window");
@@ -124,6 +143,7 @@ pub(super) fn configure(app: &mut App) {
         scene,
         rotation,
         terrain_profile,
+        view_mode,
         small_window,
         started: Instant::now(),
         frames: 0,
@@ -137,6 +157,7 @@ pub(super) fn configure(app: &mut App) {
 
 fn apply_preset(
     capture: Res<Capture>,
+    sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
 ) {
@@ -144,19 +165,42 @@ fn apply_preset(
     view.set_speed(Speed::Paused);
     view.terrain_profile = capture.terrain_profile;
     view.terrain_change_pending = true;
+    view.view_mode = capture.view_mode;
+    view.scene_dirty = true;
     view.help = matches!(capture.scene, Scene::Help);
     if matches!(capture.scene, Scene::Selection) {
-        view.selected = Some(TilePos {
+        view.selected = Some(SurfaceId::Terrain(TilePos {
             x: MAP_SIZE * 2 / 5,
             y: MAP_SIZE / 2,
-        });
+        }));
         view.rotation = 1;
         view.zoom = 1.35;
         view.scene_dirty = true;
     }
+    if matches!(capture.scene, Scene::Path | Scene::Track) {
+        let kind = if matches!(capture.scene, Scene::Path) {
+            ObjectKind::Path
+        } else {
+            ObjectKind::Track
+        };
+        view.selected = sim
+            .0
+            .objects()
+            .iter()
+            .find(|object| object.kind == kind && object.pos == (TilePos { x: 13, y: 16 }))
+            .map(|object| SurfaceId::Object(object.id));
+        assert!(view.selected.is_some(), "capture fixture must exist");
+        view.zoom = 1.35;
+    }
     if let Some(rotation) = capture.rotation {
         view.rotation = rotation;
         view.scene_dirty = true;
+    }
+    if matches!(capture.scene, Scene::Path | Scene::Track) {
+        let point = world::surface_center(&sim.0, view.selected.unwrap(), view.rotation)
+            .expect("selected capture object must have geometry");
+        view.pan =
+            point - Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
     }
     if capture.small_window
         && let Ok(mut window) = windows.single_mut()

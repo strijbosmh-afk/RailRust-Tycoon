@@ -1,6 +1,6 @@
 # Terrain proof report
 
-Build: **Parkbound 0.2.0**, 20 October 2026. This is the first terrain slice of Stage 2 / PRF-01. The complete overlapping terrain, elevated-path, and underground-track proof remains in progress.
+Historical checkpoint: **Parkbound 0.2.0**, 20 October 2026. This report preserves the first terrain slice of Stage 2 / PRF-01 and its evidence. The current 0.3.0 overlap implementation and remaining acceptance checks are recorded separately in [the overlap report](OVERLAP_REPORT.md). Results below do not verify later code.
 
 ## Delivered behavior
 
@@ -17,11 +17,11 @@ No construction tools, path objects, underground tracks, guests, operating rides
 
 `park_sim` remains independent of Bevy. `Park::new` still creates flat terrain. `apply_terrain_profile` changes heights only. `set_terrain_height` validates the coordinate and the inclusive 0–32 height range before changing anything; rejected edits leave the park unchanged. Preset generation uses integer arithmetic, including on rectangular simulation maps.
 
-The current game renderer expects a square park. It converts one height step to 16 world units. Shared top/cliff surfaces drive rendering, picking, and selection. Screen depth derives from rotated ground coordinates on each vertex, rather than a single rank for an entire tall column. Pointer hits interpolate the same surface depth and choose the nearest visible terrain column. `TilePos` remains the selected identity while each tile contains only one terrain column.
+The 0.2.0 game renderer expects a square park. It converts one height step to 16 world units. Shared top/cliff surfaces drive rendering, picking, and selection. Screen depth derives from rotated ground coordinates on each vertex, rather than a single rank for an entire tall column. Pointer hits interpolate the same surface depth and choose the nearest visible terrain column. At this checkpoint, `TilePos` is the selected identity and each tile contains only one terrain column.
 
 Terrain changes are applied before pointer conversion. Rebuilding terrain also invalidates the selection mesh, even when the selected coordinate and rotation have not changed. Landscape and selection meshes opt out of cached frustum bounds because their vertices change. Both use opaque vertex-colored materials and actual depth testing.
 
-The next overlapping-surface slice must introduce stable identity for separately selectable path/track objects and an explicit underground visibility mode. It must extend shared geometry, clearance, rendering, and picking together.
+At this checkpoint, the next slice required stable identity for separately selectable path/track objects and explicit underground visibility, extending shared geometry, clearance, rendering, and picking together. The 0.3.0 implementation addresses this scope; its acceptance evidence belongs in the overlap report.
 
 ## Verified checks
 
@@ -75,14 +75,14 @@ The desktop helper successfully targeted the actual Parkbound window in this ses
 
 Sustained keyboard panning and right/middle dragging were not established by this native session. The available helper does not expose a right/middle drag gesture. Their application logic, including focus/cursor-loss recovery, has automated coverage. Physical 2× DPI and multi-monitor transitions remain unverified; 2× DPI calculations were tested headlessly. Do not infer those manual results from the captures.
 
-## Acceptance and next step
+## Acceptance recorded at 0.2.0
 
-- PRF-01 remains **I**: terrain heights are implemented; overlapping elevated paths and underground tracks are still outstanding.
+- PRF-01 was **I** at 0.2.0: terrain heights were implemented; overlapping elevated paths and underground tracks were still outstanding.
 - FND-02 remains **I** pending the remaining native pan/drag and display checks. FND-03 is **V** in 0.2.0 from the observed toolbar, timer, pause/resume, and speed behavior plus authoritative simulation-clock tests.
 - Clean-machine, offline, standard-user launch without Rust/Visual Studio remains open. Testing an extracted ZIP on this development PC cannot establish it.
 - Performance targets, Windows minimum version, physical DPI configurations, public name, source license, signing, and public release decisions remain open.
 
-Next: implement the small elevated-path/underground overlap fixture described in [the resume guide](../RESUME_DEVELOPMENT.md), before crowd navigation. Preserve this terrain baseline and its tests.
+The next implementation was the small elevated-path/underground overlap fixture, now the subject of the 0.3.0 report. Preserve this terrain baseline and its tests, finish PRF-01 acceptance, then proceed to crowd navigation as described in [the resume guide](../RESUME_DEVELOPMENT.md).
 
 ## Delivery validation
 
@@ -106,4 +106,4 @@ The documentation was then refreshed in the package and the final archive's mani
 
 This is a local unsigned checkpoint, not a published public binary release. The old 0.1.0 package remains available for comparison. Source and documentation belong in the dedicated GitHub repository; generated binaries and captures stay in the ignored local `dist` and `artifacts` folders under the shared OneDrive workspace.
 
-Hosted CI is a separate check: inspect [GitHub Actions](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions) for the exact delivered commit. The earlier successful foundation runs linked in the resume guide do not prove success for this new commit.
+Hosted CI is a separate check. The terrain baseline commit `dc832fa` passed [Windows run 39381924927](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39381924927), verified when resuming development on 20 October 2026. This result applies to that exact baseline, not the later 0.3.0 overlap changes. Consult the overlap report and [GitHub Actions](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions) for their own result.

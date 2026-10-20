@@ -1,6 +1,6 @@
-use super::{FOOTER, HEADER, MAP_SIZE, SIDEBAR, Simulation, ViewState};
+use super::{FOOTER, HEADER, MAP_SIZE, SIDEBAR, Simulation, ViewState, world::ViewMode};
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
-use park_sim::{Speed, Terrain, TerrainProfile};
+use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile};
 
 const INK: Color = Color::srgb_u8(30, 62, 53);
 const MUTED: Color = Color::srgb_u8(91, 109, 95);
@@ -20,6 +20,7 @@ pub(super) enum Action {
     Home,
     Grid,
     Terrain,
+    Underground,
     Help,
     CloseHelp,
 }
@@ -34,6 +35,7 @@ pub(super) enum Label {
     Pause,
     Grid,
     Terrain,
+    Underground,
 }
 
 #[derive(Component)]
@@ -89,6 +91,7 @@ fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: 
             Action::Pause => dynamic_label(p, text, 13.0, INK, Label::Pause),
             Action::Grid => dynamic_label(p, text, 13.0, INK, Label::Grid),
             Action::Terrain => dynamic_label(p, text, 13.0, INK, Label::Terrain),
+            Action::Underground => dynamic_label(p, text, 13.0, INK, Label::Underground),
             _ => label(p, text, 13.0, INK),
         });
 }
@@ -153,7 +156,7 @@ pub(super) fn setup(mut commands: Commands) {
                 padding: UiRect::all(px(18)),
                 border: UiRect::right(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(12),
+                row_gap: px(10),
                 ..default()
             },
             BackgroundColor(PAPER),
@@ -195,6 +198,7 @@ pub(super) fn setup(mut commands: Commands) {
                     button(p, "Grid: on", Action::Grid, 104.0);
                 });
                 button(p, "Terrain: hills [T]", Action::Terrain, 204.0);
+                button(p, "Underground: off [U]", Action::Underground, 204.0);
                 dynamic_label(p, "View NE / Zoom 100%", 11.0, MUTED, Label::ViewInfo);
             });
             p.spawn((
@@ -206,16 +210,16 @@ pub(super) fn setup(mut commands: Commands) {
             ));
             p.spawn(Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: px(9),
+                row_gap: px(6),
                 min_height: px(104),
                 ..default()
             })
             .with_children(|p| {
-                label(p, "LAND INSPECTOR", 11.0, MUTED);
-                dynamic_label(p, "Pick a tile", 18.0, INK, Label::SelectionTitle);
+                label(p, "PARK INSPECTOR", 11.0, MUTED);
+                dynamic_label(p, "Pick a surface", 18.0, INK, Label::SelectionTitle);
                 dynamic_label(
                     p,
-                    "Click the landscape to\ninspect a piece of land.",
+                    "Click land, a path or track\nto inspect its height.",
                     12.0,
                     MUTED,
                     Label::SelectionDetails,
@@ -238,14 +242,14 @@ pub(super) fn setup(mut commands: Commands) {
             .with_children(|p| {
                 label(
                     p,
-                    "Use T to switch between\nflat land and hills.",
+                    "U reveals the buried track.\nT compares hills and flat land.",
                     11.0,
                     MUTED,
                 );
             });
             label(
                 p,
-                concat!("v", env!("CARGO_PKG_VERSION"), " / terrain study"),
+                concat!("v", env!("CARGO_PKG_VERSION"), " / layered park study"),
                 10.0,
                 MUTED,
             );
@@ -271,7 +275,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "Wheel: zoom   Q/E: rotate   T: terrain   H: help",
+                "Q/E: rotate   T: terrain   U: underground   H: help",
                 11.0,
                 MUTED,
             );
@@ -298,7 +302,7 @@ pub(super) fn setup(mut commands: Commands) {
                     width: px(530),
                     padding: UiRect::all(px(32)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(18),
+                    row_gap: px(14),
                     ..default()
                 },
                 BackgroundColor(PAPER),
@@ -308,7 +312,7 @@ pub(super) fn setup(mut commands: Commands) {
                 label(p, "Make yourself at home", 23.0, INK);
                 label(p, "Explore Meadow Lake with the mouse or keyboard.", 12.0, MUTED);
                 for (keys, purpose) in [
-                    ("Left click", "Inspect a tile"),
+                    ("Left click", "Inspect land, path or track"),
                     ("Right / middle drag", "Pan around the park"),
                     ("WASD / arrow keys", "Pan with the keyboard"),
                     ("Mouse wheel / + / -", "Zoom in and out"),
@@ -316,6 +320,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("Home", "Fit the park in view"),
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
+                    ("U", "Show / hide underground view"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
                     ("Esc", "Close help or clear selection"),
                 ] {
@@ -325,7 +330,7 @@ pub(super) fn setup(mut commands: Commands) {
                             label(p, purpose, 11.0, MUTED);
                         });
                 }
-                label(p, "Inspect raised ground or its visible cliff faces.\nBuilding tools, guests, rides and saves arrive later.", 12.0, MUTED);
+                label(p, "The bridge crosses above the hill and buried track.\nBuilding tools, guests, rides and saves arrive later.", 12.0, MUTED);
                 button(p, "Back to the park", Action::CloseHelp, 180.0);
             });
         });
@@ -362,6 +367,7 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
                 view.scene_dirty = true;
             }
             Action::Terrain => view.toggle_terrain_profile(),
+            Action::Underground => view.toggle_underground(),
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -392,34 +398,69 @@ pub(super) fn refresh(
                 };
                 format!("{:02}:{:02} / {speed}", seconds / 60, seconds % 60)
             }
-            Label::SelectionTitle => view.selected.map_or("Pick a tile".into(), |p| {
-                format!("Tile {}, {}", p.x + 1, p.y + 1)
-            }),
-            Label::SelectionDetails => view.selected.and_then(|p| sim.0.tile(p)).map_or(
-                "Click the landscape to\ninspect a piece of land.".into(),
-                |tile| {
+            Label::SelectionTitle => match view.selected {
+                Some(SurfaceId::Terrain(p)) if sim.0.tile(p).is_some() => {
+                    format!("Tile {}, {}", p.x + 1, p.y + 1)
+                }
+                Some(SurfaceId::Object(id)) => {
+                    sim.0.object(id).map_or("Pick a surface".into(), |object| {
+                        format!("{} #{}", object_name(object.kind), id.0)
+                    })
+                }
+                _ => "Pick a surface".into(),
+            },
+            Label::SelectionDetails => match view.selected {
+                Some(SurfaceId::Terrain(p)) => sim.0.tile(p).map_or(String::new(), |tile| {
                     format!(
                         "{}\nHeight: {} steps\n{}",
                         terrain_name(tile.terrain),
                         tile.height,
-                        if tile.terrain == Terrain::Water {
-                            "Water surface"
+                        if view.view_mode == ViewMode::Underground {
+                            "Hidden in this view"
                         } else {
                             "Terrain surface"
                         }
                     )
-                },
-            ),
+                }),
+                Some(SurfaceId::Object(id)) => sim.0.object(id).map_or(String::new(), |object| {
+                    let buried = sim.0.is_underground(id);
+                    let state = if buried && view.view_mode == ViewMode::Surface {
+                        "Buried / U to reveal"
+                    } else if buried {
+                        "Underground"
+                    } else {
+                        "At / above ground"
+                    };
+                    format!(
+                        "Tile {}, {}\nHeight: {} steps\nClearance: {} steps\n{state}",
+                        object.pos.x + 1,
+                        object.pos.y + 1,
+                        object.height,
+                        object.clearance,
+                    )
+                }),
+                None => "Click land, a path or track\nto inspect its height.".into(),
+            },
             Label::ViewInfo => format!(
                 "View {} / Zoom {:.0}%",
                 directions[view.rotation as usize],
                 view.zoom * 100.0
             ),
+            Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
             Label::Status => view.hovered.map_or(
                 format!("Meadow Lake  /  {MAP_SIZE} x {MAP_SIZE} tiles"),
-                |p| {
-                    let height = sim.0.tile(p).map_or(0, |tile| tile.height);
-                    format!("Tile {}, {} / Height {height}", p.x + 1, p.y + 1)
+                |id| {
+                    let Some(pos) = sim.0.surface_position(id) else {
+                        return "Ready to explore".into();
+                    };
+                    let height = sim.0.surface_height(id).unwrap_or(0);
+                    let name = match id {
+                        SurfaceId::Terrain(_) => "Terrain",
+                        SurfaceId::Object(id) => {
+                            sim.0.object(id).map_or("Object", |o| object_name(o.kind))
+                        }
+                    };
+                    format!("{name} {}, {} / Height {height}", pos.x + 1, pos.y + 1)
                 },
             ),
             Label::Pause => if view.speed == Speed::Paused {
@@ -434,6 +475,11 @@ pub(super) fn refresh(
                 TerrainProfile::Terraced => "Terrain: hills [T]",
             }
             .into(),
+            Label::Underground => match view.view_mode {
+                ViewMode::Surface => "Underground: off [U]",
+                ViewMode::Underground => "Underground: on [U]",
+            }
+            .into(),
         };
         if text.0 != value {
             text.0 = value;
@@ -445,6 +491,7 @@ pub(super) fn refresh(
             Action::Speed(speed) => view.speed == *speed,
             Action::Grid => view.grid,
             Action::Terrain => view.terrain_profile == TerrainProfile::Terraced,
+            Action::Underground => view.view_mode == ViewMode::Underground,
             _ => false,
         };
         let color = if (!view.capture_active && *interaction == Interaction::Pressed) || active {
@@ -467,5 +514,12 @@ pub(super) fn refresh(
         if node.display != display {
             node.display = display;
         }
+    }
+}
+
+fn object_name(kind: ObjectKind) -> &'static str {
+    match kind {
+        ObjectKind::Path => "Path",
+        ObjectKind::Track => "Track",
     }
 }
