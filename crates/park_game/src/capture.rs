@@ -12,7 +12,9 @@ use bevy::{
     prelude::*,
     render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk},
 };
-use park_sim::{ObjectKind, Speed, SurfaceId, TerrainProfile, TilePos};
+use park_sim::{
+    ObjectKind, Park, Speed, SurfaceId, TRACK_UNITS, TerrainProfile, TilePos, TrainPhase,
+};
 
 use crate::{
     MAP_SIZE, Simulation, ViewState,
@@ -33,6 +35,26 @@ enum Scene {
     Crowd,
     Lost,
     Recovered,
+    Train,
+    TrainLift,
+    TrainDrop,
+    TrainBrake,
+    TrainReturn,
+    TrainClosed,
+}
+
+impl Scene {
+    fn is_train(self) -> bool {
+        matches!(
+            self,
+            Self::Train
+                | Self::TrainLift
+                | Self::TrainDrop
+                | Self::TrainBrake
+                | Self::TrainReturn
+                | Self::TrainClosed
+        )
+    }
 }
 
 #[derive(Resource)]
@@ -90,7 +112,13 @@ pub(super) fn configure(app: &mut App) {
                 Some("crowd") => Scene::Crowd,
                 Some("lost") => Scene::Lost,
                 Some("recovered") => Scene::Recovered,
-                _ => panic!("--capture-scene must be overview, help, selection, path, track, crowd, lost, or recovered"),
+                Some("train") => Scene::Train,
+                Some("train-lift") => Scene::TrainLift,
+                Some("train-drop") => Scene::TrainDrop,
+                Some("train-brake") => Scene::TrainBrake,
+                Some("train-return") => Scene::TrainReturn,
+                Some("train-closed") => Scene::TrainClosed,
+                _ => panic!("--capture-scene must be overview, help, selection, path, track, crowd, lost, recovered, train, train-lift, train-drop, train-brake, train-return, or train-closed"),
             },
         )
         .unwrap_or(Scene::Overview);
@@ -194,6 +222,16 @@ fn apply_preset(
     for _ in 0..capture.ticks {
         sim.0.advance(Speed::Normal);
     }
+    if capture.scene.is_train() {
+        prepare_train_scene(&mut sim.0, capture.scene);
+        view.selected = sim.0.train().and_then(|train| {
+            sim.0
+                .circuit()?
+                .pieces
+                .get(train.piece_index)
+                .map(|piece| SurfaceId::Object(piece.object))
+        });
+    }
     let mut crowd_anchor = None;
     if matches!(capture.scene, Scene::Lost | Scene::Recovered) {
         let guest_id = sim.0.guests()[0].id;
@@ -251,6 +289,9 @@ fn apply_preset(
         view.rotation = rotation;
         view.scene_dirty = true;
     }
+    if capture.scene.is_train() {
+        crate::focus_train(&sim.0, &mut view);
+    }
     if matches!(capture.scene, Scene::Crowd | Scene::Lost | Scene::Recovered) {
         let anchor = crowd_anchor.unwrap_or(TilePos { x: 13, y: 17 });
         view.zoom = 1.6;
@@ -267,6 +308,76 @@ fn apply_preset(
         && let Ok(mut window) = windows.single_mut()
     {
         window.resolution.set(1024.0, 680.0);
+    }
+}
+
+fn prepare_train_scene(park: &mut Park, scene: Scene) {
+    if matches!(scene, Scene::TrainClosed) {
+        park.set_train_open(false);
+    }
+    let target = match scene {
+        Scene::TrainLift => Some(TrainPhase::Lift),
+        Scene::TrainDrop => Some(TrainPhase::Drop),
+        Scene::TrainBrake => Some(TrainPhase::Brake),
+        Scene::TrainReturn => Some(TrainPhase::Station),
+        Scene::TrainClosed => Some(TrainPhase::Closed),
+        _ => None,
+    };
+    if let Some(target) = target {
+        // Bound diagnostic seeking: a broken circuit must fail, not hang.
+        for _ in 0..36_000 {
+            let train = park.train().expect("train fixture must be installed");
+            if train.phase == target && train_capture_ready(park, scene) {
+                return;
+            }
+            assert_ne!(train.phase, TrainPhase::Fault, "capture circuit is invalid");
+            park.advance(Speed::Normal);
+        }
+        panic!("train did not reach the requested capture phase");
+    }
+}
+
+/// Capture the demonstrated behavior inside a section, not the first tick at
+/// its boundary before lift, gravity or brake speed has taken effect.
+fn train_capture_ready(park: &Park, scene: Scene) -> bool {
+    let Some(train) = park.train() else {
+        return false;
+    };
+    match scene {
+        Scene::TrainLift => {
+            train.phase == TrainPhase::Lift
+                && train.speed == 24
+                && park.train_cars().first().is_some_and(|car| {
+                    car.center.height >= 12 * TRACK_UNITS && car.center.height < 16 * TRACK_UNITS
+                })
+        }
+        Scene::TrainDrop => {
+            train.phase == TrainPhase::Drop
+                && train.speed >= 60
+                && park.train_cars().first().is_some_and(|car| {
+                    car.center.height <= 14 * TRACK_UNITS && car.center.height > 8 * TRACK_UNITS
+                })
+        }
+        Scene::TrainBrake => {
+            train.phase == TrainPhase::Brake
+                && train.speed == 20
+                && park.circuit().is_some_and(|circuit| {
+                    let piece = &circuit.pieces[train.piece_index];
+                    park.train_cars().first().is_some_and(|car| {
+                        let entry = piece.samples[0];
+                        // Brakes are straight: Manhattan distance measures how
+                        // far the lead car has travelled past this tile edge.
+                        let distance =
+                            (car.center.x - entry.x).abs() + (car.center.y - entry.y).abs();
+                        distance >= TRACK_UNITS / 3
+                    })
+                })
+        }
+        Scene::TrainReturn => {
+            train.phase == TrainPhase::Station && train.laps > 0 && train.speed == 0
+        }
+        Scene::TrainClosed => train.phase == TrainPhase::Closed && train.speed == 0,
+        _ => true,
     }
 }
 
@@ -354,4 +465,101 @@ fn verify_png(path: &Path, expected: (u32, u32)) -> Result<(), String> {
         return Err("saved PNG dimensions differ from the captured render target".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn park_at(ticks: u32) -> Park {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(crate::CROWD_SEED).unwrap();
+        park.install_train_fixture().unwrap();
+        for _ in 0..ticks {
+            park.advance(Speed::Normal);
+        }
+        park
+    }
+
+    #[test]
+    fn train_phase_presets_capture_interior_motion_and_parked_station_states() {
+        for initial_ticks in [0, 600] {
+            let original = park_at(initial_ticks);
+            for scene in [
+                Scene::TrainLift,
+                Scene::TrainDrop,
+                Scene::TrainBrake,
+                Scene::TrainReturn,
+                Scene::TrainClosed,
+            ] {
+                let mut park = original.clone();
+                prepare_train_scene(&mut park, scene);
+                assert!(train_capture_ready(&park, scene));
+                assert_eq!(park.objects(), original.objects());
+                assert_eq!(
+                    park.guests()
+                        .iter()
+                        .map(|guest| guest.id)
+                        .collect::<Vec<_>>(),
+                    original
+                        .guests()
+                        .iter()
+                        .map(|guest| guest.id)
+                        .collect::<Vec<_>>()
+                );
+                let train = park.train().unwrap();
+                match scene {
+                    Scene::TrainLift => {
+                        assert_eq!(train.phase, TrainPhase::Lift);
+                        assert_eq!(train.speed, 24);
+                        assert!(park.train_cars()[0].center.height >= 12 * TRACK_UNITS);
+                    }
+                    Scene::TrainDrop => {
+                        assert_eq!(train.phase, TrainPhase::Drop);
+                        assert!(train.speed >= 60);
+                        assert!(park.train_cars()[0].center.height <= 14 * TRACK_UNITS);
+                    }
+                    Scene::TrainBrake => {
+                        assert_eq!(train.phase, TrainPhase::Brake);
+                        assert_eq!(train.speed, 20);
+                    }
+                    Scene::TrainReturn => {
+                        assert_eq!(train.phase, TrainPhase::Station);
+                        assert!(train.laps > 0);
+                        assert_eq!(train.speed, 0);
+                    }
+                    Scene::TrainClosed => {
+                        assert_eq!(train.phase, TrainPhase::Closed);
+                        assert!(!train.open);
+                        assert_eq!(train.speed, 0);
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn train_capture_rejects_first_lift_drop_and_brake_boundary_ticks() {
+        let mut park = park_at(0);
+        for (scene, phase) in [
+            (Scene::TrainLift, TrainPhase::Lift),
+            (Scene::TrainDrop, TrainPhase::Drop),
+            (Scene::TrainBrake, TrainPhase::Brake),
+        ] {
+            for _ in 0..3_600 {
+                if park.train().unwrap().phase == phase {
+                    break;
+                }
+                park.advance(Speed::Normal);
+            }
+            assert_eq!(park.train().unwrap().phase, phase);
+            assert!(
+                !train_capture_ready(&park, scene),
+                "the first section-entry frame must not be used as motion evidence"
+            );
+            prepare_train_scene(&mut park, scene);
+            assert!(train_capture_ready(&park, scene));
+        }
+    }
 }

@@ -1,6 +1,9 @@
-use super::{FOOTER, HEADER, MAP_SIZE, SIDEBAR, Simulation, ViewState, world::ViewMode};
+use super::{
+    FOOTER, HEADER, MAP_SIZE, RIDE_PANEL_HEIGHT, RIDE_PANEL_MARGIN, RIDE_PANEL_WIDTH, SIDEBAR,
+    Simulation, ViewState, world::ViewMode,
+};
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
-use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile};
+use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase};
 
 const INK: Color = Color::srgb_u8(30, 62, 53);
 const MUTED: Color = Color::srgb_u8(91, 109, 95);
@@ -23,6 +26,8 @@ pub(super) enum Action {
     Underground,
     RemovePath,
     RestorePaths,
+    ToggleTrain,
+    FocusTrain,
     Help,
     CloseHelp,
 }
@@ -39,6 +44,8 @@ pub(super) enum Label {
     Terrain,
     Underground,
     Crowd,
+    Train,
+    TrainToggle,
 }
 
 #[derive(Component)]
@@ -95,6 +102,7 @@ fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: 
             Action::Grid => dynamic_label(p, text, 13.0, INK, Label::Grid),
             Action::Terrain => dynamic_label(p, text, 13.0, INK, Label::Terrain),
             Action::Underground => dynamic_label(p, text, 13.0, INK, Label::Underground),
+            Action::ToggleTrain => dynamic_label(p, text, 13.0, INK, Label::TrainToggle),
             _ => label(p, text, 13.0, INK),
         });
 }
@@ -250,10 +258,42 @@ pub(super) fn setup(mut commands: Commands) {
             });
             label(
                 p,
-                concat!("v", env!("CARGO_PKG_VERSION"), " / first visitors"),
+                concat!("v", env!("CARGO_PKG_VERSION"), " / first coaster"),
                 10.0,
                 MUTED,
             );
+        });
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: px(HEADER + RIDE_PANEL_MARGIN),
+                right: px(RIDE_PANEL_MARGIN),
+                width: px(RIDE_PANEL_WIDTH),
+                height: px(RIDE_PANEL_HEIGHT),
+                padding: UiRect::all(px(12)),
+                border: UiRect::all(px(1)),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(6),
+                ..default()
+            },
+            GlobalZIndex(2),
+            BackgroundColor(PAPER),
+            BorderColor::all(BORDER),
+            BorderRadius::all(px(6)),
+        ))
+        .with_children(|p| {
+            label(p, "Meadow Flyer", 18.0, INK);
+            dynamic_label(p, "Waiting at station", 11.0, MUTED, Label::Train);
+            p.spawn(Node {
+                flex_grow: 1.0,
+                ..default()
+            });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Close [O]", Action::ToggleTrain, 100.0);
+                button(p, "Find [F]", Action::FocusTrain, 100.0);
+            });
         });
 
     commands
@@ -298,7 +338,7 @@ pub(super) fn setup(mut commands: Commands) {
                     width: px(530),
                     padding: UiRect::all(px(24)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(10),
+                    row_gap: px(8),
                     ..default()
                 },
                 BackgroundColor(PAPER),
@@ -306,7 +346,12 @@ pub(super) fn setup(mut commands: Commands) {
             ))
             .with_children(|p| {
                 label(p, "Make yourself at home", 23.0, INK);
-                label(p, "Explore Meadow Lake with the mouse or keyboard.", 12.0, MUTED);
+                label(
+                    p,
+                    "Explore Meadow Lake with the mouse or keyboard.",
+                    12.0,
+                    MUTED,
+                );
                 for (keys, purpose) in [
                     ("Left click", "Inspect land, path or track"),
                     ("Right / middle drag", "Pan around the park"),
@@ -319,16 +364,25 @@ pub(super) fn setup(mut commands: Commands) {
                     ("U", "Show / hide underground view"),
                     ("Delete", "Remove the selected path"),
                     ("R", "Restore the demonstration paths"),
+                    ("O / F", "Open or close ride / find circuit"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
                     ("Esc", "Close help or clear selection"),
                 ] {
-                    p.spawn(Node { justify_content: JustifyContent::SpaceBetween, ..row() })
-                        .with_children(|p| {
-                            label(p, keys, 12.0, INK);
-                            label(p, purpose, 11.0, MUTED);
-                        });
+                    p.spawn(Node {
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..row()
+                    })
+                    .with_children(|p| {
+                        label(p, keys, 12.0, INK);
+                        label(p, purpose, 11.0, MUTED);
+                    });
                 }
-                label(p, "Guests explore the connected walkway.\nRemove a path, then restore it to see recovery.", 12.0, MUTED);
+                label(
+                    p,
+                    "Close lets the train finish its lap and park.\nSpace pauses the entire park.",
+                    12.0,
+                    MUTED,
+                );
                 button(p, "Back to the park", Action::CloseHelp, 180.0);
             });
         });
@@ -368,6 +422,8 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             Action::Underground => view.toggle_underground(),
             Action::RemovePath => view.remove_path_pending = true,
             Action::RestorePaths => view.restore_paths_pending = true,
+            Action::ToggleTrain => view.toggle_train_pending = true,
+            Action::FocusTrain => view.focus_train_pending = true,
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -422,23 +478,39 @@ pub(super) fn refresh(
                         }
                     )
                 }),
-                Some(SurfaceId::Object(id)) => sim.0.object(id).map_or(String::new(), |object| {
-                    let buried = sim.0.is_underground(id);
-                    let state = if buried && view.view_mode == ViewMode::Surface {
-                        "Buried / U to reveal"
-                    } else if buried {
-                        "Underground"
-                    } else {
-                        "At / above ground"
-                    };
-                    format!(
-                        "Tile {}, {}\nHeight: {} steps\nClearance: {} steps\n{state}",
-                        object.pos.x + 1,
-                        object.pos.y + 1,
-                        object.height,
-                        object.clearance,
-                    )
-                }),
+                Some(SurfaceId::Object(id)) => {
+                    sim.0.object(id).map_or(String::new(), |object| {
+                        let buried = sim.0.is_underground(id);
+                        let state = if buried && view.view_mode == ViewMode::Surface {
+                            "Buried / U to reveal"
+                        } else if buried {
+                            "Underground"
+                        } else {
+                            "At / above ground"
+                        };
+                        if let Some(piece) = sim.0.circuit().and_then(|circuit| {
+                            circuit.pieces.iter().find(|piece| piece.object == id)
+                        }) {
+                            let low = piece.samples.iter().map(|p| p.height).min().unwrap_or(0);
+                            let high = piece.samples.iter().map(|p| p.height).max().unwrap_or(0);
+                            return format!(
+                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{state}",
+                                track_name(piece.kind),
+                                object.pos.x + 1,
+                                object.pos.y + 1,
+                                low / park_sim::TRACK_UNITS,
+                                high / park_sim::TRACK_UNITS,
+                            );
+                        }
+                        format!(
+                            "Tile {}, {}\nHeight: {} steps\nClearance: {} steps\n{state}",
+                            object.pos.x + 1,
+                            object.pos.y + 1,
+                            object.height,
+                            object.clearance,
+                        )
+                    })
+                }
                 None => "Click land, a path or track\nto inspect its height.".into(),
             },
             Label::ViewInfo => format!(
@@ -490,6 +562,42 @@ pub(super) fn refresh(
                     stats.total, stats.walking, stats.waiting, stats.lost, stats.arrivals
                 )
             }
+            Label::Train => sim
+                .0
+                .train()
+                .map_or("No circuit installed".into(), |train| {
+                    let phase = match train.phase {
+                        TrainPhase::Station if train.speed > 0 => "Station track",
+                        TrainPhase::Station => "Station wait",
+                        TrainPhase::Lift => "Chain lift",
+                        TrainPhase::Drop => "Descending",
+                        TrainPhase::Brake => "Braking",
+                        TrainPhase::Cruising => "Running",
+                        TrainPhase::Closed => "Parked at station",
+                        TrainPhase::Fault => "Track incomplete",
+                    };
+                    let operation = if train.phase == TrainPhase::Fault {
+                        "Unavailable"
+                    } else if train.open {
+                        "Open"
+                    } else if train.phase == TrainPhase::Closed {
+                        "Closed"
+                    } else {
+                        "Closing after this lap"
+                    };
+                    let speed = train.speed as f32 * park_sim::TICKS_PER_SECOND as f32
+                        / park_sim::TRACK_UNITS as f32;
+                    format!(
+                        "{operation}\n{phase} / {speed:.2} tiles/s\nLaps: {} / 3 cars",
+                        train.laps
+                    )
+                }),
+            Label::TrainToggle => if sim.0.train().is_some_and(|train| train.open) {
+                "Close [O]"
+            } else {
+                "Open [O]"
+            }
+            .into(),
         };
         if text.0 != value {
             text.0 = value;
@@ -502,6 +610,7 @@ pub(super) fn refresh(
             Action::Grid => view.grid,
             Action::Terrain => view.terrain_profile == TerrainProfile::Terraced,
             Action::Underground => view.view_mode == ViewMode::Underground,
+            Action::ToggleTrain => sim.0.train().is_some_and(|train| !train.open),
             _ => false,
         };
         let color = if (!view.capture_active && *interaction == Interaction::Pressed) || active {
@@ -524,6 +633,17 @@ pub(super) fn refresh(
         if node.display != display {
             node.display = display;
         }
+    }
+}
+
+fn track_name(kind: TrackKind) -> &'static str {
+    match kind {
+        TrackKind::Station => "Station",
+        TrackKind::Lift => "Chain lift",
+        TrackKind::Drop => "Drop",
+        TrackKind::Brake => "Brakes",
+        TrackKind::Curve => "Curve",
+        TrackKind::Straight => "Straight",
     }
 }
 
