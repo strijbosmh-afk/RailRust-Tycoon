@@ -6,6 +6,8 @@ The executable SHA-256 is
 `06c10a106dd3afe8d51c604c8238b10b5f5266f594a660b3e7e7b919260f742b`.
 All 16 JSON files were copied byte-for-byte after checking for private paths
 and personal identifiers. `SHA256SUMS.txt` covers every JSON file.
+Git stores these JSON files without newline conversion so their checksums
+also remain valid after cloning on another PC.
 
 The root batch contains three repetitions of each 300-tick CPU case, two
 600-sample frame profiles, and its wrapper summary. `extended/` contains three

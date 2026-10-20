@@ -643,7 +643,8 @@ Use Rust 1.93.1 MSVC and Bevy 0.17.3 with Cargo.lock; use -j 2 on the 8 GB PC.
 Keep park_sim independent of Bevy and preserve cache/input/tick ordering. Run relevant
 checks, inspect rendering/normal controls where available, document actual evidence,
 update current guides/checklist, and verify the packaged binary/guides/hashes.
-Preserve exact supplementary notice bytes. Do not silently choose a final title,
+Preserve exact supplementary notice and raw benchmark JSON bytes; .gitattributes
+keeps their checksum manifests valid after cloning. Do not silently choose a final title,
 source license, clean-machine support, or public release. Push source and handoff
 before changing PCs; keep one playable checkpoint at a time.
 ```

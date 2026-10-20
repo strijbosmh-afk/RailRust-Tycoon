@@ -13,3 +13,5 @@
 *.docx binary
 # These exact upstream bytes are checked against scripts/notices/sources.json.
 scripts/notices/** -text -whitespace
+# Preserve measured evidence bytes so report checksums survive cloning.
+benchmarks/results/**/*.json -text -whitespace
