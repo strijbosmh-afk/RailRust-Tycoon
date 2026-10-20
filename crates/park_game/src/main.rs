@@ -21,6 +21,9 @@ const SIDEBAR: f32 = 248.0;
 const HEADER: f32 = 76.0;
 const FOOTER: f32 = 36.0;
 const CROWD_SEED: u64 = 20261020;
+const RIDE_PANEL_WIDTH: f32 = 236.0;
+const RIDE_PANEL_HEIGHT: f32 = 152.0;
+const RIDE_PANEL_MARGIN: f32 = 12.0;
 
 #[derive(Resource)]
 struct Simulation(Park);
@@ -47,6 +50,8 @@ struct ViewState {
     remove_path_pending: bool,
     restore_paths_pending: bool,
     path_notice: Option<String>,
+    toggle_train_pending: bool,
+    focus_train_pending: bool,
 }
 
 impl Default for ViewState {
@@ -72,6 +77,8 @@ impl Default for ViewState {
             remove_path_pending: false,
             restore_paths_pending: false,
             path_notice: None,
+            toggle_train_pending: false,
+            focus_train_pending: false,
         }
     }
 }
@@ -130,6 +137,7 @@ struct SceneMeshes {
     landscape: Handle<Mesh>,
     selection: Handle<Mesh>,
     guests: Handle<Mesh>,
+    train: Handle<Mesh>,
 }
 
 fn main() -> AppExit {
@@ -137,6 +145,8 @@ fn main() -> AppExit {
     park.apply_terrain_profile(TerrainProfile::Terraced);
     park.install_crowd_fixture(CROWD_SEED)
         .expect("the demonstration fixtures must fit the initial park");
+    park.install_train_fixture()
+        .expect("the demonstration train circuit must fit the initial park");
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
@@ -165,6 +175,7 @@ fn main() -> AppExit {
                 keyboard_input,
                 apply_terrain_profile,
                 apply_path_actions,
+                apply_train_actions,
                 pointer_input,
                 apply_camera,
                 update_scene,
@@ -198,6 +209,7 @@ fn setup_scene(
         view.view_mode,
     ));
     let guests = meshes.add(world::guest_mesh(&sim.0, view.rotation, view.view_mode));
+    let train = meshes.add(world::train_mesh(&sim.0, view.rotation, view.view_mode));
     let material = materials.add(ColorMaterial::from(Color::WHITE));
     commands.spawn((
         Mesh2d(landscape.clone()),
@@ -213,6 +225,11 @@ fn setup_scene(
     ));
     commands.spawn((
         Mesh2d(guests.clone()),
+        MeshMaterial2d(material.clone()),
+        NoFrustumCulling,
+    ));
+    commands.spawn((
+        Mesh2d(train.clone()),
         MeshMaterial2d(material),
         NoFrustumCulling,
     ));
@@ -220,6 +237,7 @@ fn setup_scene(
         landscape,
         selection,
         guests,
+        train,
     });
 }
 
@@ -279,6 +297,12 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     }
     if keys.just_pressed(KeyCode::KeyR) {
         view.restore_paths_pending = true;
+    }
+    if keys.just_pressed(KeyCode::KeyO) {
+        view.toggle_train_pending = true;
+    }
+    if keys.just_pressed(KeyCode::KeyF) {
+        view.focus_train_pending = true;
     }
     if keys.just_pressed(KeyCode::Home) {
         view.reset_camera();
@@ -361,6 +385,29 @@ fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) 
     }
 }
 
+fn focus_train(park: &Park, view: &mut ViewState) {
+    if let Some(center) = world::train_focus(park, view.rotation) {
+        view.zoom = 1.5;
+        view.pan =
+            center - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+        view.hovered = None;
+    }
+}
+
+fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.toggle_train_pending {
+        view.toggle_train_pending = false;
+        if let Some(train) = sim.0.train() {
+            let open = !train.open;
+            sim.0.set_train_open(open);
+        }
+    }
+    if view.focus_train_pending {
+        view.focus_train_pending = false;
+        focus_train(&sim.0, &mut view);
+    }
+}
+
 /// This formula uses logical pixels, just like cursor_position and the UI.
 fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) {
     let available_width = (window.width() - SIDEBAR - 72.0).max(1.0);
@@ -376,7 +423,16 @@ fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) 
 }
 
 fn is_map_position(cursor: Vec2, window: &Window, help: bool) -> bool {
-    !help && cursor.x > SIDEBAR && cursor.y > HEADER && cursor.y < window.height() - FOOTER
+    let over_ride_panel = cursor.x >= window.width() - RIDE_PANEL_MARGIN - RIDE_PANEL_WIDTH
+        && cursor.x <= window.width() - RIDE_PANEL_MARGIN
+        && cursor.y >= HEADER + RIDE_PANEL_MARGIN
+        && cursor.y <= HEADER + RIDE_PANEL_MARGIN + RIDE_PANEL_HEIGHT;
+    !help
+        && !over_ride_panel
+        && cursor.x > SIDEBAR
+        && cursor.x < window.width()
+        && cursor.y > HEADER
+        && cursor.y < window.height() - FOOTER
 }
 
 fn pointer_input(
@@ -514,6 +570,9 @@ fn update_scene(
     if terrain_changed || sim.is_changed() || *last_guests != Some(guest_snapshot) {
         if let Some(mesh) = meshes.get_mut(&scene.guests) {
             *mesh = world::guest_mesh(&sim.0, view.rotation, view.view_mode);
+        }
+        if let Some(mesh) = meshes.get_mut(&scene.train) {
+            *mesh = world::train_mesh(&sim.0, view.rotation, view.view_mode);
         }
         *last_guests = Some(guest_snapshot);
     }

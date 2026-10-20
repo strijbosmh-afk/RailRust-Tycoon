@@ -5,9 +5,14 @@
 
 mod crowds;
 mod surfaces;
+mod trains;
 
 pub use crowds::{CrowdStats, Guest, GuestId, GuestPosition, GuestState, WALK_TICKS};
 pub use surfaces::{Axis, ObjectId, ObjectKind, PlacementError, SurfaceId, SurfaceObject};
+pub use trains::{
+    STATION_DWELL_TICKS, TRACK_UNITS, TrackDirection, TrackKind, TrackPiece, TrackPieceSpec,
+    TrackPoint, TrackPort, Train, TrainCircuit, TrainError, TrainPhase, TrainPose,
+};
 
 /// Number of normal-speed simulation ticks in one second.
 pub const TICKS_PER_SECOND: u64 = 30;
@@ -111,6 +116,8 @@ pub struct Park {
     next_guest_id: u64,
     crowd_seed: Option<u64>,
     crowd_rng: u64,
+    circuit: Option<TrainCircuit>,
+    train: Option<Train>,
 }
 
 impl Park {
@@ -147,6 +154,8 @@ impl Park {
             next_guest_id: 1,
             crowd_seed: None,
             crowd_rng: 0,
+            circuit: None,
+            train: None,
         }
     }
 
@@ -265,6 +274,7 @@ impl Park {
             }
             self.ticks += 1;
             self.step_crowd();
+            self.step_train();
         }
     }
 }

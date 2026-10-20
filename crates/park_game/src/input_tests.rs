@@ -14,6 +14,12 @@ fn crowd_park() -> Park {
     park
 }
 
+fn train_park() -> Park {
+    let mut park = crowd_park();
+    park.install_train_fixture().unwrap();
+    park
+}
+
 fn test_window(width: u32, height: u32, dpi: f32) -> Window {
     Window {
         resolution: WindowResolution::new(
@@ -856,4 +862,201 @@ fn junction_path_stays_selectable_with_crowds_in_all_rotations_and_dpi() {
             click_surface(&mut app, window, point, SurfaceId::Object(junction));
         }
     }
+}
+
+#[test]
+fn train_shortcuts_preserve_pause_and_help_and_capture_gate_actions() {
+    for (help, capture_active) in [(false, false), (true, false), (false, true)] {
+        let initial = train_park();
+        let (mut app, _) = input_app(
+            initial.clone(),
+            ViewState {
+                speed: Speed::Paused,
+                help,
+                capture_active,
+                ..default()
+            },
+            1.0,
+        );
+        app.add_systems(Update, apply_train_actions.after(keyboard_input));
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyO);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyF);
+        frame(&mut app);
+        let park = &app.world().resource::<Simulation>().0;
+        let view = app.world().resource::<ViewState>();
+        assert_eq!(park.ticks(), 0);
+        assert_eq!(park.guests(), initial.guests());
+        assert_eq!(park.objects(), initial.objects());
+        assert_eq!(view.speed, Speed::Paused);
+        if help || capture_active {
+            assert_eq!(park, &initial);
+            assert_eq!(view.zoom, 1.0);
+        } else {
+            assert!(!park.train().unwrap().open);
+            assert_eq!(park.train().unwrap().phase, park_sim::TrainPhase::Closed);
+            assert_eq!(view.zoom, 1.5);
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .release(KeyCode::KeyO);
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::KeyO);
+            frame(&mut app);
+            assert!(app.world().resource::<Simulation>().0.train().unwrap().open);
+        }
+    }
+}
+
+#[test]
+fn ride_panel_blocks_map_selection_and_scroll_at_both_dpi_scales() {
+    for dpi in [1.0, 2.0] {
+        let (mut app, window) = input_app(train_park(), ViewState::default(), dpi);
+        let cursor = Vec2::new(
+            1280.0 - RIDE_PANEL_MARGIN - RIDE_PANEL_WIDTH * 0.5,
+            HEADER + RIDE_PANEL_MARGIN + RIDE_PANEL_HEIGHT * 0.5,
+        );
+        assert!(!is_map_position(
+            cursor,
+            app.world().get::<Window>(window).unwrap(),
+            false
+        ));
+        set_cursor(&mut app, window, Some(cursor));
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: 1.0,
+            window,
+        });
+        frame(&mut app);
+        let view = app.world().resource::<ViewState>();
+        assert_eq!(view.selected, None);
+        assert_eq!(view.hovered, None);
+        assert_eq!(view.zoom, 1.0);
+    }
+}
+
+#[test]
+fn train_button_is_consumed_once_without_pausing_guests() {
+    let park = train_park();
+    let mut app = App::new();
+    app.insert_resource(Simulation(park.clone()))
+        .insert_resource(ViewState::default())
+        .add_systems(Update, (ui::button_actions, apply_train_actions).chain());
+    app.world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::ToggleTrain));
+    app.update();
+    assert!(!app.world().resource::<Simulation>().0.train().unwrap().open);
+    assert!(app.world().resource::<ViewState>().ui_pointer_consumed);
+    assert_eq!(app.world().resource::<ViewState>().speed, Speed::Normal);
+    app.update();
+    assert!(!app.world().resource::<ViewState>().ui_pointer_consumed);
+    assert!(!app.world().resource::<Simulation>().0.train().unwrap().open);
+    let mut actual = app.world_mut().resource_mut::<Simulation>();
+    for _ in 0..120 {
+        actual.0.advance(Speed::Normal);
+    }
+    assert_ne!(actual.0.guests(), park.guests());
+    assert_eq!(
+        actual.0.train().unwrap().phase,
+        park_sim::TrainPhase::Closed
+    );
+}
+
+#[test]
+fn fixed_update_train_and_crowd_are_equal_at_30_60_and_144_display_frames() {
+    use bevy::time::{TimePlugin, TimeUpdateStrategy};
+
+    let baseline = train_park();
+    let mut expected = baseline.clone();
+    for _ in 0..120 * TICKS_PER_SECOND {
+        expected.advance(Speed::Normal);
+    }
+    assert!(expected.train().unwrap().laps > 0);
+    for hz in [30_u64, 60, 144] {
+        let mut app = App::new();
+        app.add_plugins(TimePlugin)
+            .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
+            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO))
+            .insert_resource(Simulation(baseline.clone()))
+            .insert_resource(ViewState::default())
+            .add_systems(FixedUpdate, tick_simulation);
+        app.update(); // Initialize the real/virtual clock without advancing it.
+        for frame in 0..120 * hz {
+            // Distribute fractional nanoseconds, preserving exactly 120 seconds.
+            let ns = (frame + 1) * 1_000_000_000 / hz - frame * 1_000_000_000 / hz;
+            app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_nanos(ns)));
+            app.update();
+        }
+        let actual = &app.world().resource::<Simulation>().0;
+        assert_eq!(actual.ticks(), expected.ticks(), "{hz} Hz clock");
+        assert_eq!(actual.train(), expected.train(), "{hz} Hz train");
+        assert!(actual == &expected, "{hz} Hz full park state diverged");
+        app.world_mut()
+            .resource_mut::<ViewState>()
+            .set_speed(Speed::Paused);
+        for _ in 0..hz {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<Simulation>().0, expected);
+    }
+}
+
+#[test]
+fn moving_train_refreshes_only_dynamic_meshes_and_keeps_track_identity() {
+    let mut park = train_park();
+    for _ in 0..100 {
+        park.advance(Speed::Normal);
+    }
+    let selected = park.circuit().unwrap().pieces[0].object;
+    let mut app = App::new();
+    app.insert_resource(Simulation(park))
+        .insert_resource(ViewState {
+            selected: Some(SurfaceId::Object(selected)),
+            ..default()
+        })
+        .init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<ColorMaterial>>()
+        .add_systems(Startup, setup_scene)
+        .add_systems(Update, update_scene);
+    app.update();
+    let positions = |app: &App, train: bool| {
+        let scene = app.world().resource::<SceneMeshes>();
+        let handle = if train {
+            &scene.train
+        } else {
+            &scene.landscape
+        };
+        app.world()
+            .resource::<Assets<Mesh>>()
+            .get(handle)
+            .unwrap()
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .unwrap()
+            .as_float3()
+            .unwrap()
+            .to_vec()
+    };
+    let initial_train = positions(&app, true);
+    let initial_land = positions(&app, false);
+    assert!(!initial_train.is_empty());
+    for _ in 0..60 {
+        app.world_mut()
+            .resource_mut::<Simulation>()
+            .0
+            .advance(Speed::Normal);
+    }
+    app.update();
+    assert_ne!(positions(&app, true), initial_train);
+    assert_eq!(positions(&app, false), initial_land);
+    assert_eq!(
+        app.world().resource::<ViewState>().selected,
+        Some(SurfaceId::Object(selected))
+    );
 }

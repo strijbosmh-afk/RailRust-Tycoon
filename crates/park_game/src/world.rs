@@ -6,6 +6,8 @@ use bevy::{
 };
 use park_sim::{Axis, GuestState, ObjectKind, Park, SurfaceId, SurfaceObject, Terrain, TilePos};
 
+mod train_render;
+
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
 pub const HEIGHT_STEP: f32 = 16.0;
@@ -54,6 +56,9 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
         SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
         SurfaceId::Object(id) => {
             let object = park.object(id)?;
+            if let Some(piece) = train_render::piece_for(park, id) {
+                return train_render::piece_center(park, piece, rotation);
+            }
             Some(object_point(
                 object,
                 0.0,
@@ -108,7 +113,7 @@ pub fn pick_surface(world: Vec2, park: &Park, rotation: u8, mode: ViewMode) -> O
     for object in park.objects() {
         if object_visible(park, object, mode) {
             let (x, y) = rotate(object.pos, size, rotation);
-            for surface in object_surfaces(park, object, rotation) {
+            for surface in rendered_object_surfaces(park, object, rotation) {
                 consider(
                     surface,
                     (x + y, x, object.id.0),
@@ -165,14 +170,36 @@ struct Surface {
 }
 
 impl Surface {
-    /// Depth is an affine plane, so these values match GPU interpolation.
+    fn has_area(self) -> bool {
+        let [a, b, c, d] = self.vertices.map(Vec3::truncate);
+        let area = (b - a).perp_dot(c - a) + (c - a).perp_dot(d - a);
+        let extent = [b, c, d]
+            .into_iter()
+            .map(|point| point.distance(a))
+            .fold(0.0_f32, f32::max);
+        // Subtract the origin before taking cross products. Absolute screen
+        // coordinates lose precision on thin faces far from the map center.
+        // Exact edge-on slopes can retain a few float ulps of apparent area;
+        // a two-thousandth-pixel thickness is below both rendering and picking.
+        area.abs() > extent * 0.002
+    }
+
+    /// Depth is the face's affine plane, matching GPU interpolation for
+    /// horizontal roofs, vertical cliffs, and inclined track ribbons.
     fn depth_at(self, point: Vec2) -> f32 {
-        let gradient = match self.kind {
-            SurfaceKind::Top => Vec2::new(0.0, -1.0 / HALF_HEIGHT),
-            SurfaceKind::LeftCliff => Vec2::new(1.0 / HALF_WIDTH, 0.0),
-            SurfaceKind::RightCliff => Vec2::new(-1.0 / HALF_WIDTH, 0.0),
-        };
-        self.vertices[0].z + gradient.dot(point - self.vertices[0].truncate())
+        let [a, b, c, d] = self.vertices;
+        for (b, c) in [(b, c), (c, d)] {
+            let ab = b.truncate() - a.truncate();
+            let ac = c.truncate() - a.truncate();
+            let determinant = ab.perp_dot(ac);
+            if determinant.abs() > 0.00001 {
+                let relative = point - a.truncate();
+                let u = relative.perp_dot(ac) / determinant;
+                let v = ab.perp_dot(relative) / determinant;
+                return a.z + u * (b.z - a.z) + v * (c.z - a.z);
+            }
+        }
+        a.z
     }
 
     fn point(self, point: Vec2, bias: f32) -> Vec3 {
@@ -180,19 +207,28 @@ impl Surface {
     }
 
     fn hit_depth(self, point: Vec2) -> Option<f32> {
-        let mut positive = false;
-        let mut negative = false;
-        for index in 0..4 {
-            let a = self.vertices[index].truncate();
-            let b = self.vertices[(index + 1) % 4].truncate();
-            let side = (b - a).perp_dot(point - a);
-            positive |= side > 0.0001;
-            negative |= side < -0.0001;
-            if positive && negative {
-                return None;
+        if !self.has_area() {
+            return None;
+        }
+        // Hit the two emitted triangles directly. A polygon-edge predicate
+        // with an absolute cross-product epsilon disagrees with rasterization
+        // along the very thin upper edge of a rail viewed exactly side-on.
+        let [a, b, c, d] = self.vertices;
+        for (b, c) in [(b, c), (c, d)] {
+            let ab = b.truncate() - a.truncate();
+            let ac = c.truncate() - a.truncate();
+            let determinant = ab.perp_dot(ac);
+            if determinant.abs() <= 0.00001 {
+                continue;
+            }
+            let relative = point - a.truncate();
+            let u = relative.perp_dot(ac) / determinant;
+            let v = ab.perp_dot(relative) / determinant;
+            if u >= -0.00001 && v >= -0.00001 && u + v <= 1.00001 {
+                return Some(a.z + u * (b.z - a.z) + v * (c.z - a.z));
             }
         }
-        Some(self.depth_at(point))
+        None
     }
 }
 
@@ -383,15 +419,42 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
         SurfaceId::Object(id) => park
             .object(id)
             .filter(|object| object_visible(park, object, mode))
-            .map(|object| object_surfaces(park, object, rotation).to_vec())
+            .map(|object| rendered_object_surfaces(park, object, rotation))
             .unwrap_or_default(),
         _ => Vec::new(),
     }
 }
 
+fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> Vec<Surface> {
+    if let Some(piece) = train_render::piece_for(park, object.id) {
+        train_render::piece_faces(park, piece, rotation)
+            .into_iter()
+            .map(|face| face.surface)
+            .collect()
+    } else {
+        object_surfaces(park, object, rotation).to_vec()
+    }
+}
+
+/// Moving cars share physical world depth with terrain and sampled rails.
+pub fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
+    train_render::train_mesh(park, rotation, mode)
+}
+
+/// Projected circuit bounds, including the height of its sampled hills.
+pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
+    train_render::train_focus(park, rotation)
+}
+
 fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) {
     for object in park.objects() {
         if !object_visible(park, object, mode) {
+            continue;
+        }
+        if let Some(piece) = train_render::piece_for(park, object.id) {
+            for face in train_render::piece_faces(park, piece, rotation) {
+                mesh.surface(face.surface, face.ink);
+            }
             continue;
         }
         let surfaces = object_surfaces(park, object, rotation);

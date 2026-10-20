@@ -128,10 +128,18 @@ impl Park {
 
     /// Highest selectable surface, excluding the empty clearance above it.
     pub fn max_surface_height(&self) -> u8 {
-        self.objects
+        let object_height = self
+            .objects
             .iter()
             .map(|object| object.height)
-            .fold(self.max_terrain_height(), u8::max)
+            .fold(self.max_terrain_height(), u8::max);
+        self.circuit
+            .as_ref()
+            .into_iter()
+            .flat_map(|circuit| &circuit.pieces)
+            .flat_map(|piece| &piece.samples)
+            .map(|point| (point.height / crate::TRACK_UNITS) as u8)
+            .fold(object_height, u8::max)
     }
 
     /// Validate the complete placement before allocating an ID or changing state.
@@ -197,6 +205,7 @@ impl Park {
         if removed.kind == ObjectKind::Path {
             self.reconcile_guests_after_removal(removed);
         }
+        self.reconcile_train_after_removal(id);
         Some(removed)
     }
 
