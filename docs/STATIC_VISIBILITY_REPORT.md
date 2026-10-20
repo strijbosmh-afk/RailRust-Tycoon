@@ -1,6 +1,6 @@
 # Static terrain chunk visibility — 0.10.0
 
-Date: 20 October 2026. This checkpoint implements bounded static-scene visibility for the existing large diagnostic maps. Work starts from the verified 0.9.0 checkpoint `96518d9` on `codex/static-terrain-visibility`. The integrated contract and diagnostic schema are recorded below; the corrected implementation passed 193 release tests (128 game/65 simulation) and strict release Clippy. Final binary build, source identity, runtime results, CI, and package evidence are pending. Earlier results remain attached to their named reports; they do not verify changed code.
+Date: 20 October 2026. The bounded static-scene visibility implementation is complete in source `ff2857e68bfa8217fb85fe3bd107312f385d490e`, on `codex/static-terrain-visibility` from verified 0.9.0 checkpoint `96518d9`. [Draft PR #8](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/8) is stacked on unmerged PR #7. All 193 release tests, strict source checks, eight image comparisons, bidirectional save continuation, six local GPU profiles, [implementation CI run 39440918757](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39440918757), and relocated package execution passed. Earlier results remain attached to their named reports.
 
 **No reference PC is selected.** The user explicitly excluded this poorly performing development PC as a performance reference. Measurements here are local diagnostics, not minimum specifications, representative FPS, a portable speedup, or a pass/fail result for the proposed 60 FPS target. PRF-05 remains in progress for the full 256 × 256 / 5,000-guest / 50-ride workload.
 
@@ -14,7 +14,9 @@ The change partitions static geometry into spatial chunks only for maps larger t
 
 Conservative bounds include every actual used vertex: terrain tops and cliffs, scenery, tree canopies, entrance arch, path decks, static circuit geometry/supports, and decorative shadows. A tile origin or nominal tile footprint alone is insufficient. Rectangular-map rejection remains consistent with `build_scene`.
 
-The separate `StaticLandscape` resource manages render slots. Camera pan, zoom, and window resize select intersecting chunk entities without regenerating static geometry. Unchanged viewport bounds reuse the prior selection. Content, grid, rotation, and Surface/Underground changes rebuild the affected static presentation. Entity and mesh-handle slots are reused; excess slots are removed so a smaller replacement cannot leave old geometry visible. Startup avoids a redundant second geometry build. Same-tick load invalidation and transitions between large diagnostic maps and the small demonstration remain explicit regression cases.
+The separate `StaticLandscape` resource manages render slots. Camera pan, zoom, and window resize select intersecting chunk entities without regenerating static geometry. Unchanged viewport bounds reuse the prior selection. Terrain/content, grid, rotation, and Surface/Underground changes still rebuild all static geometry; there is no incremental per-chunk rebuild. Entity and mesh-handle slots are reused; excess slots are removed so a smaller replacement cannot leave old geometry visible. Startup avoids a redundant second geometry build. Same-tick load invalidation and transitions between large diagnostic maps and the small demonstration remain explicit regression cases.
+
+All generated static meshes remain resident, and partitioning temporarily holds the full source mesh. This step reduces camera-selected geometry, not initial construction work, peak memory, or full static-rebuild work. The 256-map overview selects all 212 chunks and may incur extra batching overhead; no overview FPS improvement is claimed.
 
 The inclusive world-XY viewport rectangle uses the same camera/window transform as rendering and picking, covers the entire window including areas behind UI, and adds a two-logical-pixel guard. Chunks intersecting this conservative rectangle remain eligible for submission. GUI coverage is not permission to remove world geometry. An unavailable or invalid window/camera selects all chunks conservatively.
 
@@ -60,9 +62,9 @@ Retain the 0.9.0 timing distinction: main-loop intervals, main-world CPU hooks, 
 
 No threshold on this PC decides acceptance. Primary evidence is exact geometry/output equivalence, correct bounds/picking, reduced selected geometry in focused views, stable resource counts, and unchanged authoritative continuation. Any bounded timing collection must retain workload/configuration, source/binary identity, actual window state, raw samples, unsupported outcomes, and method limitations.
 
-## Validation plan
+## Validation coverage
 
-These checks describe required proof; they are not passing results yet.
+The source and runtime checks below support the bounded rendering result. Package relocation/guide verification is recorded separately; ordinary native input and hardware acceptance remain separate gaps.
 
 1. Compare the union of chunk triangles with the full-scene oracle, including attributes/depth and group/layer ordering. Cover grid on/off, all four rotations, Surface/Underground, large terrain edges, and decoration extending beyond its tile.
 2. Check conservative bounds from actual vertices, including negative coordinates, high cliffs, long shadows, related support shaft/footing/rail surfaces, and triangles crossing nominal bucket/viewport edges. A partially intersecting triangle must not disappear because its origin lies outside the viewport.
@@ -89,24 +91,44 @@ pwsh -NoProfile -File scripts/measure-performance.ps1 -OutputDirectory 'C:\Parkb
 
 Use a fresh absolute output directory and bounded runs. Shared frame options cannot be combined with `-SkipFrames`, and `-SkipCpu -SkipFrames` is invalid. A large capture uses the `overview` capture scene with shared render flags, a new absolute `.png` path, and at most 1,800 requested initial ticks. There is no additional oracle CLI required by this contract.
 
+## Observed local results
+
+Six profiles completed with exit code 0 and validated `samples_received` reports: baseline/overview, save-scale/overview, and stress/crowd, each once with AutoVsync and once with AutoNoVsync. Each requested 120 main-loop intervals. All summaries recorded clean source `ff2857e` and the unchanged executable below. Actual windows were 1920 × 1080, visible/focused throughout, with no size/configuration changes, unfocused intervals, or hidden intervals. Occlusion was unknown.
+
+Both modes produced the same static-geometry snapshot for each case:
+
+| Fixture / camera | Selected / total chunks | Hidden chunks | Generated vertices | Selected vertices | Selected logical CPU payload bytes |
+| --- | --- | --- | --- | --- | --- |
+| Baseline / overview | 1 / 1 | 0 | 99,282 | 99,282 | 5,162,664 |
+| Save-scale / overview | 212 / 212 | 0 | 2,251,764 | 2,251,764 | 117,091,728 |
+| Stress / crowd | 13 / 212 | 199 | 2,251,764 | 149,556 | 7,776,912 |
+
+Indices matched vertex counts for these fixtures. Every profile recorded one geometry build and one visibility evaluation since initialization. Stress recorded 199 individual visibility changes, hiding the nonintersecting chunks. These fixed-camera profiles demonstrate initial selection and retained geometry; source regressions separately cover subsequent pan/zoom/resize and replacement.
+
+The focused stress view therefore retains the full generated scene while making only 13 chunks eligible for submission. This is a concrete reduction in selected static geometry. It is not a measured GPU draw count, upload saving, portable FPS gain, or acceptance of the full workload on representative hardware. Dynamic crowd/train work remains separate.
+
+Received GPU samples per named pass were 88/82 for baseline, 106/99 for save-scale, and 120/120 for stress (AutoVsync/AutoNoVsync), across four GPU passes. These asynchronous receipts do not identify the corresponding source frames. The nine raw profile/summary JSON files and image comparison record are retained with `SHA256SUMS.txt` in [the local dataset](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/static-terrain-visibility/benchmarks/results/2026-10-20-static-visibility-local). All ten JSON files were copied byte-for-byte and privacy-scanned. Historical datasets and notices remain unchanged. No reference PC is selected.
+
 ## Evidence register
 
 | Item | Current evidence |
 | --- | --- |
-| Implementation / PR / CI | Pending; branch `codex/static-terrain-visibility`, starting checkpoint `96518d9` |
-| Partition and bounds contract | API and 1024 × 512 atomic-group/layer buckets described above; corrected implementation regression evidence pending |
-| Release tests / formatting / strict lint / build | Corrected implementation passed 193 release tests: 128 game / 65 simulation. Strict release Clippy passed; final formatting/build evidence and runtime checks pending |
-| PowerShell report validation | 30 new checks plus 44 historical wrapper checks passed; production-report validation remains pending runtime evidence |
-| Viewport/resource reuse and replacement | Pending |
-| Production images / picking | Pending |
-| Generated versus submitted geometry | Pending actual report values |
-| Save compatibility / preview isolation | Pending for 0.10.0 |
-| Executable hash/size | Pending |
-| Notices / package / final guides | Pending; preserve existing notice bytes |
-| Relocated runtime / bundled wrapper | Pending |
+| Implementation / PR / CI | `ff2857e68bfa8217fb85fe3bd107312f385d490e`; [draft PR #8](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/8), stacked on PR #7. [Windows CI run 39440918757](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39440918757) passed for this exact source; later documentation heads need their own status |
+| Partition and bounds contract | Passing tests cover exact triangle attributes over rotations/views/grid settings, unchanged small meshes, shared/custom attributes, atomic support/footing/rail groups, layer metadata without changing the full scene, overflow bounds, focused candidate coverage, and empty/rectangular contracts |
+| Release tests / formatting / strict lint / build | All 193 release tests passed: 128 game / 65 simulation. Formatting, strict release Clippy with warnings denied, and release compilation passed |
+| PowerShell report validation | 30 new checks plus 44 historical wrapper checks passed; all six production profiles also passed validation |
+| Viewport/resource reuse and replacement | Passing tests cover camera movement, resize/DPI and full-window guard, inclusive edges/overhangs, unchanged entity/mesh handles without rebuild, unknown-window fallback, map replacement, excess-asset removal, and same-tick refresh |
+| Production images / picking | Eight image pairs match exactly outside 709 version-line pixels per pair. Covers normal 32-map, minimum 1024 × 680 large Ride rotation 2, 256 overview rotation 0, Crowd rotation 1, stress Ride rotation 2, stress Crowd rotation 3 Underground/Flat, Ride rotation 0 Underground/Terraced, and Ride rotation 3 Surface. Eleven capture processes exited successfully: eight current plus three fresh prior-build captures; five retained prior captures complete the pairs. Current images were inspected; picking/depth regressions also pass |
+| Generated versus selected geometry | Six completed GPU profiles produced the table above, with one geometry build/evaluation each and reduced focused-view selection. Counts are CPU eligibility, not actual GPU draws/pixels |
+| Save compatibility / preview isolation | Production 0.9 writes → 0.10 verifies and 0.10 writes → 0.9 verifies both passed 3,600 ticks/commands, full state, explicit backup, and paused load. Preview with `--save-dir` rejects without creating the directory |
+| Executable hash/size | 46,168,064 bytes; SHA-256 `b3a63267dc450f1deab1a8a48aa1f93e93d0c4d6c9ba1e05bc2009f12bdb6c52` |
+| Notices / package / guides | Final refresh verified all 25 payload hashes and sixteen current guides; includes 291 dependency notices, default-font/Rust attribution, and one required MSVC DLL. Existing notice bytes are preserved. The adjacent archive checksum is authoritative; future documentation edits require another package refresh |
+| Relocated runtime / bundled wrapper | A fresh extraction path containing spaces and `é` ran from `C:\Windows`. Separate processes passed 3,600-tick primary continuation/commands, full state, explicit backup, and paused loading. The 256-map stress Ride rotation-2 Surface capture was byte-identical to the source result. The sibling wrapper selected its adjacent executable and passed one 30-tick CPU baseline plus both 120-interval save-scale Ride rotation-2 Underground GPU profiles with the static-report validator. Source-checkout fields were null as expected outside Git; executable hash/size matched |
 | Representative PC / full target | No reference PC selected; PRF-05 remains in progress |
 
-After the bounded change is verified, choose further work from remaining correctness and measured-work evidence. Do not automatically extend it to dynamic crowd culling, a new renderer, new map/save limits, or a hardware target. Native Save/Load/Backup, O/F/buttons, physical Delete, pan/drag/display, and clean-PC offline/standard-user gaps remain open unless directly reverified.
+The next recommended bounded gameplay step is interactive level-path placement and demolition in the existing 32 × 32 park. Add a visible placement preview, explicit accepted/rejected feedback, and deliberate placement/removal actions using the existing clearance checks, stable IDs, and path-cache invalidation. Verify guests connect, reroute, become lost, and recover appropriately, and include same-step save/load plus continuation checks for built and removed paths. Existing Remove/Restore fixture controls do not provide construction.
+
+This is an initial slice of BLD-01/BLD-02/BLD-04, not completion of their eventual cost/refund, queue, or broader construction criteria. Keep map/save bounds and one-circuit scope unchanged. Do not turn the next slice into further FPS tuning on this excluded PC. Native Save/Load/Backup, O/F/buttons, physical Delete, pan/drag/display, and clean-PC offline/standard-user gaps remain open unless directly reverified.
 
 ## Resume on another PC
 

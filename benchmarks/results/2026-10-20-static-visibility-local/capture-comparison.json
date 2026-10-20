@@ -1,0 +1,138 @@
+[
+  {
+    "capture": "new-baseline.png",
+    "old_sha256": "7fcff48969b321062a70d53e50df23b795070de07e05858e55f25aba64c4efb7",
+    "new_sha256": "55a9779439837eb58cbc92bf6b2a7c916921f3f61a0875414ade226d343084f0",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  },
+  {
+    "capture": "new-small.png",
+    "old_sha256": "c1ee127cf6cd3606122593a965a237256cfb16743e05f9cb667e38976959dd86",
+    "new_sha256": "42392f4c39c234ffa4ca8df42913489d1531669f5fd5c7c9246579f8f88bb06b",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      623,
+      151,
+      634
+    ],
+    "dimensions": [
+      1024,
+      680
+    ]
+  },
+  {
+    "capture": "save-scale-overview-0-surface-terraced.png",
+    "old_sha256": "82f2cb91aa56128b243661884dd1c63256b9731686de60df3033700a86f506de",
+    "new_sha256": "86065fa931945716a67bc453964bae22943a1d91223e846c035fb747a884e0c1",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  },
+  {
+    "capture": "save-scale-crowd-1-surface-terraced.png",
+    "old_sha256": "c172713a29956f3287971a6f7f6bba86a6e2083088f776027222813cd32a37d7",
+    "new_sha256": "26c9e094d176c7a4c51face0725536e82244cd2f71e8b093c96fa20d20e9c06e",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  },
+  {
+    "capture": "stress-ride-2-surface-terraced.png",
+    "old_sha256": "5cd05fc2a6b181ea0882555daaf42d31dcf200fda68e4dd645848c5630b4334a",
+    "new_sha256": "dc797f4cf7b910d68eb1ea7ec31a81949fd89982d9e51d379af71f97c916d2d4",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  },
+  {
+    "capture": "stress-crowd-3-underground-flat.png",
+    "old_sha256": "6bd95923b4eb445cf8c0d9f64b6940fe7bb66dd75f287b9cd11bee03b13e6c62",
+    "new_sha256": "ca3b45b71e2a54de6b9173915970f934d021152ec267d33a30c125ce585ee81a",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  },
+  {
+    "capture": "save-scale-ride-0-underground-terraced.png",
+    "old_sha256": "68aa9ce2acde1236886d93f5328a41ea7a32e031b89901c634c8a1e45514d996",
+    "new_sha256": "97539f2e25baf5fe9e4a01e287b62840b0aaac67a384c7b75d30bb9b4b082aa0",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  },
+  {
+    "capture": "save-scale-ride-3-surface-terraced.png",
+    "old_sha256": "4f32c3ea01dac8dfb9e9d412ed50a341528a9983d646fb53f0b02e004a530e62",
+    "new_sha256": "6f94eb30afbb4c9d7d95478c3627cd768e3bcbc14af1044d3ef9bbc2abee5391",
+    "changed_pixels": 709,
+    "outside_version_label": 0,
+    "changed_bounds_xyxy": [
+      32,
+      738,
+      151,
+      749
+    ],
+    "dimensions": [
+      1280,
+      800
+    ]
+  }
+]
