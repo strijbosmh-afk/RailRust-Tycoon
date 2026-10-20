@@ -835,6 +835,47 @@ fn moving_guests_update_their_mesh_without_rebuilding_static_terrain() {
 }
 
 #[test]
+fn scene_reuses_guest_resources_and_idle_frames_do_not_repaint() {
+    let mut app = App::new();
+    app.insert_resource(Simulation(train_park()))
+        .insert_resource(ViewState::default())
+        .init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<ColorMaterial>>()
+        .add_systems(Startup, setup_scene)
+        .add_systems(Update, update_scene);
+    app.update();
+    let initial = app.world().resource::<SceneMeshes>().guest_renderer.stats();
+    let handle = app.world().resource::<SceneMeshes>().guests.id();
+    for _ in 0..10 {
+        app.update();
+    }
+    assert_eq!(
+        app.world()
+            .resource::<SceneMeshes>()
+            .guest_renderer
+            .stats()
+            .updates,
+        initial.updates
+    );
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .advance(Speed::Normal);
+    app.update();
+    let moving = app.world().resource::<SceneMeshes>().guest_renderer.stats();
+    assert_eq!(moving.updates, initial.updates + 1);
+    assert_eq!(moving.deck_rebuilds, initial.deck_rebuilds);
+    assert_eq!(moving.template_builds, initial.template_builds);
+    assert_eq!(app.world().resource::<SceneMeshes>().guests.id(), handle);
+    app.world_mut().resource_mut::<ViewState>().rotate(1);
+    app.update();
+    let rotated = app.world().resource::<SceneMeshes>().guest_renderer.stats();
+    assert_eq!(rotated.deck_rebuilds, moving.deck_rebuilds + 1);
+    assert_eq!(rotated.template_builds, moving.template_builds);
+    assert_eq!(app.world().resource::<SceneMeshes>().guests.id(), handle);
+}
+
+#[test]
 fn junction_path_stays_selectable_with_crowds_in_all_rotations_and_dpi() {
     let mut park = crowd_park();
     for _ in 0..600 {
@@ -1420,6 +1461,18 @@ fn same_tick_load_refreshes_land_guests_train_and_clears_the_selection_mesh() {
         world::train_mesh(&saved, view.rotation, view.view_mode),
     ];
     for index in 0..3 {
-        assert_eq!(after[index], mesh_vertex_positions(&expected[index]));
+        let expected_positions = mesh_vertex_positions(&expected[index]);
+        if index == 1 {
+            // Cached local guest geometry is translated in a different order.
+            // Permit only subpixel f32 rounding, while retaining exact counts.
+            assert_eq!(after[index].len(), expected_positions.len());
+            for (actual, expected) in after[index].iter().zip(&expected_positions) {
+                for coordinate in 0..3 {
+                    assert!((actual[coordinate] - expected[coordinate]).abs() <= 0.001);
+                }
+            }
+        } else {
+            assert_eq!(after[index], expected_positions);
+        }
     }
 }

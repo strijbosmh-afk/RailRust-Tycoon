@@ -1,0 +1,241 @@
+{
+  "kind": "parkbound-measurement-wrapper",
+  "schema_version": 1,
+  "started_utc": "2026-10-20T13:19:05.8401163Z",
+  "finished_utc": "2026-10-20T13:19:39.6051059Z",
+  "status": "completed",
+  "executable_sha256": "f907dbfc3effdcd460ab5e84ef15bf58cf623f9321231f89dd4a2c2f99ba6c24",
+  "executable_bytes": 45947392,
+  "executable_unchanged_after_runs": true,
+  "source": {
+    "checkout_commit": "3f1ea886fea965a80bc5d3438ae80ecc4de4543d",
+    "checkout_dirty": false,
+    "workspace_declared_version": "0.8.0",
+    "note": "Checkout metadata identifies the source directory, not proof of how an arbitrary executable was built. Runtime report versions and executable SHA-256 identify the measured binary."
+  },
+  "hardware": {
+    "operating_system": {
+      "caption": "Microsoft Windows 11 Enterprise",
+      "version": "10.0.26200",
+      "build_number": "26200",
+      "architecture": "64 bits"
+    },
+    "processors": [
+      {
+        "name": "Intel(R) Core(TM) i5-9400T CPU @ 1.80GHz",
+        "cores": 6,
+        "logical_processors": 6,
+        "maximum_clock_mhz": 1800
+      }
+    ],
+    "graphics": [
+      {
+        "name": "Intel(R) UHD Graphics 630",
+        "driver_version": "31.0.101.2115"
+      }
+    ],
+    "total_physical_memory_bytes": 8453365760,
+    "unavailable": []
+  },
+  "hardware_role": "Local diagnostic host only; no reference PC has been selected. These measurements do not establish target hardware requirements.",
+  "configuration": {
+    "cases": [
+      "baseline",
+      "save-scale",
+      "stress"
+    ],
+    "repetitions": 1,
+    "benchmark_ticks": 300,
+    "profile_samples": 600,
+    "frame_profiles_enabled": false,
+    "execution": "Sequential child processes; no normal-player save or settings commands."
+  },
+  "runs": [
+    {
+      "name": "cpu-baseline-1",
+      "mode": "benchmark",
+      "case": "baseline",
+      "repetition": 1,
+      "report_file": "cpu-baseline-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.8.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "baseline",
+          "guests": 12,
+          "map_height": 32,
+          "map_width": 32,
+          "objects": 92,
+          "paths": 37,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 1024,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 0.0086,
+          "mean_ms": 0.0005006666666666661,
+          "min_ms": 9.999999999999999E-05,
+          "p50_ms": 9.999999999999999E-05,
+          "p95_ms": 0.00019999999999999998,
+          "p99_ms": 0.0078,
+          "samples": 300,
+          "total_ms": 0.15019999999999983
+        },
+        "path_graph": {
+          "nodes": 37,
+          "undirected_edges": 38
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 1446.823,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 3,
+        "sampled_peak_working_set_bytes": 10522624,
+        "sampled_peak_private_bytes": 2895872,
+        "observed_os_peak_working_set_bytes": 15044608,
+        "observed_cpu_milliseconds": 328.125,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-save-scale-1",
+      "mode": "benchmark",
+      "case": "save-scale",
+      "repetition": 1,
+      "report_file": "cpu-save-scale-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.8.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "save-scale",
+          "guests": 256,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": true,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 1.0327,
+          "mean_ms": 0.04578866666666668,
+          "min_ms": 0.0014,
+          "p50_ms": 0.0022,
+          "p95_ms": 0.3417,
+          "p99_ms": 0.6689,
+          "samples": 300,
+          "total_ms": 13.736600000000003
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "supported"
+      },
+      "elapsed_milliseconds": 7672.762,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 35,
+        "sampled_peak_working_set_bytes": 69595136,
+        "sampled_peak_private_bytes": 87543808,
+        "observed_os_peak_working_set_bytes": 113217536,
+        "observed_cpu_milliseconds": 5531.25,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    },
+    {
+      "name": "cpu-stress-1",
+      "mode": "benchmark",
+      "case": "stress",
+      "repetition": 1,
+      "report_file": "cpu-stress-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.8.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "stress",
+          "guests": 5000,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": false,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 300,
+          "after": 360,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 4.2432,
+          "mean_ms": 0.9969120000000009,
+          "min_ms": 0.0422,
+          "p50_ms": 0.8222,
+          "p95_ms": 2.4762,
+          "p99_ms": 3.5151000000000003,
+          "samples": 300,
+          "total_ms": 299.0736000000003
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "unsupported"
+      },
+      "elapsed_milliseconds": 24059.292,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 93,
+        "sampled_peak_working_set_bytes": 94498816,
+        "sampled_peak_private_bytes": 165363712,
+        "observed_os_peak_working_set_bytes": 113364992,
+        "observed_cpu_milliseconds": 14875.0,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    }
+  ],
+  "limitations": [
+    "No performance threshold is imposed by this wrapper; preserve incomplete or unsupported runtime outcomes as measured evidence.",
+    "Frame profiles cover only the current baseline UI. Main-loop intervals are not GPU execution or physically presented-frame timings.",
+    "The full 256x256/5000-guest/50-ride target is unsupported by the current single-circuit model.",
+    "Absolute executable/output paths, account names, machine names, and serial numbers are omitted from this summary."
+  ]
+}

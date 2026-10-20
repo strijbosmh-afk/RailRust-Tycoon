@@ -328,6 +328,9 @@ impl ParkData {
             crowd_rng: self.crowd_rng,
             circuit: None,
             train: self.train,
+            // Derived navigation is built lazily after validated loading.
+            // Neither its contents nor diagnostic counters belong in JSON.
+            path_cache: crate::crowds::PathCache::default(),
         };
         validate_counts(&park)?;
         let objects = validate_objects(&park)?;

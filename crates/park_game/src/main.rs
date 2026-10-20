@@ -159,6 +159,7 @@ struct SceneMeshes {
     selection: Handle<Mesh>,
     guests: Handle<Mesh>,
     train: Handle<Mesh>,
+    guest_renderer: world::GuestRenderer,
 }
 
 fn main() -> AppExit {
@@ -251,7 +252,10 @@ fn setup_scene(
         view.rotation,
         view.view_mode,
     ));
-    let guests = meshes.add(world::guest_mesh(&sim.0, view.rotation, view.view_mode));
+    let mut guest_renderer = world::GuestRenderer::default();
+    let mut guest_mesh = world::GuestRenderer::empty_mesh();
+    guest_renderer.update(&mut guest_mesh, &sim.0, view.rotation, view.view_mode);
+    let guests = meshes.add(guest_mesh);
     let train = meshes.add(world::train_mesh(&sim.0, view.rotation, view.view_mode));
     let material = materials.add(ColorMaterial::from(Color::WHITE));
     commands.spawn((
@@ -281,6 +285,7 @@ fn setup_scene(
         selection,
         guests,
         train,
+        guest_renderer,
     });
 }
 
@@ -600,7 +605,7 @@ type SelectionSnapshot = (Option<SurfaceId>, Option<SurfaceId>, u8, world::ViewM
 fn update_scene(
     sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
-    scene: Res<SceneMeshes>,
+    mut scene: ResMut<SceneMeshes>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut last_selection: Local<Option<SelectionSnapshot>>,
     mut last_guests: Local<Option<(u64, u8, world::ViewMode)>>,
@@ -642,8 +647,11 @@ fn update_scene(
     let dynamic_rebuild =
         terrain_changed || sim.is_changed() || *last_guests != Some(guest_snapshot);
     if dynamic_rebuild {
+        let scene = &mut *scene;
         if let Some(mesh) = meshes.get_mut(&scene.guests) {
-            *mesh = world::guest_mesh(&sim.0, view.rotation, view.view_mode);
+            scene
+                .guest_renderer
+                .update(mesh, &sim.0, view.rotation, view.view_mode);
         }
         if let Some(mesh) = meshes.get_mut(&scene.train) {
             *mesh = world::train_mesh(&sim.0, view.rotation, view.view_mode);

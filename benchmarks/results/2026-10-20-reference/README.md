@@ -1,5 +1,12 @@
 # Parkbound 0.7.0 measurements
 
+> **Correction recorded during 0.8.0 development:** this PC is not a performance
+> reference. The user explicitly rejected it because it performs poorly, and no
+> replacement reference PC has been selected. These files are historical local
+> diagnostics only. Hardware targets and 60-FPS acceptance wait for an agreed
+> representative PC. The directory name is preserved for traceability; all original
+> JSON bytes, timing values, and checksums remain unchanged.
+
 These are the original JSON outputs from the release executable built from
 `e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559`, measured on 20 October 2026.
 The executable SHA-256 is

@@ -161,6 +161,23 @@ function Read-MeasurementReport([string] $Path, [string] $Mode, [string] $CaseNa
                 $report.geometry.terrain, $report.geometry.guests, $report.geometry.train)) {
                 Assert-Phase $phase
             }
+            if ($report.geometry.Contains('guest_renderer')) {
+                $render = $report.geometry.guest_renderer
+                foreach ($phase in @($render.cold, $render.moving_update, $render.legacy_moving)) {
+                    Assert-Phase $phase
+                }
+                if (($render.ticks_after - $render.ticks_before) -ne $render.moving_update.samples_ms.Count -or
+                    ($render.stats_after.updates - $render.stats_before.updates) -ne $render.moving_update.samples_ms.Count) {
+                    throw 'Inconsistent moving render workload'
+                }
+                $bothMovingComplete = $render.moving_update.status -eq 'complete' -and $render.legacy_moving.status -eq 'complete'
+                if ($render.matched_moving_workloads -isnot [bool] -or $render.matched_moving_workloads -ne $bothMovingComplete) {
+                    throw 'Inconsistent matched moving workload claim'
+                }
+                if ($bothMovingComplete -and $render.moving_update.work_units -ne $render.legacy_moving.work_units) {
+                    throw 'Mismatched optimized and legacy render workloads'
+                }
+            }
             if ($report.simulation_ticks.advanced -ne $report.simulation.samples_ms.Count -or
                 ($report.simulation_ticks.after - $report.simulation_ticks.before) -ne $report.simulation_ticks.advanced) {
                 throw 'Inconsistent simulation tick count'
@@ -372,6 +389,7 @@ $summary = [ordered]@{
     executable_unchanged_after_runs = $null
     source = $source
     hardware = $hardware
+    hardware_role = 'Local diagnostic host only; no reference PC has been selected. These measurements do not establish target hardware requirements.'
     configuration = [ordered]@{
         cases = $Cases
         repetitions = $Repetitions
