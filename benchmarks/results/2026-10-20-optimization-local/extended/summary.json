@@ -1,0 +1,119 @@
+{
+  "kind": "parkbound-measurement-wrapper",
+  "schema_version": 1,
+  "started_utc": "2026-10-20T13:19:47.5686972Z",
+  "finished_utc": "2026-10-20T13:20:08.9776518Z",
+  "status": "completed",
+  "executable_sha256": "f907dbfc3effdcd460ab5e84ef15bf58cf623f9321231f89dd4a2c2f99ba6c24",
+  "executable_bytes": 45947392,
+  "executable_unchanged_after_runs": true,
+  "source": {
+    "checkout_commit": "3f1ea886fea965a80bc5d3438ae80ecc4de4543d",
+    "checkout_dirty": false,
+    "workspace_declared_version": "0.8.0",
+    "note": "Checkout metadata identifies the source directory, not proof of how an arbitrary executable was built. Runtime report versions and executable SHA-256 identify the measured binary."
+  },
+  "hardware": {
+    "operating_system": {
+      "caption": "Microsoft Windows 11 Enterprise",
+      "version": "10.0.26200",
+      "build_number": "26200",
+      "architecture": "64 bits"
+    },
+    "processors": [
+      {
+        "name": "Intel(R) Core(TM) i5-9400T CPU @ 1.80GHz",
+        "cores": 6,
+        "logical_processors": 6,
+        "maximum_clock_mhz": 1800
+      }
+    ],
+    "graphics": [
+      {
+        "name": "Intel(R) UHD Graphics 630",
+        "driver_version": "31.0.101.2115"
+      }
+    ],
+    "total_physical_memory_bytes": 8453365760,
+    "unavailable": []
+  },
+  "hardware_role": "Local diagnostic host only; no reference PC has been selected. These measurements do not establish target hardware requirements.",
+  "configuration": {
+    "cases": [
+      "stress"
+    ],
+    "repetitions": 1,
+    "benchmark_ticks": 1800,
+    "profile_samples": 600,
+    "frame_profiles_enabled": false,
+    "execution": "Sequential child processes; no normal-player save or settings commands."
+  },
+  "runs": [
+    {
+      "name": "cpu-stress-1",
+      "mode": "benchmark",
+      "case": "stress",
+      "repetition": 1,
+      "report_file": "cpu-stress-1.json",
+      "wrapper_status": "completed",
+      "failure": null,
+      "exit_code": 0,
+      "runtime_kind": "parkbound-cpu-benchmark",
+      "runtime_status": "complete",
+      "runtime_version": "0.8.0",
+      "runtime_metrics": {
+        "fixture": {
+          "case": "stress",
+          "guests": 5000,
+          "map_height": 256,
+          "map_width": 256,
+          "objects": 1070,
+          "paths": 1024,
+          "rides": 1,
+          "save_supported": false,
+          "seed": 20261020,
+          "tiles": 65536,
+          "track_pieces": 46,
+          "trains": 1
+        },
+        "simulation_ticks": {
+          "advanced": 1800,
+          "after": 1860,
+          "before": 60
+        },
+        "simulation_timing": {
+          "max_ms": 16.364,
+          "mean_ms": 2.4653943333333315,
+          "min_ms": 0.0462,
+          "p50_ms": 2.3559,
+          "p95_ms": 4.602799999999999,
+          "p99_ms": 6.5463,
+          "samples": 1800,
+          "total_ms": 4437.709799999997
+        },
+        "path_graph": {
+          "nodes": 1024,
+          "undirected_edges": 1984
+        },
+        "persistence_status": "unsupported"
+      },
+      "elapsed_milliseconds": 21020.768,
+      "timeout_seconds": 180,
+      "memory": {
+        "sampling_interval_milliseconds": 200,
+        "sample_count": 95,
+        "sampled_peak_working_set_bytes": 84377600,
+        "sampled_peak_private_bytes": 165314560,
+        "observed_os_peak_working_set_bytes": 113590272,
+        "observed_cpu_milliseconds": 17937.5,
+        "note": "Working/private values are maxima of 200 ms samples, not guaranteed instantaneous peaks. OS peak working set is a separate process counter. No GPU-memory or whole-system-memory claim."
+      }
+    }
+  ],
+  "limitations": [
+    "No performance threshold is imposed by this wrapper; preserve incomplete or unsupported runtime outcomes as measured evidence.",
+    "Frame profiles cover only the current baseline UI. Main-loop intervals are not GPU execution or physically presented-frame timings.",
+    "The full 256x256/5000-guest/50-ride target is unsupported by the current single-circuit model.",
+    "Absolute executable/output paths, account names, machine names, and serial numbers are omitted from this summary."
+  ]
+}

@@ -1,12 +1,12 @@
 # Guest rendering and path-cache report — 0.8.0
 
-Date: 20 October 2026. This checkpoint is in development. Its scope is reducing repeated guest-geometry work and rebuilding path connectivity only when required, while preserving gameplay and save continuation. Implementation details and evidence below remain pending until verified.
+Date: 20 October 2026. The bounded optimization scope is complete: guest rendering reuses geometry and buffers, and unchanged crowd ticks reuse path connectivity. Regression tests, bidirectional save continuation, paired rendered images, local diagnostic counters, hosted CI, and relocated-package execution verify the change. This does not complete PRF-05 or establish hardware requirements.
 
 **No reference PC is selected.** The user explicitly rejected this development PC as a performance reference because it performs poorly. Its 0.7.0 measurements and any new runs here are local diagnostics for investigating work and comparing implementations under stated conditions. They do not set minimum hardware, establish representative FPS, or pass/fail a hardware target. Select an agreed representative PC before evaluating the proposed 60 FPS at 1080p target.
 
 PRF-05 remains **in progress**. The proposed 256 × 256 / 5,000-guest / 50-ride workload is still beyond the one-circuit model and 32 × 32 player presentation. Optimization correctness and local diagnostic results are separate from this acceptance gate.
 
-## Intended implementation and boundaries
+## Implementation and boundaries
 
 `park_sim` owns authoritative objects, guest state, integer ticks, stable IDs, and deterministic routing. Its new private `PathCache` retains an immutable `Arc<PathGraph>`. Successful path placement/removal invalidates it; the next crowd tick builds it lazily. Unchanged ticks reuse it. Clones may share the immutable graph, but edits and counters remain local to each `Park`. Rejected edits, unchanged fixture restoration, terrain presets, and track-only edits do not discard valid walkable topology.
 
@@ -30,40 +30,68 @@ The meaningful regression checks for this slice are:
 - Verify normal scene updates reuse intended allocations without accidentally rebuilding static terrain. Same-tick path edits and successful load must refresh all affected presentation state; empty or replaced guest collections must not retain old geometry.
 - Keep save continuation, fixed-step equivalence, selection/picking, train, input ordering, and package relocation regressions.
 
-The simulation's 65 release tests passed, including five new graph/cache regressions. Full-workspace checks, renderer/integration tests, and runtime evidence remain pending. Historical 147-test evidence belongs to 0.7.0 and must not be reused as current verification.
+All **159 release workspace tests passed: 65 simulation and 94 game tests**. The twelve additions cover five graph/cache cases, six retained-renderer cases, and one scene-update integration case. Formatting, release Clippy with warnings denied, and release compilation passed. Eleven PowerShell helper checks also passed, including rejection of contradictory counters and compatibility with historical 0.7.0 reports.
+
+Separate production processes verified saves in both directions: 0.7.0 write → 0.8.0 verify, and 0.8.0 write → 0.7.0 verify. Both passed 3,600 continued ticks with commands, full authoritative-state comparison, explicit backup, and paused loading. This verifies compatibility of these two checkpoints with unchanged schema 1/content 1; it is not a promise for future formats.
+
+Four paired 0.7.0/0.8.0 capture scenes completed in eight successful processes: crowd Surface rotation 0, crowd Underground rotation 2, lost Surface rotation 1, and recovered Surface rotation 3. The four new images were visually inspected for guests, shadows, occlusion, recovery, and UI. Decoded-image comparison found exactly 44 changed pixels in each pair, all in the version digit at x32–37/y739–746. The entire world and all other UI pixels were identical. The local comparison receipt is `artifacts/optimization-0.8.0/capture-comparison.json`.
 
 ## Local comparison method
 
-Keep the existing baseline, save-scale, and stress fixture definitions, seed, complete-tick rules, and save limits. Use the same release compiler/dependency graph and record source/executable hashes for each candidate. Run sequentially, with the same warmup and sample settings, and compare repeated distributions and completed work rather than selecting a best run.
+The comparison retains the baseline, save-scale, and stress fixtures, seed 20261020, complete-tick rules, release compiler/dependency graph, and save limits. Processes ran sequentially with recorded source/executable identities. Single-run distributions and completed work are reported without selecting a best sample or claiming repeatability.
 
-This checkpoint plans a small local batch covering baseline/save-scale/stress and one 1,800-tick stress observation. Actual settings/results will be recorded below; no repeated-hardware comparison or representative performance conclusion is implied. Longer observation includes more route completions/replanning. Preserve incomplete outcomes. Operation counts, geometry equivalence, and cross-version continuation are primary evidence that the intended repeated work was removed safely.
+The completed batch contains one 300-tick run for each case and one 1,800-tick stress observation, each following 60 untimed simulation warmup ticks. The longer observation includes more route completions/replanning. All four completed their requested work. Operation counts, geometry equivalence, and cross-version continuation are the primary evidence that repeated work was removed safely.
 
 The CPU report adds `geometry.guest_renderer.cold` (five samples), `moving_update` (sixty), and `legacy_moving` (sixty). The animated paths follow sixty untimed warmup updates, then advance one complete simulation tick before each rendering timer. The retained and optimized renderer consume identical cloned states; completion requires equal final authoritative state and emitted vertex totals. Cold includes template/deck/buffer preparation, one update, and destruction; moving updates retain one renderer and mesh. Do not label these different workloads interchangeably.
 
 `geometry.guests` retains the old frozen-state constructor for continuity, but its path-neighbor calls now benefit from the new simulation cache. A comparison against 0.7.0 therefore includes that shared optimization. The paired animated probes in the same build provide a clearer comparison of the two rendering paths, while fixed run order and active-host noise still limit timing conclusions. Reports retain graph-cache before/after counters, renderer counters, warmup counts, and actual ticks.
 
-Optional baseline frame profiles retain requested/actual resolution, present mode, focus, visibility, occlusion, and clock-cap data. They measure CPU main-loop pacing, not GPU or physically presented-frame timing. On this explicitly unsuitable development PC they remain local observations, even if they improve. A missing GPU/render-thread measurement cannot establish the cause of a frame-rate change.
+No frame-performance comparison was performed for this checkpoint. The packaged wrapper's two 120-sample baseline profiles were functional render/upload smoke checks only. Both actual windows were 1920 × 1080, visible and focused; occlusion remained unknown for all 120 intervals in each run. Frame profiles measure CPU main-loop pacing, not GPU or physically presented-frame timing. A missing GPU/render-thread measurement cannot establish the cause of a frame-rate change.
 
 The original 0.7.0 diagnostic dataset remains byte-for-byte at `benchmarks/results/2026-10-20-reference/`, including its original JSON, checksums, and path names. The word `reference` in that historical directory name does not designate the PC as a reference machine. See the clarification in [PERFORMANCE_REPORT.md](PERFORMANCE_REPORT.md) and the dataset README. No old timing value is rewritten.
+
+## Local diagnostic results
+
+The six raw JSON files and their hash manifest are retained in [the optimization dataset](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/guest-rendering-path-cache/benchmarks/results/2026-10-20-optimization-local). These are four CPU reports and two wrapper summaries, copied without altering their bytes. Both batches recorded clean checkout `3f1ea886fea965a80bc5d3438ae80ecc4de4543d` and the same executable. That checkpoint adds a PowerShell-only report-validator correction to runtime implementation `9460a90180f94a1d8f73f5a35d3480caf43f0b14`.
+
+The local host is Windows 11 Enterprise 10.0.26200, Intel Core i5-9400T, Intel UHD 630 driver 31.0.101.2115, and 8,453,365,760 bytes of physical RAM. Power, temperature, and background load were not controlled. **This host is explicitly excluded as reference hardware.**
+
+| Case | Guests / paths / map | Measured ticks | Simulation mean / p99 ms | Retained moving-render mean ms | Legacy moving-render mean ms |
+| --- | --- | --- | --- | --- | --- |
+| Baseline | 12 / 37 / 32 × 32 | 300 | 0.00050 / 0.00780 | 0.02138 | 0.07452 |
+| Save-scale | 256 / 1,024 / 256 × 256 | 300 | 0.04579 / 0.66890 | 0.47380 | 3.10717 |
+| Stress | 5,000 / 1,024 / 256 × 256 | 300 | 0.99691 / 3.51510 | 14.80183 | 214.01023 |
+| Extended stress | 5,000 / 1,024 / 256 × 256 | 1,800 | 2.46539 / 6.54630 | 20.53611 | 104.42832 |
+
+Each renderer pair completed sixty animated samples and reported `matched_moving_workloads: true`, including identical final authoritative state and emitted vertex totals. The short and extended runs reach different states before rendering and are not repeated samples of the same workload. In both stress runs the timings were noisy: the retained-render p99 was 28.57470/95.68950 ms, while the legacy mean varied substantially. No portable speedup factor or FPS conclusion follows from these numbers.
+
+Every simulation measurement added **zero graph builds and exactly 300 or 1,800 graph reuses**. The single graph had already been built during warmup. Every retained-render measurement advanced updates from 60 to 120 while template builds stayed at 192, deck rebuilds at 1, and buffer growths at 5. These counters demonstrate reuse across the measured unchanged topology and animated states; tests separately cover invalidation after edits and loads.
+
+Fresh indexed graph construction was also measured independently; its mean was 0.01396 ms for baseline and 0.47256–0.60181 ms for the 1,024-node cases. These fresh-build costs are separate from cached simulation tick costs. CPU scene construction remains a headless probe; it does not demonstrate interactive rendering of a 256 × 256 park or fifty rides.
 
 ## Evidence
 
 | Item | Result |
 | --- | --- |
-| Runtime source / branch / review | `codex/guest-rendering-path-cache`, continuing from 0.7.0 checkpoint `ffd8f1e`; implementation commit/review pending |
-| Final simulation/cache contract | Implementation reviewed read-only; 65 simulation release tests passed |
-| Final guest-rendering contract | Persistent renderer and integration implemented; runtime/test verification pending |
-| Formatting / lint / tests / release build | Full-workspace checks pending for 0.8.0; partial simulation result above |
-| Local before/after CPU measurements | Pending; diagnostic use only |
-| Render inspection / frame observations | Pending |
-| Save continuation / package relocation | Pending |
-| Executable identity / notices / guide hashes | Pending |
-| Hosted Windows CI | Pending |
+| Runtime source / branch / review | Runtime `9460a90180f94a1d8f73f5a35d3480caf43f0b14`; wrapper validator `3f1ea886fea965a80bc5d3438ae80ecc4de4543d`; branch `codex/guest-rendering-path-cache`; [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6) stacked on PR #5's performance branch |
+| Simulation and renderer correctness | 159 release tests passed, including deterministic cache/invalidation, full geometry/oracle, allocation reuse, and same-tick load integration cases |
+| Formatting / lint / release build | Formatting, release Clippy with warnings denied, and release compilation passed |
+| Local CPU diagnostics | All four CPU reports complete; all four animated-render comparisons matched; counters and timings above |
+| Render inspection | Eight paired capture processes exited 0; four new images inspected; only 44 version-digit pixels differed per pair |
+| Save continuation | Both cross-version directions passed 3,600 ticks/commands, primary and backup, full state, and paused loading |
+| Package relocation | All 23 extracted payload hashes matched in a fresh path containing spaces and `é`; execution from `C:\Windows` passed continuation/backup/paused load and sibling-wrapper baseline 30 ticks plus both 120-sample frame smoke modes |
+| Executable identity | 45,947,392 bytes; SHA-256 `f907dbfc3effdcd460ab5e84ef15bf58cf623f9321231f89dd4a2c2f99ba6c24` |
+| Notices / final guide refresh | Packaging collected 291 dependency notices, font/Rust notices, and one MSVC DLL. The final refreshed ZIP was extracted again: all 23 payload hashes and fourteen current Markdown guides matched the workspace; the executable identity stayed unchanged |
+| Hosted Windows CI | [Run 39429282120 passed](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120) for `3f1ea886fea965a80bc5d3438ae80ecc4de4543d`, including build, packaging, continuation, and CPU-wrapper checks |
 | Representative PC and hardware-target acceptance | Not selected; deferred until agreed |
+
+CI success belongs to its recorded source checkpoint, not automatically to a later documentation-only head. The archive changes when guides are refreshed; its adjacent `.zip.sha256` is authoritative. Do not embed the archive's own changing hash in a bundled guide.
 
 ## Next decision and handoff
 
-After correctness and measurements are available, record what work was removed, what remains expensive, and the next bounded change. Keep GPU/presentation investigation separate from CPU cache/mesh results. Selecting a representative PC and implementing the missing full-target scale remain open decisions; this checkpoint must not silently close PRF-05.
+Retain the cache and renderer changes: tests, continuation, images, and counters establish the intended behavior and removed work. The bounded optimization slice is complete. The next performance investigation should collect render-thread/GPU/upload/presentation evidence and support a controlled large-map render scene before selecting another rendering strategy; the existing probes cannot identify a GPU bottleneck. Keep the current geometry oracle, deterministic continuation, and counter checks as regressions.
+
+Representative hardware must be agreed before performance acceptance. Fifty rides, large-map player presentation, and larger save capacity remain separate implementation/measurement work. Keep PRF-05 open; do not let this local optimization result silently revise those targets or block unrelated small gameplay slices on this PC's FPS.
 
 Native Save/Load/Backup, O/F/Open/Close/Find, physical Delete, panning/dragging/physical display, and clean-PC offline/standard-user checks remain open unless new direct evidence closes them. Preserve the current source-license/title and content-scope decisions.
 
