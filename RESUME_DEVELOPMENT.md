@@ -24,7 +24,7 @@ Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart T
 
 You can continue from that synced workspace or use a separate GitHub clone. The 0.3.0 checkout on the second PC was `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Both paths are retained intentionally. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
-The current feature branch is `codex/save-load-continuation`, based on train documentation checkpoint `9c95b88` from `codex/train-circuit`. Current source commit, review, and hosted CI records are pending; local verification/package evidence is complete below. The retained train implementation `bd227f147998b8ab7dbe5af7bc44a2896079220a` is pushed in [draft PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), stacked on the crowd branch, which depends on overlap work. PR #3 was still unmerged when save work began. Fetch and inspect the current branch before resuming; do not assume cloning `main` retrieves the newest checkpoint or that a planned feature branch has already been pushed.
+The current feature branch is [`codex/save-load-continuation`](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/save-load-continuation), based on train documentation checkpoint `9c95b88` from `codex/train-circuit`. Implementation `d7a16f629dd0f89134314ea5f7b35a47d2b6ed6f` is pushed in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), stacked on the still-open, unmerged [train PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3). [Windows CI run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034) passed for that implementation, including packaging and fresh-process continuation. Train implementation `bd227f147998b8ab7dbe5af7bc44a2896079220a` depends on the crowd branch, which depends on overlap work. Fetch and inspect the current branch and review stack before resuming; cloning `main` may retrieve an older checkpoint.
 
 Historical [Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. Its local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report retains that evidence; current save code requires its own checks. Documentation-only follow-up commits retain runtime source identity, but must be repackaged and their guides/hashes verified before handoff.
 
@@ -78,7 +78,7 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 
 **PRF-04 is verified narrowly for same-build authoritative continuation in 0.6.0.** All 131 workspace tests pass: 56 simulation, 27 world/rendering, 28 input-system, five persistence, nine store, four main-module, and two capture tests. They include Windows failed-primary replacement rollback, bounded reads, rejection without mutation, full continuation/cache/ID checks, input precedence/gating, and same-update mesh refresh after loading. Formatting, strict Clippy, release build, and twelve final inspected GPU captures passed; all controls/status/version fit at 1024 × 680.
 
-The final 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. All 20 payload hashes and twelve current Markdown guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **Native Save/Load/Backup remains unverified.** Source commit/review/CI records are pending in the save report. Next is PRF-05 measurement.
+The final 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. All 20 payload hashes and twelve current Markdown guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **Native Save/Load/Backup remains unverified.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; details are in the save report. Next is PRF-05 measurement.
 
 **PRF-03 is verified for the 0.5.0 automatic circuit and fixed-update behavior.** All 99 tests passed: 43 simulation, 27 world/rendering, 23 input-system, four main-module, and two capture tests. Formatting, strict Clippy, and release compilation passed. Sixteen GPU captures completed with exit code 0 and were inspected, including all rotations, lift/descent/braking, completed lap and parked train, minimum-window layouts, terrain/views, and crowd/overlap regressions. The train report records the executable hash and observed counters. A Bevy scheduling regression produced equal whole-Park state over 120 simulated seconds at 30/60/144 Hz update schedules; this is not measured hardware performance.
 
@@ -105,10 +105,10 @@ Keyboard panning was not clearly established in the 0.3.0 native session, and ri
 | IDs | State | Meaning |
 | --- | --- | --- |
 | DEF-01, DEF-02 | Planned | Exact content/expansion audit and final product/platform decisions remain open. |
-| FND-01 | Verified | Reverified in 0.5.0 through sixteen inspected captures and relocated ZIP launch with all 19 payload hashes matching; the parked-train capture from C:\Windows exited 0 and matched the original image exactly. |
+| FND-01 | Verified | Reverified in 0.6.0 through twelve inspected captures, extracted processes from C:\Windows, all 20 payload hashes/twelve guides matching, and a byte-identical relocated loaded-small image. Clean-machine compatibility remains open. |
 | FND-02 | In progress | Native selection, four rotations, wheel zoom, and Fit passed in 0.3.0. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
 | FND-03 | Verified | Earlier speed/inspector/visibility evidence is retained; 0.4.0 reverified native pause/resume, path-edit buttons, counters, and help, with complete-step speed/pause tests. |
-| FND-04 | Verified | Reverified in 0.5.0 through 99 tests, formatting, strict Clippy, release compilation, local package checks, and successful Windows CI run 39417086959. |
+| FND-04 | Verified | Reverified in 0.6.0 through 131 tests, formatting, strict Clippy, release compilation, local package/fresh-process checks, and successful Windows CI run 39422425034 for implementation d7a16f6. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
 | PRF-01 | Verified | Named 0.3.0 tests, captures, native identity/visibility/preset checks, and package relocation establish the overlap baseline. New changes require regression checks. |
 | PRF-02 | Verified | 0.4.0 automated invariants, eleven inspected captures, and native path deletion/restoration/recovery establish the proof. Physical Delete shortcut retesting remains explicit; Remove path is verified. |
@@ -522,8 +522,9 @@ The following hosted runs were verified successful on 20 October 2026:
 | `0220c7b` (0.3.0 overlap runtime source) | [Successful run 39406042854](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39406042854): 51 tests, formatting, release Clippy, and Windows package |
 | `20cbc76` (0.4.0 crowd runtime source) | [Successful run 39412913892](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892): tests, formatting, release Clippy, Windows package, and artifact upload |
 | `bd227f1` (0.5.0 train runtime source) | [Successful PR run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959): source checks and Windows packaging for draft PR #3 |
+| `d7a16f6` (0.6.0 save runtime source) | [Successful PR run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034): formatting, lints, tests, packaging, fresh-process continuation, and artifact upload for draft PR #4 |
 
-These results belong to their exact commits. The earlier executables were also exercised locally through captures, native input, and relocation. Historical 0.5.0 results remain in the train report. Current 0.6.0 tests/source checks, twelve inspected captures, fresh-process continuation, and verified package relocation are in the save report; current hosted CI is pending. Documentation-only evidence updates do not replace runtime-source identity. Archive hashes change when guides are repackaged; use the adjacent `.zip.sha256` and verify all 20 payload hashes and twelve guides against the final snapshot.
+These results belong to their exact implementation commits. The earlier executables were also exercised locally through captures, native input, and relocation. Historical 0.5.0 results remain in the train report. Current 0.6.0 tests/source checks, twelve inspected captures, fresh-process continuation, verified package relocation, and successful hosted CI are in the save report. Documentation-only evidence updates do not replace runtime-source identity, and a later head has its own CI status; the recorded success does not claim its later run has passed. Archive hashes change when guides are repackaged; use the adjacent `.zip.sha256` and verify all 20 payload hashes and twelve guides against the final snapshot.
 
 There is no selected project source-code license yet. Free gameplay distribution and permission to reuse source are separate decisions. Saving source in this GitHub repository does not by itself select MIT, Apache, GPL, or another project license. Decide source licensing before making reuse promises or accepting outside contributions. Keep all third-party licenses and asset provenance intact.
 
@@ -541,8 +542,11 @@ PRODUCT_DECISIONS, GAMEPLAY_CHECKLIST, and DEVELOPMENT_PLAN before editing.
 Inspect actual source and Git state; preserve unrelated changes and remote history.
 The current feature branch is codex/save-load-continuation, based on train docs
 checkpoint 9c95b88. The train, crowd, and overlap review stack was still unmerged
-when this work began. Current 0.6.0 commit/review/CI records are pending;
-check the save report rather than assuming a branch is published or accepted.
+when this work began. Implementation d7a16f629dd0f89134314ea5f7b35a47d2b6ed6f
+is pushed in draft PR #4, stacked on the still-open unmerged train PR #3.
+Windows CI run 39422425034 passed for that implementation, including fresh-process
+continuation and packaging. Later documentation-only heads need their own CI status;
+check the save report and actual review state.
 The current checkout is the original shared OneDrive path recorded in the guide;
 the second-PC path is a separate clone. Keep only one active shared-folder session.
 
@@ -577,7 +581,8 @@ fresh processes from C:\Windows passed 3600-tick continuation/commands, backup,
 and paused load in Unicode/space paths. The loaded-small image matched exactly.
 Final executable SHA256 is eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd.
 Native save controls remain unverified: an obscured native attempt issued no input.
-Keep that gap separate from synthetic input. Current hosted CI is pending. The --save-check write/verify
+Keep that gap separate from synthetic input. Hosted implementation CI passed.
+The --save-check write/verify
 diagnostic requires a new absolute QA directory and checks 3600 ticks plus commands
 and explicit backup. Do not run it against a player save. Proceed to PRF-05
 measurement while preserving the accepted save implementation. Record reference-PC
