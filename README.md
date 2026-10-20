@@ -4,11 +4,13 @@ A free Windows theme park simulation in Rust, inspired by the classic isometric 
 
 Source repository: [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). **Continuing on another PC? Start with [RESUME_DEVELOPMENT.md](RESUME_DEVELOPMENT.md)** for setup, build commands, architecture, current status, and the next implementation steps.
 
-Version 0.3.0 extends the terrain proof with elevated-path and underground-track fixtures. Explore a 32 by 32 terraced woodland park, inspect independently identified surfaces, and switch between Surface and Underground views. Flat and Terraced presets preserve the same objects and their heights. This is a construction-visibility proof; player path construction, guests, ride operation, finances, and park saves remain later milestones. Verification and remaining acceptance checks are recorded in [the overlap report](docs/OVERLAP_REPORT.md); the full scope is recorded in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
+Version 0.3.0 completes the elevated-path and underground-track overlap proof. Explore a 32 by 32 terraced woodland park, inspect independently identified surfaces, and switch between Surface and Underground views. Flat and Terraced presets preserve the same objects and their heights. The checkpoint passed 51 automated tests, Windows CI, render inspection, native overlap controls, and relocated-package checks. Detailed evidence and remaining foundation checks are recorded in [the overlap report](docs/OVERLAP_REPORT.md).
+
+Next is a small height-aware path graph and seeded crowd that recovers from path deletion (PRF-02). Player construction, operating rides, finances, and park saves remain later milestones in [the gameplay checklist](docs/GAMEPLAY_CHECKLIST.md).
 
 ## Play the Windows build
 
-After producing or downloading a verified `Parkbound-0.3.0-windows-x64.zip`, extract the entire archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape and default font. Check the overlap report for actual package and clean-machine evidence before assuming a source checkout includes a verified binary.
+Extract the entire `Parkbound-0.3.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The verified Windows CI package ran after relocation outside the repository, with all 17 payload hashes matching. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape and default font. A separate clean Windows machine without development tools remains untested; generated binaries are not stored in the source checkout.
 
 The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Current evidence belongs in [the overlap report](docs/OVERLAP_REPORT.md); the [terrain report](docs/TERRAIN_REPORT.md) and [foundation report](docs/FOUNDATION_REPORT.md) preserve the 0.2.0 and 0.1.0 results.
 

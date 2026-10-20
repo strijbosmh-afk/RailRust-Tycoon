@@ -10,7 +10,7 @@ Updated: 20 October 2026 for the 0.3.0 overlap proof; original planning baseline
 | Implementation language | Rust. |
 | Platform | Windows only. |
 | Business model | Free distribution with all functionality included. |
-| Delivery process | Work in stages, retaining playable milestones. The current Stage 2 slice extends terrain rendering/picking with overlapping path/track fixtures and shared clearance. Acceptance still depends on recorded evidence. |
+| Delivery process | Work in stages, retaining playable milestones. Stage 2's terrain/path/track overlap proof is verified in 0.3.0. Next is a small path-connectivity and crowd-recovery proof; other foundation and distribution gaps remain tracked separately. |
 | Source repository | Save the full source and a cross-PC handoff guide in the user's dedicated repository, [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). The repository is public. This does not select a source-code license. |
 | Final scope | Fully functional classic gameplay, rather than treating the first small park as a finished game. Coverage is tracked explicitly in the checklist. |
 
@@ -32,7 +32,7 @@ These choices let implementation proceed and can be revised when evidence warran
 | Terrain height units | `park_sim` stores integer steps and validates a maximum of 32. The current renderer maps one step to 16 world units. This display conversion belongs to presentation; it is not a physical metre or a promised final clearance rule. |
 | Selectable identity and visibility | Terrain uses `SurfaceId::Terrain(TilePos)`; each path/track object uses `SurfaceId::Object(ObjectId)`. IDs are stable and never reused. U/the visibility button switches Surface and Underground views. Buried track is excluded from ordinary picking; Underground removes terrain from rendering and picking and uses a non-selectable reference floor. |
 | Clearance proof | Objects occupy one tile and a half-open integer interval `[height, height + clearance)`, within 0–32. Touching intervals may stack; overlapping ones are rejected atomically. Paths must be on/above terrain; track must be on/above terrain or fully buried. Terrain edits/presets must preserve these invariants. This does not yet implement land rights, slopes, water-volume rules, or construction costs. |
-| PRF-01 scope | The 0.3.0 fixture supplies the missing representative scene. PRF-01 remains in progress until shared geometry/occlusion/picking, stable identity, visibility, clearance, normal input, and the packaged demonstration pass. Consult the overlap report; prior-build evidence does not certify these changes. |
+| PRF-01 acceptance | Verified in 0.3.0 through 51 tests, passing Windows CI, inspected captures across all four rotations, native overlap/preset/visibility controls, and a relocated package with 17 matching payload hashes. This closes the render/pick-layer proof. FND-02 panning/dragging and physical-display checks, clean-machine testing, and later construction/navigation remain open; see the overlap report. |
 | Content ownership | Write original code and use original assets or assets with documented redistribution rights. Keep an asset/dependency provenance register; do not bundle original RCT files. |
 | Persistence | Versioned local saves with safe replacement, backups, validation, and supported migrations. User data remains separate from application files. |
 | Distribution path | Versioned ZIP builds first; installer and public download page before 1.0. Proposed first public channel: itch.io. |

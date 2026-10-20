@@ -64,7 +64,9 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 
 **Not implemented:** terrain/path/track editors, slopes, player construction, path connectivity, guests, queues, ride operations, coaster design, staff, economy, scenarios, research, audio, persistent settings, park saves, or loading. The fixture's path and track are independently selectable proof objects, not usable attractions or guest routes. Preset switching preserves time, terrain materials, object identities, and object heights; Flat exposes the same track that Terraced buries. Each normal launch creates a fresh park. Trees, entrance arch, and underground reference floor are decorative.
 
-Current **0.3.0** verification belongs in the overlap report. Do not infer passing tests, native input, rendering, packaging, or hosted CI from earlier builds. PRF-01 remains in progress until the complete overlap acceptance passes.
+The **0.3.0 overlap proof is verified (PRF-01)**. Source commit `0220c7b` passed [Windows CI run 39406042854](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39406042854): 51 tests, formatting, release Clippy with warnings denied, and Windows packaging. All 14 engine captures were inspected: Surface and Underground in four rotations, Flat in both views, and minimum-window path, track, hidden-selection, and help scenes. Every process exited with code 0. The relocated package ran from `C:\Windows` after extraction into a path with spaces and `é`; all 17 payload hashes matched. See the overlap report for the exact executable hash and detailed evidence.
+
+Native input at 1280 × 800 selected Path #7 (display tile 15,17, height 8), revealed track with U, then selected Track #18 (14,18, height 0). The visibility button hid the track while retaining its ID and burial hint. Space paused at 02:14; Flat exposed the same track, all four rotations preserved identity/time, wheel zoom changed 100% → 113%, and Fit restored 100%. Hills hid the track again; clicking its old projection selected foreground terrain (12,19, height 6). Help/close preserved selection/time, and the native close button exited the process.
 
 Historical **0.2.0** evidence includes 34 passing tests, formatting, Clippy with warnings denied, seven inspected engine captures, and a release Windows ZIP. Its 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. See the terrain report. Clean-machine testing remains open; these results do not verify 0.3.0.
 
@@ -72,23 +74,23 @@ The historical **0.1.0** foundation report records 16 passing tests, release com
 
 Normal desktop input was checked in 0.2.0 at 1280 × 800. Roof and visible cliff selection updated the inspector; T and the preset button preserved the selected tile while changing its elevation; rotation preserved selection; wheel zoom, Fit, and grid toggle worked. The timer advanced at 4x, Space paused it at 02:36, opening/closing help preserved that time and selection, Resume restored 4x, and the native close button ended the process. These observations plus authoritative clock tests verify FND-03.
 
-Camera panning was not visibly verified in 0.2.0, and right/middle dragging was unavailable through that desktop helper. Physical display scaling and multiple monitors remain untested, so FND-02 stays in progress. Clean-machine testing without development tools is also pending. The exact starting commit `dc832fa` passed hosted Windows CI run 39381924927; that result does not certify the new overlap changes.
+Keyboard panning was not clearly established in the 0.3.0 native session, and right/middle dragging was unavailable through the desktop helper. Physical display scaling and multiple monitors remain untested, so FND-02 stays in progress. Clean-machine testing without development tools is also pending. These gaps do not invalidate the demonstrated PRF-01 render/pick-layer behavior; do not treat its completion as overall foundation or distribution acceptance.
 
 ### Checklist state at this handoff
 
 | IDs | State | Meaning |
 | --- | --- | --- |
 | DEF-01, DEF-02 | Planned | Exact content/expansion audit and final product/platform decisions remain open. |
-| FND-01 | Verified | Native startup, rendering, diagnostic clean exit, and relocated ZIP launch were demonstrated. |
-| FND-02 | In progress | Native selection, rotation, wheel zoom, and Fit were checked. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
-| FND-03 | Verified | Native toolbar, inspector, timer, speed, pause/resume, and help checks passed in 0.2.0, supported by authoritative simulation tests. |
-| FND-04 | Verified | Named-build evidence exists for 0.1.0/0.2.0. See the overlap report for 0.3.0 checks; prior success is not verification of changed code. |
+| FND-01 | Verified | Reverified in 0.3.0 through native launch/close, 14 inspected diagnostic captures, and relocated ZIP launch with all 17 payload hashes matching. |
+| FND-02 | In progress | Native selection, four rotations, wheel zoom, and Fit passed in 0.3.0. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
+| FND-03 | Verified | 0.2.0 speed/pause/resume evidence is retained; 0.3.0 inspector, visibility/preset buttons, pause, rotation, and help behavior passed with current simulation tests. |
+| FND-04 | Verified | 0.3.0 source `0220c7b` passed 51 tests, formatting, release Clippy, and Windows packaging in CI 39406042854. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
-| PRF-01 | In progress | Terrain, stable overlapping path/track fixtures, visibility, and clearance are implemented for 0.3.0. Complete acceptance requires recorded regressions, rendering, ordinary input, and package evidence. |
-| PRF-02 through PRF-05 | Planned | Crowd recovery, train operation, save continuation, and benchmark proofs follow the remaining overlap work. |
+| PRF-01 | Verified | Current tests, all-rotation captures, native identity/visibility/preset checks, and package relocation establish correct terrain/path/underground rendering and picking. |
+| PRF-02 through PRF-05 | Planned | Path connectivity/crowd recovery is next, followed by train operation, save continuation, and benchmark proofs. |
 | Remaining gameplay/release entries | Planned | Consult the checklist for individual acceptance requirements. |
 
-Stage 1 is not fully accepted until its remaining panning/dragging, display, and fresh-machine requirements pass. Stage 2 is underway with the overlap fixture; do not mark PRF-01 verified from implementation or an automated screenshot alone.
+Stage 1 is not fully accepted until its remaining panning/dragging, display, and fresh-machine requirements pass. Stage 2 has completed PRF-01 and continues with PRF-02; the complete technical-proof stage is not finished.
 
 ## 3. Set up the new PC
 
@@ -104,6 +106,14 @@ Install these prerequisites from their official distributions:
 | Rust through rustup | Install toolchain `1.93.1-x86_64-pc-windows-msvc`, with `rustfmt`, `clippy`, and `rust-docs`. |
 
 The repository's `rust-toolchain.toml` pins the tested toolchain and components. The `rust-version = "1.88"` field in the workspace manifest is a declared lower bound, not the toolchain used for the verified foundation. Use 1.93.1 for this baseline. Bevy is pinned exactly to **0.17.3**; retain `Cargo.lock` and use `--locked`.
+
+On the current resumed host, pinned Rust and all requested components are installed under `%USERPROFILE%\.cargo\bin`; persistent PATH was deliberately left unchanged. Enable them for the current PowerShell process with:
+
+```powershell
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+```
+
+MSVC build tools and the Windows SDK are still absent on this host because the installer could not obtain UAC elevation. Install those prerequisites before local source builds, or use the hosted Windows workflow. The verified 0.3.0 runtime/package came from CI; local simulation type-checking and Clippy did not require the missing linker.
 
 Open a new PowerShell 7 terminal after installing the prerequisites. These commands inspect the tools and install the pinned Rust toolchain without changing your global default toolchain:
 
@@ -185,7 +195,7 @@ The development executable is `target\release\parkbound.exe`; the packaged execu
 
 Also test toolbar buttons, help-close click consumption, selection beside UI borders, dragging after focus changes, minimum window size, and display scaling. In both terrain presets and visibility modes, rotate through all four views and inspect the shared crossing. Buried track must not be selected through terrain in Surface view; the nearest visible path/track surface must win underground. Select a track in Underground, return to Surface, and verify its hidden outline does not show through terrain. Switch to Flat and confirm the same ID becomes exposed without moving. Check that the underground floor and absent terrain are never selected. Pause and confirm the timer stops; help itself does not automatically pause normal play. The inspector displays one-based coordinates, while `TilePos` uses zero-based coordinates.
 
-FND-03 is verified by the recorded 0.2.0 native controls and simulation tests. Record remaining panning/dragging and display results, Windows/GPU details, and limitations in a milestone report before marking FND-02 verified. Repeat relevant checks when controls or layout change.
+FND-03 retains recorded 0.2.0 evidence and passed the relevant 0.3.0 control regressions described above. Record remaining panning/dragging and display results, Windows/GPU details, and limitations before marking FND-02 verified. Repeat affected checks when controls or layout change.
 
 ## 5. Capture a rendered diagnostic frame
 
@@ -329,22 +339,22 @@ Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retainin
 
 Build from the existing or newly cloned repository using the pinned toolchain; record the commit, Windows version, graphics driver, and check results. Complete ordinary input checks and clean-machine package checks where the new PC makes that possible. Update individual IDs only after their acceptance criteria pass. Keep the scope/catalogue audit visible rather than treating it as finished because coding has started.
 
-### B. Complete PRF-01 overlap acceptance
+### B. Preserve the accepted PRF-01 overlap baseline
 
-The 0.3.0 implementation adds the missing overlap fixture, object identity, visibility controls, and shared clearance. Preserve the 0.2.0 terrain baseline and read the overlap report before deciding which checks remain. Do not replace the fixture with a full editor while this acceptance is still open.
+The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while developing navigation. Its current evidence is recorded in the overlap report; rerun the affected checks when changing these systems.
 
 1. Run simulation, geometry, input, formatting, lint, and release checks on the exact current source; inspect hosted CI for that commit.
 2. Demonstrate the shared crossing in all four rotations and both visibility modes, including Flat/Terraced comparison, zoom, pan, UI exclusion, and boundaries.
 3. Verify hidden track and hidden selection do not show through terrain; check the underground reference floor cannot be selected.
 4. Verify IDs and object heights survive view/preset changes; rejected clearance and removed references remain safe.
-5. Record normal mouse/keyboard behavior and outstanding physical display or hardware limitations separately from synthetic tests.
-6. Package and inspect the exact build, recording hashes and relocation results. Mark PRF-01 verified only when its complete acceptance passes.
+5. Record normal mouse/keyboard behavior and outstanding physical display or hardware limitations separately from synthetic tests; FND-02 remains open.
+6. Package and inspect each new checkpoint, recording hashes and relocation results. Prior-build evidence does not automatically verify changed code.
 
 Shared clearance and surface rules should become the foundation for paths, track, scenery, and construction. Reject illegal placement atomically once commands are introduced.
 
 ### C. Prove paths and crowd recovery: PRF-02
 
-After PRF-01 acceptance, reuse its stable IDs and clearance to introduce height-aware path connectivity, destination selection, and a small seeded guest simulation in `park_sim`. First make accelerated speed execute every fixed simulation step. Start with a tiny deterministic test park; test junctions, disconnected regions, and deletion of occupied/destination paths. Guests must enter a defined lost/recovery state rather than retain invalid references. Render and compare display frame rates before optimizing crowd size. Queue rules belong in connectivity semantics even before detailed boarding.
+This is the next implementation slice. Reuse PRF-01's stable IDs and clearance to introduce height-aware path connectivity, destination selection, and a small seeded guest simulation in `park_sim`. First make accelerated speed execute every fixed simulation step. Start with a tiny deterministic test park; test junctions, disconnected regions, and deletion of occupied/destination paths. Guests must enter a defined lost/recovery state rather than retain invalid references. Render and compare display frame rates before optimizing crowd size. Queue rules belong in connectivity semantics even before detailed boarding.
 
 ### D. Prove one moving train: PRF-03
 
@@ -413,15 +423,16 @@ Use a pull request to review substantial changes and preserve the playable defau
 
 The Windows workflow runs on pushes, pull requests, and manual dispatch. It uses a Windows 2022 runner, Rust 1.93.1 with formatting/lint/docs components, formatting, release-profile Clippy with warnings denied, release-profile tests, packaging, and artifact upload. The review artifact retention is 14 days. Inspect the real run for the intended commit; configuration alone is not a passing CI result. The workflow has read-only repository contents permission and does not publish a GitHub Release.
 
-The following earlier hosted runs were verified successful through the GitHub API on 20 October 2026:
+The following hosted runs were verified successful on 20 October 2026:
 
 | Commit | Hosted Windows run |
 | --- | --- |
 | `e4a8d2f` | [Successful run 39265273354](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39265273354) |
 | `2ec6bf9` | [Successful run 39379555949](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39379555949) |
 | `dc832fa` (0.2.0 starting baseline) | [Successful run 39381924927](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39381924927) |
+| `0220c7b` (0.3.0 overlap runtime source) | [Successful run 39406042854](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39406042854): 51 tests, formatting, release Clippy, and Windows package |
 
-These results belong to their exact earlier checkpoints. The 0.3.0 overlap changes need their own pushed-commit CI result; consult Actions and the overlap report before claiming that result.
+These results belong to their exact commits. The 0.3.0 executable from `0220c7b` was also exercised locally through render captures, native input, and relocation. Later source changes need their own checks; documentation-only evidence updates do not replace the recorded runtime-source identity.
 
 There is no selected project source-code license yet. Free gameplay distribution and permission to reuse source are separate decisions. Saving source in this GitHub repository does not by itself select MIT, Apache, GPL, or another project license. Decide source licensing before making reuse promises or accepting outside contributions. Keep all third-party licenses and asset provenance intact.
 
@@ -442,14 +453,15 @@ workflow are recorded in the guide; continue there or use a separate clone.
 
 The confirmed product is a free, fully featured, Windows-only classic RCT1/RCT2-style
 isometric park simulation in Rust, developed in stages with original assets. We have
-a version 0.3.0 overlap implementation, not a finished game. It retains Flat/Terraced
+a verified version 0.3.0 overlap proof, not a finished game. It retains Flat/Terraced
 terrain and adds 12 elevated path objects at height 8 and nine track objects at
 height 0, all clearance 2. Stable IDs, shared clearance, and U-controlled visibility
 connect simulation, rendering, picking, and inspection. Flat exposes the same track
 without moving it. Underground removes terrain and uses a non-selectable floor.
 No path/terrain editor, guests, operating rides, finances, saves, or audio exist.
-Read the report for actual 0.3.0 checks rather than carrying forward prior results.
-PRF-01 remains in progress until complete acceptance. FND-02 and clean-machine
+PRF-01 is verified: runtime source 0220c7b passed Windows CI 39406042854 with 51 tests,
+render inspection, native overlap controls, and package relocation. Read the report
+for exact evidence. FND-02 panning/dragging/physical-display checks and clean-machine
 compatibility remain open unless later reports explicitly close them.
 
 Use the repository-pinned Rust 1.93.1 MSVC toolchain and Bevy 0.17.3 with Cargo.lock.
@@ -457,12 +469,12 @@ On an 8 GB machine use -j 2. First reproduce the baseline checks and inspect CI 
 the current commit. Keep park_sim independent of Bevy. Read the input-ordering,
 logical-pixel, mesh-culling, and accelerated-tick notes before refactoring them.
 
-Finish any missing PRF-01 checks and defects first, preserving terrain and identity
-across all four rotations, both presets, and both visibility modes. After acceptance,
-the next implementation is PRF-02: height-aware paths and a tiny seeded crowd that
-recovers safely from deletions. Before moving entities, make accelerated time run
-each complete authoritative tick. Keep train operation, saves, and benchmarks as
-later independent proofs. Continue the exact content/expansion audit in parallel.
+The next implementation is PRF-02: height-aware paths and a tiny seeded crowd that
+recovers safely from deletions. Preserve the PRF-01 scene and its regressions across
+all four rotations, both presets, and both visibility modes. Before moving entities,
+make accelerated time run each complete authoritative tick. Keep train operation,
+saves, and benchmarks as later independent proofs. Continue the exact content/
+expansion audit in parallel and complete available foundation checks separately.
 
 Run relevant tests, formatting, Clippy, a release build, render inspection, and normal
 input checks where available. Document actual evidence and limitations, update the
