@@ -62,6 +62,8 @@ The default tick count is 600 before the scene is paused. Crowd presets frame th
 
 ## Verification record
 
+Implementation commit: `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, reviewed in [draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2). Subsequent handoff updates change documentation only.
+
 The local release build passed formatting, release Clippy with warnings denied, all **72 tests**, and release compilation on 20 October 2026. The test total consists of 30 simulation tests, 20 world/rendering tests, 18 input-system tests, and four main-module tests.
 
 Passing source-check commands:
@@ -116,7 +118,7 @@ The local Windows package was generated successfully. Its archive checksum and a
 
 The package includes one imported MSVC runtime DLL (`VCRUNTIME140.dll`), notices for 288 dependencies and the default font, Rust standard-library notices, and the ten current Markdown documents. This is a relocation test on the development PC, not a clean-machine test. The final archive hash lives beside the ZIP in `.zip.sha256`; it cannot be embedded in a report inside that same archive without changing the hash.
 
-These are local verification results. The repository's Windows workflow also checks formatting, linting, tests, and packaging on pushes and pull requests. Consult the [current branch's workflow runs](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions?query=branch%3Acodex%2Fpath-crowds) for hosted status and the exact commit; the older overlap branch's green runs do not verify this change.
+The [Windows workflow for implementation commit 20cbc76](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) also passed formatting, release Clippy, all tests, Windows packaging, and artifact upload. Consult the [current branch's workflow runs](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions?query=branch%3Acodex%2Fpath-crowds) for later commits; the older overlap branch's green runs do not verify this change.
 
 Packaging command:
 
@@ -130,7 +132,7 @@ Repeat archive and payload verification after any repackaging. Keep packaged Mar
 
 Local output is `dist/Parkbound-0.4.0-windows-x64.zip`, with its adjacent `.sha256` and an extracted `Parkbound-0.4.0-windows-x64` directory. The package contains the current README, resume guide, development plan, this report, notices, and runtime dependencies. This is an unsigned local checkpoint; a source push or CI artifact is not a public binary release.
 
-The current checkout is the original shared OneDrive folder recorded in [the resume guide](../RESUME_DEVELOPMENT.md). The separate second-PC path remains documented. Work on branch `codex/path-crowds` starts from `codex/overlapping-surfaces`; preserve the overlap branch's commits and open review until their merge status is confirmed. A stacked pull request should use that branch as its base while it remains unmerged.
+The current checkout is the original shared OneDrive folder recorded in [the resume guide](../RESUME_DEVELOPMENT.md). The separate second-PC path remains documented. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2), branch `codex/path-crowds`, targets `codex/overlapping-surfaces`; it is stacked on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1). Preserve the overlap commits and review until their merge status is confirmed. Neither PR was merged in this session.
 
 PRF-02 is **V** for the demonstrated seeded routing, deletion, and recovery proof. The next implementation is PRF-03: a representative station → lift → drop → brake → station train circuit. Preserve the crowd and overlap regressions, and carry the explicit Delete-shortcut and distribution checks forward. Save/reload continuation and performance benchmarking remain later independent proofs.
 

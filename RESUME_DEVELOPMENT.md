@@ -26,6 +26,8 @@ You can continue from that synced workspace or use a separate GitHub clone. The 
 
 The current feature branch is [`codex/path-crowds`](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/path-crowds), based on `codex/overlapping-surfaces` at `2508398eaa4e731018ae49213f8b57fd291c4a14`. The overlap work was found on GitHub while `main` still held 0.2.0. Fetch the current feature branch when resuming; do not assume cloning `main` retrieves the newest checkpoint. The overlap pull request remains separate until merged. Check actual branch/PR state before choosing a base for further work.
 
+The crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation-only handoff updates. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); neither was merged in this session. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. The local ZIP passed relocation and all 18 payload hashes; see the crowd report for the executable identity and remaining checks.
+
 ## 1. Read this first
 
 The user confirmed:
