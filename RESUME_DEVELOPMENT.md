@@ -24,9 +24,9 @@ Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart T
 
 You can continue from that synced workspace or use a separate GitHub clone. The 0.3.0 checkout on the second PC was `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Both paths are retained intentionally. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
-The current feature branch is `codex/performance-measurement`, based on save documentation checkpoint `d634dda`. Current implementation/review/hosted-CI/package evidence is pending in the performance report. The retained save implementation `d7a16f629dd0f89134314ea5f7b35a47d2b6ed6f` is pushed in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), stacked on [train PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), with [successful Windows run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034). The train review depends on the crowd and overlap work. Inspect current merge state and whether the new branch has been pushed before switching PCs; cloning `main` may retrieve an older checkpoint.
+The current feature branch is `codex/performance-measurement`, based on save documentation checkpoint `d634dda`. Runtime implementation is `e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559`; [draft PR #5](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/5) targets the save branch, with [successful implementation CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126); final package evidence is recorded in the performance report. The retained save implementation `d7a16f629dd0f89134314ea5f7b35a47d2b6ed6f` is pushed in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), stacked on [train PR #3](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/3), with [successful Windows run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034). The train review depends on the crowd and overlap work. Fetch the published feature branch and inspect current merge state before switching PCs; cloning `main` may retrieve an older checkpoint.
 
-Historical [Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. Its local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report retains that evidence; current save code requires its own checks. Documentation-only follow-up commits retain runtime source identity, but must be repackaged and their guides/hashes verified before handoff.
+Historical [Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. Its local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report retains that evidence; current measurement code requires its own checks. Documentation-only follow-up commits retain runtime source identity, but must be repackaged and their guides/hashes verified before handoff.
 
 The retained crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation checkpoint `51a79e8`. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); they were unmerged when the train work began. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. Its local ZIP passed relocation and all 18 payload hashes. This historical evidence does not verify changed 0.7.0 code; record current evidence in the performance report.
 
@@ -73,12 +73,12 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 | Simulation | Separate window-independent Rust library with bounded terrain, stable identities, shared clearance, atomic fixtures, deterministic crowds/RNG, validated circuit geometry, complete ticks, and a serde-based validated JSON codec. |
 | Persistence | One primary slot and explicit previous-valid backup under LocalAppData; staged replacement, exclusive writer lock, bounded parsing/validation, and load paused with rebuilt presentation. No startup save/load. |
 | Diagnostics | Surface/crowd presets plus train/lift/drop/brake/return/closed scenes, bounded tick/phase seeking, map/view/rotation/minimum-window options, PNG verification, and exit status. |
-| Measurement | Opt-in CPU baseline/save-scale/stress fixtures; baseline main-loop frame profiling; sequential Windows wrapper with source/binary identity, hardware metadata, bounded processes, and 200 ms memory samples. Results pending. |
+| Measurement | Opt-in CPU baseline/save-scale/stress fixtures; baseline main-loop frame profiling; sequential Windows wrapper with source/binary identity, hardware metadata, bounded processes, and 200 ms memory samples. Reference and extended measurements completed; see the performance report. |
 | Delivery | Windows packaging, native-runtime inspection/copying, dependency/font notices, checksums, and a GitHub Actions workflow. |
 
 **Not implemented:** general terrain/path/track editors, sloped paths, complete player construction, ride queues/boarding, guest needs/spending, general ride operations, coaster design/ratings, staff, economy, scenarios, research, audio, persistent settings, autosave, save browser, or migration support. Delete/Restore paths and Open/Close train are proof controls. Guests and cars are not individually selectable. Preset switching preserves authoritative state and object identities/heights; Flat exposes the original buried track. Each normal launch creates a fresh demonstration without touching a saved park; Load explicitly resumes it. Trees, entrance arch, underground reference floor, and circuit support posts are decorative.
 
-**PRF-05 is in progress for the full target in 0.7.0.** Tooling measures actual supported workloads; current source checks, numbers, package, and CI remain pending in the performance report. The 256 × 256/5,000-guest stress fixture has one circuit/train, not 50 rides, and exceeds the unchanged save guest cap. Frame profiling covers the existing 32 × 32 UI. A successful tool run does not establish 60 FPS or the full proposed park. Use measured evidence to select the next architecture/scale-support step.
+**PRF-05 is in progress for the full target in 0.7.0.** Tooling measures actual supported workloads; 147 release tests, formatting, strict Clippy, release compilation, eleven reference measurement processes, and three extended stress processes pass. Implementation CI run 39425219126 and package relocation passed. The extracted package matched all 22 payload hashes and thirteen guides, passed fresh-process save continuation, and ran its bundled measurement wrapper from C:\Windows. The 256 × 256/5,000-guest stress fixture has one circuit/train, not 50 rides, and exceeds the unchanged save guest cap. Frame profiling covers the existing 32 × 32 UI. A successful tool run does not establish 60 FPS or the full proposed park. The reference desktop produced 37.94–40.15 main-loop FPS at actual 1080p and 114.61–135.45 ms per stress guest-mesh rebuild. Next work targets reusable guest geometry and cached path connectivity, with separate render/presentation investigation before diagnosing the baseline deficit.
 
 **Historical PRF-04 is verified narrowly for same-build authoritative continuation in 0.6.0.** All 131 workspace tests passed: 56 simulation, 27 world/rendering, 28 input-system, five persistence, nine store, four main-module, and two capture tests. They include Windows failed-primary replacement rollback, bounded reads, rejection without mutation, full continuation/cache/ID checks, input precedence/gating, and same-update mesh refresh after loading. Formatting, strict Clippy, release build, and twelve inspected GPU captures passed; all controls/status/version fit at 1024 × 680.
 
@@ -109,16 +109,16 @@ Keyboard panning was not clearly established in the 0.3.0 native session, and ri
 | IDs | State | Meaning |
 | --- | --- | --- |
 | DEF-01, DEF-02 | Planned | Exact content/expansion audit and final product/platform decisions remain open. |
-| FND-01 | Verified | Reverified in 0.6.0 through twelve inspected captures, extracted processes from C:\Windows, all 20 payload hashes/twelve guides matching, and a byte-identical relocated loaded-small image. Clean-machine compatibility remains open. |
+| FND-01 | Verified | Package relocation reverified in 0.7.0 through all 22 payload hashes/thirteen guides, fresh-process continuation, and the extracted wrapper completing baseline CPU and both frame modes from C:\Windows. Historical visual/native evidence remains in earlier reports. Clean-machine compatibility remains open. |
 | FND-02 | In progress | Native selection, four rotations, wheel zoom, and Fit passed in 0.3.0. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
 | FND-03 | Verified | Earlier speed/inspector/visibility evidence is retained; 0.4.0 reverified native pause/resume, path-edit buttons, counters, and help, with complete-step speed/pause tests. |
-| FND-04 | Verified | Reverified in 0.6.0 through 131 tests, formatting, strict Clippy, release compilation, local package/fresh-process checks, and successful Windows CI run 39422425034 for implementation d7a16f6. |
+| FND-04 | Verified | Reverified in 0.7.0 through 147 release tests, formatting, strict Clippy, release compilation, and successful Windows CI run 39425219126 for implementation e93eb99. Exact evidence is in the performance report; historical results remain attached to their original builds. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
 | PRF-01 | Verified | Named 0.3.0 tests, captures, native identity/visibility/preset checks, and package relocation establish the overlap baseline. New changes require regression checks. |
 | PRF-02 | Verified | 0.4.0 automated invariants, eleven inspected captures, and native path deletion/restoration/recovery establish the proof. Physical Delete shortcut retesting remains explicit; Remove path is verified. |
 | PRF-03 | Verified | 0.5.0 automatic circuit/fixed-update behavior passed 99 tests, sixteen captures, and normal launch showing lap 1; Space paused. Native O/F/buttons and physical hardware frame-rate performance remain open. |
 | PRF-04 | Verified | 0.6.0 technical continuation: 131 tests, production/extracted fresh-process replay/backup, twelve inspected captures, and relocated package hashes/guides passed. Native save controls remain unverified. |
-| PRF-05 | In progress | Current measurement tooling covers actual supported fixtures; results and architectural decisions are pending. The 50-ride target is unsupported and not accepted. |
+| PRF-05 | In progress | Measurements cover supported fixtures and identify guest geometry and graph rebuild costs; planned next work is reusable guest geometry, cached connectivity, and baseline render/presentation investigation. The 50-ride target is unsupported and not accepted. |
 | Remaining gameplay/release entries | Planned | Consult the checklist for individual acceptance requirements. |
 
 Stage 1 is not fully accepted until its remaining panning/dragging, display, and fresh-machine requirements pass. Stage 2 has completed the stated PRF-01 through PRF-04 technical criteria and continues with PRF-05 measurement; the entire technical-proof stage and unverified controls remain unfinished.
@@ -307,6 +307,7 @@ The version 0.7.0 package layout is shown below; final verification is recorded 
 dist/
   Parkbound-0.7.0-windows-x64/
     Parkbound.exe
+    measure-performance.ps1
     ...runtime, notices, documentation, manifests...
   Parkbound-0.7.0-windows-x64.zip
   Parkbound-0.7.0-windows-x64.zip.sha256
@@ -409,7 +410,7 @@ Path requests apply after terrain presets, followed by train-operation/focus and
 
 The camera and pointer transform use logical window pixels consistently. Mouse dragging uses successive logical cursor positions; replacing that with raw mouse-motion counts can reintroduce DPI-dependent behavior. UI exclusion bounds and camera offsets depend on `SIDEBAR`, `HEADER`, `FOOTER`, and the ride-panel dimensions/margin; change the layout and these boundaries together. The 236 × 152 ride panel is at the top right and blocks map input.
 
-Terrain, path, and track surfaces use a static procedural mesh rebuilt when dirty. Preset, visibility, removal, and restoration changes must invalidate scene and selection geometry even if selected identity stays unchanged. Circuit rendering/picking/selection share actual sampled faces, never the roofs of clearance envelopes. `world::guest_mesh` and `world::train_mesh` are separate dynamic meshes, so motion alone does not rebuild terrain. Cars use authoritative center/front/rear poses; guests use endpoint/progress data. Both use shared depth and are not independent pick targets. Decorative supports are omitted where they intersect another object's occupied vertical range. `NoFrustumCulling` prevents stale bounds on changing meshes; retain it or update bounds correctly. Large-park rendering performance remains unmeasured.
+Terrain, path, and track surfaces use a static procedural mesh rebuilt when dirty. Preset, visibility, removal, and restoration changes must invalidate scene and selection geometry even if selected identity stays unchanged. Circuit rendering/picking/selection share actual sampled faces, never the roofs of clearance envelopes. `world::guest_mesh` and `world::train_mesh` are separate dynamic meshes, so motion alone does not rebuild terrain. Cars use authoritative center/front/rear poses; guests use endpoint/progress data. Both use shared depth and are not independent pick targets. Decorative supports are omitted where they intersect another object's occupied vertical range. `NoFrustumCulling` prevents stale bounds on changing meshes; retain it or update bounds correctly. Large-fixture CPU mesh costs are now measured; interactive large-map rendering and its GPU/presentation performance remain unmeasured.
 
 Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retaining selection and accounts for terrain/object height. Keep the same camera layout calculation in rendering and pointer conversion. Rendering uses opaque white materials with vertex colors. Release builds use the Windows GUI subsystem, so opening the executable does not supply a normal console log window. Use capture exit status and the relevant debugger/log strategy when diagnosing a silent launch failure.
 
@@ -421,7 +422,7 @@ Build from the existing or newly cloned repository using the pinned toolchain; r
 
 ### B. Preserve the accepted PRF-01 overlap baseline
 
-The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while developing persistence. Its historical evidence is recorded in the overlap report; record current regression results in the save report.
+The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while improving performance. Its historical evidence is recorded in the overlap report; record current regression results in the performance report.
 
 1. Run simulation, geometry, input, formatting, lint, and release checks on the exact current source; inspect hosted CI for that commit.
 2. Demonstrate the shared crossing in all four rotations and both visibility modes, including Flat/Terraced comparison, zoom, pan, UI exclusion, and boundaries.
@@ -471,6 +472,10 @@ Each sequential child produces a new JSON file. `summary.json` contains relative
 The ZIP includes `measure-performance.ps1` beside `Parkbound.exe`. PowerShell 7 is required only for this optional wrapper. From that folder run `.\measure-performance.ps1 -Executable .\Parkbound.exe -OutputDirectory <absolute-new-directory>`. The packaged wrapper defaults to its sibling executable and leaves source metadata null when no source manifest exists.
 
 Read [PERFORMANCE_REPORT.md](docs/PERFORMANCE_REPORT.md), validate real completed work/unsupported outcomes, compare repeat distributions, and choose the next change from measured evidence. Graph rebuilds, routing bursts, mesh generation, serialization, and one-train/large-map limitations are distinct questions. Preserve complete ticks, deterministic IDs/RNG, removal/recovery, sampled track rendering/picking, and save continuation in any optimization. Do not start a large content catalogue before architecture/target decisions are recorded.
+
+The retained reference data is in `benchmarks/results/2026-10-20-reference/` with its manifest and extended subdirectory. Fourteen production processes completed: three 300-tick CPU repetitions for each case, two 600-sample baseline frame runs, and three 1,800-tick stress repetitions. The current PC is an i5-9400T with Intel UHD 630 driver 31.0.101.2115 and approximately 7.87 GiB physical RAM. These are measurements of that desktop session, with power/temperature/background load unrecorded and frame occlusion unknown. They are not hardware requirements.
+
+Proceed first with reusable/batched guest geometry, then cached path connectivity with explicit invalidation on path edits/restoration/loading. The stress guest mesh averaged 114.61–135.45 ms per CPU rebuild. Extended stress simulation averaged 10.76–11.67 ms/tick, with p99 29.93–39.29 ms and variable larger outliers. The baseline reached only 37.94–40.15 main-loop FPS at actual 1080p despite mean scene-update CPU times below 0.4 ms; collect render-thread/GPU/presentation evidence before naming the cause. Keep these separate changes measurable and preserve deterministic behavior.
 
 ### G. Continue the full milestones
 
@@ -545,8 +550,9 @@ The following hosted runs were verified successful on 20 October 2026:
 | `20cbc76` (0.4.0 crowd runtime source) | [Successful run 39412913892](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892): tests, formatting, release Clippy, Windows package, and artifact upload |
 | `bd227f1` (0.5.0 train runtime source) | [Successful PR run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959): source checks and Windows packaging for draft PR #3 |
 | `d7a16f6` (0.6.0 save runtime source) | [Successful PR run 39422425034](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034): formatting, lints, tests, packaging, fresh-process continuation, and artifact upload for draft PR #4 |
+| `e93eb99` (0.7.0 measurement runtime source) | [Successful PR run 39425219126](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126) for draft PR #5. The performance report distinguishes reference-PC measurements from hosted checks. |
 
-These results belong to their exact implementation commits. The earlier executables were also exercised locally through captures, native input, and relocation. Historical 0.5.0 results remain in the train report. Historical 0.6.0 tests/source checks, twelve inspected captures, fresh-process continuation, verified package relocation, and successful hosted CI remain in the save report. Current 0.7.0 evidence is pending in the performance report. Documentation-only evidence updates do not replace runtime-source identity, and a later head has its own CI status; the recorded success does not claim its later run has passed. Archive hashes change when guides are repackaged; use the adjacent `.zip.sha256` and verify every payload hash and bundled guide against the final snapshot; do not reuse an earlier package count as current evidence.
+These results belong to their exact implementation commits. The earlier executables were also exercised locally through captures, native input, and relocation. Historical 0.5.0 results remain in the train report. Historical 0.6.0 tests/source checks, twelve inspected captures, fresh-process continuation, verified package relocation, and successful hosted CI remain in the save report. Current 0.7.0 local source checks and measurements are recorded in the performance report; implementation CI run 39425219126 and package relocation passed, with 22 matching payload hashes, thirteen matching guides, fresh-process continuation, and the bundled wrapper exercised from C:\Windows. Documentation-only evidence updates do not replace runtime-source identity, and a later head has its own CI status; the recorded success does not claim its later run has passed. Archive hashes change when guides are repackaged; use the adjacent `.zip.sha256` and verify every payload hash and bundled guide against the final snapshot; do not reuse an earlier package count as current evidence.
 
 There is no selected project source-code license yet. Free gameplay distribution and permission to reuse source are separate decisions. Saving source in this GitHub repository does not by itself select MIT, Apache, GPL, or another project license. Decide source licensing before making reuse promises or accepting outside contributions. Keep all third-party licenses and asset provenance intact.
 
@@ -567,6 +573,11 @@ checkpoint d634dda. PR #4 was still unmerged when this branch began; preserve th
 stack on codex/save-load-continuation until actual merge status supports a change.
 Current source/review/CI/package metadata is in the performance report; historical
 passing runs do not verify changed code or later documentation-only heads.
+Runtime implementation e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559 is in draft PR #5.
+All 147 release tests and strict local source checks pass. Fourteen measurement
+processes completed, and sixteen raw JSON reports plus a manifest are retained in
+benchmarks/results/2026-10-20-reference. Check current CI/package evidence in the report.
+Implementation CI run 39425219126 passed; later heads require their own CI status.
 The current checkout is the original shared OneDrive path recorded in this guide;
 the second-PC path is a separate clone. Keep one active shared-folder session.
 
@@ -574,47 +585,53 @@ The product is a free Windows-only classic RCT1/RCT2-style isometric park simula
 in Rust, with original assets and complete gameplay built in stages. Version 0.7.0
 adds opt-in performance diagnostics to the seeded 32x32 demonstration. PRF-01/02/03/04
 retain named-build acceptance; PRF-05 remains incomplete for the full 256x256,
-5000-guest, 50-ride, 60 FPS at1080p target. Current code supports one circuit/train,
+5000-guest, 50-ride, 60 FPS at 1080p target. Current code supports one circuit/train,
 not 50 rides, and large CPU fixtures do not demonstrate playable large-map rendering.
 
 park_sim::diagnostics builds baseline (32x32/12 guests/37 paths), save-scale
 (256x256/256 guests/1024 paths), and stress (256x256/5000 guests/1024 paths).
-The large path network is a connected32x32 grid, not a representative varied park.
-Every fixture has one46-piece circuit/train. Production graph/BFS and integer tick
+The large path network is a connected 32 × 32 grid, not a representative varied park.
+Every fixture has one 46-piece circuit/train. Production graph/BFS and integer tick
 logic are measured unchanged. Save-scale roundtrips; stress saving explicitly exceeds
-the unchanged256-guest codec cap. Do not hide unsupported/incomplete results.
+the unchanged 256-guest codec cap. Do not hide unsupported/incomplete results.
 
 Run the exact release executable through scripts/measure-performance.ps1 with a
 new absolute output directory whose parent exists. Default CPU work is three runs
-per case,60warmup ticks and300measured ticks; phase/run soft budgets retain actual
-completed work. Wrapper CPU timeout180seconds; frame timeout150seconds. Two baseline
-frame runs request physical1920x1080, AutoVsync thenAutoNoVsync, with600samples after
-120frames AND2seconds warmup. Record actual size/scale/adapter/focus/visibility/
+per case, 60 warmup ticks and 300 measured ticks; phase/run soft budgets retain actual
+completed work. Wrapper CPU timeout 180 seconds; frame timeout 150 seconds. Two baseline
+frame runs request physical 1920 × 1080, AutoVsync then AutoNoVsync, with 600 samples after
+120 frames and 2 seconds warmup. Record actual size/scale/adapter/focus/visibility/
 occlusion and timing-cap loss. These are CPU main-loop intervals, not GPU timestamps
 or physically presented-frame timing. The wrapper records safe hardware fields,
 executable SHA256, runtime version, source metadata where available, relative report
-names, and200ms sampled working/private bytes. The package includes the same wrapper;
-PowerShell7 is needed only for optional measurements. Source metadata is not proof
+names, and 200 ms sampled working/private bytes. The package includes the same wrapper;
+PowerShell 7 is needed only for optional measurements. Source metadata is not proof
 that an arbitrary measured executable was built from that checkout.
 
 Read the performance report and committed reference results before choosing the
-next change. Preserve raw distributions/partial results, repeated runs, actualcounts,
+next change. Preserve raw distributions/partial results, repeated runs, actual counts,
 and machine-specific conditions. Decide architecture from measured graph/routing,
 static/dynamic CPU mesh, codec/store, memory, and frame costs. Keep PRF-05 incomplete
 until the full benchmark or an explicitly revised gate has evidence. Do not begin a
-large content catalogue on the assumption that one circuit proves50-ride capacity.
+large content catalogue on the assumption that one circuit proves 50-ride capacity.
+Next work is reusable/batched guest geometry, then cached path connectivity with
+deterministic edit/load invalidation. Stress guest geometry averaged 114.61–135.45 ms;
+extended stress ticks averaged 10.76–11.67 ms with larger outliers. Baseline main-loop
+pacing was 37.94–40.15 FPS at actual 1080p. Occlusion was unknown. The small measured
+main-world CPU hooks do not diagnose that deficit; investigate rendering/presentation
+separately, without treating CPU geometry probes as GPU timings.
 
-Preserve complete30Hz clock→crowd→train ticks, deterministic IDs/RNG/order, allfour
+Preserve complete 30 Hz clock→crowd→train ticks, deterministic IDs/RNG/order, all four
 rotations, terrain/visibility modes, shared rendering/picking, local lost recovery,
-station dwell and finish-lap Close. Preserve strict parkbound-save schema1/content1,
-full authoritative continuation, validated candidate loading,8MiB/collection bounds,
+station dwell and finish-lap Close. Preserve strict parkbound-save schema 1/content 1,
+full authoritative continuation, validated candidate loading, 8 MiB/collection bounds,
 derived circuit reconstruction, valid Lost/Fault states, and explicit backup behavior.
 SaveStore uses %LOCALAPPDATA%\Parkbound\saves or an absolute --save-dir override.
 F5/Save, F9/Load, Shift+F9/Backup are explicit; startup is fresh and never writes.
-Loads pause/reset presentation at1x while preserving train intent. Player saves need
+Loads pause/reset presentation at 1x while preserving train intent. Player saves need
 separate cross-PC transfer; source sync does not transfer LocalAppData. Keep recovery
 files and active locks safe. --save-check write then separate verify uses only a new
-absolute QA directory and checks3600ticks plus commands, backup, and paused load.
+absolute QA directory and checks 3,600 ticks plus commands, backup, and paused load.
 
 No full construction/ride/management game exists yet: no boarding, queues, needs,
 spending, finances, scenarios, autosave, save browser, migrations, or audio. Supports
@@ -622,7 +639,7 @@ are decorative; train motion uses authored integer demonstration rules. Native
 Save/Load/Backup, O/F/Open-Close/Find, physical Delete, FND-02 pan/drag/physical-display,
 and clean-PC offline/standard-user checks remain open unless new evidence closes them.
 
-Use Rust1.93.1 MSVC and Bevy0.17.3 with Cargo.lock; use -j2 on the8GB PC.
+Use Rust 1.93.1 MSVC and Bevy 0.17.3 with Cargo.lock; use -j 2 on the 8 GB PC.
 Keep park_sim independent of Bevy and preserve cache/input/tick ordering. Run relevant
 checks, inspect rendering/normal controls where available, document actual evidence,
 update current guides/checklist, and verify the packaged binary/guides/hashes.

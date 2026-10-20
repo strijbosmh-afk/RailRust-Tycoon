@@ -1,6 +1,6 @@
 # Performance measurement report — 0.7.0
 
-Date: 20 October 2026. Acceptance ID: **PRF-05**, **in progress for the full proposed target**. This checkpoint adds repeatable diagnostics. All 147 release tests and formatting pass; final timing, strict lint/build, package, and hosted-CI evidence is pending. The [save report](SAVE_REPORT.md) preserves accepted 0.6.0 continuation evidence; earlier reports remain historical.
+Date: 20 October 2026. Acceptance ID: **PRF-05**, **in progress for the full proposed target**. Repeatable diagnostics, all 147 release tests, strict source checks, fourteen reference/extended processes, hosted Windows CI, and relocated-package checks passed. Measurements identify substantial crowd geometry costs and a baseline frame-rate deficit. The [save report](SAVE_REPORT.md) preserves accepted 0.6.0 continuation evidence; earlier reports remain historical.
 
 The proposed target is a 256 × 256 park with 5,000 guests and 50 operating rides at 60 FPS and 1080p on a recorded reference PC. The current model supports one circuit/train and the normal UI supports 32 × 32 maps. Measuring a larger crowd with one circuit cannot establish the 50-ride or complete playable-park target. The tooling must report actual supported counts and explicit unsupported cases; a successful benchmark process is not a performance-target pass.
 
@@ -63,26 +63,100 @@ The wrapper records only selected OS version/build/architecture, CPU name/core c
 
 The existing 8 MiB save format, 256-guest limit, one-circuit model, and 32 × 32 player presentation remain unchanged. A `stress` save rejection is an expected, explicit limitation; it must not be replaced by timing a smaller park and labelling that the stress result.
 
+## Reference measurements
+
+The main batch ran on 20 October 2026, 12:48–12:50 UTC, using release implementation `e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559`. The wrapper recorded a clean checkout at launch and the same executable hash before and after all eleven processes. All nine CPU reports completed every requested phase, and both frame runs completed 600 samples with exit code 0. The source and executable identities below tie these numbers to this implementation.
+
+| Recorded reference hardware | Value |
+| --- | --- |
+| OS | Windows 11 Enterprise, 10.0.26200, build 26200, 64-bit |
+| CPU | Intel Core i5-9400T, six cores / six logical processors; CIM reports 1,800 MHz maximum-clock field |
+| Memory | 8,453,365,760 physical bytes, approximately 7.87 GiB |
+| GPU / driver | Intel UHD Graphics 630 / 31.0.101.2115 |
+| Frame adapter | Vulkan, integrated Intel UHD Graphics 630 |
+
+Power plan, temperature, live CPU clock, and background-process load were not captured. This is a measurement of the current desktop session, not a controlled hardware certification. Raw report values and run-to-run variation remain part of the evidence.
+
+The following values are **ranges of the three individual run means**, in milliseconds. Simulation p95 is likewise the range of each run's p95, not a percentile of pooled data. Every simulation run measured 300 complete ticks after 60 complete warmup ticks.
+
+| CPU case | Simulation mean / tick | Simulation p95 / tick | Graph-build mean | Route mean |
+| --- | --- | --- | --- | --- |
+| Baseline | 0.0154–0.0216 | 0.0224–0.0241 | 0.0148–0.0168 | 0.00341–0.00349 |
+| Save-scale | 7.45–9.22 | 10.40–15.33 | 7.75–9.42 | 0.370–0.411 |
+| Stress | 7.79–8.32 | 9.59–10.54 | 6.82–7.33 | 0.311–0.334 |
+
+| CPU case | Static-scene mesh mean | Guest mesh mean | Train mesh mean |
+| --- | --- | --- | --- |
+| Baseline | 9.34–14.89 | 0.150–0.240 | 0.0275–0.0302 |
+| Save-scale | 325.20–509.58 | 4.71–7.71 | 0.0290–0.0382 |
+| Stress | 312.89–580.86 | 114.61–135.45 | 0.0271–0.0344 |
+
+Static meshes rebuild on changes, so their cost is not automatically a per-frame cost. Dynamic guest geometry is the largest measured CPU rendering concern at 5,000 guests: each standalone rebuild takes over 100 ms in this fixture. These are CPU generation probes; they do not establish the frame rate of an unsupported large-map renderer. The baseline simulation's highest single sample was 1.3754 ms; save-scale's was 53.709 ms, so means alone do not describe all stalls.
+
+Three additional stress runs measured **1,800 ticks each**, advancing tick 60 → 1,860 after complete warmup. All phases completed. Their simulation means were 10.76–11.67 ms/tick, p95 18.17–20.41 ms, p99 29.93–39.29 ms, and per-run maxima 61.65–332.11 ms. Longer observation includes more destination arrivals and route requests than the default ten simulated seconds; the higher tails show why a short, recently initialized sample is insufficient. Background host scheduling can also contribute to individual outliers, so a maximum alone does not establish an algorithmic cause. Neither batch establishes long-session behavior, 50-ride capacity, or an absence of stalls.
+
+| Save case | Encoded bytes | Encode mean | Decode mean | Store save mean | Store load mean |
+| --- | --- | --- | --- | --- | --- |
+| Baseline | 47,682 | 0.150–0.217 ms | 0.399–0.991 ms | 24.66–57.48 ms | 2.13–2.59 ms |
+| Save-scale | 2,179,271 | 7.35–12.28 ms | 15.64–22.79 ms | 278.63–479.32 ms | 132.78–234.67 ms |
+| Stress | Unsupported | — | — | — | — |
+
+Store costs include production validation, codec, filesystem reads/writes, synchronization, and backup rotation with a warm OS cache. They should not be subtracted from codec probes to infer pure storage latency. Stress rejection is expected under the unchanged 256-guest save limit.
+
+| Baseline frame mode | Main-loop FPS | Mean interval | p95 | p99 | Maximum |
+| --- | --- | --- | --- | --- | --- |
+| AutoVsync | 40.15 | 24.91 ms | 47.71 ms | 50.40 ms | 54.57 ms |
+| AutoNoVsync | 37.94 | 26.35 ms | 51.53 ms | 56.07 ms | 72.85 ms |
+
+Both runs measured physical/logical 1920 × 1080 at scale 1.0, with no configuration or size changes and all 600 intervals marked focused and visible. Occlusion remained **unknown for all 600 intervals**, so these reports do not prove an unobscured display. Auto presentation modes may select backend fallbacks that the probe cannot inspect. Each mode has one run; the small difference between them is not enough to conclude that disabling vsync makes the game slower.
+
+The baseline did not reach the proposed 60 FPS in these measurements. Mean scene-update CPU time was only 0.335–0.367 ms, with zero static rebuilds; mean simulation-update CPU time was 0.092–0.093 ms. These limited main-world timings do not explain the 25–26 ms main-loop intervals or identify a GPU bottleneck. Render-thread, upload, GPU, presentation, and scheduling measurements are required before attributing that deficit.
+
+The measured windows advanced 448 and 475 complete ticks. Neither run recorded a real-time interval above the 250 ms virtual-time cap, and real/virtual elapsed time matched. Endpoint differences include fixed-step overstep; `dropped_ticks` intentionally remains null rather than inventing a dropped-tick count.
+
+The main batch's memory observations are below, in MiB (1,048,576 bytes). CPU rows show the range of three process maxima; frame rows have one run each.
+
+| Process | Sampled working-set maximum | Sampled private-byte maximum | Observed OS peak working set |
+| --- | --- | --- | --- |
+| Baseline CPU | 9.69–10.06 | 2.66–2.92 | 14.36–14.61 |
+| Save-scale CPU | 83.34–94.16 | 156.79–174.03 | 106.22–108.24 |
+| Stress CPU | 93.18–97.65 | 141.11–159.02 | 107.69–107.76 |
+| Baseline AutoVsync | 400.32 | 329.63 | 401.32 |
+| Baseline AutoNoVsync | 399.93 | 327.93 | 400.93 |
+
+The short baseline CPU processes had only two or three 200 ms samples, demonstrating the limits of sampled peaks. The OS peak counter was observed during polling, not guaranteed to have been read after the final allocation. Private bytes and working set measure different things and need not have the same order. These values exclude GPU memory and are not a minimum-RAM specification.
+
 ## Evidence and architecture decision
 
 | Evidence | Current result |
 | --- | --- |
 | Source branch / base | `codex/performance-measurement`, based on save documentation checkpoint `d634dda` |
-| Runtime commit / review / hosted CI | Pending |
-| Source checks / regression count | 147 release tests passed: 60 simulation and 87 game. Formatting passed; strict Clippy and final release build pending. New coverage includes four fixture, two benchmark, three timing-summary, and seven frame-profile tests. |
-| Wrapper parsing and file-diff check | Passed during implementation; runtime validation pending |
-| Recorded hardware and power/display conditions | Pending measurement; historical hardware is not a fresh reading |
-| CPU baseline/save-scale/stress timings | Pending |
-| Frame profiles and actual window/adapter metadata | Pending |
-| Process memory | Pending |
-| Executable identity / package / relocation | Pending |
-| Resulting architectural change or revised target | Pending measured evidence |
+| Runtime commit / review / hosted CI | Implementation `e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559`; [draft PR #5](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/5), stacked on save PR #4. [Windows run 39425219126](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126) passed for that implementation. Later documentation-only heads have their own CI status. |
+| Source checks / regression count | 147 release tests passed: 60 simulation and 87 game. Formatting, strict Clippy with warnings denied, and release build passed. New coverage includes four fixture, two benchmark, three timing-summary, and seven frame-profile tests. |
+| Wrapper checks | Parser and seven report-helper assertions passed. All fourteen production processes across both batches completed, report validation passed, and executable identity remained unchanged. |
+| Recorded hardware and power/display conditions | Recorded above; power/temperature/background load not captured; occlusion unknown |
+| CPU baseline/save-scale/stress timings | Three complete 300-tick runs per case, plus three complete 1,800-tick stress runs |
+| Frame profiles and actual window/adapter metadata | Both 600-sample modes completed at actual 1920 × 1080; baseline 37.94–40.15 main-loop FPS |
+| Process memory | Recorded at 200 ms intervals; table and limitations above |
+| Executable identity / package / relocation | Release executable: 45,868,032 bytes, SHA-256 `06c10a106dd3afe8d51c604c8238b10b5f5266f594a660b3e7e7b919260f742b`. All 22 payload hashes and thirteen guides matched on extraction; relocated save continuation and packaged wrapper checks passed. |
+| CLI failure behavior | Production checks passed for preserving an existing report, rejecting zero benchmark ticks without output, and rejecting mixed frame/save-check modes without output or save-directory creation. |
+| Resulting architectural change or revised target | Retain PRF-05 as incomplete. Next work targets reusable guest geometry and cached path connectivity, with separate render/presentation investigation. No optimization is included in this checkpoint. |
 
-Reviewed reference outputs are intended for `benchmarks/results/2026-10-20-reference/`; collection and verification are pending. Keep large raw results outside `docs` so packaging includes this readable report without duplicating every timing sample.
+Privacy-reviewed [reference results](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/performance-measurement/benchmarks/results/2026-10-20-reference) are retained in `benchmarks/results/2026-10-20-reference/`: twelve main-batch JSON files, four in `extended/`, a README, and a SHA-256 manifest. All copied JSON bytes were checked against the original reports. The main batch recorded a clean source checkout; the extended batch recorded documentation-only changes with the same executable hash. Raw data stays outside `docs`, so the ZIP includes this readable report without duplicating every timing sample. These files are included in the final evidence checkpoint alongside the updated guides.
 
-The current production graph rebuilds connectivity per tick and uses BFS per new route. Large crowds may expose those costs. Measure them before approving graph caching, spatial indexing, route reuse, or other changes; preserve deterministic ordering, removal/recovery, and save continuation in any optimization. Report an unsupported or cap-limited fixture honestly and retain its completed work.
+The next bounded performance work should first remove repeated guest mesh allocation/reconstruction through reusable or batched geometry, then cache path connectivity instead of rebuilding it on unchanged ticks. Use explicit invalidation on path edits, restoration, and loading; derive caches from authoritative state without changing stable IDs, RNG order, full ticks, removal/recovery, or save continuation. Graph probe and simulation measurements are separate workloads, so their similar means support investigation rather than an exact claim about what fraction of each tick is graph construction.
+
+Measure the same fixtures before and after each change, retaining correctness and geometry/picking regressions. Investigate the baseline frame deficit separately with render-thread/GPU/presentation evidence. Raising the save cap, supporting 50 rides, and rendering a playable large map remain explicit architecture tasks; none follows automatically from these timings.
 
 PRF-05 remains in progress until the full benchmark is measured or the target/gate is deliberately revised with recorded evidence. The measurement tooling can be complete while this broader target remains open. The next implementation should follow the measured bottleneck or missing scale support; do not begin a large content catalogue on the assumption that a one-train benchmark establishes 50-ride capacity.
+
+## Package and relocation verification
+
+The Windows package contains the unchanged measured executable, the measurement wrapper, thirteen Markdown guides, 291 dependency notices with default-font and Rust standard-library attribution, and one required MSVC redistributable DLL. All 22 payload hashes and all thirteen guide copies matched after extraction into a fresh temporary directory with spaces and `é`. Keep every required file together when moving the application.
+
+From `C:\Windows`, separate extracted `--save-check write` and `--save-check verify` processes passed 3,600-tick continuation with commands, primary/backup checks, and paused loading. The extracted wrapper was then run without `-Executable`: it correctly selected its sibling `Parkbound.exe`, left checkout metadata null, and completed one 30-tick baseline CPU run plus both 120-sample frame modes with exit code 0. Its executable hash remained unchanged. These shorter runs verify relocation and wrapper behavior; the main and extended reference batches above remain the performance comparison data.
+
+The archive is regenerated after final guide updates, so its byte count and ZIP hash are not embedded here. The adjacent `.zip.sha256` and packaged `SHA256SUMS.txt` identify the actual delivered snapshot; verify every payload and guide after refreshing it. This proves relocation on the development PC, not a separate clean Windows installation without development tools.
 
 ## Retained gaps and handoff
 
