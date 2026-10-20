@@ -4,7 +4,25 @@ This is the handoff guide for **RailRust-Tycoon**, the repository for an origina
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
 
-The repository contains the source, locked dependencies, build scripts, notices, and development records needed to rebuild on another PC. Generated executables, ZIPs, screenshots, and Cargo build caches are deliberately ignored. Clone the repository and rebuild them; copying a previous PC's `target` folder is unnecessary.
+The repository contains the source, locked dependencies, build scripts, notices, and development records needed to rebuild on another PC. Generated executables, ZIPs, screenshots, and Cargo build caches are deliberately ignored by Git. Continue from the synced workspace below or clone the repository, then rebuild as needed; copying a previous PC's `target` folder is unnecessary.
+
+### Shared OneDrive working folder
+
+The existing workspace is in the user's shared OneDrive folder. Its full local path on the original PC, recorded on 20 October 2026, is:
+
+```text
+C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon
+```
+
+The path within that OneDrive root is `Documenten\ChatGPT\Railroad Tycoon`. On another PC, the Windows username or OneDrive root may differ; locate the synced folder and open it as the project workspace. The folder name remains `Railroad Tycoon`, while the GitHub repository is `RailRust-Tycoon` and the application's temporary title is `Parkbound`.
+
+On the original PC, open the workspace in PowerShell with:
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon'
+```
+
+You can continue from this synced workspace or use a separate GitHub clone. For the shared workspace, let OneDrive finish syncing before continuing and follow the two-PC workflow in section 9. The clone commands below are for setting up a separate checkout; they are unnecessary if you are opening the existing synced workspace.
 
 ## 1. Read this first
 
@@ -85,7 +103,7 @@ rustup --version
 rustup toolchain install 1.93.1-x86_64-pc-windows-msvc --profile minimal --component rustfmt --component clippy --component rust-docs
 ```
 
-Choose a development directory you own. The example directory below is only a convenient convention:
+For a fresh-clone alternative to the shared OneDrive workspace, choose a development directory you own. The example directory below is only a convenient convention:
 
 ```powershell
 New-Item -ItemType Directory -Path "$env:USERPROFILE\source" -Force
@@ -283,7 +301,7 @@ Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retainin
 
 ### A. Reproduce and close the foundation gaps
 
-Build from the cloned repository using the pinned toolchain; record the commit, Windows version, graphics driver, and check results. Complete ordinary input checks and clean-machine package checks where the new PC makes that possible. Update individual IDs only after their acceptance criteria pass. Keep the scope/catalogue audit visible rather than treating it as finished because coding has started.
+Build from the existing or newly cloned repository using the pinned toolchain; record the commit, Windows version, graphics driver, and check results. Complete ordinary input checks and clean-machine package checks where the new PC makes that possible. Update individual IDs only after their acceptance criteria pass. Keep the scope/catalogue audit visible rather than treating it as finished because coding has started.
 
 ### B. Implement the first part of PRF-01: height-aware terrain and picking
 
@@ -322,7 +340,7 @@ Do not start all of these systems in one change. Select a small observable behav
 
 ## 9. Work safely across two PCs
 
-Use GitHub as the shared source history; keep a separate clone on each PC. Avoid editing the same working directory through a file-sync service while Git operations or builds are active. Share source commits, not `target` caches or uncommitted machine-local state.
+Use GitHub as the shared source history. The existing working directory is the shared OneDrive folder recorded above; a separate clone on each PC is also an option. When continuing in the shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
 
 Before a work session:
 
@@ -361,9 +379,9 @@ git commit -m "Implement height-aware terrain picking"
 git push -u origin codex/height-aware-terrain
 ```
 
-The staging step is intentionally task-specific; do not accidentally include credentials, private machine paths, diagnostics from other apps, executables, caches, or unrelated files. Ensure `Cargo.lock`, relevant notices, and documentation changes are included when they belong to the change. Do not commit generated `target`, `dist`, or `artifacts` directories. Preserve `.gitattributes`: supplementary notice files have recorded SHA-256 hashes, so changing their line endings through Windows Git settings would break verification. They are deliberately excluded from text normalization.
+The staging step is intentionally task-specific; do not accidentally include credentials, unrelated or unrequested private machine paths, diagnostics from other apps, executables, caches, or unrelated files. Ensure `Cargo.lock`, relevant notices, and documentation changes are included when they belong to the change. Do not commit generated `target`, `dist`, or `artifacts` directories. Preserve `.gitattributes`: supplementary notice files have recorded SHA-256 hashes, so changing their line endings through Windows Git settings would break verification. They are deliberately excluded from text normalization.
 
-Use a pull request to review substantial changes and preserve the playable default branch. Update the milestone report with the commit, commands/check results, exact next acceptance ID, known blockers, and unresolved decisions. Push work before moving PCs; an unpushed local commit or stash does not exist on the other machine. On the receiving PC, verify the expected commit with `git log -1 --oneline` before starting.
+Use a pull request to review substantial changes and preserve the playable default branch. Update the milestone report with the commit, commands/check results, exact next acceptance ID, known blockers, and unresolved decisions. Push work before moving PCs; an unpushed local commit or stash is not backed up on GitHub and may not yet have reached the other PC through OneDrive. On the receiving PC, verify the expected commit with `git log -1 --oneline` before starting.
 
 ## 10. CI, licensing, and release decisions
 
