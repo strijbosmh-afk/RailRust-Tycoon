@@ -7,6 +7,9 @@ use std::time::Duration;
 
 use super::*;
 
+#[path = "path_input_tests.rs"]
+mod path_input_tests;
+
 fn crowd_park() -> Park {
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);
     park.apply_terrain_profile(TerrainProfile::Terraced);
@@ -1237,12 +1240,7 @@ fn persistence_input_app(
     let (mut app, window) = input_app(park, view, 1.0);
     app.insert_resource(directory.session())
         .add_systems(Update, ui::button_actions.before(keyboard_input))
-        .add_systems(
-            Update,
-            persistence::apply_save_action
-                .after(keyboard_input)
-                .before(pointer_input),
-        );
+        .add_systems(Update, persistence::apply_save_action.after(pointer_input));
     (app, window)
 }
 
@@ -1523,7 +1521,7 @@ fn same_tick_load_refreshes_land_guests_train_and_clears_the_selection_mesh() {
     app.init_resource::<Assets<Mesh>>()
         .init_resource::<Assets<ColorMaterial>>()
         .add_systems(Startup, setup_scene)
-        .add_systems(Update, update_scene.after(pointer_input));
+        .add_systems(Update, update_scene.after(persistence::apply_save_action));
     frame(&mut app);
     let before = all_scene_positions(&app);
     assert!(before.iter().all(|vertices| !vertices.is_empty()));

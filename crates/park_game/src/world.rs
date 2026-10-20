@@ -8,11 +8,13 @@ use park_sim::{Axis, GuestState, ObjectKind, Park, SurfaceId, SurfaceObject, Ter
 
 mod guest_render;
 mod layout;
+mod path_preview;
 mod static_chunks;
 mod train_render;
 
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};
+pub use path_preview::{path_plane_occluded, path_preview_mesh, pick_path_plane};
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 
 pub const TILE_WIDTH: f32 = 64.0;
@@ -25,6 +27,7 @@ const SOIL_BOTTOM: f32 = -27.0 / HEIGHT_STEP;
 const DETAIL_BIAS: f32 = 0.004;
 const HOVER_BIAS: f32 = 0.012;
 const SELECTION_BIAS: f32 = 0.016;
+const PATH_TOP_OFFSET: f32 = 0.22;
 type Ink = [f32; 4];
 
 /// The cutaway removes terrain and scenery, including their hit targets.
@@ -309,7 +312,7 @@ fn object_visible(park: &Park, object: &SurfaceObject, mode: ViewMode) -> bool {
 fn object_top(object: &SurfaceObject) -> f32 {
     f32::from(object.height)
         + match object.kind {
-            ObjectKind::Path => 0.22,
+            ObjectKind::Path => PATH_TOP_OFFSET,
             ObjectKind::Track => 0.12,
         }
 }

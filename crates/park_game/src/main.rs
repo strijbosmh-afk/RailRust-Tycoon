@@ -7,6 +7,7 @@ mod gpu_probe;
 #[cfg(test)]
 mod input_tests;
 mod measurement;
+mod path_tools;
 mod persistence;
 mod render_scene;
 mod save_check;
@@ -22,8 +23,10 @@ use bevy::{
     window::{PresentMode, PrimaryWindow, WindowResolution},
 };
 #[cfg(test)]
+use park_sim::ObjectKind;
+#[cfg(test)]
 use park_sim::TilePos;
-use park_sim::{ObjectKind, Park, Speed, SurfaceId, TICKS_PER_SECOND, TerrainProfile};
+use park_sim::{Park, Speed, SurfaceId, TICKS_PER_SECOND, TerrainProfile};
 use persistence::{SaveAction, SaveSession};
 
 const MAP_SIZE: u32 = 32;
@@ -61,6 +64,7 @@ struct ViewState {
     remove_path_pending: bool,
     restore_paths_pending: bool,
     path_notice: Option<String>,
+    path_tool: path_tools::ToolState,
     toggle_train_pending: bool,
     focus_train_pending: bool,
     save_pending: Option<SaveAction>,
@@ -94,6 +98,7 @@ impl Default for ViewState {
             remove_path_pending: false,
             restore_paths_pending: false,
             path_notice: None,
+            path_tool: default(),
             toggle_train_pending: false,
             focus_train_pending: false,
             save_pending: None,
@@ -166,11 +171,34 @@ impl ViewState {
             self.save_pending = Some(action);
         }
     }
+
+    fn edits_blocked(&self) -> bool {
+        self.help
+            || self.capture_active
+            || self.diagnostic_case.is_some()
+            || self
+                .save_pending
+                .is_some_and(|action| action != SaveAction::Save)
+    }
+
+    fn set_path_tool(&mut self, mode: path_tools::PathTool) {
+        if !self.edits_blocked() {
+            self.path_tool.set_mode(mode);
+            self.hovered = None;
+        }
+    }
+
+    fn adjust_path_height(&mut self, delta: i8) {
+        if !self.edits_blocked() {
+            self.path_tool.adjust_height(delta);
+        }
+    }
 }
 
 #[derive(Resource)]
 struct SceneMeshes {
     selection: Handle<Mesh>,
+    path_preview: Handle<Mesh>,
     guests: Handle<Mesh>,
     train: Handle<Mesh>,
     guest_renderer: world::GuestRenderer,
@@ -243,8 +271,8 @@ fn main() -> AppExit {
                 apply_terrain_profile,
                 apply_path_actions,
                 apply_train_actions,
-                persistence::apply_save_action,
                 pointer_input,
+                persistence::apply_save_action,
                 apply_camera,
                 update_scene,
                 static_landscape::update_visibility,
@@ -297,6 +325,12 @@ fn setup_scene(
     guest_renderer.update(&mut guest_mesh, &sim.0, view.rotation, view.view_mode);
     let guests = meshes.add(guest_mesh);
     let train = meshes.add(world::train_mesh(&sim.0, view.rotation, view.view_mode));
+    let path_preview = meshes.add(world::path_preview_mesh(None, &sim.0, view.rotation));
+    let preview_material = materials.add(ColorMaterial {
+        color: Color::WHITE,
+        alpha_mode: bevy::sprite_render::AlphaMode2d::Blend,
+        ..default()
+    });
     // Its vertices move to different tiles; a cached initial bounding box
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((
@@ -310,12 +344,18 @@ fn setup_scene(
         NoFrustumCulling,
     ));
     commands.spawn((
+        Mesh2d(path_preview.clone()),
+        MeshMaterial2d(preview_material),
+        NoFrustumCulling,
+    ));
+    commands.spawn((
         Mesh2d(train.clone()),
         MeshMaterial2d(material),
         NoFrustumCulling,
     ));
     commands.insert_resource(SceneMeshes {
         selection,
+        path_preview,
         guests,
         train,
         guest_renderer,
@@ -349,13 +389,16 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     }
     if keys.just_pressed(KeyCode::F1) || keys.just_pressed(KeyCode::KeyH) {
         view.help = !view.help;
+        view.ui_pointer_consumed = true;
     }
     if keys.just_pressed(KeyCode::Escape) {
         if view.help {
             view.help = false;
         } else {
             view.selected = None;
+            view.path_tool.set_mode(path_tools::PathTool::Inspect);
         }
+        view.ui_pointer_consumed = true;
     }
     if view.help {
         return;
@@ -387,6 +430,18 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     }
     if keys.just_pressed(KeyCode::KeyU) {
         view.toggle_underground();
+    }
+    if keys.just_pressed(KeyCode::KeyP) {
+        view.set_path_tool(path_tools::PathTool::Build);
+    }
+    if keys.just_pressed(KeyCode::KeyX) {
+        view.set_path_tool(path_tools::PathTool::Demolish);
+    }
+    if keys.just_pressed(KeyCode::PageUp) {
+        view.adjust_path_height(1);
+    }
+    if keys.just_pressed(KeyCode::PageDown) {
+        view.adjust_path_height(-1);
     }
     if keys.just_pressed(KeyCode::Delete) {
         view.remove_path_pending = true;
@@ -442,7 +497,19 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
 }
 
 fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.edits_blocked() {
+        // Revert the requested preset label when the edit loses to a load.
+        if view.terrain_change_pending {
+            view.terrain_profile = match view.terrain_profile {
+                TerrainProfile::Flat => TerrainProfile::Terraced,
+                TerrainProfile::Terraced => TerrainProfile::Flat,
+            };
+        }
+        view.terrain_change_pending = false;
+        return;
+    }
     if view.terrain_change_pending {
+        view.ui_pointer_consumed = true;
         if let Err(error) = sim.0.try_apply_terrain_profile(view.terrain_profile) {
             view.terrain_error = Some(format!("Terrain unchanged: {error}"));
             view.terrain_profile = match view.terrain_profile {
@@ -460,33 +527,21 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
 }
 
 fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
-    if view.diagnostic_case.is_some() {
+    if view.edits_blocked() {
         view.remove_path_pending = false;
         view.restore_paths_pending = false;
         return;
     }
     if view.remove_path_pending {
         view.remove_path_pending = false;
-        let selected_path = match view.selected {
-            Some(SurfaceId::Object(id))
-                if sim.0.object(id).is_some_and(|o| o.kind == ObjectKind::Path) =>
-            {
-                Some(id)
-            }
-            _ => None,
-        };
-        if let Some(id) = selected_path {
-            sim.0.remove_object(id);
-            view.selected = None;
-            view.hovered = None;
-            view.scene_dirty = true;
-            view.path_notice = Some("Path removed. R restores the walkway.".into());
-        } else {
-            view.path_notice = Some("Select a path to remove it.".into());
-        }
+        view.restore_paths_pending = false;
+        view.ui_pointer_consumed = true;
+        path_tools::remove_selected(&mut sim.0, &mut view);
+        return;
     }
     if view.restore_paths_pending {
         view.restore_paths_pending = false;
+        view.ui_pointer_consumed = true;
         match sim.0.restore_crowd_paths() {
             Ok(()) => {
                 view.scene_dirty = true;
@@ -495,7 +550,10 @@ fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) 
             }
             Err(error) => {
                 warn!("Cannot restore walkway: {error}");
-                view.path_notice = Some("Cannot restore: a path space is occupied.".into());
+                view.path_notice = Some(format!(
+                    "Cannot restore walkway: {}",
+                    path_tools::placement_message(error)
+                ));
             }
         }
     }
@@ -514,7 +572,7 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
     if view.toggle_train_pending {
         view.toggle_train_pending = false;
         if let Some(train) = sim.0.train()
-            && view.diagnostic_case.is_none()
+            && !view.edits_blocked()
         {
             let open = !train.open;
             sim.0.set_train_open(open);
@@ -528,7 +586,8 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
 
 /// This formula uses logical pixels, just like cursor_position and the UI.
 fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) {
-    let available_width = (window.width() - SIDEBAR - 72.0).max(1.0);
+    let right_chrome = ui::PATH_PANEL_WIDTH + ui::PATH_PANEL_RIGHT * 2.0;
+    let available_width = (window.width() - SIDEBAR - right_chrome - 72.0).max(1.0);
     let available_height = (window.height() - HEADER - FOOTER - 100.0).max(1.0);
     let elevation = f32::from(park.max_surface_height()) * world::HEIGHT_STEP;
     let fit = (park.width() as f32 * world::TILE_WIDTH / available_width)
@@ -536,7 +595,7 @@ fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) 
     let scale = fit / view.zoom;
     let center = view.pan
         + Vec2::Y * elevation * 0.5
-        + Vec2::new(-SIDEBAR * 0.5, (HEADER - FOOTER) * 0.5) * scale;
+        + Vec2::new((right_chrome - SIDEBAR) * 0.5, (HEADER - FOOTER) * 0.5) * scale;
     (scale, center)
 }
 
@@ -545,8 +604,11 @@ fn is_map_position(cursor: Vec2, window: &Window, help: bool) -> bool {
         && cursor.x <= window.width() - RIDE_PANEL_MARGIN
         && cursor.y >= HEADER + RIDE_PANEL_MARGIN
         && cursor.y <= HEADER + RIDE_PANEL_MARGIN + RIDE_PANEL_HEIGHT;
-    !help
-        && !over_ride_panel
+    let over_path_panel = cursor.x >= window.width() - ui::PATH_PANEL_RIGHT - ui::PATH_PANEL_WIDTH
+        && cursor.x <= window.width() - ui::PATH_PANEL_RIGHT
+        && cursor.y >= ui::PATH_PANEL_TOP
+        && cursor.y <= ui::PATH_PANEL_TOP + ui::PATH_PANEL_HEIGHT;
+    !(help || over_ride_panel || over_path_panel)
         && cursor.x > SIDEBAR
         && cursor.x < window.width()
         && cursor.y > HEADER
@@ -554,7 +616,7 @@ fn is_map_position(cursor: Vec2, window: &Window, help: bool) -> bool {
 }
 
 fn pointer_input(
-    sim: Res<Simulation>,
+    mut sim: ResMut<Simulation>,
     windows: Query<&Window, With<PrimaryWindow>>,
     buttons: Res<ButtonInput<MouseButton>>,
     mut wheel: MessageReader<MouseWheel>,
@@ -574,16 +636,22 @@ fn pointer_input(
         return;
     }
     let Ok(window) = windows.single() else {
+        view.hovered = None;
+        view.path_tool.clear_pointer();
+        view.dragging = false;
+        *previous_cursor = None;
         return;
     };
     if !window.focused {
         view.dragging = false;
         view.hovered = None;
+        view.path_tool.clear_pointer();
         *previous_cursor = None;
         return;
     }
     let Some(cursor) = window.cursor_position() else {
         view.hovered = None;
+        view.path_tool.clear_pointer();
         view.dragging = false;
         *previous_cursor = None;
         return;
@@ -610,19 +678,44 @@ fn pointer_input(
     if over_map && scroll != 0.0 {
         view.zoom_by((scroll.clamp(-5.0, 5.0) * 0.12).exp());
     }
-    view.hovered = if over_map {
+    let point = if over_map {
         let (scale, center) = camera_layout(window, &view, &sim.0);
         let world = center
             + Vec2::new(
                 cursor.x - window.width() * 0.5,
                 window.height() * 0.5 - cursor.y,
             ) * scale;
-        world::pick_surface(world, &sim.0, view.rotation, view.view_mode)
+        Some(world)
     } else {
         None
     };
-    if over_map && buttons.just_pressed(MouseButton::Left) {
-        view.selected = view.hovered;
+    view.hovered =
+        point.and_then(|point| world::pick_surface(point, &sim.0, view.rotation, view.view_mode));
+    let panning = view.dragging
+        || buttons.pressed(MouseButton::Right)
+        || buttons.pressed(MouseButton::Middle);
+    if let Some(point) = point
+        && !panning
+        && !view.edits_blocked()
+    {
+        // Avoid flagging the simulation as changed for mere pointer movement.
+        if buttons.just_pressed(MouseButton::Left) {
+            path_tools::point_at(&mut sim.0, &mut view, point, true);
+        } else {
+            let park = sim.bypass_change_detection();
+            path_tools::point_at(&mut park.0, &mut view, point, false);
+        }
+    } else {
+        view.path_tool.clear_pointer();
+        // Inspection remains available in large diagnostic previews.
+        if point.is_some()
+            && !panning
+            && view.diagnostic_case.is_some()
+            && !view.help
+            && buttons.just_pressed(MouseButton::Left)
+        {
+            view.selected = view.hovered;
+        }
     }
 }
 
@@ -646,7 +739,13 @@ fn apply_camera(
     }
 }
 
-type SelectionSnapshot = (Option<SurfaceId>, Option<SurfaceId>, u8, world::ViewMode);
+type SelectionSnapshot = (
+    Option<SurfaceId>,
+    Option<SurfaceId>,
+    u8,
+    world::ViewMode,
+    Option<path_tools::PathPreview>,
+);
 
 #[derive(bevy::ecs::system::SystemParam)]
 struct SceneAssets<'w, 's> {
@@ -686,7 +785,13 @@ fn update_scene(
         landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
         view.scene_dirty = false;
     }
-    let selection = (view.hovered, view.selected, view.rotation, view.view_mode);
+    let selection = (
+        view.hovered,
+        view.selected,
+        view.rotation,
+        view.view_mode,
+        view.path_tool.preview,
+    );
     if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
             *mesh = world::selection_mesh(
@@ -696,6 +801,9 @@ fn update_scene(
                 view.rotation,
                 view.view_mode,
             );
+        }
+        if let Some(mesh) = meshes.get_mut(&scene.path_preview) {
+            *mesh = world::path_preview_mesh(view.path_tool.preview, &sim.0, view.rotation);
         }
         *last_selection = Some(selection);
     }

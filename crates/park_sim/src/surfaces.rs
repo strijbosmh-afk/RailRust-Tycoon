@@ -2,6 +2,10 @@
 
 use crate::{MAX_TERRAIN_HEIGHT, Park, TerrainHeightError, TilePos};
 
+/// Reserved height above the deck of a player-built level path.
+pub const PATH_CLEARANCE: u8 = 2;
+pub const MAX_PATH_HEIGHT: u8 = MAX_TERRAIN_HEIGHT - PATH_CLEARANCE;
+
 /// A persistent object identity. Removed identities are never allocated again.
 #[derive(
     Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
@@ -51,6 +55,7 @@ pub enum PlacementError {
     TerrainIntersection { pos: TilePos, terrain_height: u8 },
     Occupied { pos: TilePos, object: ObjectId },
     IdExhausted,
+    CapacityExceeded { resource: &'static str, max: usize },
     FixtureMapSize { width: u32, height: u32 },
 }
 
@@ -86,6 +91,12 @@ impl std::fmt::Display for PlacementError {
             ),
             Self::IdExhausted => {
                 write!(formatter, "no more stable object identities are available")
+            }
+            Self::CapacityExceeded { resource, max } => {
+                write!(
+                    formatter,
+                    "the park already has the maximum of {max} {resource}"
+                )
             }
             Self::FixtureMapSize { width, height } => write!(
                 formatter,
@@ -159,6 +170,64 @@ impl Park {
         height: u8,
         clearance: u8,
     ) -> Result<ObjectId, PlacementError> {
+        let next_id = self.validate_object_placement(pos, kind, height, clearance)?;
+        Ok(self.insert_validated_object(pos, kind, axis, height, clearance, next_id))
+    }
+
+    /// Preview the exact player path placement without changing authoritative
+    /// state, allocating an identity, or warming/invalidating connectivity.
+    pub fn validate_path(&self, pos: TilePos, height: u8) -> Result<(), PlacementError> {
+        self.validate_path_placement(pos, height).map(|_| ())
+    }
+
+    /// Place one level path with the same rules used by its read-only preview.
+    /// Player construction stays within the save format's path/object limits;
+    /// generic fixture construction intentionally retains its existing limits.
+    pub fn place_path(&mut self, pos: TilePos, height: u8) -> Result<ObjectId, PlacementError> {
+        let next_id = self.validate_path_placement(pos, height)?;
+        Ok(self.insert_validated_object(
+            pos,
+            ObjectKind::Path,
+            Axis::X,
+            height,
+            PATH_CLEARANCE,
+            next_id,
+        ))
+    }
+
+    fn validate_path_placement(&self, pos: TilePos, height: u8) -> Result<u64, PlacementError> {
+        let next_id =
+            self.validate_object_placement(pos, ObjectKind::Path, height, PATH_CLEARANCE)?;
+        if self.objects.len() >= crate::saves::MAX_OBJECTS {
+            return Err(PlacementError::CapacityExceeded {
+                resource: "objects",
+                max: crate::saves::MAX_OBJECTS,
+            });
+        }
+        if self
+            .objects
+            .iter()
+            .filter(|object| object.kind == ObjectKind::Path)
+            .count()
+            >= crate::saves::MAX_PATHS
+        {
+            return Err(PlacementError::CapacityExceeded {
+                resource: "paths",
+                max: crate::saves::MAX_PATHS,
+            });
+        }
+        Ok(next_id)
+    }
+
+    /// Return the next allocator value only after all geometric rules pass.
+    /// Both generic construction and the player preview use this validation.
+    fn validate_object_placement(
+        &self,
+        pos: TilePos,
+        kind: ObjectKind,
+        height: u8,
+        clearance: u8,
+    ) -> Result<u64, PlacementError> {
         let tile = self.tile(pos).ok_or(PlacementError::OutOfBounds { pos })?;
         if clearance == 0 {
             return Err(PlacementError::EmptyClearance);
@@ -187,10 +256,20 @@ impl Park {
                 object: object.id,
             });
         }
-        let next_id = self
-            .next_object_id
+        self.next_object_id
             .checked_add(1)
-            .ok_or(PlacementError::IdExhausted)?;
+            .ok_or(PlacementError::IdExhausted)
+    }
+
+    fn insert_validated_object(
+        &mut self,
+        pos: TilePos,
+        kind: ObjectKind,
+        axis: Axis,
+        height: u8,
+        clearance: u8,
+        next_id: u64,
+    ) -> ObjectId {
         let id = ObjectId(self.next_object_id);
         self.objects.push(SurfaceObject {
             id,
@@ -204,7 +283,7 @@ impl Park {
         if kind == ObjectKind::Path {
             self.path_cache.invalidate();
         }
-        Ok(id)
+        id
     }
 
     /// Remove only the requested object, retaining the order and IDs of others.
@@ -273,7 +352,256 @@ pub(crate) fn terrain_allows(kind: ObjectKind, height: u8, clearance: u8, terrai
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Speed, TerrainProfile};
+    use crate::{Guest, GuestId, GuestState, Speed, TerrainProfile};
+
+    #[test]
+    fn player_path_preview_and_commit_share_rules_without_preview_side_effects() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(71).unwrap();
+        park.advance(Speed::Normal);
+        park.set_terrain_height(TilePos { x: 0, y: 0 }, 4).unwrap();
+        let cases = [
+            (TilePos { x: 32, y: 0 }, 8, false),
+            (TilePos { x: 0, y: 0 }, 3, false),
+            (TilePos { x: 13, y: 16 }, 8, false),
+            (TilePos { x: 13, y: 16 }, 0, false),
+            (TilePos { x: 0, y: 0 }, MAX_PATH_HEIGHT + 1, false),
+            (TilePos { x: 0, y: 0 }, u8::MAX, false),
+            (TilePos { x: 0, y: 0 }, 4, true),
+            (TilePos { x: 13, y: 16 }, 2, true),
+            (TilePos { x: 13, y: 16 }, 6, true),
+            (TilePos { x: 0, y: 0 }, MAX_PATH_HEIGHT, true),
+        ];
+        for (pos, height, allowed) in cases {
+            let mut candidate = park.clone();
+            let cache = candidate.path_cache_stats();
+            let preview = candidate.validate_path(pos, height);
+            assert_eq!(preview.is_ok(), allowed, "{pos:?} at {height}");
+            assert_eq!(candidate, park);
+            assert_eq!(candidate.path_cache_stats(), cache);
+            let committed = candidate.place_path(pos, height);
+            assert_eq!(committed.map(|_| ()), preview);
+            if let Ok(id) = committed {
+                let object = candidate.object(id).unwrap();
+                assert_eq!((object.kind, object.axis), (ObjectKind::Path, Axis::X));
+                assert_eq!(object.clearance, PATH_CLEARANCE);
+                assert_eq!(candidate.ticks(), park.ticks());
+                assert_eq!(candidate.guests(), park.guests());
+                assert_eq!(
+                    candidate.path_cache_stats().invalidations,
+                    cache.invalidations + 1
+                );
+                assert!(!candidate.path_cache_stats().cached);
+            } else {
+                assert_eq!(candidate, park);
+                assert_eq!(candidate.path_cache_stats(), cache);
+            }
+        }
+        park.next_object_id = u64::MAX;
+        let snapshot = park.clone();
+        let cache = park.path_cache_stats();
+        assert_eq!(
+            park.validate_path(TilePos { x: 0, y: 0 }, 4),
+            Err(PlacementError::IdExhausted)
+        );
+        assert_eq!(
+            park.place_path(TilePos { x: 0, y: 0 }, 4),
+            Err(PlacementError::IdExhausted)
+        );
+        assert_eq!(park, snapshot);
+        assert_eq!(park.path_cache_stats(), cache);
+    }
+
+    #[test]
+    fn player_path_cap_is_shared_with_saves_and_demolition_reopens_capacity() {
+        let mut park = Park::new(32, 32);
+        for index in 0..crate::saves::MAX_PATHS {
+            park.place_path(
+                TilePos {
+                    x: (index % 32) as u32,
+                    y: (index / 32) as u32,
+                },
+                0,
+            )
+            .unwrap();
+        }
+        assert!(park.to_save_bytes().is_ok());
+        let pos = TilePos { x: 0, y: 0 };
+        let snapshot = park.clone();
+        let cache = park.path_cache_stats();
+        let error = PlacementError::CapacityExceeded {
+            resource: "paths",
+            max: crate::saves::MAX_PATHS,
+        };
+        assert_eq!(park.validate_path(pos, 2), Err(error));
+        assert_eq!(park.place_path(pos, 2), Err(error));
+        assert_eq!(park, snapshot);
+        assert_eq!(park.path_cache_stats(), cache);
+        let old = park.objects()[0].id;
+        park.remove_object(old).unwrap();
+        let replacement = park.place_path(pos, 0).unwrap();
+        assert!(replacement.0 > snapshot.objects().last().unwrap().id.0);
+        assert!(park.to_save_bytes().is_ok());
+        // Explicit diagnostic constructors keep their preexisting freedom.
+        park.place_object(pos, ObjectKind::Path, Axis::Y, 2, PATH_CLEARANCE)
+            .unwrap();
+        assert!(park.to_save_bytes().is_err());
+    }
+
+    #[test]
+    fn player_path_respects_total_object_capacity_before_allocating() {
+        let mut park = Park::new(32, 32);
+        for index in 0..crate::saves::MAX_OBJECTS - 1 {
+            park.place_object(
+                TilePos {
+                    x: (index % 32) as u32,
+                    y: ((index / 32) % 32) as u32,
+                },
+                ObjectKind::Track,
+                Axis::Y,
+                (index / 1024 * 2) as u8,
+                2,
+            )
+            .unwrap();
+        }
+        park.place_path(TilePos { x: 31, y: 31 }, 6).unwrap();
+        assert!(park.to_save_bytes().is_ok());
+        let snapshot = park.clone();
+        let error = PlacementError::CapacityExceeded {
+            resource: "objects",
+            max: crate::saves::MAX_OBJECTS,
+        };
+        let pos = TilePos { x: 0, y: 0 };
+        assert_eq!(park.validate_path(pos, 8), Err(error));
+        assert_eq!(park.place_path(pos, 8), Err(error));
+        assert_eq!(park, snapshot);
+        assert_eq!(park.path_cache_stats(), snapshot.path_cache_stats());
+    }
+
+    #[test]
+    fn player_bridge_demolition_and_rebuild_recover_a_guest_with_fresh_ids() {
+        let mut park = Park::new(8, 8);
+        let start = park.place_path(TilePos { x: 1, y: 1 }, 0).unwrap();
+        let bridge = park.place_path(TilePos { x: 2, y: 1 }, 0).unwrap();
+        let end = park.place_path(TilePos { x: 3, y: 1 }, 0).unwrap();
+        park.crowd_seed = Some(99);
+        park.crowd_rng = 99;
+        park.next_guest_id = 2;
+        park.guests.push(Guest {
+            id: GuestId(1),
+            current: Some(start),
+            next: None,
+            destination: None,
+            anchor: TilePos { x: 1, y: 1 },
+            height: 0,
+            progress: 0,
+            state: GuestState::Waiting,
+            arrivals: 0,
+            route: Default::default(),
+            wait_ticks: 0,
+        });
+        park.advance(Speed::Normal);
+        assert_eq!(park.guests()[0].next, Some(bridge));
+        assert_eq!(park.path_neighbors(start), vec![bridge]);
+        let ticks = park.ticks();
+        park.remove_object(bridge).unwrap();
+        assert_eq!(park.ticks(), ticks);
+        assert!(park.path_neighbors(start).is_empty());
+        assert!(park.path_neighbors(end).is_empty());
+        assert_eq!(park.guests()[0].state, GuestState::Lost);
+        assert!(park.guests()[0].next.is_none());
+        assert!(park.guests()[0].destination.is_none());
+        assert!(park.guests()[0].route.is_empty());
+        for _ in 0..60 {
+            park.advance(Speed::Normal);
+        }
+        assert_eq!(park.guests()[0].current, Some(start));
+        assert_eq!(park.guests()[0].state, GuestState::Lost);
+        let replacement = park.place_path(TilePos { x: 2, y: 1 }, 0).unwrap();
+        assert!(replacement.0 > end.0);
+        assert_eq!(park.path_neighbors(start), vec![replacement]);
+        assert_eq!(park.path_neighbors(end), vec![replacement]);
+        let mut loaded = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+        for _ in 0..180 {
+            park.advance(Speed::Normal);
+            loaded.advance(Speed::Normal);
+            assert_eq!(park, loaded);
+        }
+        assert_eq!(park.guests()[0].id, GuestId(1));
+        assert!(park.guests()[0].arrivals > 0);
+        assert_ne!(park.guests()[0].state, GuestState::Lost);
+    }
+
+    #[test]
+    fn constructed_and_demolished_paths_preserve_same_tick_save_continuation() {
+        for target in ["current", "next", "destination"] {
+            let mut park = Park::new(32, 32);
+            park.install_crowd_fixture(71).unwrap();
+            park.install_train_fixture().unwrap();
+            park.advance(Speed::Normal);
+            let extension = park.place_path(TilePos { x: 13, y: 21 }, 8).unwrap();
+            let guest = &park.guests()[0];
+            let removed = match target {
+                "current" => guest.current.unwrap(),
+                "next" => guest.next.unwrap(),
+                _ => guest.destination.unwrap(),
+            };
+            let removed_object = park.remove_object(removed).unwrap();
+            let ticks = park.ticks();
+            assert_eq!(park.guests()[0].state, GuestState::Lost);
+            assert!(!park.path_neighbors(extension).contains(&removed));
+            for guest in park.guests() {
+                assert!(
+                    !guest
+                        .current
+                        .into_iter()
+                        .chain(guest.next)
+                        .chain(guest.destination)
+                        .chain(guest.route.iter().copied())
+                        .any(|id| id == removed)
+                );
+            }
+            let bytes = park.to_save_bytes().unwrap();
+            let mut loaded = Park::from_save_bytes(&bytes).unwrap();
+            assert_eq!(park, loaded);
+            assert_eq!(bytes, loaded.to_save_bytes().unwrap());
+            park.advance(Speed::Paused);
+            loaded.advance(Speed::Paused);
+            assert_eq!(park.ticks(), ticks);
+            assert_eq!(park, loaded);
+            for tick in 0..240 {
+                if tick == 30 {
+                    let id = park
+                        .place_path(removed_object.pos, removed_object.height)
+                        .unwrap();
+                    let loaded_id = loaded
+                        .place_path(removed_object.pos, removed_object.height)
+                        .unwrap();
+                    assert_eq!(id, loaded_id);
+                    assert!(id.0 > extension.0);
+                }
+                if tick == 90 {
+                    assert_eq!(
+                        park.remove_object(extension),
+                        loaded.remove_object(extension)
+                    );
+                }
+                if tick == 120 {
+                    assert_eq!(
+                        park.place_path(TilePos { x: 13, y: 21 }, 8),
+                        loaded.place_path(TilePos { x: 13, y: 21 }, 8)
+                    );
+                }
+                park.advance(Speed::Fast);
+                loaded.advance(Speed::Fast);
+                assert_eq!(park, loaded, "{target}, continuation tick {tick}");
+            }
+            assert_eq!(
+                park.to_save_bytes().unwrap(),
+                loaded.to_save_bytes().unwrap()
+            );
+        }
+    }
 
     #[test]
     fn touching_ranges_stack_but_overlaps_reject_without_allocating_ids() {

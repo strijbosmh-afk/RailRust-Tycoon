@@ -18,6 +18,7 @@ use park_sim::{
 
 use crate::{
     MAP_SIZE, Simulation, ViewState,
+    path_tools::{self, PathTool, ToolState},
     persistence::{self, SaveAction, SaveSession},
     world::{self, ViewMode},
 };
@@ -46,9 +47,27 @@ enum Scene {
     Loaded,
     Backup,
     LoadError,
+    PathValid,
+    PathBlocked,
+    PathBuilt,
+    PathDemolish,
+    PathRemoved,
+    PathRecovered,
 }
 
 impl Scene {
+    fn is_path_tool(self) -> bool {
+        matches!(
+            self,
+            Self::PathValid
+                | Self::PathBlocked
+                | Self::PathBuilt
+                | Self::PathDemolish
+                | Self::PathRemoved
+                | Self::PathRecovered
+        )
+    }
+
     fn is_train(self) -> bool {
         matches!(
             self,
@@ -127,8 +146,14 @@ pub(super) fn configure(app: &mut App) {
                 Some("loaded") => Scene::Loaded,
                 Some("backup") => Scene::Backup,
                 Some("load-error") => Scene::LoadError,
+                Some("path-valid") => Scene::PathValid,
+                Some("path-blocked") => Scene::PathBlocked,
+                Some("path-built") => Scene::PathBuilt,
+                Some("path-demolish") => Scene::PathDemolish,
+                Some("path-removed") => Scene::PathRemoved,
+                Some("path-recovered") => Scene::PathRecovered,
                 _ => panic!(
-                    "unknown --capture-scene; see docs/SAVE_REPORT.md and docs/TRAIN_REPORT.md"
+                    "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
             },
         )
@@ -331,6 +356,9 @@ fn apply_preset(
         view.pan =
             point - Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
     }
+    if capture.scene.is_path_tool() {
+        prepare_path_scene(&mut sim.0, &mut view, capture.scene);
+    }
     if matches!(
         capture.scene,
         Scene::Saved | Scene::Loaded | Scene::Backup | Scene::LoadError
@@ -359,6 +387,111 @@ fn apply_preset(
     {
         window.resolution.set(1024.0, 680.0);
     }
+}
+
+/// Use the real map tool command after resolving the normal visible hit. These
+/// deterministic fixtures exercise commands and rendering, not native input.
+fn prepare_path_scene(park: &mut Park, view: &mut ViewState, scene: Scene) {
+    assert!(scene.is_path_tool());
+    let before = park.clone();
+    let build = matches!(scene, Scene::PathValid | Scene::PathBuilt);
+    let occupied = (!build).then(|| {
+        park.guests()
+            .iter()
+            .find_map(|guest| {
+                let object = *park.object(guest.current?)?;
+                let surface = SurfaceId::Object(object.id);
+                let point = world::surface_center(park, surface, view.rotation)?;
+                (world::pick_surface(point, park, view.rotation, view.view_mode) == Some(surface))
+                    .then_some((object, guest.id, point))
+            })
+            .expect("path capture needs a visible occupied path")
+    });
+    let (pos, height, point) = if let Some((object, _, point)) = occupied {
+        (object.pos, object.height, point)
+    } else {
+        let pos = TilePos { x: 13, y: 21 };
+        let height = 8;
+        let point = world::tile_center(pos, park.width(), view.rotation)
+            + Vec2::Y * (f32::from(height) + 0.22) * world::HEIGHT_STEP;
+        (pos, height, point)
+    };
+    view.path_tool = ToolState {
+        mode: if matches!(
+            scene,
+            Scene::PathDemolish | Scene::PathRemoved | Scene::PathRecovered
+        ) {
+            PathTool::Demolish
+        } else {
+            PathTool::Build
+        },
+        height,
+        ..default()
+    };
+    view.selected = None;
+    view.hovered = world::pick_surface(point, park, view.rotation, view.view_mode);
+    let click = matches!(
+        scene,
+        Scene::PathBuilt | Scene::PathRemoved | Scene::PathRecovered
+    );
+    path_tools::point_at(park, view, point, click);
+    match scene {
+        Scene::PathValid | Scene::PathBlocked | Scene::PathDemolish => {
+            assert_eq!(*park, before, "path previews must not mutate the park");
+            let preview = view
+                .path_tool
+                .preview
+                .expect("capture preview must be visible");
+            assert_eq!((preview.pos, preview.height), (pos, height));
+            assert_eq!(preview.valid, !matches!(scene, Scene::PathBlocked));
+            assert_eq!(preview.demolish, matches!(scene, Scene::PathDemolish));
+        }
+        Scene::PathBuilt => {
+            assert_eq!(park.objects().len(), before.objects().len() + 1);
+            let Some(SurfaceId::Object(id)) = view.selected else {
+                panic!("build capture must select its newly placed path");
+            };
+            let object = park.object(id).expect("placed path must exist");
+            assert_eq!((object.pos, object.height), (pos, height));
+            assert!(
+                before.object(id).is_none(),
+                "a placed path needs a fresh ID"
+            );
+        }
+        Scene::PathRemoved | Scene::PathRecovered => {
+            let (object, guest_id, _) = occupied.unwrap();
+            assert!(park.object(object.id).is_none());
+            assert_eq!(park.objects().len() + 1, before.objects().len());
+            assert!(
+                park.crowd_stats().lost > 0,
+                "removal must strand an occupied path"
+            );
+            assert_eq!(park.ticks(), before.ticks(), "removal happens while paused");
+            if matches!(scene, Scene::PathRecovered) {
+                view.path_tool.set_mode(PathTool::Build);
+                view.hovered = world::pick_surface(point, park, view.rotation, view.view_mode);
+                path_tools::point_at(park, view, point, true);
+                let Some(SurfaceId::Object(id)) = view.selected else {
+                    panic!("recovery capture must place a replacement path");
+                };
+                assert_ne!(id, object.id, "demolished IDs must not be reused");
+                assert_eq!(park.objects().len(), before.objects().len());
+                for _ in 0..120 {
+                    park.advance(Speed::Normal);
+                }
+                let guest = park
+                    .guests()
+                    .iter()
+                    .find(|guest| guest.id == guest_id)
+                    .unwrap();
+                assert_ne!(guest.state, park_sim::GuestState::Lost);
+            }
+        }
+        _ => unreachable!(),
+    }
+    view.zoom = 2.0;
+    view.pan = point - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+    view.scene_dirty = true;
 }
 
 fn prepare_train_scene(park: &mut Park, scene: Scene) {
@@ -690,6 +823,156 @@ mod tests {
             park.advance(Speed::Normal);
         }
         park
+    }
+
+    #[test]
+    fn path_previews_preserve_save_bytes_and_cache_at_all_rotations_and_views() {
+        for terrain in [TerrainProfile::Flat, TerrainProfile::Terraced] {
+            let mut original = park_at(600);
+            original.try_apply_terrain_profile(terrain).unwrap();
+            for rotation in 0..4 {
+                for view_mode in [ViewMode::Surface, ViewMode::Underground] {
+                    for scene in [Scene::PathValid, Scene::PathBlocked, Scene::PathDemolish] {
+                        let mut park = original.clone();
+                        let bytes = park.to_save_bytes().unwrap();
+                        let cache = park.path_cache_stats();
+                        let mut view = ViewState {
+                            rotation,
+                            view_mode,
+                            speed: Speed::Paused,
+                            capture_active: true,
+                            ..default()
+                        };
+                        prepare_path_scene(&mut park, &mut view, scene);
+                        assert_eq!(park, original);
+                        assert_eq!(park.to_save_bytes().unwrap(), bytes);
+                        assert_eq!(park.path_cache_stats(), cache);
+                        assert!(view.path_tool.preview.is_some());
+                        assert!(view.path_notice.is_none());
+                        assert!(view.save_pending.is_none());
+                        assert!(!view.remove_path_pending && !view.restore_paths_pending);
+                        assert!(!view.toggle_train_pending && !view.terrain_change_pending);
+                        assert_eq!(view.speed, Speed::Paused);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn path_capture_edits_only_the_target_and_recovers_with_a_fresh_id() {
+        for rotation in 0..4 {
+            for view_mode in [ViewMode::Surface, ViewMode::Underground] {
+                for scene in [Scene::PathBuilt, Scene::PathRemoved, Scene::PathRecovered] {
+                    let original = park_at(600);
+                    let mut park = original.clone();
+                    let mut view = ViewState {
+                        rotation,
+                        view_mode,
+                        speed: Speed::Paused,
+                        capture_active: true,
+                        ..default()
+                    };
+                    prepare_path_scene(&mut park, &mut view, scene);
+                    let removed: Vec<_> = original
+                        .objects()
+                        .iter()
+                        .filter(|object| park.object(object.id).is_none())
+                        .collect();
+                    let added: Vec<_> = park
+                        .objects()
+                        .iter()
+                        .filter(|object| original.object(object.id).is_none())
+                        .collect();
+                    assert_eq!(
+                        removed.len(),
+                        usize::from(!matches!(scene, Scene::PathBuilt))
+                    );
+                    assert_eq!(
+                        added.len(),
+                        usize::from(!matches!(scene, Scene::PathRemoved))
+                    );
+                    for object in original.objects() {
+                        if let Some(retained) = park.object(object.id) {
+                            assert_eq!(retained, object);
+                        }
+                    }
+                    for object in removed.iter().chain(&added) {
+                        assert_eq!(object.kind, ObjectKind::Path);
+                    }
+                    if matches!(scene, Scene::PathRecovered) {
+                        assert_eq!(added[0].pos, removed[0].pos);
+                        assert_eq!(added[0].height, removed[0].height);
+                        assert!(added[0].id > removed[0].id);
+                    }
+                    for y in 0..park.height() {
+                        for x in 0..park.width() {
+                            assert_eq!(
+                                park.tile(TilePos { x, y }),
+                                original.tile(TilePos { x, y })
+                            );
+                        }
+                    }
+                    assert_eq!(
+                        park.guests()
+                            .iter()
+                            .map(|guest| guest.id)
+                            .collect::<Vec<_>>(),
+                        original
+                            .guests()
+                            .iter()
+                            .map(|guest| guest.id)
+                            .collect::<Vec<_>>()
+                    );
+                    let mut expected_train = original.clone();
+                    let recovery_ticks = if matches!(scene, Scene::PathRecovered) {
+                        120
+                    } else {
+                        0
+                    };
+                    for _ in 0..recovery_ticks {
+                        expected_train.advance(Speed::Normal);
+                    }
+                    assert_eq!(park.ticks(), original.ticks() + recovery_ticks);
+                    assert_eq!(park.train(), expected_train.train());
+                    assert_eq!(park.circuit(), original.circuit());
+                    assert!(view.path_tool.preview.is_none());
+                    assert!(view.save_pending.is_none());
+                    assert_eq!(view.speed, Speed::Paused);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn path_capture_focus_stays_clear_of_controls_at_the_minimum_window() {
+        for scene in [
+            Scene::PathValid,
+            Scene::PathBlocked,
+            Scene::PathBuilt,
+            Scene::PathDemolish,
+            Scene::PathRemoved,
+            Scene::PathRecovered,
+        ] {
+            let mut park = park_at(600);
+            let mut view = ViewState {
+                rotation: 3,
+                speed: Speed::Paused,
+                capture_active: true,
+                ..default()
+            };
+            prepare_path_scene(&mut park, &mut view, scene);
+            let focus = view.pan
+                + Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+            for (width, height) in [(1024.0, 680.0), (1280.0, 800.0)] {
+                let mut window = Window::default();
+                window.resolution.set(width, height);
+                let (scale, center) = crate::camera_layout(&window, &view, &park);
+                let relative = (focus - center) / scale;
+                let screen = Vec2::new(width * 0.5 + relative.x, height * 0.5 - relative.y);
+                assert!(crate::is_map_position(screen, &window, false));
+            }
+        }
     }
 
     #[test]

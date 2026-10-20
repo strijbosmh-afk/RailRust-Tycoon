@@ -13,7 +13,10 @@ pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
 };
 pub use saves::{MAX_SAVE_BYTES, SaveError};
-pub use surfaces::{Axis, ObjectId, ObjectKind, PlacementError, SurfaceId, SurfaceObject};
+pub use surfaces::{
+    Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,
+    SurfaceObject,
+};
 pub use trains::{
     STATION_DWELL_TICKS, TRACK_UNITS, TrackDirection, TrackKind, TrackPiece, TrackPieceSpec,
     TrackPoint, TrackPort, Train, TrainCircuit, TrainError, TrainPhase, TrainPose,
