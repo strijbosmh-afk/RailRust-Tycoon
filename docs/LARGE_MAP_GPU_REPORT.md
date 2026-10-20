@@ -1,6 +1,6 @@
 # Controlled large-map rendering and GPU diagnostics — 0.9.0
 
-Date: 20 October 2026. This checkpoint adds an isolated rendering preview for the existing diagnostic parks and opt-in instrumented GPU/CPU render spans. Implementation is in progress on `codex/large-map-gpu-diagnostics`, based on the 0.8.0 checkpoint `318e729`. Runtime verification, source/review identity, CI, and packaging evidence are pending below.
+Date: 20 October 2026. This checkpoint adds an isolated rendering preview for the existing diagnostic parks and opt-in instrumented GPU/CPU render spans. Implementation `5d49b7e00ce25692aac3ad2d6dda86939afd0a47` is pushed on `codex/large-map-gpu-diagnostics`, based on the 0.8.0 checkpoint `318e729`, in [draft PR #7](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/7), stacked on PR #6. All 178 release tests, six local GPU profiles, inspected captures, bidirectional continuation, and implementation CI passed. Relocated package execution and all 24 payload hashes passed; the final refresh verified all fifteen current guides and all 24 payload hashes below.
 
 **No reference PC is selected.** The user explicitly excluded this poorly performing development PC as a performance reference. Any timings here are local diagnostics. They cannot establish minimum hardware, representative FPS, a portable speedup, or acceptance/failure of the proposed 60 FPS target. The full 256 × 256 / 5,000-guest / 50-ride gate PRF-05 remains in progress.
 
@@ -73,26 +73,54 @@ Reports retain up to 128 paths of at most 512 UTF-8 bytes, 4,096 samples per pat
 
 Physical GPU upload bytes/time and presentation timing remain explicitly unmeasured. A large pass timestamp alone cannot identify an upload, driver, or presentation bottleneck. Instrumentation itself adds work; these runs are diagnostic observations, not an uninstrumented FPS comparison.
 
+## Observed local diagnostic results
+
+Six production profiles completed with exit code 0 and valid wrapper reports: baseline/overview, save-scale/overview, and stress/crowd, each once with AutoVsync and once with AutoNoVsync. All requested 120 main-loop intervals. The three wrapper summaries and six raw profiles are retained byte-for-byte with a manifest in [the local dataset](https://github.com/strijbosmh-afk/RailRust-Tycoon/tree/codex/large-map-gpu-diagnostics/benchmarks/results/2026-10-20-large-map-gpu-local). All three summaries recorded the clean implementation commit above and the unchanged executable.
+
+The diagnostic host was Windows 11 Enterprise 10.0.26200, Intel Core i5-9400T, Intel UHD 630 driver 31.0.101.2115, and 8,453,365,760 bytes of physical RAM. Bevy used the Vulkan backend. This is the explicitly excluded development PC, not reference hardware. Power, temperature, and background load were not controlled.
+
+All six actual windows were 1920 × 1080 at scale 1, visible and focused throughout their measured intervals; size/present-mode configuration did not change. Occlusion was **unknown in all 120 intervals of every run**. Requested Auto modes may select backend fallbacks; these fields do not establish physical presentation timing.
+
+Every report had `samples_received`, enabled timestamp-query/inside-encoder/inside-pass features and pipeline statistics, and 24 diagnostic paths: opaque, transparent, UI, and upscaling passes, each with CPU/GPU elapsed values and four pipeline counters. None reached storage limits or retained invalid values. Baseline uncapped excluded 24 already-delivered pre-window observations; the other reports recorded zero. Source dropped batches remain unknown.
+
+| Fixture / camera | Requested mode | Main-loop intervals | Received GPU samples per named pass | Opaque-pass GPU mean ms | Landscape vertices |
+| --- | --- | --- | --- | --- | --- |
+| Baseline / overview | AutoVsync | 120 | 87 | 3.71345 | 99,282 |
+| Baseline / overview | AutoNoVsync | 120 | 88 | 3.44888 | 99,282 |
+| Save-scale / overview | AutoVsync | 120 | 85 | 18.94282 | 2,251,764 |
+| Save-scale / overview | AutoNoVsync | 120 | 91 | 20.21746 | 2,251,764 |
+| Stress / crowd | AutoVsync | 120 | 120 | 50.79779 | 2,251,764 |
+| Stress / crowd | AutoNoVsync | 120 | 120 | 49.07778 | 2,251,764 |
+
+Opaque values are **one instrumented GPU span**, not total GPU/frame time. The other three GPU spans, CPU encoding spans, pipeline counters, raw distributions, frame intervals, and memory samples remain in the dataset. Do not add spans together, subtract CPU values from main-loop values, infer an upload cost, or convert these local observations into a hardware requirement. Even the runs with 120 GPU samples have no exact source-frame correspondence.
+
+The large landscape mesh had 2,251,764 vertices and the same number of indices, representing 117,091,728 logical CPU payload bytes. This full static mesh remains submitted in both overview and focused crowd views; the value is not physical GPU upload traffic. No measured interval rebuilt the static scene. All runs retained 192 guest templates, one deck rebuild, and five guest-buffer growths. Stress final guest meshes contained 606,342–606,552 vertices, depending on the ending simulation state.
+
 ## Acceptance and evidence
 
 The bounded checkpoint requires correct controlled rendering, truthful diagnostic attribution, isolation from player persistence, and a relocated distributable build. It does not close PRF-05's hardware/full-workload gate.
 
 | Item | Current evidence |
 | --- | --- |
-| Source / PR / CI | Branch `codex/large-map-gpu-diagnostics`, base `318e729`; implementation/review/CI pending |
-| World/camera correctness | New tests cover 256-map corner/edge picking, scene/depth bounds, all rotations/views, and retained-renderer map replacement; full run pending |
-| Preview/input/persistence isolation | Implementation present; integration tests/runtime proof pending |
-| GPU reporting | Capability/status, delivery deduplication, window boundaries, invalid samples, and bounded storage tests implemented; full run pending |
+| Source / PR / CI | Implementation `5d49b7e00ce25692aac3ad2d6dda86939afd0a47`; branch `codex/large-map-gpu-diagnostics`; [draft PR #7](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/7) stacked on PR #6. [CI run 39435077589](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39435077589) completed successfully, including formatting, strict lint, tests, build/package, production continuation, CPU-report smoke checks, and artifact upload |
+| World/camera correctness | Passing regressions cover 256-map corner/edge picking, scene/depth bounds, all rotations/views, and retained-renderer map replacement |
+| Preview/input/persistence isolation | Integrated source tests and four production CLI rejection checks passed without creating a preview save directory |
+| GPU reporting | Passing tests cover capability/status, encoder-only timestamps, delivery deduplication, receipt boundaries, invalid values, and bounded storage; six production reports received actual GPU samples |
 | PowerShell wrapper | 44 AST-isolated checks passed; parser clean. Covers legacy reports, new fixtures, options, partial/unsupported outcomes, and contradictory GPU claims. No game/Cargo/CIM ran in this test |
-| Formatting / release tests / strict lint / build | Initial release suite passed 172 tests (107 game / 65 simulation); additional integration regressions and final source/build checks pending |
-| Inspected render captures and actual local GPU reports | Pending; do not infer timestamp support or performance before running |
-| Save continuation and ordinary 32-map regression | Pending for 0.9.0; historical 0.8.0 evidence remains in its report |
-| Executable / notices / package hashes / relocated launch | Pending |
+| Formatting / release tests / strict lint / build | All 178 release tests passed: 113 game / 65 simulation. Formatting, release Clippy with warnings denied, and release compilation passed |
+| Actual local GPU reports | Six completed profiles/wrapper checks, 120 main-loop intervals each, received counts and geometry above; raw data retained |
+| Inspected render captures | Six processes exited 0: old/new normal baseline plus four large views. Current images were inspected at 1280 × 800, paused after 600 ticks: full 256-map overview, save-scale Crowd rotation 1, stress Ride rotation 2 with circuit/cars, and stress Crowd rotation 3 Underground/Flat with 5,000 guests. Full overview fits and focused views retain the intended content |
+| Save continuation and ordinary 32-map regression | Production 0.8 writes → 0.9 verifies and 0.9 writes → 0.8 verifies both passed 3,600 ticks/commands, full state, backup, and paused loading. Baseline image comparison found 42 differing pixels, all in the version-digit box x32..37/y739..746; zero outside it |
+| Executable | 46,109,696 bytes; SHA-256 `28df016814b5a86e0b9366ea0a380c284bcd9797f4c8c79fff29c61d64e17a88` |
+| Notices / package hashes / relocated launch | Package contains 24 payloads plus manifest, 291 dependency notices, default-font/Rust notices, and one required MSVC DLL. All 24 extracted payload hashes matched. A fresh temporary path with spaces/é ran from C:\Windows and passed 3,600-tick continuation/commands, explicit backup, paused load, and a stress Ride/rotation-2 capture byte-identical to the original. The executable hash remained unchanged. The final refresh verified all fifteen current guides and all 24 payload hashes |
+| Bundled wrapper relocation | The sibling executable was selected correctly. Baseline CPU 30 ticks and both 120-main-interval save-scale Ride/rotation-2/Underground GPU profiles completed with exit 0. Actual windows were 1920 × 1080, with 98/95 received GPU samples per pass for AutoVsync/AutoNoVsync. These are functional checks, not hardware acceptance |
 | Representative PC / full target | No reference PC selected; PRF-05 remains in progress |
 
-Verify a small, bounded matrix: full-map overview and focused moving crowd, all four rotations, Surface/Underground, and a ride view. Exercise ordinary 32-map/save behavior separately. Inspect the rendered image; successful PNG creation alone is insufficient. Profiles should report actual mesh counts, window state, and received GPU spans or explicit unavailability. Preserve unexpected or partial outcomes.
+The bounded runtime matrix exercised full-map overview and focused crowd/ride views, all four rotations across those captures, Surface/Underground, and Flat terrain. Ordinary 32-map/save behavior was checked separately. The fourteen production runtime checks passed; receipts, baseline comparison, and captures are under ignored `artifacts/large-map-gpu-0.9.0/`. The nine reviewed profile/summary JSON files are retained in the linked dataset with their checksum manifest. Preserve unexpected or partial outcomes in future runs rather than replacing them with inferred values.
 
-After results exist, record whether they justify a specific next rendering change or further instrumentation. Keep source checks, local GPU observation, package relocation, native input, clean-machine compatibility, and hardware acceptance as distinct evidence. Native Save/Load/Backup, O/F/buttons, physical Delete, panning/dragging/physical display, and clean-PC offline/standard-user gaps remain open unless directly reverified.
+The next proposed bounded rendering change is static terrain chunk visibility: retain the correct full-scene oracle, partition static geometry, and prove that a focused camera submits only intersecting chunks while overview, edge clipping, depth/picking, all rotations, and Underground remain equivalent. The current full landscape remains submitted even in a focused view; reducing that unnecessary work is a testable architecture change. This is **not a diagnosis of the dominant bottleneck** or a promise of FPS gains. Keep physical upload/presentation and representative-hardware acceptance separate.
+
+Source checks, local GPU observation, package relocation, native input, clean-machine compatibility, and hardware acceptance remain distinct evidence. Native Save/Load/Backup, O/F/buttons, physical Delete, panning/dragging/physical display, and clean-PC offline/standard-user gaps remain open unless directly reverified.
 
 Historical reports and both diagnostic datasets remain unchanged. The current source is in the original shared OneDrive folder:
 
