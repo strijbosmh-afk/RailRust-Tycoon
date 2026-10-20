@@ -1,6 +1,6 @@
 use super::{
     FOOTER, HEADER, MAP_SIZE, RIDE_PANEL_HEIGHT, RIDE_PANEL_MARGIN, RIDE_PANEL_WIDTH, SIDEBAR,
-    Simulation, ViewState, world::ViewMode,
+    SaveAction, Simulation, ViewState, world::ViewMode,
 };
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase};
@@ -28,6 +28,9 @@ pub(super) enum Action {
     RestorePaths,
     ToggleTrain,
     FocusTrain,
+    Save,
+    Load,
+    LoadBackup,
     Help,
     CloseHelp,
 }
@@ -46,6 +49,7 @@ pub(super) enum Label {
     Crowd,
     Train,
     TrainToggle,
+    SaveStatus,
 }
 
 #[derive(Component)]
@@ -167,7 +171,7 @@ pub(super) fn setup(mut commands: Commands) {
                 padding: UiRect::all(px(14)),
                 border: UiRect::right(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(8),
+                row_gap: px(6),
                 ..default()
             },
             BackgroundColor(PAPER),
@@ -252,13 +256,25 @@ pub(super) fn setup(mut commands: Commands) {
             .with_children(|p| {
                 dynamic_label(p, "12 guests / finding routes", 11.0, INK, Label::Crowd);
             });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Save", Action::Save, 63.0);
+                button(p, "Load", Action::Load, 63.0);
+                button(p, "Backup", Action::LoadBackup, 70.0);
+            });
+            dynamic_label(
+                p,
+                "F5 save / F9 load\nShift+F9 loads backup",
+                11.0,
+                INK,
+                Label::SaveStatus,
+            );
             p.spawn(Node {
                 flex_grow: 1.0,
                 ..default()
             });
             label(
                 p,
-                concat!("v", env!("CARGO_PKG_VERSION"), " / first coaster"),
+                concat!("v", env!("CARGO_PKG_VERSION"), " / park memories"),
                 10.0,
                 MUTED,
             );
@@ -338,7 +354,7 @@ pub(super) fn setup(mut commands: Commands) {
                     width: px(530),
                     padding: UiRect::all(px(24)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(8),
+                    row_gap: px(6),
                     ..default()
                 },
                 BackgroundColor(PAPER),
@@ -365,6 +381,8 @@ pub(super) fn setup(mut commands: Commands) {
                     ("Delete", "Remove the selected path"),
                     ("R", "Restore the demonstration paths"),
                     ("O / F", "Open or close ride / find circuit"),
+                    ("F5 / F9", "Save / load park"),
+                    ("Shift + F9", "Load the previous valid save"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
                     ("Esc", "Close help or clear selection"),
                 ] {
@@ -379,7 +397,7 @@ pub(super) fn setup(mut commands: Commands) {
                 }
                 label(
                     p,
-                    "Close lets the train finish its lap and park.\nSpace pauses the entire park.",
+                    "Load replaces the current park and starts paused.\nSave keeps the previous valid park as a backup.",
                     12.0,
                     MUTED,
                 );
@@ -424,6 +442,9 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             Action::RestorePaths => view.restore_paths_pending = true,
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
+            Action::Save => view.request_save(SaveAction::Save),
+            Action::Load => view.request_save(SaveAction::Load),
+            Action::LoadBackup => view.request_save(SaveAction::Backup),
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -545,6 +566,7 @@ pub(super) fn refresh(
             }
             .into(),
             Label::Grid => if view.grid { "Grid: on" } else { "Grid: off" }.into(),
+            Label::Terrain if view.terrain_custom => "Terrain: custom [T]".into(),
             Label::Terrain => match view.terrain_profile {
                 TerrainProfile::Flat => "Terrain: flat [T]",
                 TerrainProfile::Terraced => "Terrain: hills [T]",
@@ -598,6 +620,7 @@ pub(super) fn refresh(
                 "Open [O]"
             }
             .into(),
+            Label::SaveStatus => view.save_notice.clone(),
         };
         if text.0 != value {
             text.0 = value;

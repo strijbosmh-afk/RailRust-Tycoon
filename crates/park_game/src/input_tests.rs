@@ -1060,3 +1060,366 @@ fn moving_train_refreshes_only_dynamic_meshes_and_keeps_track_identity() {
         Some(SurfaceId::Object(selected))
     );
 }
+
+struct InputSaveDirectory(std::path::PathBuf);
+
+impl InputSaveDirectory {
+    fn new() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "Parkbound input save é {} {timestamp} {}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
+        ));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    fn session(&self) -> SaveSession {
+        SaveSession::from_arguments([
+            std::ffi::OsString::from("--save-dir"),
+            self.0.clone().into_os_string(),
+        ])
+    }
+
+    fn store(&self) -> save_store::SaveStore {
+        save_store::SaveStore::new(self.0.clone())
+    }
+}
+
+impl Drop for InputSaveDirectory {
+    fn drop(&mut self) {
+        if let (Ok(path), Ok(root)) = (
+            std::fs::canonicalize(&self.0),
+            std::fs::canonicalize(std::env::temp_dir()),
+        ) && path.parent() == Some(root.as_path())
+            && path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("Parkbound input save "))
+        {
+            let _ = std::fs::remove_dir_all(path);
+        }
+    }
+}
+
+fn persistence_input_app(
+    directory: &InputSaveDirectory,
+    park: Park,
+    view: ViewState,
+) -> (App, Entity) {
+    let (mut app, window) = input_app(park, view, 1.0);
+    app.insert_resource(directory.session())
+        .add_systems(Update, ui::button_actions.before(keyboard_input))
+        .add_systems(
+            Update,
+            persistence::apply_save_action
+                .after(keyboard_input)
+                .before(pointer_input),
+        );
+    (app, window)
+}
+
+fn persistence_key_frame(app: &mut App, pressed: &[KeyCode]) {
+    {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.reset_all();
+        for key in pressed {
+            keys.press(*key);
+        }
+    }
+    frame(app);
+    // frame() clears edge events, while reset_all() also releases held keys.
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .reset_all();
+}
+
+fn saved_file_pair(store: &save_store::SaveStore) -> (Vec<u8>, Vec<u8>) {
+    (
+        std::fs::read(store.save_path()).unwrap(),
+        std::fs::read(store.backup_path()).unwrap(),
+    )
+}
+
+fn persistence_parks() -> (Park, Park, Park) {
+    let first = train_park();
+    let mut second = first.clone();
+    for _ in 0..150 {
+        second.advance(Speed::Normal);
+    }
+    let mut live = second.clone();
+    for _ in 0..200 {
+        live.advance(Speed::Normal);
+    }
+    (first, second, live)
+}
+
+#[test]
+fn save_load_and_both_shift_backup_keyboard_gestures_restore_the_expected_park() {
+    let directory = InputSaveDirectory::new();
+    let store = directory.store();
+    let (first, second, live) = persistence_parks();
+    let (mut app, _) = persistence_input_app(
+        &directory,
+        first.clone(),
+        ViewState {
+            speed: Speed::Fast,
+            ..default()
+        },
+    );
+    persistence_key_frame(&mut app, &[KeyCode::F5]);
+    assert_eq!(store.load().unwrap(), first);
+    assert_eq!(app.world().resource::<ViewState>().speed, Speed::Fast);
+    assert_eq!(app.world().resource::<Simulation>().0, first);
+    assert!(!store.backup_path().exists());
+
+    app.world_mut().resource_mut::<Simulation>().0 = second.clone();
+    persistence_key_frame(&mut app, &[KeyCode::F5]);
+    assert_eq!(store.load_backup().unwrap(), first);
+    let files = saved_file_pair(&store);
+    app.world_mut().resource_mut::<Simulation>().0 = live.clone();
+    persistence_key_frame(&mut app, &[KeyCode::F9]);
+    assert_eq!(app.world().resource::<Simulation>().0, second);
+    assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
+    assert_eq!(app.world().resource::<ViewState>().save_pending, None);
+    for shift in [KeyCode::ShiftLeft, KeyCode::ShiftRight] {
+        app.world_mut().resource_mut::<Simulation>().0 = live.clone();
+        persistence_key_frame(&mut app, &[shift, KeyCode::F9]);
+        assert_eq!(app.world().resource::<Simulation>().0, first);
+        assert!(
+            app.world()
+                .resource::<ViewState>()
+                .save_notice
+                .starts_with("Backup loaded")
+        );
+        assert_eq!(saved_file_pair(&store), files);
+    }
+}
+
+#[test]
+fn simultaneous_keyboard_and_button_load_requests_never_save_over_their_source() {
+    for (keys, button, backup) in [
+        (vec![KeyCode::F5, KeyCode::F9], None, false),
+        (
+            vec![KeyCode::F5, KeyCode::ShiftLeft, KeyCode::F9],
+            None,
+            true,
+        ),
+        (vec![KeyCode::F9], Some(ui::Action::Save), false),
+        (vec![KeyCode::F5], Some(ui::Action::LoadBackup), true),
+    ] {
+        let directory = InputSaveDirectory::new();
+        let store = directory.store();
+        let (first, second, live) = persistence_parks();
+        store.save(&first).unwrap();
+        store.save(&second).unwrap();
+        let before = saved_file_pair(&store);
+        let (mut app, _) = persistence_input_app(&directory, live, ViewState::default());
+        if let Some(action) = button {
+            app.world_mut()
+                .spawn((Button, Interaction::Pressed, action));
+        }
+        persistence_key_frame(&mut app, &keys);
+        assert_eq!(
+            app.world().resource::<Simulation>().0,
+            if backup { first } else { second }
+        );
+        assert_eq!(saved_file_pair(&store), before);
+        assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
+        assert_eq!(app.world().resource::<ViewState>().save_pending, None);
+    }
+}
+
+#[test]
+fn help_and_capture_gate_all_persistence_inputs_without_deferred_actions() {
+    for (help, capture_active) in [(true, false), (false, true)] {
+        let directory = InputSaveDirectory::new();
+        let store = directory.store();
+        let (first, second, live) = persistence_parks();
+        store.save(&first).unwrap();
+        store.save(&second).unwrap();
+        let before = saved_file_pair(&store);
+        let (mut app, _) = persistence_input_app(
+            &directory,
+            live.clone(),
+            ViewState {
+                help,
+                capture_active,
+                speed: Speed::Fast,
+                ..default()
+            },
+        );
+        for keys in [
+            vec![KeyCode::F5],
+            vec![KeyCode::F9],
+            vec![KeyCode::ShiftRight, KeyCode::F9],
+        ] {
+            persistence_key_frame(&mut app, &keys);
+            assert_eq!(app.world().resource::<Simulation>().0, live);
+            assert_eq!(saved_file_pair(&store), before);
+            assert_eq!(app.world().resource::<ViewState>().save_pending, None);
+        }
+        for action in [ui::Action::Save, ui::Action::Load, ui::Action::LoadBackup] {
+            let button = app
+                .world_mut()
+                .spawn((Button, Interaction::Pressed, action))
+                .id();
+            frame(&mut app);
+            assert_eq!(app.world().resource::<Simulation>().0, live);
+            assert_eq!(saved_file_pair(&store), before);
+            assert_eq!(app.world().resource::<ViewState>().save_pending, None);
+            app.world_mut().despawn(button);
+        }
+        {
+            let mut view = app.world_mut().resource_mut::<ViewState>();
+            assert_eq!(view.speed, Speed::Fast);
+            view.help = false;
+            view.capture_active = false;
+        }
+        frame(&mut app);
+        assert_eq!(app.world().resource::<Simulation>().0, live);
+        assert_eq!(saved_file_pair(&store), before);
+        persistence_key_frame(&mut app, &[KeyCode::F9]);
+        assert_eq!(app.world().resource::<Simulation>().0, second);
+    }
+}
+
+#[test]
+fn save_load_and_backup_buttons_consume_one_press_and_do_not_repeat_while_held() {
+    for action in [ui::Action::Save, ui::Action::Load, ui::Action::LoadBackup] {
+        let directory = InputSaveDirectory::new();
+        let store = directory.store();
+        let (first, second, live) = persistence_parks();
+        store.save(&first).unwrap();
+        store.save(&second).unwrap();
+        let selected = Some(SurfaceId::Object(live.objects()[0].id));
+        let (mut app, window) = persistence_input_app(
+            &directory,
+            live.clone(),
+            ViewState {
+                selected,
+                ..default()
+            },
+        );
+        app.world_mut()
+            .spawn((Button, Interaction::Pressed, action));
+        set_cursor(&mut app, window, Some(Vec2::new(600.0, 400.0)));
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        frame(&mut app);
+        let expected = match action {
+            ui::Action::Save => &live,
+            ui::Action::Load => &second,
+            ui::Action::LoadBackup => &first,
+            _ => unreachable!(),
+        };
+        assert_eq!(&app.world().resource::<Simulation>().0, expected);
+        let view = app.world().resource::<ViewState>();
+        assert!(view.ui_pointer_consumed);
+        assert_eq!(view.save_pending, None);
+        assert_eq!(
+            view.selected,
+            if action == ui::Action::Save {
+                selected
+            } else {
+                None
+            }
+        );
+        assert_eq!(view.hovered, None);
+        let files = saved_file_pair(&store);
+
+        // Change live state while the UI component remains Pressed. A second
+        // execution would either reload the old state or rotate/replace files.
+        let mut advanced = expected.clone();
+        advanced.advance(Speed::Normal);
+        app.world_mut().resource_mut::<Simulation>().0 = advanced.clone();
+        frame(&mut app);
+        assert!(!app.world().resource::<ViewState>().ui_pointer_consumed);
+        assert_eq!(app.world().resource::<Simulation>().0, advanced);
+        assert_eq!(saved_file_pair(&store), files);
+    }
+}
+
+fn mesh_vertex_positions(mesh: &Mesh) -> Vec<[f32; 3]> {
+    mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+        .unwrap()
+        .as_float3()
+        .unwrap()
+        .to_vec()
+}
+
+fn all_scene_positions(app: &App) -> [Vec<[f32; 3]>; 4] {
+    let scene = app.world().resource::<SceneMeshes>();
+    let meshes = app.world().resource::<Assets<Mesh>>();
+    [
+        &scene.landscape,
+        &scene.guests,
+        &scene.train,
+        &scene.selection,
+    ]
+    .map(|handle| mesh_vertex_positions(meshes.get(handle).unwrap()))
+}
+
+#[test]
+fn same_tick_load_refreshes_land_guests_train_and_clears_the_selection_mesh() {
+    let directory = InputSaveDirectory::new();
+    let mut saved = train_park();
+    saved.set_terrain_height(TilePos { x: 0, y: 0 }, 3).unwrap();
+    let mut live = Park::new(MAP_SIZE, MAP_SIZE);
+    live.apply_terrain_profile(TerrainProfile::Terraced);
+    live.install_crowd_fixture(CROWD_SEED.wrapping_add(1))
+        .unwrap();
+    live.install_train_fixture().unwrap();
+    live.set_train_open(false);
+    for _ in 0..150 {
+        saved.advance(Speed::Normal);
+        live.advance(Speed::Normal);
+    }
+    assert_eq!(saved.ticks(), live.ticks());
+    assert_ne!(saved.guests(), live.guests());
+    assert_ne!(saved.train_cars(), live.train_cars());
+    directory.store().save(&saved).unwrap();
+    let selected = Some(SurfaceId::Object(live.circuit().unwrap().pieces[0].object));
+    let (mut app, _) = persistence_input_app(
+        &directory,
+        live,
+        ViewState {
+            selected,
+            ..default()
+        },
+    );
+    app.init_resource::<Assets<Mesh>>()
+        .init_resource::<Assets<ColorMaterial>>()
+        .add_systems(Startup, setup_scene)
+        .add_systems(Update, update_scene.after(pointer_input));
+    frame(&mut app);
+    let before = all_scene_positions(&app);
+    assert!(before.iter().all(|vertices| !vertices.is_empty()));
+    assert!(!app.world().resource::<ViewState>().scene_dirty);
+    persistence_key_frame(&mut app, &[KeyCode::F9]);
+    let after = all_scene_positions(&app);
+    for index in 0..3 {
+        assert_ne!(after[index], before[index], "mesh {index} stayed stale");
+    }
+    assert!(after[3].is_empty());
+    assert_eq!(app.world().resource::<Simulation>().0, saved);
+    let view = app.world().resource::<ViewState>();
+    assert_eq!(view.selected, None);
+    assert_eq!(view.hovered, None);
+    assert_eq!(view.speed, Speed::Paused);
+    assert!(!view.scene_dirty);
+    let expected = [
+        world::build_scene(&saved, view.rotation, view.grid, view.view_mode),
+        world::guest_mesh(&saved, view.rotation, view.view_mode),
+        world::train_mesh(&saved, view.rotation, view.view_mode),
+    ];
+    for index in 0..3 {
+        assert_eq!(after[index], mesh_vertex_positions(&expected[index]));
+    }
+}

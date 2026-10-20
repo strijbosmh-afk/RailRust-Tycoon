@@ -14,10 +14,12 @@ const DWELL_TICKS: u16 = 30;
 const FIXTURE_HEIGHT: u8 = 8;
 const FIXTURE_GUESTS: usize = 12;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+)]
 pub struct GuestId(pub u64);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum GuestState {
     Walking,
     Waiting,
@@ -29,19 +31,26 @@ pub enum GuestState {
 /// `current` is the starting path during movement; `next` is its adjacent
 /// destination for this edge. Lost guests retain a world anchor even when
 /// their supporting path has been deleted. No removed object ID is retained.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Guest {
     pub id: GuestId,
+    #[serde(deserialize_with = "crate::saves::required_option")]
     pub current: Option<ObjectId>,
+    #[serde(deserialize_with = "crate::saves::required_option")]
     pub next: Option<ObjectId>,
+    #[serde(deserialize_with = "crate::saves::required_option")]
     pub destination: Option<ObjectId>,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
     pub anchor: TilePos,
     pub height: u8,
     pub progress: u16,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub state: GuestState,
     pub arrivals: u64,
-    route: VecDeque<ObjectId>,
-    wait_ticks: u16,
+    #[serde(deserialize_with = "crate::saves::bounded_route")]
+    pub(crate) route: VecDeque<ObjectId>,
+    pub(crate) wait_ticks: u16,
 }
 
 /// Presentation may interpolate the integer edge without advancing the sim.

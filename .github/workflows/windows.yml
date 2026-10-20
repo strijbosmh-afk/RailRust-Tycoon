@@ -27,6 +27,15 @@ jobs:
       - name: Build the Windows distribution
         shell: pwsh
         run: ./scripts/package-windows.ps1
+      - name: Verify continuation across fresh processes
+        shell: pwsh
+        run: |
+          $proofDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound save proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write --save-dir $proofDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Save proof writer failed" }
+          & ./target/release/parkbound.exe --save-check verify --save-dir $proofDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process continuation failed" }
+          Get-Content -LiteralPath (Join-Path $proofDirectory "verification.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

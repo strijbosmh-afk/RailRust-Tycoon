@@ -3,6 +3,9 @@
 mod capture;
 #[cfg(test)]
 mod input_tests;
+mod persistence;
+mod save_check;
+mod save_store;
 mod ui;
 mod world;
 
@@ -15,6 +18,7 @@ use bevy::{
 #[cfg(test)]
 use park_sim::TilePos;
 use park_sim::{ObjectKind, Park, Speed, SurfaceId, TICKS_PER_SECOND, TerrainProfile};
+use persistence::{SaveAction, SaveSession};
 
 const MAP_SIZE: u32 = 32;
 const SIDEBAR: f32 = 248.0;
@@ -44,6 +48,7 @@ struct ViewState {
     ui_pointer_consumed: bool,
     scene_dirty: bool,
     terrain_profile: TerrainProfile,
+    terrain_custom: bool,
     terrain_change_pending: bool,
     terrain_error: Option<String>,
     capture_active: bool,
@@ -52,6 +57,8 @@ struct ViewState {
     path_notice: Option<String>,
     toggle_train_pending: bool,
     focus_train_pending: bool,
+    save_pending: Option<SaveAction>,
+    save_notice: String,
 }
 
 impl Default for ViewState {
@@ -71,6 +78,7 @@ impl Default for ViewState {
             ui_pointer_consumed: false,
             scene_dirty: false,
             terrain_profile: TerrainProfile::Terraced,
+            terrain_custom: false,
             terrain_change_pending: false,
             terrain_error: None,
             capture_active: false,
@@ -79,6 +87,8 @@ impl Default for ViewState {
             path_notice: None,
             toggle_train_pending: false,
             focus_train_pending: false,
+            save_pending: None,
+            save_notice: "F5 save / F9 load\nShift+F9 loads backup".into(),
         }
     }
 }
@@ -130,6 +140,14 @@ impl ViewState {
         self.hovered = None;
         self.scene_dirty = true;
     }
+
+    fn request_save(&mut self, action: SaveAction) {
+        // Loading wins over saving if multiple inputs arrive in one frame.
+        // A combined press must never overwrite the file it intends to load.
+        if self.save_pending.is_none_or(|pending| action >= pending) {
+            self.save_pending = Some(action);
+        }
+    }
 }
 
 #[derive(Resource)]
@@ -141,17 +159,16 @@ struct SceneMeshes {
 }
 
 fn main() -> AppExit {
-    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
-    park.apply_terrain_profile(TerrainProfile::Terraced);
-    park.install_crowd_fixture(CROWD_SEED)
-        .expect("the demonstration fixtures must fit the initial park");
-    park.install_train_fixture()
-        .expect("the demonstration train circuit must fit the initial park");
+    if let Some(result) = save_check::run(std::env::args_os().skip(1).collect()) {
+        return result;
+    }
+    let park = demonstration_park();
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .insert_resource(Simulation(park))
         .init_resource::<ViewState>()
+        .insert_resource(SaveSession::from_arguments(std::env::args_os().skip(1)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Parkbound - Meadow Lake".into(),
@@ -176,6 +193,7 @@ fn main() -> AppExit {
                 apply_terrain_profile,
                 apply_path_actions,
                 apply_train_actions,
+                persistence::apply_save_action,
                 pointer_input,
                 apply_camera,
                 update_scene,
@@ -185,6 +203,16 @@ fn main() -> AppExit {
         );
     capture::configure(&mut app);
     app.run()
+}
+
+fn demonstration_park() -> Park {
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    park.apply_terrain_profile(TerrainProfile::Terraced);
+    park.install_crowd_fixture(CROWD_SEED)
+        .expect("the demonstration fixtures must fit the initial park");
+    park.install_train_fixture()
+        .expect("the demonstration train circuit must fit the initial park");
+    park
 }
 
 fn setup_scene(
@@ -304,6 +332,17 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if keys.just_pressed(KeyCode::KeyF) {
         view.focus_train_pending = true;
     }
+    if keys.just_pressed(KeyCode::F5) {
+        view.request_save(SaveAction::Save);
+    }
+    if keys.just_pressed(KeyCode::F9) {
+        let backup = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+        view.request_save(if backup {
+            SaveAction::Backup
+        } else {
+            SaveAction::Load
+        });
+    }
     if keys.just_pressed(KeyCode::Home) {
         view.reset_camera();
     }
@@ -341,6 +380,7 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
             };
         } else {
             view.terrain_error = None;
+            view.terrain_custom = false;
         }
         view.terrain_change_pending = false;
         view.hovered = None;

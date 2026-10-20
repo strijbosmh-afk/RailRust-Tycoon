@@ -3,7 +3,9 @@
 use crate::{MAX_TERRAIN_HEIGHT, Park, TerrainHeightError, TilePos};
 
 /// A persistent object identity. Removed identities are never allocated again.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+)]
 pub struct ObjectId(pub u64);
 
 /// The selected simulation object, independent of camera view and visibility.
@@ -13,13 +15,13 @@ pub enum SurfaceId {
     Object(ObjectId),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum ObjectKind {
     Path,
     Track,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Axis {
     X,
     Y,
@@ -27,11 +29,15 @@ pub enum Axis {
 
 /// A proof object occupies one tile and the half-open height range
 /// `[height, height + clearance)`. Height is a simulation unit, not render depth.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SurfaceObject {
     pub id: ObjectId,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
     pub pos: TilePos,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub kind: ObjectKind,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
     pub axis: Axis,
     pub height: u8,
     pub clearance: u8,
@@ -254,7 +260,7 @@ impl Park {
     }
 }
 
-fn terrain_allows(kind: ObjectKind, height: u8, clearance: u8, terrain: u8) -> bool {
+pub(crate) fn terrain_allows(kind: ObjectKind, height: u8, clearance: u8, terrain: u8) -> bool {
     height >= terrain
         || (kind == ObjectKind::Track
             && u16::from(height) + u16::from(clearance) <= u16::from(terrain))
