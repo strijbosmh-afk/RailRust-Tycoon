@@ -16,7 +16,7 @@ const MAX_GUEST_VERTICES: usize = 2 * 42 + 126;
 const CLIPPED_POINTS: usize = 16;
 
 /// Algorithm counters, not allocator instrumentation or GPU measurements.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct GuestRenderStats {
     pub updates: u64,
     pub deck_rebuilds: u64,
