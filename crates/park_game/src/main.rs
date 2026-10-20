@@ -14,12 +14,13 @@ use bevy::{
 };
 #[cfg(test)]
 use park_sim::TilePos;
-use park_sim::{Park, Speed, SurfaceId, TICKS_PER_SECOND, TerrainProfile};
+use park_sim::{ObjectKind, Park, Speed, SurfaceId, TICKS_PER_SECOND, TerrainProfile};
 
 const MAP_SIZE: u32 = 32;
 const SIDEBAR: f32 = 248.0;
 const HEADER: f32 = 76.0;
 const FOOTER: f32 = 36.0;
+const CROWD_SEED: u64 = 20261020;
 
 #[derive(Resource)]
 struct Simulation(Park);
@@ -43,6 +44,9 @@ struct ViewState {
     terrain_change_pending: bool,
     terrain_error: Option<String>,
     capture_active: bool,
+    remove_path_pending: bool,
+    restore_paths_pending: bool,
+    path_notice: Option<String>,
 }
 
 impl Default for ViewState {
@@ -65,6 +69,9 @@ impl Default for ViewState {
             terrain_change_pending: false,
             terrain_error: None,
             capture_active: false,
+            remove_path_pending: false,
+            restore_paths_pending: false,
+            path_notice: None,
         }
     }
 }
@@ -122,12 +129,13 @@ impl ViewState {
 struct SceneMeshes {
     landscape: Handle<Mesh>,
     selection: Handle<Mesh>,
+    guests: Handle<Mesh>,
 }
 
 fn main() -> AppExit {
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);
     park.apply_terrain_profile(TerrainProfile::Terraced);
-    park.install_overlap_fixture()
+    park.install_crowd_fixture(CROWD_SEED)
         .expect("the demonstration fixtures must fit the initial park");
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
@@ -156,6 +164,7 @@ fn main() -> AppExit {
                 ui::button_actions,
                 keyboard_input,
                 apply_terrain_profile,
+                apply_path_actions,
                 pointer_input,
                 apply_camera,
                 update_scene,
@@ -188,6 +197,7 @@ fn setup_scene(
         view.rotation,
         view.view_mode,
     ));
+    let guests = meshes.add(world::guest_mesh(&sim.0, view.rotation, view.view_mode));
     let material = materials.add(ColorMaterial::from(Color::WHITE));
     commands.spawn((
         Mesh2d(landscape.clone()),
@@ -198,17 +208,25 @@ fn setup_scene(
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((
         Mesh2d(selection.clone()),
+        MeshMaterial2d(material.clone()),
+        NoFrustumCulling,
+    ));
+    commands.spawn((
+        Mesh2d(guests.clone()),
         MeshMaterial2d(material),
         NoFrustumCulling,
     ));
     commands.insert_resource(SceneMeshes {
         landscape,
         selection,
+        guests,
     });
 }
 
 fn tick_simulation(mut sim: ResMut<Simulation>, view: Res<ViewState>) {
-    sim.0.advance(view.speed);
+    if view.speed != Speed::Paused {
+        sim.0.advance(view.speed);
+    }
 }
 
 fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: ResMut<ViewState>) {
@@ -256,6 +274,12 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if keys.just_pressed(KeyCode::KeyU) {
         view.toggle_underground();
     }
+    if keys.just_pressed(KeyCode::Delete) {
+        view.remove_path_pending = true;
+    }
+    if keys.just_pressed(KeyCode::KeyR) {
+        view.restore_paths_pending = true;
+    }
     if keys.just_pressed(KeyCode::Home) {
         view.reset_camera();
     }
@@ -297,6 +321,43 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
         view.terrain_change_pending = false;
         view.hovered = None;
         view.scene_dirty = true;
+    }
+}
+
+fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.remove_path_pending {
+        view.remove_path_pending = false;
+        let selected_path = match view.selected {
+            Some(SurfaceId::Object(id))
+                if sim.0.object(id).is_some_and(|o| o.kind == ObjectKind::Path) =>
+            {
+                Some(id)
+            }
+            _ => None,
+        };
+        if let Some(id) = selected_path {
+            sim.0.remove_object(id);
+            view.selected = None;
+            view.hovered = None;
+            view.scene_dirty = true;
+            view.path_notice = Some("Path removed. R restores the walkway.".into());
+        } else {
+            view.path_notice = Some("Select a path to remove it.".into());
+        }
+    }
+    if view.restore_paths_pending {
+        view.restore_paths_pending = false;
+        match sim.0.restore_crowd_paths() {
+            Ok(()) => {
+                view.scene_dirty = true;
+                view.hovered = None;
+                view.path_notice = Some("Walkway restored. Guests can find new routes.".into());
+            }
+            Err(error) => {
+                warn!("Cannot restore walkway: {error}");
+                view.path_notice = Some("Cannot restore: a path space is occupied.".into());
+            }
+        }
     }
 }
 
@@ -419,6 +480,7 @@ fn update_scene(
     scene: Res<SceneMeshes>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut last_selection: Local<Option<SelectionSnapshot>>,
+    mut last_guests: Local<Option<(u64, u8, world::ViewMode)>>,
 ) {
     // Removed objects and invalid references must never leave a stale inspector
     // or outline. Valid hidden selections persist when switching view modes.
@@ -447,6 +509,13 @@ fn update_scene(
             );
         }
         *last_selection = Some(selection);
+    }
+    let guest_snapshot = (sim.0.ticks(), view.rotation, view.view_mode);
+    if terrain_changed || sim.is_changed() || *last_guests != Some(guest_snapshot) {
+        if let Some(mesh) = meshes.get_mut(&scene.guests) {
+            *mesh = world::guest_mesh(&sim.0, view.rotation, view.view_mode);
+        }
+        *last_guests = Some(guest_snapshot);
     }
 }
 

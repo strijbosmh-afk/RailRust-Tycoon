@@ -30,6 +30,9 @@ enum Scene {
     Selection,
     Path,
     Track,
+    Crowd,
+    Lost,
+    Recovered,
 }
 
 #[derive(Resource)]
@@ -41,6 +44,7 @@ struct Capture {
     terrain_profile: TerrainProfile,
     view_mode: ViewMode,
     small_window: bool,
+    ticks: u32,
     started: Instant,
     frames: u32,
     requested: bool,
@@ -49,7 +53,7 @@ struct Capture {
 }
 
 /// Install diagnostics only when `--capture-frame <absolute PNG path>` is set.
-/// Optional `--capture-scene overview|help|selection|path|track` selects a preset.
+/// Scene and tick presets make crowd movement and recovery reproducible.
 pub(super) fn configure(app: &mut App) {
     let arguments: Vec<OsString> = std::env::args_os().skip(1).collect();
     let Some(index) = arguments
@@ -83,7 +87,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("selection") => Scene::Selection,
                 Some("path") => Scene::Path,
                 Some("track") => Scene::Track,
-                _ => panic!("--capture-scene must be overview, help, selection, path, or track"),
+                Some("crowd") => Scene::Crowd,
+                Some("lost") => Scene::Lost,
+                Some("recovered") => Scene::Recovered,
+                _ => panic!("--capture-scene must be overview, help, selection, path, track, crowd, lost, or recovered"),
             },
         )
         .unwrap_or(Scene::Overview);
@@ -123,6 +130,18 @@ pub(super) fn configure(app: &mut App) {
     let small_window = arguments
         .iter()
         .any(|value| value == "--capture-small-window");
+    let ticks = arguments
+        .iter()
+        .position(|value| value == "--capture-ticks")
+        .map(|index| {
+            arguments
+                .get(index + 1)
+                .and_then(|value| value.to_str())
+                .and_then(|value| value.parse::<u32>().ok())
+                .filter(|value| *value <= 36_000)
+                .expect("--capture-ticks must be an integer between 0 and 36000")
+        })
+        .unwrap_or(600);
 
     let directory = destination
         .parent()
@@ -145,6 +164,7 @@ pub(super) fn configure(app: &mut App) {
         terrain_profile,
         view_mode,
         small_window,
+        ticks,
         started: Instant::now(),
         frames: 0,
         requested: false,
@@ -157,17 +177,52 @@ pub(super) fn configure(app: &mut App) {
 
 fn apply_preset(
     capture: Res<Capture>,
-    sim: Res<Simulation>,
+    mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
 ) {
     view.capture_active = true;
     view.set_speed(Speed::Paused);
     view.terrain_profile = capture.terrain_profile;
-    view.terrain_change_pending = true;
+    sim.0
+        .try_apply_terrain_profile(capture.terrain_profile)
+        .expect("capture terrain must preserve fixture clearance");
+    view.terrain_change_pending = false;
     view.view_mode = capture.view_mode;
     view.scene_dirty = true;
     view.help = matches!(capture.scene, Scene::Help);
+    for _ in 0..capture.ticks {
+        sim.0.advance(Speed::Normal);
+    }
+    let mut crowd_anchor = None;
+    if matches!(capture.scene, Scene::Lost | Scene::Recovered) {
+        let guest_id = sim.0.guests()[0].id;
+        let current = sim.0.guests()[0].current.expect("initial crowd has a path");
+        crowd_anchor = sim.0.object(current).map(|object| object.pos);
+        for neighbor in sim.0.path_neighbors(current) {
+            sim.0.remove_object(neighbor);
+        }
+        for _ in 0..60 {
+            sim.0.advance(Speed::Normal);
+        }
+        assert!(sim.0.crowd_stats().lost > 0, "isolated guest must be lost");
+        view.selected = Some(SurfaceId::Object(current));
+        if matches!(capture.scene, Scene::Recovered) {
+            sim.0
+                .restore_crowd_paths()
+                .expect("capture paths must restore");
+            for _ in 0..600 {
+                sim.0.advance(Speed::Normal);
+            }
+            let guest = sim
+                .0
+                .guests()
+                .iter()
+                .find(|guest| guest.id == guest_id)
+                .unwrap();
+            assert_ne!(guest.state, park_sim::GuestState::Lost);
+        }
+    }
     if matches!(capture.scene, Scene::Selection) {
         view.selected = Some(SurfaceId::Terrain(TilePos {
             x: MAP_SIZE * 2 / 5,
@@ -195,6 +250,12 @@ fn apply_preset(
     if let Some(rotation) = capture.rotation {
         view.rotation = rotation;
         view.scene_dirty = true;
+    }
+    if matches!(capture.scene, Scene::Crowd | Scene::Lost | Scene::Recovered) {
+        let anchor = crowd_anchor.unwrap_or(TilePos { x: 13, y: 17 });
+        view.zoom = 1.6;
+        view.pan = world::tile_center(anchor, MAP_SIZE, view.rotation)
+            + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
     }
     if matches!(capture.scene, Scene::Path | Scene::Track) {
         let point = world::surface_center(&sim.0, view.selected.unwrap(), view.rotation)

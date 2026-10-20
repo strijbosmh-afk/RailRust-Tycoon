@@ -21,6 +21,8 @@ pub(super) enum Action {
     Grid,
     Terrain,
     Underground,
+    RemovePath,
+    RestorePaths,
     Help,
     CloseHelp,
 }
@@ -36,6 +38,7 @@ pub(super) enum Label {
     Grid,
     Terrain,
     Underground,
+    Crowd,
 }
 
 #[derive(Component)]
@@ -77,7 +80,7 @@ fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: 
             action,
             Node {
                 width: px(width),
-                height: px(36),
+                height: px(30),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(px(1)),
@@ -153,10 +156,10 @@ pub(super) fn setup(mut commands: Commands) {
                 top: px(HEADER),
                 bottom: px(FOOTER),
                 width: px(SIDEBAR),
-                padding: UiRect::all(px(18)),
+                padding: UiRect::all(px(14)),
                 border: UiRect::right(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(10),
+                row_gap: px(8),
                 ..default()
             },
             BackgroundColor(PAPER),
@@ -169,7 +172,6 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                label(p, "YOUR FIRST PARK", 11.0, MUTED);
                 label(p, "Meadow Lake", 22.0, INK);
                 label(p, "32 x 32 tiles / woodland", 11.0, MUTED);
             });
@@ -225,13 +227,13 @@ pub(super) fn setup(mut commands: Commands) {
                     Label::SelectionDetails,
                 );
             });
-            p.spawn(Node {
-                flex_grow: 1.0,
-                ..default()
+            p.spawn(row()).with_children(|p| {
+                button(p, "Remove path", Action::RemovePath, 102.0);
+                button(p, "Restore [R]", Action::RestorePaths, 102.0);
             });
             p.spawn((
                 Node {
-                    padding: UiRect::all(px(10)),
+                    padding: UiRect::all(px(8)),
                     flex_direction: FlexDirection::Column,
                     row_gap: px(8),
                     ..default()
@@ -240,16 +242,15 @@ pub(super) fn setup(mut commands: Commands) {
                 BorderRadius::all(px(5)),
             ))
             .with_children(|p| {
-                label(
-                    p,
-                    "U reveals the buried track.\nT compares hills and flat land.",
-                    11.0,
-                    MUTED,
-                );
+                dynamic_label(p, "12 guests / finding routes", 11.0, INK, Label::Crowd);
+            });
+            p.spawn(Node {
+                flex_grow: 1.0,
+                ..default()
             });
             label(
                 p,
-                concat!("v", env!("CARGO_PKG_VERSION"), " / layered park study"),
+                concat!("v", env!("CARGO_PKG_VERSION"), " / first visitors"),
                 10.0,
                 MUTED,
             );
@@ -273,12 +274,7 @@ pub(super) fn setup(mut commands: Commands) {
         ))
         .with_children(|p| {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
-            label(
-                p,
-                "Q/E: rotate   T: terrain   U: underground   H: help",
-                11.0,
-                MUTED,
-            );
+            label(p, "Del: remove path   R: restore   H: help", 11.0, MUTED);
         });
 
     commands
@@ -300,9 +296,9 @@ pub(super) fn setup(mut commands: Commands) {
             p.spawn((
                 Node {
                     width: px(530),
-                    padding: UiRect::all(px(32)),
+                    padding: UiRect::all(px(24)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: px(14),
+                    row_gap: px(10),
                     ..default()
                 },
                 BackgroundColor(PAPER),
@@ -321,6 +317,8 @@ pub(super) fn setup(mut commands: Commands) {
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
                     ("U", "Show / hide underground view"),
+                    ("Delete", "Remove the selected path"),
+                    ("R", "Restore the demonstration paths"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
                     ("Esc", "Close help or clear selection"),
                 ] {
@@ -330,7 +328,7 @@ pub(super) fn setup(mut commands: Commands) {
                             label(p, purpose, 11.0, MUTED);
                         });
                 }
-                label(p, "The bridge crosses above the hill and buried track.\nBuilding tools, guests, rides and saves arrive later.", 12.0, MUTED);
+                label(p, "Guests explore the connected walkway.\nRemove a path, then restore it to see recovery.", 12.0, MUTED);
                 button(p, "Back to the park", Action::CloseHelp, 180.0);
             });
         });
@@ -368,6 +366,8 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             }
             Action::Terrain => view.toggle_terrain_profile(),
             Action::Underground => view.toggle_underground(),
+            Action::RemovePath => view.remove_path_pending = true,
+            Action::RestorePaths => view.restore_paths_pending = true,
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -447,6 +447,9 @@ pub(super) fn refresh(
                 view.zoom * 100.0
             ),
             Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
+            Label::Status if view.path_notice.is_some() && view.hovered.is_none() => {
+                view.path_notice.clone().unwrap()
+            }
             Label::Status => view.hovered.map_or(
                 format!("Meadow Lake  /  {MAP_SIZE} x {MAP_SIZE} tiles"),
                 |id| {
@@ -480,6 +483,13 @@ pub(super) fn refresh(
                 ViewMode::Underground => "Underground: on [U]",
             }
             .into(),
+            Label::Crowd => {
+                let stats = sim.0.crowd_stats();
+                format!(
+                    "{} guests / {} walking\n{} waiting / {} lost\nDestinations reached: {}",
+                    stats.total, stats.walking, stats.waiting, stats.lost, stats.arrivals
+                )
+            }
         };
         if text.0 != value {
             text.0 = value;
