@@ -4,15 +4,15 @@ A free Windows theme park simulation in Rust, inspired by the classic isometric 
 
 Source repository: [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). **Continuing on another PC? Start with [RESUME_DEVELOPMENT.md](RESUME_DEVELOPMENT.md)** for setup, build commands, architecture, current status, and the next implementation steps.
 
-Version 0.8.0 completes reusable guest rendering and cached path connectivity. All 159 tests pass; paired rendered scenes are identical apart from the version digit, and saves continue correctly across 0.7/0.8 in both directions. [The optimization report](docs/OPTIMIZATION_REPORT.md) records the evidence and local diagnostic results. The playable demonstration retains its single save slot/backup, three-car circuit, twelve guests, path removal/recovery, terrain presets, and Surface/Underground inspection.
+Version 0.9.0 adds an isolated 256 × 256 rendering preview and optional GPU timestamp diagnostics; current implementation and verification are recorded in [the large-map/GPU report](docs/LARGE_MAP_GPU_REPORT.md). Normal play retains its 32 × 32 demonstration, single save slot/backup, three-car circuit, twelve guests, path removal/recovery, terrain presets, and Surface/Underground inspection. The completed 0.8.0 cache/rendering optimization remains the baseline.
 
 PRF-05 remains in progress. **No reference PC is selected:** the user rejected this poorly performing development PC as a reference. Its [historical 0.7.0 measurements](docs/PERFORMANCE_REPORT.md) are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC. The full 5,000-guest/50-ride target remains unproven: diagnostics currently use one circuit, and normal play retains its 32 × 32 map. The [save report](docs/SAVE_REPORT.md) preserves accepted 0.6.0 continuation evidence. Native Save/Load/Backup, O/F/buttons, and physical Delete still need retests. Track editing, boarding, ride revenue/ratings, and finances remain later milestones.
 
 ## Play the Windows build
 
-Extract the entire `Parkbound-0.8.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. All 23 extracted payload hashes matched; relocated save continuation and the bundled wrapper's CPU/render smoke checks passed from `C:\Windows`. The final documentation refresh verified all 23 payload hashes and fourteen current guides; see [the optimization report](docs/OPTIMIZATION_REPORT.md). A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder.
+Extract the entire `Parkbound-0.9.0-windows-x64.zip` archive into a folder and open `Parkbound.exe`. The build targets Windows 11 x64 and is packaged to run without Rust, Visual Studio, an internet connection, or an RCT installation. The game includes its procedural landscape, guests, train art, and default font. Current package verification is pending in [the large-map/GPU report](docs/LARGE_MAP_GPU_REPORT.md). Historical 0.8.0 package evidence remains in its named report. A separate clean Windows machine without development tools remains untested. Generated binaries stay in the ignored local `dist` folder.
 
-The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Earlier milestone reports preserve their own results; they do not verify changed 0.8.0 code.
+The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Earlier milestone reports preserve their own results; they do not verify changed 0.9.0 code.
 
 ## Controls
 
@@ -78,13 +78,20 @@ The Windows ZIP also includes the wrapper. With PowerShell 7 installed, run `.\m
 
 `park_sim` owns engine-independent terrain, stable identities, clearance, path connectivity, seeded guests, sampled circuit geometry, train operation, complete fixed ticks, and validated save encoding/decoding. `park_game` owns filesystem storage, projection, shared surface rendering/picking, separate guest/train meshes, visibility, controls, and UI. A separate content crate will be introduced when authored ride/scenario definitions justify it.
 
+## Controlled rendering and GPU diagnostics
+
+Launch `parkbound.exe --render-case stress --render-camera crowd` for the isolated large fixture. Cases are `baseline`, `save-scale`, and `stress`; cameras are `overview`, `crowd`, and `ride`. `--render-rotation 0..3` and `--render-underground` select the view. Camera/inspection/speed remain available; editing and persistence are disabled in previews. Normal launches and saves stay 32 × 32.
+
+Add `--profile-gpu` to a `--profile-frames <absolute-new.json>` run to request actual instrumented GPU timestamps where supported. Missing/unsupported data remains explicit. GPU spans, render-span CPU, main-loop pacing, and unmeasured presentation/upload are distinct. With the wrapper, `-SkipCpu -RenderCase stress -RenderCamera crowd -GpuDiagnostics -ProfileSamples 120` runs only the two frame modes; provide a new absolute `-OutputDirectory`. See [the current report](docs/LARGE_MAP_GPU_REPORT.md) for bounded commands and interpretation. Current source/runtime/package verification is pending.
+
 ## Project documents
 
 - [Resume development](RESUME_DEVELOPMENT.md): complete handoff and setup on another Windows PC.
 - [Development plan](DEVELOPMENT_PLAN.md): milestones and completion gates.
 - [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): feature inventory and acceptance criteria.
 - [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed choices, working defaults, and open decisions.
-- [Optimization report](docs/OPTIMIZATION_REPORT.md): current 0.8.0 cache/rendering work and verification.
+- [Large-map/GPU report](docs/LARGE_MAP_GPU_REPORT.md): current 0.9.0 preview, diagnostic methods, CLI, and evidence.
+- [Optimization report](docs/OPTIMIZATION_REPORT.md): completed 0.8.0 cache/rendering work and verification.
 - [Performance report](docs/PERFORMANCE_REPORT.md): historical 0.7.0 local diagnostics, with the corrected hardware designation.
 - [Save report](docs/SAVE_REPORT.md): historical 0.6.0 continuation proof and format/storage contract.
 - [Train report](docs/TRAIN_REPORT.md): historical 0.5.0 circuit proof, verification, and remaining checks.
@@ -100,4 +107,4 @@ All planned gameplay will be included in the free download. The project's source
 
 Packaging creates a Windows ZIP and SHA-256 checksums under `dist`. It does not upload or publish a release. The retained 0.6.0 implementation is in [draft PR #4](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/4), with [passing implementation CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39422425034). The historical 0.7.0 implementation `e93eb99` is in [draft PR #5](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/5), stacked on the save review. Its 147 local release tests and strict source checks passed; [implementation CI](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126) passed for that exact commit. CI prepares a review artifact; it does not create a public release. Check the exact commit's run after further code changes.
 
-Current runtime implementation `9460a9` and the PowerShell-only validator correction `3f1ea88` are pushed in [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6), stacked on PR #5. All 159 release tests, formatting, strict linting, and release compilation passed; [Windows CI run 39429282120](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120) passed for `3f1ea88`. The bounded optimization is complete; full-target hardware acceptance remains open. Later heads need their own CI status, and the final ZIP hash is in its adjacent `.sha256` file.
+Historical 0.8.0 runtime implementation `9460a9` and the PowerShell-only validator correction `3f1ea88` are pushed in [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6), stacked on PR #5. All 159 release tests, formatting, strict linting, and release compilation passed; [Windows CI run 39429282120](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120) passed for `3f1ea88`. The bounded optimization is complete. Current 0.9.0 source/review/CI evidence remains pending in its report; full-target hardware acceptance remains open. Later heads need their own CI status, and the final ZIP hash is in its adjacent `.sha256` file.

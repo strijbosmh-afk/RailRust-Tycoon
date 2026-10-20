@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-This is the handoff guide for **RailRust-Tycoon**, the repository for an original Rust theme park simulation inspired by classic RollerCoaster Tycoon 1 and 2. The application currently displays **Parkbound**, a temporary working title; the repository name does not rename the application. Current milestone: guest-rendering/path-cache optimization **0.8.0**, 20 October 2026. Read [the optimization report](docs/OPTIMIZATION_REPORT.md) for current implementation and evidence. **No reference PC is selected:** this poorly performing development PC was explicitly rejected as a reference; its measurements are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC.
+This is the handoff guide for **RailRust-Tycoon**, the repository for an original Rust theme park simulation inspired by classic RollerCoaster Tycoon 1 and 2. The application currently displays **Parkbound**, a temporary working title; the repository name does not rename the application. Current milestone: controlled large-map rendering and GPU diagnostics **0.9.0**, 20 October 2026. Read [the large-map/GPU report](docs/LARGE_MAP_GPU_REPORT.md) for current implementation and evidence. **No reference PC is selected:** this poorly performing development PC was explicitly rejected as a reference; its measurements are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
 
@@ -8,7 +8,7 @@ The repository contains the source, locked dependencies, build scripts, notices,
 
 ### Shared OneDrive working folder
 
-The current 0.8.0 session uses the original PC's shared OneDrive workspace. Its full local path, recorded on 20 October 2026, is:
+The current 0.9.0 session uses the original PC's shared OneDrive workspace. Its full local path, recorded on 20 October 2026, is:
 
 ```text
 C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon
@@ -24,11 +24,11 @@ Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart T
 
 You can continue from that synced workspace or use a separate GitHub clone. The 0.3.0 checkout on the second PC was `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Both paths are retained intentionally. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
-The current feature branch is `codex/guest-rendering-path-cache`, continuing from 0.7.0 checkpoint `ffd8f1e`. Runtime implementation `9460a90180f94a1d8f73f5a35d3480caf43f0b14` and PowerShell-only validator correction `3f1ea886fea965a80bc5d3438ae80ecc4de4543d` are pushed in [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6), stacked on PR #5's performance branch. [Windows CI run 39429282120](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120) passed for `3f1ea88`; the runtime binary remains that of `9460a9`. Exact package evidence is in the optimization report. Historical 0.7.0 implementation `e93eb99ddb4ac84a8ea1bc6f8a324424e5d27559` remains in [PR #5](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/5), stacked on the save/train/crowd/overlap work. Inspect actual publication and merge state before switching PCs; cloning `main` may retrieve an older checkpoint.
+The current feature branch is `codex/large-map-gpu-diagnostics`, based on the completed 0.8.0 checkpoint `318e729`. Current runtime source/review/CI/package evidence is pending in the large-map/GPU report. Historical 0.8.0 runtime `9460a90180f94a1d8f73f5a35d3480caf43f0b14` and wrapper correction `3f1ea886fea965a80bc5d3438ae80ecc4de4543d` remain in [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6), with [successful CI run 39429282120](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120). Its review is stacked on PR #5 and the save/train/crowd/overlap history. Inspect actual publication and merge state before switching PCs; cloning `main` may retrieve an older checkpoint.
 
 Historical [Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. Its local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report retains that evidence; current measurement code requires its own checks. Documentation-only follow-up commits retain runtime source identity, but must be repackaged and their guides/hashes verified before handoff.
 
-The retained crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation checkpoint `51a79e8`. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); they were unmerged when the train work began. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. Its local ZIP passed relocation and all 18 payload hashes. This historical evidence does not verify changed 0.8.0 code; record current evidence in the optimization report.
+The retained crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation checkpoint `51a79e8`. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); they were unmerged when the train work began. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. Its local ZIP passed relocation and all 18 payload hashes. This historical evidence does not verify changed 0.9.0 code; record current evidence in the large-map/GPU report.
 
 ## 1. Read this first
 
@@ -44,24 +44,25 @@ Current defaults are offline single-player, an independent simulation library, o
 
 Read the project records in this order:
 
-1. [Optimization report](docs/OPTIMIZATION_REPORT.md): current 0.8.0 cache/rendering implementation and verification.
-2. [Performance report](docs/PERFORMANCE_REPORT.md): historical 0.7.0 local diagnostics and corrected hardware designation.
-3. [Save report](docs/SAVE_REPORT.md): historical 0.6.0 continuation acceptance.
-4. [Train report](docs/TRAIN_REPORT.md): historical 0.5.0 acceptance evidence.
-5. [Crowd report](docs/CROWD_REPORT.md): historical 0.4.0 acceptance evidence.
-6. [Overlap report](docs/OVERLAP_REPORT.md): historical 0.3.0 overlap proof.
-7. [Terrain report](docs/TERRAIN_REPORT.md): historical 0.2.0 evidence.
-8. [Foundation report](docs/FOUNDATION_REPORT.md): historical 0.1.0 evidence.
-9. [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed direction, defaults, and open decisions.
-10. [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): acceptance IDs and their states.
-11. [Development plan](DEVELOPMENT_PLAN.md): stages, architecture, and completion gates.
-12. [Asset provenance](docs/ASSET_PROVENANCE.md): asset ownership and attribution.
+1. [Large-map/GPU report](docs/LARGE_MAP_GPU_REPORT.md): current 0.9.0 preview, measurement semantics, and verification.
+1. [Optimization report](docs/OPTIMIZATION_REPORT.md): completed 0.8.0 cache/rendering implementation and verification.
+1. [Performance report](docs/PERFORMANCE_REPORT.md): historical 0.7.0 local diagnostics and corrected hardware designation.
+1. [Save report](docs/SAVE_REPORT.md): historical 0.6.0 continuation acceptance.
+1. [Train report](docs/TRAIN_REPORT.md): historical 0.5.0 acceptance evidence.
+1. [Crowd report](docs/CROWD_REPORT.md): historical 0.4.0 acceptance evidence.
+1. [Overlap report](docs/OVERLAP_REPORT.md): historical 0.3.0 overlap proof.
+1. [Terrain report](docs/TERRAIN_REPORT.md): historical 0.2.0 evidence.
+1. [Foundation report](docs/FOUNDATION_REPORT.md): historical 0.1.0 evidence.
+1. [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed direction, defaults, and open decisions.
+1. [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): acceptance IDs and their states.
+1. [Development plan](DEVELOPMENT_PLAN.md): stages, architecture, and completion gates.
+1. [Asset provenance](docs/ASSET_PROVENANCE.md): asset ownership and attribution.
 
 This guide is a continuation aid. Update the checklist and milestone reports as evidence changes rather than letting this dated baseline override later results.
 
 ## 2. What exists today
 
-| Area | Implementation for 0.8.0 |
+| Area | Implementation for 0.9.0 |
 | --- | --- |
 | Park | Deterministic 32 × 32 site with grass, water, and sand. Starts in Terraced mode at heights 0/2/4/6; Flat mode remains available for comparison. |
 | Network and overlap | 37 path nodes at height 8 form a loop, junctions, and branches around the original walkway. Nine track tiles remain at x13/y12..20, height 0. Each occupies two height steps. |
@@ -74,20 +75,21 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 | Simulation | Separate window-independent Rust library with bounded terrain, stable identities, shared clearance, atomic fixtures, deterministic crowds/RNG, validated circuit geometry, complete ticks, and a serde-based validated JSON codec. |
 | Persistence | One primary slot and explicit previous-valid backup under LocalAppData; staged replacement, exclusive writer lock, bounded parsing/validation, and load paused with rebuilt presentation. No startup save/load. |
 | Diagnostics | Surface/crowd presets plus train/lift/drop/brake/return/closed scenes, bounded tick/phase seeking, map/view/rotation/minimum-window options, PNG verification, and exit status. |
-| Measurement | Opt-in CPU baseline/save-scale/stress fixtures; baseline main-loop frame profiling; sequential Windows wrapper with source/binary identity, hardware metadata, bounded processes, and 200 ms memory samples. Historical local diagnostic batches completed in 0.7.0; current cache/render comparisons and counters are tracked in the optimization report. |
+| Measurement | Opt-in CPU baseline/save-scale/stress fixtures; baseline main-loop frame profiling; sequential Windows wrapper with source/binary identity, hardware metadata, bounded processes, and 200 ms memory samples. Historical local diagnostic batches completed in 0.7/0.8. Version 0.9 adds controlled large-map profiles and optional actual GPU timestamp spans; current evidence is tracked in the large-map/GPU report. |
 | Delivery | Windows packaging, native-runtime inspection/copying, dependency/font notices, checksums, and a GitHub Actions workflow. |
 
 **Not implemented:** general terrain/path/track editors, sloped paths, complete player construction, ride queues/boarding, guest needs/spending, general ride operations, coaster design/ratings, staff, economy, scenarios, research, audio, persistent settings, autosave, save browser, or migration support. Delete/Restore paths and Open/Close train are proof controls. Guests and cars are not individually selectable. Preset switching preserves authoritative state and object identities/heights; Flat exposes the original buried track. Each normal launch creates a fresh demonstration without touching a saved park; Load explicitly resumes it. Trees, entrance arch, underground reference floor, and circuit support posts are decorative.
 
+**Version 0.9.0 is the current diagnostic slice.** It adds controlled baseline/save-scale/stress previews, usable overview/crowd/ride cameras, all-rotation/visibility rendering, and optional actual GPU timestamp spans through Bevy. Editing and persistence are disabled in previews; ordinary 32 × 32 play and save/load acceptance remain unchanged. CPU hooks, render-span CPU, GPU spans, and main-loop pacing are distinct; upload and presentation timing remain unmeasured. Forty-four isolated wrapper checks passed; full source/runtime/capture/package/CI evidence is pending in the large-map/GPU report. Do not carry historical results forward as verification of changed code.
 **The bounded 0.8.0 optimization is complete; PRF-05 remains in progress.** All 159 release tests (65 simulation/94 game), formatting, strict Clippy, and release compilation passed. Four local CPU reports completed with paired animated workloads matched, zero measured graph rebuilds, and unchanged template/deck/buffer-growth counters. Four 0.7/0.8 image pairs differed only in the version digit; bidirectional cross-version continuation passed 3,600 ticks/commands, full state, backup, and paused loading. No reference PC is selected, and this development PC must not be treated as one. Hardware requirements and the proposed 60 FPS at 1080p acceptance wait for an agreed representative machine. The one-circuit model, 32 × 32 player presentation, and 256-guest save cap still limit the full proposed workload.
 
-The current 45,947,392-byte executable has SHA-256 `f907dbfc3effdcd460ab5e84ef15bf58cf623f9321231f89dd4a2c2f99ba6c24`. All 23 extracted payload hashes matched in a fresh temporary path containing spaces and `é`. From `C:\Windows`, the extracted executable passed continuation/backup/paused-load verification, and the sibling wrapper passed baseline 30-tick CPU plus two 120-sample frame smoke checks. The frame windows were actually 1920 × 1080, visible/focused, with occlusion unknown; these are functional checks, not an FPS comparison. The final documentation refresh verified all 23 payload hashes and fourteen current guides against the workspace. The optimization report records exact source/CI/package identities and the adjacent archive checksum rule.
+The historical 0.8.0 45,947,392-byte executable has SHA-256 `f907dbfc3effdcd460ab5e84ef15bf58cf623f9321231f89dd4a2c2f99ba6c24`. All 23 extracted payload hashes matched in a fresh temporary path containing spaces and `é`. From `C:\Windows`, the extracted executable passed continuation/backup/paused-load verification, and the sibling wrapper passed baseline 30-tick CPU plus two 120-sample frame smoke checks. The frame windows were actually 1920 × 1080, visible/focused, with occlusion unknown; these are functional checks, not an FPS comparison. The final documentation refresh verified all 23 payload hashes and fourteen current guides against the workspace. The optimization report records exact source/CI/package identities and the adjacent archive checksum rule.
 
-Historical 0.7.0 local diagnostics passed 147 release tests, strict source checks, fourteen measurement processes, hosted CI, and package relocation with 22 payload hashes/thirteen guides. They recorded 37.94–40.15 main-loop FPS and 114.61–135.45 ms per stress guest-mesh rebuild on this PC. These remain local observations, not reference-hardware results or a target pass/fail. Original raw JSON/checksums/path names are preserved at `benchmarks/results/2026-10-20-reference/`; the historical name does not confer reference status. Changed 0.8.0 code requires its own evidence.
+Historical 0.7.0 local diagnostics passed 147 release tests, strict source checks, fourteen measurement processes, hosted CI, and package relocation with 22 payload hashes/thirteen guides. They recorded 37.94–40.15 main-loop FPS and 114.61–135.45 ms per stress guest-mesh rebuild on this PC. These remain local observations, not reference-hardware results or a target pass/fail. Original raw JSON/checksums/path names are preserved at `benchmarks/results/2026-10-20-reference/`; the historical name does not confer reference status. Changed 0.9.0 code requires its own evidence.
 
 **Historical PRF-04 is verified narrowly for same-build authoritative continuation in 0.6.0.** All 131 workspace tests passed: 56 simulation, 27 world/rendering, 28 input-system, five persistence, nine store, four main-module, and two capture tests. They include Windows failed-primary replacement rollback, bounded reads, rejection without mutation, full continuation/cache/ID checks, input precedence/gating, and same-update mesh refresh after loading. Formatting, strict Clippy, release build, and twelve inspected GPU captures passed; all controls/status/version fit at 1024 × 680.
 
-The historical 0.6.0 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. Its 20 payload hashes and twelve guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **Native Save/Load/Backup remains unverified.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; these results do not verify changed 0.8.0 code.
+The historical 0.6.0 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. Its 20 payload hashes and twelve guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **Native Save/Load/Backup remains unverified.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; these results do not verify changed 0.9.0 code.
 
 **PRF-03 is verified for the 0.5.0 automatic circuit and fixed-update behavior.** All 99 tests passed: 43 simulation, 27 world/rendering, 23 input-system, four main-module, and two capture tests. Formatting, strict Clippy, and release compilation passed. Sixteen GPU captures completed with exit code 0 and were inspected, including all rotations, lift/descent/braking, completed lap and parked train, minimum-window layouts, terrain/views, and crowd/overlap regressions. The train report records the executable hash and observed counters. A Bevy scheduling regression produced equal whole-Park state over 120 simulated seconds at 30/60/144 Hz update schedules; this is not measured hardware performance.
 
@@ -101,7 +103,7 @@ The **0.3.0 overlap proof is verified (PRF-01)**. Source commit `0220c7b` passed
 
 Historical 0.3.0 native input at 1280 × 800 selected Path #7 (display tile 15,17, height 8), revealed track with U, then selected Track #18 (14,18, height 0). The visibility button hid the track while retaining its ID and burial hint. Space paused at 02:14; Flat exposed the same track, all four rotations preserved identity/time, wheel zoom changed 100% → 113%, and Fit restored 100%. Hills hid the track again; clicking its old projection selected foreground terrain (12,19, height 6). Help/close preserved selection/time, and the native close button exited the process.
 
-Historical **0.2.0** evidence includes 34 passing tests, formatting, Clippy with warnings denied, seven inspected engine captures, and a release Windows ZIP. Its 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. See the terrain report. Clean-machine testing remains open; these results do not verify changed 0.8.0 code.
+Historical **0.2.0** evidence includes 34 passing tests, formatting, Clippy with warnings denied, seven inspected engine captures, and a release Windows ZIP. Its 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. See the terrain report. Clean-machine testing remains open; these results do not verify changed 0.9.0 code.
 
 The historical **0.1.0** foundation report records 16 passing tests, release compilation, formatting, Clippy, three inspected images, and a relocated ZIP launch with matching payload hashes. Keep these results attached to their named checkpoint.
 
@@ -123,7 +125,7 @@ Keyboard panning was not clearly established in the 0.3.0 native session, and ri
 | PRF-02 | Verified | 0.4.0 automated invariants, eleven inspected captures, and native path deletion/restoration/recovery establish the proof. Physical Delete shortcut retesting remains explicit; Remove path is verified. |
 | PRF-03 | Verified | 0.5.0 automatic circuit/fixed-update behavior passed 99 tests, sixteen captures, and normal launch showing lap 1; Space paused. Native O/F/buttons and physical hardware frame-rate performance remain open. |
 | PRF-04 | Verified | 0.6.0 technical continuation: 131 tests, production/extracted fresh-process replay/backup, twelve inspected captures, and relocated package hashes/guides passed. Native save controls remain unverified. |
-| PRF-05 | In progress | No reference PC is selected and this development PC is excluded as a reference. The bounded 0.8.0 guest-rendering/connectivity optimization is complete and verified. Full-target hardware acceptance and the unsupported 50-ride workload remain open. |
+| PRF-05 | In progress | No reference PC is selected and this development PC is excluded as a reference. The bounded 0.8.0 guest-rendering/connectivity optimization is complete and verified. Version 0.9.0 adds isolated large-map/GPU diagnostics with verification pending. Full-target hardware acceptance and the unsupported 50-ride workload remain open. |
 | Remaining gameplay/release entries | Planned | Consult the checklist for individual acceptance requirements. |
 
 Stage 1 is not fully accepted until its remaining panning/dragging, display, and fresh-machine requirements pass. Stage 2 has completed the stated PRF-01 through PRF-04 technical criteria and continues with PRF-05 measurement; the entire technical-proof stage and unverified controls remain unfinished.
@@ -149,7 +151,7 @@ On the second PC used for 0.3.0, pinned Rust and requested components were insta
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 ```
 
-That second PC lacked MSVC build tools and the Windows SDK because their installer could not obtain UAC elevation; its verified 0.3.0 runtime/package came from CI. The current 0.8.0 session uses the original OneDrive development PC, which built the crowd and train checkpoints locally. Inspect the actual toolchain on whichever PC is active rather than carrying the other machine's installation state forward. Install missing prerequisites before local builds, or use the hosted Windows workflow.
+That second PC lacked MSVC build tools and the Windows SDK because their installer could not obtain UAC elevation; its verified 0.3.0 runtime/package came from CI. The current 0.9.0 session uses the original OneDrive development PC, which built the crowd and train checkpoints locally. Inspect the actual toolchain on whichever PC is active rather than carrying the other machine's installation state forward. Install missing prerequisites before local builds, or use the hosted Windows workflow.
 
 Open a new PowerShell 7 terminal after installing the prerequisites. These commands inspect the tools and install the pinned Rust toolchain without changing your global default toolchain:
 
@@ -168,7 +170,7 @@ Set-Location "$env:USERPROFILE\source"
 git clone https://github.com/strijbosmh-afk/RailRust-Tycoon.git
 Set-Location RailRust-Tycoon
 git fetch origin
-git switch --track origin/codex/guest-rendering-path-cache
+git switch --track origin/codex/large-map-gpu-diagnostics
 git status --short --branch
 git remote -v
 rustup show active-toolchain
@@ -176,7 +178,7 @@ rustc -vV
 cargo --version
 ```
 
-The branch-switch example assumes the 0.8.0 feature branch has been published and has not been merged elsewhere. Inspect `git branch -a` and the current PR before substituting another branch; a plain clone initially checks out the default branch, which may be older. If the local feature branch already exists, use `git switch codex/guest-rendering-path-cache` instead of `--track`.
+The branch-switch example assumes the 0.9.0 feature branch has been published and has not been merged elsewhere. Inspect `git branch -a` and the current PR before substituting another branch; a plain clone initially checks out the default branch, which may be older. If the local feature branch already exists, use `git switch codex/large-map-gpu-diagnostics` instead of `--track`.
 
 Confirm `rustc -vV` reports version 1.93.1 and host `x86_64-pc-windows-msvc`. Do not switch this project to the GNU Windows toolchain: the runtime inspection and packaging scripts assume MSVC.
 
@@ -285,7 +287,7 @@ if ($captureProcess.ExitCode -ne 0) { throw "Capture failed: exit code $($captur
 Get-Item -LiteralPath $capturePath
 ```
 
-Repeat with train phases and the retained crowd/surface/help scenes; compare Flat/Terraced and Surface/Underground in all four rotations, including minimum-window captures. Inspect cars on the rails, slopes/curves, station fit, foreground occlusion, track picking, guest recovery, and legible controls/counters. Compare phase/lap/tick states to establish movement, not merely the existence of markers. A valid PNG and successful exit do not prove visual correctness. Do not report another application's screenshot as game evidence. `artifacts` is ignored by Git; describe exact current evidence in the optimization report.
+Repeat with train phases and the retained crowd/surface/help scenes; compare Flat/Terraced and Surface/Underground in all four rotations, including minimum-window captures. Inspect cars on the rails, slopes/curves, station fit, foreground occlusion, track picking, guest recovery, and legible controls/counters. Compare phase/lap/tick states to establish movement, not merely the existence of markers. A valid PNG and successful exit do not prove visual correctness. Do not report another application's screenshot as game evidence. `artifacts` is ignored by Git; describe exact current evidence in the large-map/GPU report.
 
 ## 6. Package a portable Windows build
 
@@ -306,16 +308,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 
 Only use `-SkipBuild` immediately after a successful build of the current source. It does not prove an existing executable is up to date. The script assumes the normal host target output `release/parkbound.exe`; do not add a different `--target` layout or change its binary assumptions without updating and testing packaging.
 
-The version 0.8.0 package layout is shown below; final verification is recorded in the optimization report:
+The version 0.9.0 package layout is shown below; final verification is recorded in the large-map/GPU report:
 
 ```text
 dist/
-  Parkbound-0.8.0-windows-x64/
+  Parkbound-0.9.0-windows-x64/
     Parkbound.exe
     measure-performance.ps1
     ...runtime, notices, documentation, manifests...
-  Parkbound-0.8.0-windows-x64.zip
-  Parkbound-0.8.0-windows-x64.zip.sha256
+  Parkbound-0.9.0-windows-x64.zip
+  Parkbound-0.9.0-windows-x64.zip.sha256
 ```
 
 Packaging derives the version from Cargo metadata. It collects the locked Windows dependency notices, the embedded font license, Rust standard-library notices, and required MSVC redistributable DLLs. It writes `DEPENDENCIES.json`, `NATIVE_DEPENDENCIES.json`, `THIRD_PARTY_NOTICES.txt`, and `SHA256SUMS.txt`. Existing extracted package directories are preserved with a `.previous-...` suffix; the current ZIP is replaced. Check `dist` occasionally for accumulated previous packages.
@@ -327,8 +329,8 @@ If packaging reports missing Rust standard-library notices, install `rust-docs` 
 Check the ZIP hash against its adjacent `.sha256` file:
 
 ```powershell
-Get-FileHash -LiteralPath 'dist\Parkbound-0.8.0-windows-x64.zip' -Algorithm SHA256
-Get-Content -LiteralPath 'dist\Parkbound-0.8.0-windows-x64.zip.sha256'
+Get-FileHash -LiteralPath 'dist\Parkbound-0.9.0-windows-x64.zip' -Algorithm SHA256
+Get-Content -LiteralPath 'dist\Parkbound-0.9.0-windows-x64.zip.sha256'
 ```
 
 Extract **the entire ZIP**, then run `Parkbound.exe` from the extracted package. Test with an unrelated working directory, standard-user permissions, and a path containing spaces and non-ASCII characters. Run the same package on a clean Windows PC without Rust or Visual Studio and without networking before claiming portable release compatibility. Keep its required DLLs and notices beside the executable.
@@ -351,7 +353,9 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 | `crates/park_sim/src/diagnostics.rs` | Opt-in deterministic workload fixtures and a read-only adapter around the production path graph/BFS. |
 | `crates/park_game/src/benchmark.rs` | Bounded CPU simulation, graph, route, static/dynamic mesh, codec, and filesystem measurements with actual-work JSON. |
 | `crates/park_game/src/measurement.rs` | Shared timing summaries, percentile definitions, and new-output validation. |
-| `crates/park_game/src/frame_probe.rs` | Baseline main-loop frame profiles, CPU update timings, actual window/adapter metadata, and clock-cap accounting. |
+| `crates/park_game/src/frame_probe.rs` | Main-loop profiles, CPU hooks, actual fixture/camera/window metadata, mesh work counts, and optional GPU receipt collection. |
+| `crates/park_game/src/render_scene.rs` | Strict isolated fixture CLI, camera presets, edit/persistence isolation, and actual scene metadata. |
+| `crates/park_game/src/gpu_probe.rs` | Bounded asynchronous Bevy GPU/CPU render-span collection, enabled capability status, raw receipt samples, and attribution limits. |
 | `crates/park_game/src/save_store.rs` | LocalAppData path selection, bounded reads, staged/synced replacement, previous-valid backup, writer lock, and recovery errors. |
 | `crates/park_game/src/persistence.rs` | Save/Load/Backup requests, 32 × 32 app guard, atomic live-state replacement, paused view reset, and status. |
 | `crates/park_game/src/save_check.rs` | Opt-in fresh-process continuation/backup diagnostic using production save commands and a new explicit directory. |
@@ -412,11 +416,11 @@ UI button actions → keyboard input → apply pending terrain preset → apply 
 
 Path requests apply after terrain presets, followed by train-operation/focus and save/load actions, before picking and scene refresh. A successful load replaces the candidate and resets pending view requests, selection, and caches before those later systems run. Button actions clear and then set `ui_pointer_consumed` for that frame; loading also consumes the pointer so its button cannot select the new park underneath. Pending edits apply before picking, so a frame does not inspect stale surfaces. Preserve this ordering and its regression tests.
 
-`world.rs` uses 64 × 32 world-unit diamonds. `HEIGHT_STEP = 16` converts one simulation height step to presentation units. Geometry, depth, visibility, picking, and selection must agree across terrain and object layers. A cliff selects its terrain column; a path or track surface selects its own object ID. Ordinary picking excludes buried objects. Underground mode removes terrain from rendering/picking; its reference floor is non-selectable. Selection must obey scene occlusion rather than being forced above it. The legacy terrain-only picking wrapper remains for baseline tests. General map sizes require coordinated changes to square-map presentation assumptions, not only a larger `Park`.
+`world.rs` uses 64 × 32 world-unit diamonds. `HEIGHT_STEP = 16` converts one simulation height step to presentation units. Geometry, depth, visibility, picking, and selection must agree across terrain and object layers. A cliff selects its terrain column; a path or track surface selects its own object ID. Ordinary picking excludes buried objects. Underground mode removes terrain from rendering/picking; its reference floor is non-selectable. Selection must obey scene occlusion rather than being forced above it. The legacy terrain-only picking wrapper remains for baseline tests. Version 0.9 adds controlled square 256-map previews with conservative scene bounds and focused cameras. Rectangular maps remain unsupported by presentation; ordinary editable play/load stays 32 × 32.
 
 The camera and pointer transform use logical window pixels consistently. Mouse dragging uses successive logical cursor positions; replacing that with raw mouse-motion counts can reintroduce DPI-dependent behavior. UI exclusion bounds and camera offsets depend on `SIDEBAR`, `HEADER`, `FOOTER`, and the ride-panel dimensions/margin; change the layout and these boundaries together. The 236 × 152 ride panel is at the top right and blocks map input.
 
-Terrain, path, and track surfaces use a static procedural mesh rebuilt when dirty. Preset, visibility, removal, and restoration changes must invalidate scene and selection geometry even if selected identity stays unchanged. Circuit rendering/picking/selection share actual sampled faces, never the roofs of clearance envelopes. `world::GuestRenderer` now updates the separate guest mesh in place, while `world::train_mesh` retains the separate train mesh. Motion alone does not rebuild terrain. The old `world::guest_mesh` remains an independent geometry oracle. GuestRenderer prepares 192 body templates, caches full-object/dimension/rotation roof snapshots and an ID lookup, clips shadows in stack buffers, and reuses five CPU mesh vectors. This is not GPU instancing; actual GPU upload/presentation costs remain separate. Cars use authoritative center/front/rear poses; guests use endpoint/progress data. Both use shared depth and are not independent pick targets. Decorative supports are omitted where they intersect another object's occupied vertical range. `NoFrustumCulling` prevents stale bounds on changing meshes; retain it or update bounds correctly. Large-fixture CPU mesh costs are now measured; interactive large-map rendering and its GPU/presentation performance remain unmeasured.
+Terrain, path, and track surfaces use a static procedural mesh rebuilt when dirty. Preset, visibility, removal, and restoration changes must invalidate scene and selection geometry even if selected identity stays unchanged. Circuit rendering/picking/selection share actual sampled faces, never the roofs of clearance envelopes. `world::GuestRenderer` now updates the separate guest mesh in place, while `world::train_mesh` retains the separate train mesh. Motion alone does not rebuild terrain. The old `world::guest_mesh` remains an independent geometry oracle. GuestRenderer prepares 192 body templates, caches full-object/dimension/rotation roof snapshots and an ID lookup, clips shadows in stack buffers, and reuses five CPU mesh vectors. This is not GPU instancing; actual GPU upload/presentation costs remain separate. Cars use authoritative center/front/rear poses; guests use endpoint/progress data. Both use shared depth and are not independent pick targets. Decorative supports are omitted where they intersect another object's occupied vertical range. `NoFrustumCulling` prevents stale bounds on changing meshes; retain it or update bounds correctly. Large-fixture CPU mesh costs were measured in 0.7/0.8. Current controlled rendering and instrumented GPU-span evidence belongs to the 0.9 report; physical uploads and display presentation remain unmeasured.
 
 Zoom is bounded to 0.6–3.5; pan is bounded; Fit resets zoom/pan while retaining selection and accounts for terrain/object height. Keep the same camera layout calculation in rendering and pointer conversion. Rendering uses opaque white materials with vertex colors. Release builds use the Windows GUI subsystem, so opening the executable does not supply a normal console log window. Use capture exit status and the relevant debugger/log strategy when diagnosing a silent launch failure.
 
@@ -428,7 +432,7 @@ Build from the existing or newly cloned repository using the pinned toolchain; r
 
 ### B. Preserve the accepted PRF-01 overlap baseline
 
-The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while improving performance. Its historical evidence is recorded in the overlap report; record current regression results in the optimization report.
+The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while improving performance. Its historical evidence is recorded in the overlap report; record current regression results in the large-map/GPU report.
 
 1. Run simulation, geometry, input, formatting, lint, and release checks on the exact current source; inspect hosted CI for that commit.
 2. Demonstrate the shared crossing in all four rotations and both visibility modes, including Flat/Terraced comparison, zoom, pan, UI exclusion, and boundaries.
@@ -483,9 +487,19 @@ The retained historical local diagnostic data is in `benchmarks/results/2026-10-
 
 Version 0.8.0 completes reusable guest geometry and cached path connectivity with explicit invalidation. Its six raw JSON files and manifest are retained at `benchmarks/results/2026-10-20-optimization-local/`. One 300-tick run per case and one 1,800-tick stress run all completed, using clean source checkpoint `3f1ea88` and the unchanged runtime binary. Each animated pair completed sixty samples with equal final state/vertex totals; every measured tick reused the graph, and templates/decks/buffer capacities stayed unchanged through retained updates. The optimization report contains the timing table and noise limits. These are single local observations, not representative-hardware speedup claims.
 
-Retain the verified optimization and its regression oracles. The next performance investigation should collect render-thread/GPU/upload/presentation evidence and support a controlled large-map rendering scene before selecting another rendering strategy. The earlier 0.7.0 frame result cannot identify a GPU cause, and this milestone made no frame-performance comparison. Agree a representative PC separately before hardware acceptance; full ride-count/player-map/save-cap scaling remains open.
+Retain the verified optimization and its regression oracles. Version 0.9 below implements the next controlled large-map/GPU diagnostic slice before selecting another rendering strategy. The earlier 0.7.0 frame result cannot identify a GPU cause, and 0.8 made no frame-performance comparison. Agree a representative PC separately before hardware acceptance; full ride-count/player-map/save-cap scaling remains open.
 
-### G. Continue the full milestones
+### G. Verify controlled rendering and GPU diagnostics in 0.9.0
+
+Read [LARGE_MAP_GPU_REPORT.md](docs/LARGE_MAP_GPU_REPORT.md) before running diagnostic commands. `--render-case baseline|save-scale|stress` creates a separate preview; `--render-camera overview|crowd|ride`, `--render-rotation 0..3`, and `--render-underground` require that mode. It permits camera/inspection/pause/speed/grid/view/Find but blocks terrain, path edits/restoration, train operation, and saves. Normal startup, schema/content versions, and 32 × 32 load restrictions remain unchanged.
+
+`--profile-gpu` requires `--profile-frames <new-absolute.json>`. Existing profiles remain baseline/no-GPU without opt-ins. Optional shared render flags select a controlled 256 × 256 case. The wrapper supports `-SkipCpu -RenderCase stress -RenderCamera crowd -GpuDiagnostics -ProfileSamples 120`, plus an absolute new output directory, for two bounded frame modes without repeating CPU fixtures. It rejects no-run combinations and frame settings with SkipFrames. Historical reports remain accepted only without incompatible opt-ins.
+
+The receipt-window GPU API exposes actual per-span timestamp durations, render-encoding CPU durations, and optional pipeline counters. Enabled device features govern availability; missing support is explicit, never estimated from CPU time. Bevy delivers the latest diagnostics asynchronously: receipt frame/time are not source GPU frame identity; late warmup/final missing batches are possible. Never sum nested spans or call these presentation time. Logical mesh payload bytes/vertices/indices are generated CPU work, not physical GPU upload/allocation or visibility counts.
+
+Verify overview and focused visible crowd/ride rendering, all rotations and views, bounds/picking/depth, unchanged ordinary play/saves, and isolated controls. Retain partial/unavailable results. Current verification and next decision are pending actual evidence; no reference PC is selected and PRF-05 stays open. Preserve both historical diagnostic datasets byte-for-byte. Do not run long performance sweeps on this excluded host to make hardware decisions.
+
+### H. Continue the full milestones
 
 After technical proofs, Stage 3 integrates the first complete park loop: construction, paths, a flat ride, a shop, guests, queues, pricing, money, demolition, inspection, and saves. Stages 4–7 expand coasters, operations, ride families, original content, scenarios, and editors. Stage 8 covers performance, stability, balance, accessibility, and polish; Stage 9 closes public distribution. Keep each feature's persistence, UI, acceptance demonstration, and relevant tests in the same milestone.
 
@@ -493,7 +507,7 @@ Do not start all of these systems in one change. Select a small observable behav
 
 ## 9. Work safely across two PCs
 
-Use GitHub as the shared source history. This 0.8.0 session uses the original OneDrive folder recorded above. The separate second-PC clone remains `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`, with no verified OneDrive sync. For separate clones, push completed work to GitHub and fetch it on the receiving PC. For the shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
+Use GitHub as the shared source history. This 0.9.0 session uses the original OneDrive folder recorded above. The separate second-PC clone remains `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`, with no verified OneDrive sync. For separate clones, push completed work to GitHub and fetch it on the receiving PC. For the shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
 
 Before a work session:
 
@@ -503,19 +517,19 @@ git fetch origin
 git remote show origin
 ```
 
-Check the default branch and outstanding pull requests. This checkpoint is on `codex/guest-rendering-path-cache`, based on measurement checkpoint `ffd8f1e`. Inspect PR #5 and the save/train/crowd/overlap stack before deciding its current review base. Preserve that ancestry and review actual merge status before changing a PR base. Only switch/pull with a clean working tree or after deliberately preserving local changes.
+Check the default branch and outstanding pull requests. This checkpoint is on `codex/large-map-gpu-diagnostics`, based on optimization checkpoint `318e729`. Inspect PR #6 and the measurement/save/train/crowd/overlap stack before deciding its current review base. Preserve that ancestry and review actual merge status before changing a PR base. Only switch/pull with a clean working tree or after deliberately preserving local changes.
 
 To resume the published feature branch on a PC without a local copy:
 
 ```powershell
-git switch --track origin/codex/guest-rendering-path-cache
+git switch --track origin/codex/large-map-gpu-diagnostics
 ```
 
 If the local branch already exists:
 
 ```powershell
-git switch codex/guest-rendering-path-cache
-git pull --ff-only origin codex/guest-rendering-path-cache
+git switch codex/large-map-gpu-diagnostics
+git pull --ff-only origin codex/large-map-gpu-diagnostics
 ```
 
 After the full review stack merges, resume from the verified merge on `main` instead. Until then, retain the optimization branch ancestry and keep the review stacked deliberately. When a fast-forward fails, inspect histories and resolve intentionally; do not force-push or reset away the other PC's changes.
@@ -530,7 +544,7 @@ git status --short
 git diff --cached --stat
 git diff --cached
 git commit -m "Reuse guest rendering and cache path connectivity"
-git push -u origin codex/guest-rendering-path-cache
+git push -u origin codex/large-map-gpu-diagnostics
 ```
 
 The staging step is intentionally task-specific; do not accidentally include credentials, unrelated or unrequested private machine paths, diagnostics from other apps, executables, caches, or unrelated files. Ensure `Cargo.lock`, relevant notices, and documentation changes are included when they belong to the change. Do not commit generated `target`, `dist`, or `artifacts` directories. Preserve `.gitattributes`: supplementary notice files have recorded SHA-256 hashes, so changing their line endings through Windows Git settings would break verification. They are deliberately excluded from text normalization.
@@ -572,85 +586,66 @@ Public naming, final hardware/Windows requirements, signing, installer choice, s
 ## 11. Copy-paste prompt for the next coding assistant
 
 ```text
-Continue the Rust project https://github.com/strijbosmh-afk/RailRust-Tycoon.
-Parkbound is only its temporary application title. Read RESUME_DEVELOPMENT.md,
-docs/OPTIMIZATION_REPORT.md, the corrected historical PERFORMANCE_REPORT.md,
-the SAVE/TRAIN/CROWD/OVERLAP/TERRAIN/FOUNDATION reports, PRODUCT_DECISIONS,
+Continue https://github.com/strijbosmh-afk/RailRust-Tycoon, temporarily named Parkbound.
+Read RESUME_DEVELOPMENT.md, docs/LARGE_MAP_GPU_REPORT.md, the historical OPTIMIZATION/
+PERFORMANCE/SAVE/TRAIN/CROWD/OVERLAP/TERRAIN/FOUNDATION reports, PRODUCT_DECISIONS,
 GAMEPLAY_CHECKLIST, and DEVELOPMENT_PLAN. Inspect actual source/Git state first.
 
-The user explicitly rejected this poorly performing development PC as a reference.
-NO REFERENCE PC IS SELECTED. All old/new timings on this PC are local diagnostics
-only. Do not use its FPS to pass/fail a hardware target or set minimum requirements.
-Hardware targets and proposed 60 FPS at 1080p acceptance wait for an agreed
-representative PC. Preserve the original 0.7.0 JSON, hashes, and path names under
-benchmarks/results/2026-10-20-reference; that historical name is not hardware approval.
+NO REFERENCE PC IS SELECTED. The user explicitly rejected this poorly performing
+PC as a reference. All timings on it are local diagnostics only. Hardware requirements
+and proposed 60 FPS at 1080p acceptance wait for an agreed representative PC.
+Preserve historical raw JSON/hashes/path names in benchmarks/results; the old
+2026-10-20-reference directory name is not hardware approval.
 
-The bounded 0.8.0 guest-rendering/path-cache optimization is COMPLETE, on
-codex/guest-rendering-path-cache, in draft PR #6 stacked on PR #5. Runtime 9460a9
-and PowerShell-validator checkpoint 3f1ea88 passed 159 tests/source checks and hosted
-CI 39429282120. Read OPTIMIZATION_REPORT for full identities, cross-version
-continuation, version-only pixel differences, local counters, and package evidence.
-Do not reimplement this completed slice. Inspect actual review/merge state before
-choosing a new branch/base; later heads need their own CI status. Preserve unrelated
-changes and remote history. The current checkout is
-the original shared OneDrive path recorded in this guide; the second-PC path is a
-separate clone. Use only one active editing/build/Git session in the shared folder.
+Current milestone is 0.9.0 controlled large-map rendering/GPU diagnostics, branch
+codex/large-map-gpu-diagnostics from completed 0.8.0 checkpoint 318e729. Check current
+source/review/CI/package evidence in LARGE_MAP_GPU_REPORT before deciding what remains.
+Do not infer current verification from historical 159 tests or CI 39429282120.
+The bounded 0.8.0 cache/rendering optimization is complete; do not reimplement it.
+Inspect PR #6 and all stacked reviews/merge state before choosing the next base.
+Preserve unrelated changes and remote history. Current source is the original shared
+OneDrive path in this guide; the second-PC path is a separate clone. Use one active
+editing/build/Git session in the shared folder.
 
-park_sim owns deterministic integer Park state, complete 30 Hz ticks, stable IDs,
-RNG/order, graph/BFS, guests, train, and save validation. New PathCache retains an
-immutable Arc graph, invalidates on successful path placement/removal, and builds
-lazily on a crowd tick. Spatial lookup of cardinal (x,y,height) neighbors must retain
-ascending-ID tie order and identical random draws. Clone sharing must not share
-mutable counters/topology. PathCacheStats and cache warmth are derived diagnostics,
-excluded from authoritative equality and save bytes. Loading starts cold. Keep
-manual Park equality and the save DTO aligned when adding future authoritative state.
+Normal startup remains the 32x32 demonstration with explicit Save/Load/Backup.
+Render previews use --render-case baseline|save-scale|stress, camera overview|crowd|ride,
+rotation 0..3 and optional Underground. Camera/inspection/speed/grid/view/Find remain
+available; terrain/path edits/restoration, train Open/Close, and persistence are disabled.
+Capture/profile modes suppress ordinary input too. Larger square rendering is a
+controlled diagnostic, not general large-map player saves or a fifty-ride simulation.
 
-GuestRenderer is persistent presentation state with cached object lookup,
-projected roofs, 192 body templates and five reused CPU mesh vectors. Preserve every
-guest's appearance, moving edge interpolation, support-clipped
-shadows, depth/occlusion, Lost anchors, all rotations, and both visibility modes.
-A load with identical IDs/counts but different object values must refresh geometry.
-Compare emitted geometry against the retained guest_mesh oracle with justified
-floating-point tolerance, and prove actual buffer/topology reuse. Full simulation,
-input/cache refresh, save continuation, and package regressions remain necessary.
+--profile-gpu requires --profile-frames and adds optional real GPU timestamp spans.
+Preserve default baseline/no-GPU profiles and exact fixture/camera/window metadata.
+Keep main-loop pacing, main-world CPU hooks, render-pass CPU encoding, GPU timestamps,
+pipeline counters, and generated CPU mesh bytes distinct. GPU readback is asynchronous
+and latest-only; receipt time/frame cannot identify source frame, dropped batches,
+or exact warmup membership. Never sum nested spans or invent unsupported GPU values.
+Physical upload bytes/time and display presentation remain unmeasured. Reports are
+bounded, new-path-only, retain partial/unavailable outcomes, and cannot touch player saves.
+Wrapper supports frame-only SkipCpu with explicit render options/GpuDiagnostics;
+SkipCpu+SkipFrames and frame options with SkipFrames fail before output/process creation.
 
-Use identical release fixtures/seeds and complete ticks for local comparisons:
-baseline 32×32 / 12 guests / 37 paths, save-scale 256×256 / 256 guests / 1,024 paths,
-stress 256×256 / 5,000 guests / 1,024 paths; each contains one 46-piece circuit/train.
-The completed dataset is benchmarks/results/2026-10-20-optimization-local:
-one 300-tick run per case plus one 1,800-tick stress run, each with 60 warmup ticks.
-All four matched 60 animated renderer samples and recorded intended cache/buffer reuse.
-Separate cold construction from warm updates and preserve raw distributions.
-There is no portable speedup or FPS claim. Frame profiles are main-loop pacing, not GPU or
-physically presented-frame timings; unknown occlusion remains unknown. No result
-on this PC designates it as a reference. Do not mislabel a changed workload as a
-like-for-like speedup or infer a GPU bottleneck from CPU hooks alone.
+Preserve park_sim complete 30 Hz integer ticks, IDs/RNG/BFS ordering, authoritative save
+bytes/equality, and derived Arc graph caching with exact successful-edit invalidation.
+Preserve GuestRenderer templates, cached roofs, five reused vectors, same-ID load
+invalidation, shadows/depth/occlusion, and the legacy geometry oracle. Normal 32-map output
+and save behavior need regressions alongside all-rotation 256-map bounds/picking/render proof.
 
-PRF-05 remains incomplete: no representative PC, 50 rides unsupported, normal player
-presentation 32×32, and stress saving exceeds the unchanged 256-guest cap.
-The next performance investigation is render-thread/GPU/upload/presentation evidence
-and a controlled large-map render scene before selecting another rendering strategy.
-Agree representative hardware separately. Do not silently close the full gate or
-treat this PC's FPS as a reason to block unrelated small gameplay slices.
+Retain schema 1/content 1, strict 8 MiB/collection limits, backup/lock/recovery behavior,
+and full authoritative continuation. Default saves are %LOCALAPPDATA%\Parkbound\saves,
+outside app/OneDrive; copy saves separately between PCs. Startup never writes; successful
+load pauses/resets presentation at 1x while preserving train intent. Production --save-check
+uses a new absolute QA directory and checks 3,600 ticks/commands, backup, and paused load.
 
-Retain parkbound-save schema 1/content 1, strict 8 MiB/collection limits, full authoritative
-continuation, derived circuit reconstruction, stable object order, and valid Lost/Fault
-states. SaveStore defaults to %LOCALAPPDATA%\Parkbound\saves, outside source/OneDrive,
-with an absolute --save-dir override. Save/Load/Backup are explicit; startup never
-writes and load pauses/reset presentation at 1x while retaining train intent. Preserve
-backup/lock/recovery behavior. Player saves need separate cross-PC transfer.
---save-check write then separate verify uses only a new absolute QA directory and
-checks 3,600 ticks with commands, backup, and paused load.
+PRF-05 stays open: no representative PC, only one circuit/train, normal editable 32 × 32 map,
+and unchanged 256-guest save cap. Choose further work from actual diagnostic evidence,
+not this PC's FPS. Native Save/Load/Backup, O/F/buttons, physical Delete, pan/drag/display,
+and clean PC offline/standard-user checks remain open unless directly reverified.
+No full construction, boarding/queues, money, scenarios, autosave/browser/migrations,
+or audio exists. Preserve original assets and exact notice bytes.
 
-Native Save/Load/Backup, O/F/Open-Close/Find, physical Delete, pan/drag/physical-display,
-and clean-PC offline/standard-user checks remain open unless directly reverified.
-No complete construction, boarding, queueing, finances, scenarios, autosave, browser,
-migrations, or audio exist. Support posts are decorative and train motion uses
-authored integer demonstration rules. Retain original art and exact notice bytes.
-
-Use Rust 1.93.1 MSVC / Bevy 0.17.3/Cargo.lock; -j 2 suits this 8 GB development PC.
-Run relevant checks, verify rendering/normal controls where available, and record
-actual new evidence. Update every current guide/checklist, verify packaged files,
-and push source/handoff before moving PCs. Do not silently select a final title,
-source license, clean-machine support, public release, or reference hardware.
+Use Rust 1.93.1 MSVC / Bevy 0.17.3/Cargo.lock. Complete authorized work and relevant checks,
+update all current guides/checklist, verify final package files, and push source/handoff
+before changing PCs. Do not select a public name, license, hardware reference, clean PC
+support, or public release implicitly.
 ```

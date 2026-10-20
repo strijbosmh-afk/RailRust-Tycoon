@@ -1,6 +1,6 @@
 use super::{
-    FOOTER, HEADER, MAP_SIZE, RIDE_PANEL_HEIGHT, RIDE_PANEL_MARGIN, RIDE_PANEL_WIDTH, SIDEBAR,
-    SaveAction, Simulation, ViewState, world::ViewMode,
+    FOOTER, HEADER, RIDE_PANEL_HEIGHT, RIDE_PANEL_MARGIN, RIDE_PANEL_WIDTH, SIDEBAR, SaveAction,
+    Simulation, ViewState, world::ViewMode,
 };
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase};
@@ -50,6 +50,7 @@ pub(super) enum Label {
     Train,
     TrainToggle,
     SaveStatus,
+    ParkInfo,
 }
 
 #[derive(Component)]
@@ -185,7 +186,7 @@ pub(super) fn setup(mut commands: Commands) {
             })
             .with_children(|p| {
                 label(p, "Meadow Lake", 22.0, INK);
-                label(p, "32 x 32 tiles / woodland", 11.0, MUTED);
+                dynamic_label(p, "32 x 32 tiles / woodland", 11.0, MUTED, Label::ParkInfo);
             });
             p.spawn((
                 Node {
@@ -424,6 +425,20 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
         if view.help && !matches!(action, Action::CloseHelp | Action::Help) {
             continue;
         }
+        if view.diagnostic_case.is_some()
+            && matches!(
+                action,
+                Action::Terrain
+                    | Action::RemovePath
+                    | Action::RestorePaths
+                    | Action::ToggleTrain
+                    | Action::Save
+                    | Action::Load
+                    | Action::LoadBackup
+            )
+        {
+            continue;
+        }
         match action {
             Action::Pause => view.pause(),
             Action::Speed(speed) => view.set_speed(*speed),
@@ -466,6 +481,16 @@ pub(super) fn refresh(
     let directions = ["NE", "SE", "SW", "NW"];
     for (kind, mut text) in &mut labels {
         let value = match kind {
+            Label::ParkInfo => format!(
+                "{} x {} tiles / {}",
+                sim.0.width(),
+                sim.0.height(),
+                if view.diagnostic_case.is_some() {
+                    "render preview"
+                } else {
+                    "woodland"
+                }
+            ),
             Label::Clock => {
                 let seconds = sim.0.elapsed_seconds();
                 let speed = if view.speed == Speed::Paused {
@@ -544,7 +569,16 @@ pub(super) fn refresh(
                 view.path_notice.clone().unwrap()
             }
             Label::Status => view.hovered.map_or(
-                format!("Meadow Lake  /  {MAP_SIZE} x {MAP_SIZE} tiles"),
+                format!(
+                    "{}  /  {} x {} tiles",
+                    if view.diagnostic_case.is_some() {
+                        "Render preview"
+                    } else {
+                        "Meadow Lake"
+                    },
+                    sim.0.width(),
+                    sim.0.height()
+                ),
                 |id| {
                     let Some(pos) = sim.0.surface_position(id) else {
                         return "Ready to explore".into();

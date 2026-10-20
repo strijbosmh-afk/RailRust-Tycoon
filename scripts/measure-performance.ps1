@@ -12,7 +12,16 @@ param(
     [int] $BenchmarkTicks = 300,
     [ValidateRange(120, 3600)]
     [int] $ProfileSamples = 600,
-    [switch] $SkipFrames
+    [switch] $SkipFrames,
+    [switch] $SkipCpu,
+    [ValidateSet('baseline', 'save-scale', 'stress')]
+    [string] $RenderCase = 'baseline',
+    [ValidateSet('overview', 'crowd', 'ride')]
+    [string] $RenderCamera = 'overview',
+    [ValidateRange(0, 3)]
+    [int] $RenderRotation = 0,
+    [switch] $RenderUnderground,
+    [switch] $GpuDiagnostics
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +30,39 @@ $workspaceDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sampleIntervalMilliseconds = 200
 $benchmarkTimeoutSeconds = 180
 $profileTimeoutSeconds = 150
+
+function Assert-RunOptions(
+    [bool] $NoCpu,
+    [bool] $NoFrames,
+    [Collections.IDictionary] $BoundOptions
+) {
+    if ($NoCpu -and $NoFrames) { throw 'SkipCpu and SkipFrames would leave no measurements.' }
+    $frameOptions = @('ProfileSamples', 'RenderCase', 'RenderCamera', 'RenderRotation', 'RenderUnderground', 'GpuDiagnostics')
+    if ($NoFrames -and @($frameOptions | Where-Object { $BoundOptions.Keys -contains $_ }).Count -ne 0) {
+        throw 'Frame options cannot be used with SkipFrames.'
+    }
+}
+
+function Get-FrameArguments(
+    [string] $ReportPath,
+    [int] $Samples,
+    [bool] $Uncapped,
+    [bool] $ControlledRender,
+    [string] $Fixture,
+    [string] $Camera,
+    [int] $Rotation,
+    [bool] $Underground,
+    [bool] $Gpu
+) {
+    $arguments = @('--profile-frames', $ReportPath, '--profile-samples', "$Samples")
+    if ($Uncapped) { $arguments += '--profile-no-vsync' }
+    if ($ControlledRender) {
+        $arguments += @('--render-case', $Fixture, '--render-camera', $Camera, '--render-rotation', "$Rotation")
+        if ($Underground) { $arguments += '--render-underground' }
+    }
+    if ($Gpu) { $arguments += '--profile-gpu' }
+    return $arguments
+}
 
 function Write-NewJson([string] $Path, [object] $Value) {
     $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($Value | ConvertTo-Json -Depth 40) + "`n")
@@ -139,11 +181,148 @@ function Assert-Phase([object] $Phase) {
     }
 }
 
-function Read-MeasurementReport([string] $Path, [string] $Mode, [string] $CaseName) {
+function Assert-RenderScene(
+    [object] $Scene,
+    [bool] $ControlledRender,
+    [string] $Fixture,
+    [string] $Camera,
+    [int] $Rotation,
+    [bool] $Underground
+) {
+    $expectedMode = if ($ControlledRender) { 'render_preview' } else { 'normal_demo' }
+    $expectedView = if ($Underground) { 'underground' } else { 'surface' }
+    $mapSide = if ($Fixture -eq 'baseline') { 32 } else { 256 }
+    $guests = switch ($Fixture) { 'baseline' { 12 }; 'save-scale' { 256 }; 'stress' { 5000 }; default { throw 'Unknown render fixture' } }
+    $paths = if ($Fixture -eq 'baseline') { 37 } else { 1024 }
+    $objects = if ($Fixture -eq 'baseline') { 92 } else { 1070 }
+    if ($Scene -isnot [Collections.IDictionary] -or $Scene.mode -ne $expectedMode -or
+        $Scene.camera -ne $Camera -or $Scene.rotation -ne $Rotation -or $Scene.view -ne $expectedView -or
+        $Scene.edits_and_saves_enabled -isnot [bool] -or $Scene.edits_and_saves_enabled -ne $false) {
+        throw 'Unexpected controlled render configuration'
+    }
+    $actual = $Scene.fixture
+    if ($actual -isnot [Collections.IDictionary] -or $actual.case -ne $Fixture -or
+        $actual.seed -ne 20261020 -or $actual.map_width -ne $mapSide -or $actual.map_height -ne $mapSide -or
+        $actual.tiles -ne ($mapSide * $mapSide) -or $actual.guests -ne $guests -or
+        $actual.paths -ne $paths -or $actual.objects -ne $objects -or
+        $actual.rides -ne 1 -or $actual.trains -ne 1 -or $actual.track_pieces -ne 46 -or
+        $actual.save_supported -isnot [bool] -or $actual.save_supported -ne ($Fixture -ne 'stress')) {
+        throw 'Unexpected render fixture counts'
+    }
+    if ($Scene.zoom_relative_to_map_fit -isnot [ValueType] -or
+        -not [double]::IsFinite([double] $Scene.zoom_relative_to_map_fit) -or $Scene.zoom_relative_to_map_fit -le 0 -or
+        $Scene.pan_world -isnot [array] -or $Scene.pan_world.Count -ne 2) {
+        throw 'Invalid render camera geometry'
+    }
+    foreach ($coordinate in $Scene.pan_world) {
+        if ($coordinate -isnot [ValueType] -or -not [double]::IsFinite([double] $coordinate)) {
+            throw 'Invalid render camera coordinate'
+        }
+    }
+}
+
+function Assert-NaturalNumber([object] $Value) {
+    if ($Value -isnot [ValueType] -or $Value -is [bool] -or
+        -not [double]::IsFinite([double] $Value) -or [double] $Value -lt 0 -or
+        [Math]::Truncate([double] $Value) -ne [double] $Value) {
+        throw 'Invalid nonnegative integer'
+    }
+}
+
+function Assert-GpuDiagnostics([object] $Report, [bool] $Collected) {
+    if ($Report -isnot [Collections.IDictionary] -or
+        $Report.status -notin @('samples_received', 'unsupported', 'no_samples_received', 'no_render_app', 'device_unavailable') -or
+        $Report.gpu_timing_collected -isnot [bool] -or $Report.gpu_timing_collected -ne $Collected -or
+        $Report.method -ne 'bevy_render_diagnostics_async_readback' -or $Report.time_unit -ne 'ms' -or
+        $Report.source_frame_correlation -ne 'unavailable_receipt_window_only' -or
+        $Report.spans -isnot [array]) {
+        throw 'Invalid GPU diagnostic method'
+    }
+    if ($Report.capabilities.device_features_known -isnot [bool]) { throw 'Invalid device capability availability' }
+    foreach ($field in @('timestamp_query', 'timestamp_inside_encoders', 'timestamp_inside_passes',
+        'pipeline_statistics_query', 'pass_timestamps_enabled')) {
+        if (($Report.capabilities.device_features_known -and $Report.capabilities[$field] -isnot [bool]) -or
+            (-not $Report.capabilities.device_features_known -and $null -ne $Report.capabilities[$field])) {
+            throw 'Invalid GPU capability metadata'
+        }
+    }
+    if ($null -ne $Report.capabilities.adapter_supported_features -or
+        $null -ne $Report.bounded_samples.source_dropped_batches -or
+        $Report.upload.status -ne 'unmeasured' -or $null -ne $Report.upload.bytes -or $null -ne $Report.upload.duration_ms) {
+        throw 'Unexpected GPU attribution claim'
+    }
+    foreach ($field in @('max_paths', 'max_path_bytes', 'max_samples_per_path', 'max_total_samples', 'retained',
+        'omitted_limit', 'invalid_values', 'pre_window_latest_observations')) {
+        Assert-NaturalNumber $Report.bounded_samples[$field]
+    }
+    $bounds = $Report.bounded_samples
+    if ($bounds.max_paths -lt 1 -or $bounds.max_paths -gt 128 -or
+        $bounds.max_path_bytes -lt 1 -or $bounds.max_path_bytes -gt 512 -or
+        $bounds.max_samples_per_path -lt 1 -or $bounds.max_samples_per_path -gt 4096 -or
+        $bounds.max_total_samples -lt 1 -or $bounds.max_total_samples -gt 131072 -or
+        $Report.spans.Count -gt $bounds.max_paths -or $bounds.retained -gt $bounds.max_total_samples) {
+        throw 'Invalid GPU diagnostic bounds'
+    }
+    $pathsSeen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $retained = 0
+    $gpuSamples = 0
+    foreach ($span in $Report.spans) {
+        if ($span.path -isnot [string] -or [string]::IsNullOrWhiteSpace($span.path) -or
+            [Text.Encoding]::UTF8.GetByteCount($span.path) -gt $bounds.max_path_bytes -or -not $pathsSeen.Add($span.path) -or
+            $span.kind -notin @('cpu_elapsed', 'gpu_elapsed', 'pipeline_counter') -or
+            $span.samples -isnot [array] -or $span.samples.Count -gt $bounds.max_samples_per_path) {
+            throw 'Invalid GPU diagnostic span'
+        }
+        $expectedUnit = if ($span.kind -eq 'pipeline_counter') { 'count' } else { 'ms' }
+        if ($span.unit -ne $expectedUnit) { throw 'Invalid GPU diagnostic unit' }
+        foreach ($sample in $span.samples) {
+            Assert-NaturalNumber $sample.observed_main_frame
+            foreach ($value in @($sample.receipt_offset_ms, $sample.value)) {
+                if ($value -isnot [ValueType] -or $value -is [bool] -or
+                    -not [double]::IsFinite([double] $value) -or [double] $value -lt 0) {
+                    throw 'Invalid GPU diagnostic sample'
+                }
+            }
+        }
+        if ($span.samples.Count -eq 0) {
+            if ($null -ne $span.summary) { throw 'Unexpected empty GPU summary' }
+        }
+        else {
+            if ($span.summary.samples -ne $span.samples.Count) { throw 'Invalid GPU summary count' }
+            foreach ($field in @('min', 'mean', 'p50', 'p95', 'p99', 'max')) {
+                $value = $span.summary[$field]
+                if ($value -isnot [ValueType] -or $value -is [bool] -or
+                    -not [double]::IsFinite([double] $value) -or [double] $value -lt 0) {
+                    throw 'Invalid GPU summary statistic'
+                }
+            }
+        }
+        $retained += $span.samples.Count
+        if ($span.kind -eq 'gpu_elapsed') { $gpuSamples += $span.samples.Count }
+    }
+    if ($retained -ne $bounds.retained -or $Collected -ne ($gpuSamples -gt 0) -or
+        ($Report.status -eq 'samples_received') -ne $Collected -or
+        ($Collected -and (-not $Report.capabilities.device_features_known -or
+            -not $Report.capabilities.timestamp_query -or -not $Report.capabilities.timestamp_inside_encoders))) {
+        throw 'Contradictory GPU measurement status'
+    }
+}
+
+function Read-MeasurementReport(
+    [string] $Path,
+    [string] $Mode,
+    [string] $CaseName,
+    [bool] $ControlledRender = $false,
+    [string] $Camera = 'overview',
+    [int] $Rotation = 0,
+    [bool] $Underground = $false,
+    [bool] $Gpu = $false
+) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return [ordered]@{ valid = $false; failure = 'report_missing'; version = $null; kind = $null; status = $null; metrics = $null }
     }
     try {
+        if ((Get-Item -LiteralPath $Path).Length -gt 64MB) { throw 'Measurement report exceeds the bounded input size' }
         $report = [IO.File]::ReadAllText($Path) | ConvertFrom-Json -AsHashtable
         if ($report -isnot [Collections.IDictionary]) { throw 'Expected JSON object' }
         foreach ($field in @('kind', 'version', 'status')) {
@@ -212,8 +391,21 @@ function Read-MeasurementReport([string] $Path, [string] $Mode, [string] $CaseNa
             }
             Assert-Timing -Timing $report.frame_interval_ms -Samples $report.frame_samples_ms
             $expectedPresentMode = if ($Mode -eq 'frames-uncapped') { 'AutoNoVsync' } else { 'AutoVsync' }
-            if ($report.window.requested_present_mode -ne $expectedPresentMode -or $report.gpu_timing_collected -ne $false) {
+            if ($report.window.requested_present_mode -ne $expectedPresentMode -or $report.gpu_timing_collected -isnot [bool]) {
                 throw 'Unexpected frame method'
+            }
+            if ($report.Contains('render_scene')) {
+                Assert-RenderScene -Scene $report.render_scene -ControlledRender $ControlledRender -Fixture $CaseName `
+                    -Camera $Camera -Rotation $Rotation -Underground $Underground
+            }
+            elseif ($ControlledRender -or $Gpu -or $report.version -match '^0\.(?:9|[1-9][0-9]+)\.') {
+                throw 'Missing render fixture metadata'
+            }
+            if ($Gpu) {
+                Assert-GpuDiagnostics -Report $report.gpu_diagnostics -Collected $report.gpu_timing_collected
+            }
+            elseif ($report.gpu_timing_collected -or ($report.Contains('gpu_diagnostics') -and $null -ne $report.gpu_diagnostics)) {
+                throw 'Unexpected GPU measurement opt-in'
             }
             $metrics = [ordered]@{
                 measured_samples = $report.measured_samples
@@ -222,6 +414,8 @@ function Read-MeasurementReport([string] $Path, [string] $Mode, [string] $CaseNa
                 window = $report.window
                 adapter = $report.adapter
                 simulation = $report.simulation
+                render_scene = $(if ($report.Contains('render_scene')) { $report.render_scene } else { $null })
+                gpu_diagnostics = $(if ($Gpu) { $report.gpu_diagnostics } else { $null })
             }
         }
         else { throw 'Unknown measurement mode' }
@@ -320,7 +514,9 @@ function Invoke-Measurement(
         $process.Dispose()
     }
     if ($cleanupFailed) { throw 'Unable to stop an owned measurement process; further runs cancelled' }
-    $validation = Read-MeasurementReport -Path $reportPath -Mode $Mode -CaseName $CaseName
+    $validation = Read-MeasurementReport -Path $reportPath -Mode $Mode -CaseName $CaseName `
+        -ControlledRender $renderOptionsSpecified -Camera $RenderCamera -Rotation $RenderRotation `
+        -Underground $RenderUnderground.IsPresent -Gpu $GpuDiagnostics.IsPresent
     if ($null -eq $failure -and -not $validation.valid) { $failure = $validation.failure }
     return [ordered]@{
         name = $Name
@@ -350,6 +546,9 @@ function Invoke-Measurement(
 }
 
 if (-not $IsWindows) { throw 'Performance measurement requires Windows.' }
+Assert-RunOptions -NoCpu $SkipCpu.IsPresent -NoFrames $SkipFrames.IsPresent -BoundOptions $PSBoundParameters
+$renderOptionsSpecified = @('RenderCase', 'RenderCamera', 'RenderRotation', 'RenderUnderground' |
+    Where-Object { $PSBoundParameters.ContainsKey($_) }).Count -ne 0
 if (-not [IO.Path]::IsPathFullyQualified($OutputDirectory)) {
     throw 'OutputDirectory must be an absolute new directory.'
 }
@@ -360,6 +559,8 @@ if (-not (Test-Path -LiteralPath $outputParent -PathType Container)) {
     throw 'The output parent directory must already exist.'
 }
 $Cases = @($Cases | ForEach-Object { $_.ToLowerInvariant() })
+$RenderCase = $RenderCase.ToLowerInvariant()
+$RenderCamera = $RenderCamera.ToLowerInvariant()
 if ($Cases.Count -eq 0 -or @($Cases | Select-Object -Unique).Count -ne $Cases.Count) {
     throw 'Select at least one benchmark case without duplicates.'
 }
@@ -395,26 +596,36 @@ $summary = [ordered]@{
         repetitions = $Repetitions
         benchmark_ticks = $BenchmarkTicks
         profile_samples = $ProfileSamples
+        cpu_benchmarks_enabled = -not $SkipCpu.IsPresent
         frame_profiles_enabled = -not $SkipFrames.IsPresent
+        controlled_render_enabled = $renderOptionsSpecified
+        render_case = $RenderCase
+        render_camera = $RenderCamera
+        render_rotation = $RenderRotation
+        render_view = $(if ($RenderUnderground) { 'underground' } else { 'surface' })
+        gpu_diagnostics_enabled = $GpuDiagnostics.IsPresent
         execution = 'Sequential child processes; no normal-player save or settings commands.'
     }
     runs = $runs
     limitations = @(
         'No performance threshold is imposed by this wrapper; preserve incomplete or unsupported runtime outcomes as measured evidence.',
-        'Frame profiles cover only the current baseline UI. Main-loop intervals are not GPU execution or physically presented-frame timings.',
+        'Frame profiles use the baseline UI unless an explicit controlled render fixture is selected. Main-loop intervals are not GPU execution or physically presented-frame timings.',
+        'Optional GPU diagnostics report instrumented timestamp spans when supported; asynchronous receipt, nested spans, and unmeasured presentation prevent a total frame-time inference.',
         'The full 256x256/5000-guest/50-ride target is unsupported by the current single-circuit model.',
         'Absolute executable/output paths, account names, machine names, and serial numbers are omitted from this summary.'
     )
 }
 try {
-    foreach ($case in $Cases) {
-        for ($repetition = 1; $repetition -le $Repetitions; $repetition++) {
-            $name = "cpu-$case-$repetition"
-            Write-Host "Measuring $name"
-            $reportPath = Join-Path $outputRoot "$name.json"
-            $runs.Add((Invoke-Measurement -Name $name -Mode 'benchmark' -CaseName $case -Repetition $repetition `
-                -Arguments @('--benchmark', $reportPath, '--benchmark-case', $case, '--benchmark-ticks', "$BenchmarkTicks") `
-                -TimeoutSeconds $benchmarkTimeoutSeconds))
+    if (-not $SkipCpu) {
+        foreach ($case in $Cases) {
+            for ($repetition = 1; $repetition -le $Repetitions; $repetition++) {
+                $name = "cpu-$case-$repetition"
+                Write-Host "Measuring $name"
+                $reportPath = Join-Path $outputRoot "$name.json"
+                $runs.Add((Invoke-Measurement -Name $name -Mode 'benchmark' -CaseName $case -Repetition $repetition `
+                    -Arguments @('--benchmark', $reportPath, '--benchmark-case', $case, '--benchmark-ticks', "$BenchmarkTicks") `
+                    -TimeoutSeconds $benchmarkTimeoutSeconds))
+            }
         }
     }
     if (-not $SkipFrames) {
@@ -422,9 +633,11 @@ try {
             $name = "frames-$presentMode"
             Write-Host "Measuring $name; keep the game's window visible and unobscured."
             $reportPath = Join-Path $outputRoot "$name.json"
-            $arguments = @('--profile-frames', $reportPath, '--profile-samples', "$ProfileSamples")
-            if ($presentMode -eq 'uncapped') { $arguments += '--profile-no-vsync' }
-            $runs.Add((Invoke-Measurement -Name $name -Mode "frames-$presentMode" -CaseName 'baseline' -Repetition 1 `
+            $arguments = @(Get-FrameArguments -ReportPath $reportPath -Samples $ProfileSamples `
+                -Uncapped ($presentMode -eq 'uncapped') -ControlledRender $renderOptionsSpecified `
+                -Fixture $RenderCase -Camera $RenderCamera -Rotation $RenderRotation `
+                -Underground $RenderUnderground.IsPresent -Gpu $GpuDiagnostics.IsPresent)
+            $runs.Add((Invoke-Measurement -Name $name -Mode "frames-$presentMode" -CaseName $RenderCase -Repetition 1 `
                 -Arguments $arguments -TimeoutSeconds $profileTimeoutSeconds))
         }
     }
