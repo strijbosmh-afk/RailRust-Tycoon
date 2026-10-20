@@ -23,6 +23,7 @@ use crate::{
     gpu_probe::GpuProbe,
     measurement::{summarize, validate_output, write_json_new},
     render_scene,
+    static_landscape::StaticLandscape,
 };
 
 const DEFAULT_SAMPLES: usize = 600;
@@ -331,6 +332,7 @@ struct Runtime<'w, 's> {
     view: Res<'w, ViewState>,
     render_scene: Option<Res<'w, render_scene::RenderScene>>,
     scene_meshes: Option<Res<'w, SceneMeshes>>,
+    static_landscape: Option<Res<'w, StaticLandscape>>,
     meshes: Option<Res<'w, Assets<Mesh>>>,
     gpu: Option<ResMut<'w, GpuProbe>>,
     diagnostics: Option<Res<'w, DiagnosticsStore>>,
@@ -608,12 +610,15 @@ fn report(run: &FrameRun, probe: &Probe, runtime: &Runtime, now: Instant, status
 }
 
 fn render_work(runtime: &Runtime) -> Value {
-    let (Some(scene), Some(meshes)) = (&runtime.scene_meshes, &runtime.meshes) else {
+    let (Some(scene), Some(meshes), Some(landscape)) = (
+        &runtime.scene_meshes,
+        &runtime.meshes,
+        &runtime.static_landscape,
+    ) else {
         return Value::Null;
     };
     let stats = scene.guest_renderer.stats();
-    let counts = [
-        ("landscape", &scene.landscape),
+    let mut counts = [
         ("selection", &scene.selection),
         ("guests", &scene.guests),
         ("train", &scene.train),
@@ -629,12 +634,22 @@ fn render_work(runtime: &Runtime) -> Value {
         (name.to_owned(), json!(counts))
     })
     .collect::<serde_json::Map<_, _>>();
+    let (vertices, indices) = landscape.total_counts();
+    counts.insert(
+        "landscape".into(),
+        json!({
+            "vertices": vertices,
+            "indices": indices,
+            "logical_cpu_payload_bytes": vertices * 48 + indices * 4,
+        }),
+    );
     json!({
         "meshes":counts,
+        "static_visibility":landscape.report(),
         "guest_renderer":{"updates":stats.updates,"deck_rebuilds":stats.deck_rebuilds,
             "template_builds":stats.template_builds,"buffer_growths":stats.buffer_growths,
             "rendered_guests":stats.rendered_guests,"vertices":stats.vertices},
-        "scope":"Current generated CPU geometry, including off-screen geometry. Four attributes plus indices (five buffers) use 48 bytes per vertex plus 4 per index; capacities, extraction clones, GPU packing/allocation, physical upload bytes/time and visibility counts are not measured. Guest buffer growths count CPU capacity changes only.",
+        "scope":"meshes contains current generated CPU geometry, including off-screen geometry; landscape aggregates every static chunk. static_visibility separately counts CPU-eligible chunks selected by conservative intersection with the full logical camera viewport, including the area behind UI. Selected geometry is not proof of actual draw calls or visible pixels. Four attributes plus indices (five buffers) use 48 bytes per vertex plus 4 per index. Capacities, extraction clones, GPU packing/allocation and physical upload bytes/time are not measured. Guest buffer growths count CPU capacity changes only.",
         "physical_gpu_upload_bytes":Value::Null,
         "physical_gpu_upload_time_ms":Value::Null,
     })
@@ -865,6 +880,53 @@ mod tests {
         assert_eq!(report["gpu_diagnostics"]["status"], "no_render_app");
         assert_eq!(report["gpu_diagnostics"]["spans"], json!([]));
         assert!(report["render_work"].is_null());
+        fs::remove_file(destination).unwrap();
+    }
+
+    #[test]
+    fn frame_report_keeps_generated_landscape_when_camera_selects_no_static_geometry() {
+        let destination = output();
+        let (mut app, _) = configured_app(&destination);
+        app.init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<ColorMaterial>>()
+            .add_systems(Startup, crate::setup_scene)
+            .add_systems(
+                Update,
+                (
+                    crate::update_scene,
+                    crate::static_landscape::update_visibility,
+                )
+                    .chain(),
+            );
+        {
+            let mut run = app.world_mut().resource_mut::<FrameRun>();
+            run.started = Instant::now() - Duration::from_secs(3);
+            run.frames = 119;
+        }
+        app.update();
+        let generated = app.world().resource::<StaticLandscape>().total_counts();
+        assert!(generated.0 > 0 && generated.1 > 0);
+        // An off-map camera may select no chunks without deleting generated
+        // geometry or changing the authoritative park.
+        app.world_mut().resource_mut::<ViewState>().pan = Vec2::splat(1_000_000.0);
+        for _ in 0..120 {
+            app.update();
+        }
+        let report: Value = serde_json::from_slice(&fs::read(&destination).unwrap()).unwrap();
+        let work = &report["render_work"];
+        let visibility = &work["static_visibility"];
+        assert_eq!(work["meshes"]["landscape"]["vertices"], generated.0);
+        assert_eq!(work["meshes"]["landscape"]["indices"], generated.1);
+        assert_eq!(visibility["generated"], work["meshes"]["landscape"]);
+        assert_eq!(visibility["total_chunks"], 1);
+        assert_eq!(visibility["selected_chunks"], 0);
+        assert_eq!(visibility["hidden_chunks"], 1);
+        assert_eq!(visibility["selected"]["vertices"], 0);
+        assert_eq!(visibility["selected"]["logical_cpu_payload_bytes"], 0);
+        assert_eq!(visibility["selection_state"], "camera_bounds");
+        assert!(work["physical_gpu_upload_bytes"].is_null());
+        assert!(work["physical_gpu_upload_time_ms"].is_null());
+        assert_eq!(app.world().resource::<Simulation>().0.ticks(), 0);
         fs::remove_file(destination).unwrap();
     }
 

@@ -11,6 +11,7 @@ mod persistence;
 mod render_scene;
 mod save_check;
 mod save_store;
+mod static_landscape;
 mod ui;
 mod world;
 
@@ -169,7 +170,6 @@ impl ViewState {
 
 #[derive(Resource)]
 struct SceneMeshes {
-    landscape: Handle<Mesh>,
     selection: Handle<Mesh>,
     guests: Handle<Mesh>,
     train: Handle<Mesh>,
@@ -247,6 +247,7 @@ fn main() -> AppExit {
                 pointer_input,
                 apply_camera,
                 update_scene,
+                static_landscape::update_visibility,
                 ui::refresh,
             )
                 .chain(),
@@ -275,17 +276,11 @@ fn demonstration_park() -> Park {
 fn setup_scene(
     mut commands: Commands,
     sim: Res<Simulation>,
-    view: Res<ViewState>,
+    mut view: ResMut<ViewState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn(Camera2d);
-    let landscape = meshes.add(world::build_scene(
-        &sim.0,
-        view.rotation,
-        view.grid,
-        view.view_mode,
-    ));
     let selection = meshes.add(world::selection_mesh(
         None,
         None,
@@ -299,11 +294,9 @@ fn setup_scene(
     let guests = meshes.add(guest_mesh);
     let train = meshes.add(world::train_mesh(&sim.0, view.rotation, view.view_mode));
     let material = materials.add(ColorMaterial::from(Color::WHITE));
-    commands.spawn((
-        Mesh2d(landscape.clone()),
-        MeshMaterial2d(material.clone()),
-        NoFrustumCulling,
-    ));
+    let mut landscape = static_landscape::StaticLandscape::new(material.clone());
+    landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
+    commands.insert_resource(landscape);
     // Its vertices move to different tiles; a cached initial bounding box
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((
@@ -322,12 +315,14 @@ fn setup_scene(
         NoFrustumCulling,
     ));
     commands.insert_resource(SceneMeshes {
-        landscape,
         selection,
         guests,
         train,
         guest_renderer,
     });
+    // Startup has already built this view. A later capture preset or edit can
+    // dirty it again; a normal large preview need not build its geometry twice.
+    view.scene_dirty = false;
 }
 
 fn tick_simulation(
@@ -653,15 +648,27 @@ fn apply_camera(
 
 type SelectionSnapshot = (Option<SurfaceId>, Option<SurfaceId>, u8, world::ViewMode);
 
+#[derive(bevy::ecs::system::SystemParam)]
+struct SceneAssets<'w, 's> {
+    commands: Commands<'w, 's>,
+    meshes: ResMut<'w, Assets<Mesh>>,
+    landscape: ResMut<'w, static_landscape::StaticLandscape>,
+}
+
 fn update_scene(
     sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
     mut scene: ResMut<SceneMeshes>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    assets: SceneAssets,
     mut last_selection: Local<Option<SelectionSnapshot>>,
     mut last_guests: Local<Option<(u64, u8, world::ViewMode)>>,
     mut probe: Option<ResMut<frame_probe::Probe>>,
 ) {
+    let SceneAssets {
+        mut commands,
+        mut meshes,
+        mut landscape,
+    } = assets;
     let timer = probe
         .as_ref()
         .filter(|p| p.is_measuring())
@@ -676,9 +683,7 @@ fn update_scene(
         .filter(|id| sim.0.surface_position(*id).is_some());
     let terrain_changed = view.scene_dirty;
     if terrain_changed {
-        if let Some(mesh) = meshes.get_mut(&scene.landscape) {
-            *mesh = world::build_scene(&sim.0, view.rotation, view.grid, view.view_mode);
-        }
+        landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
         view.scene_dirty = false;
     }
     let selection = (view.hovered, view.selected, view.rotation, view.view_mode);

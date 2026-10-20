@@ -229,6 +229,91 @@ function Assert-NaturalNumber([object] $Value) {
     }
 }
 
+function Assert-GeometryCounts([object] $Counts) {
+    if ($Counts -isnot [Collections.IDictionary]) { throw 'Missing geometry counts' }
+    foreach ($field in @('vertices', 'indices', 'logical_cpu_payload_bytes')) {
+        Assert-NaturalNumber $Counts[$field]
+    }
+    # Keep arithmetic exact and reject implausibly large claimed allocations.
+    # These ceilings exceed the current bounded 256 x 256 fixtures.
+    if ($Counts.vertices -gt 2147483647 -or $Counts.indices -gt 2147483647 -or
+        $Counts.indices % 3 -ne 0 -or
+        $Counts.logical_cpu_payload_bytes -ne ([long] $Counts.vertices * 48 + [long] $Counts.indices * 4)) {
+        throw 'Invalid logical geometry byte count'
+    }
+}
+
+function Assert-StaticVisibility([object] $Work) {
+    if ($Work -isnot [Collections.IDictionary] -or
+        $Work.static_visibility -isnot [Collections.IDictionary]) {
+        throw 'Missing static visibility report'
+    }
+    $visibility = $Work.static_visibility
+    if ($visibility.method -ne 'conservative_world_xy_aabb' -or
+        $visibility.chunking -notin @('single_mesh', 'spatial_triangles') -or
+        $visibility.selection_state -notin @('camera_bounds', 'unavailable_all_selected') -or
+        $visibility.viewport_guard_logical_pixels -isnot [ValueType] -or
+        $visibility.viewport_guard_logical_pixels -is [bool] -or
+        $visibility.viewport_guard_logical_pixels -ne 2.0 -or
+        $visibility.bucket_world_size -isnot [array] -or $visibility.bucket_world_size.Count -ne 2 -or
+        $visibility.bucket_world_size[0] -ne 1024.0 -or $visibility.bucket_world_size[1] -ne 512.0 -or
+        $visibility.scope -isnot [string] -or [string]::IsNullOrWhiteSpace($visibility.scope) -or
+        $Work.physical_gpu_upload_bytes -ne $null -or $Work.physical_gpu_upload_time_ms -ne $null) {
+        throw 'Unexpected static visibility method'
+    }
+    foreach ($size in $visibility.bucket_world_size) {
+        if ($size -isnot [ValueType] -or $size -is [bool] -or -not [double]::IsFinite([double] $size)) {
+            throw 'Invalid spatial bucket size'
+        }
+    }
+    foreach ($field in @('total_chunks', 'selected_chunks', 'hidden_chunks',
+        'geometry_builds', 'visibility_evaluations', 'visibility_changes')) {
+        Assert-NaturalNumber $visibility[$field]
+    }
+    if ($visibility.total_chunks -gt 65536 -or
+        $visibility.selected_chunks -gt $visibility.total_chunks -or
+        $visibility.hidden_chunks -gt $visibility.total_chunks -or
+        $visibility.selected_chunks + $visibility.hidden_chunks -ne $visibility.total_chunks -or
+        ($visibility.chunking -eq 'single_mesh' -and $visibility.total_chunks -gt 1)) {
+        throw 'Inconsistent static chunk counts'
+    }
+    Assert-GeometryCounts $visibility.generated
+    Assert-GeometryCounts $visibility.selected
+    Assert-GeometryCounts $Work.meshes.landscape
+    foreach ($field in @('vertices', 'indices', 'logical_cpu_payload_bytes')) {
+        if ($visibility.selected[$field] -gt $visibility.generated[$field] -or
+            $visibility.generated[$field] -ne $Work.meshes.landscape[$field] -or
+            ($visibility.selected_chunks -eq 0 -and $visibility.selected[$field] -ne 0) -or
+            ($visibility.selected_chunks -eq $visibility.total_chunks -and
+                $visibility.selected[$field] -ne $visibility.generated[$field])) {
+            throw 'Inconsistent generated and eligible geometry'
+        }
+    }
+    if ($visibility.selection_state -eq 'unavailable_all_selected') {
+        if ($null -ne $visibility.viewport_world -or
+            $visibility.selected_chunks -ne $visibility.total_chunks) {
+            throw 'Unavailable camera must conservatively select every chunk'
+        }
+    }
+    else {
+        $viewport = $visibility.viewport_world
+        if ($viewport -isnot [Collections.IDictionary] -or
+            $viewport.min -isnot [array] -or $viewport.min.Count -ne 2 -or
+            $viewport.max -isnot [array] -or $viewport.max.Count -ne 2) {
+            throw 'Invalid camera world bounds'
+        }
+        for ($axis = 0; $axis -lt 2; $axis++) {
+            foreach ($coordinate in @($viewport.min[$axis], $viewport.max[$axis])) {
+                if ($coordinate -isnot [ValueType] -or $coordinate -is [bool] -or
+                    -not [double]::IsFinite([double] $coordinate)) {
+                    throw 'Invalid camera world coordinate'
+                }
+            }
+            if ($viewport.min[$axis] -gt $viewport.max[$axis]) { throw 'Reversed camera world bounds' }
+        }
+    }
+}
+
 function Assert-GpuDiagnostics([object] $Report, [bool] $Collected) {
     if ($Report -isnot [Collections.IDictionary] -or
         $Report.status -notin @('samples_received', 'unsupported', 'no_samples_received', 'no_render_app', 'device_unavailable') -or
@@ -407,6 +492,11 @@ function Read-MeasurementReport(
             elseif ($report.gpu_timing_collected -or ($report.Contains('gpu_diagnostics') -and $null -ne $report.gpu_diagnostics)) {
                 throw 'Unexpected GPU measurement opt-in'
             }
+            $hasStaticVisibility = $report.Contains('render_work') -and
+                $report.render_work -is [Collections.IDictionary] -and $report.render_work.Contains('static_visibility')
+            if ([version] ($report.version.Split('-')[0]) -ge [version] '0.10.0' -or $hasStaticVisibility) {
+                Assert-StaticVisibility $report.render_work
+            }
             $metrics = [ordered]@{
                 measured_samples = $report.measured_samples
                 frame_interval_ms = $report.frame_interval_ms
@@ -415,6 +505,7 @@ function Read-MeasurementReport(
                 adapter = $report.adapter
                 simulation = $report.simulation
                 render_scene = $(if ($report.Contains('render_scene')) { $report.render_scene } else { $null })
+                render_work = $(if ($report.Contains('render_work')) { $report.render_work } else { $null })
                 gpu_diagnostics = $(if ($Gpu) { $report.gpu_diagnostics } else { $null })
             }
         }

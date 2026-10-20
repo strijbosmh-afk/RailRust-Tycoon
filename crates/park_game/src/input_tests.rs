@@ -881,7 +881,11 @@ fn moving_guests_update_their_mesh_without_rebuilding_static_terrain() {
         let handle = if guests {
             &scene.guests
         } else {
-            &scene.landscape
+            app.world()
+                .resource::<static_landscape::StaticLandscape>()
+                .mesh_handles()
+                .next()
+                .unwrap()
         };
         app.world()
             .resource::<Assets<Mesh>>()
@@ -1145,7 +1149,11 @@ fn moving_train_refreshes_only_dynamic_meshes_and_keeps_track_identity() {
         let handle = if train {
             &scene.train
         } else {
-            &scene.landscape
+            app.world()
+                .resource::<static_landscape::StaticLandscape>()
+                .mesh_handles()
+                .next()
+                .unwrap()
         };
         app.world()
             .resource::<Assets<Mesh>>()
@@ -1472,7 +1480,11 @@ fn all_scene_positions(app: &App) -> [Vec<[f32; 3]>; 4] {
     let scene = app.world().resource::<SceneMeshes>();
     let meshes = app.world().resource::<Assets<Mesh>>();
     [
-        &scene.landscape,
+        app.world()
+            .resource::<static_landscape::StaticLandscape>()
+            .mesh_handles()
+            .next()
+            .unwrap(),
         &scene.guests,
         &scene.train,
         &scene.selection,

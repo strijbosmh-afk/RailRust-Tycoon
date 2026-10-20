@@ -631,13 +631,24 @@ mod tests {
             assert_eq!(scene.guest_renderer.stats().updates, 2);
             // In the underground view, flat-vs-hills changes the floor colors.
             // This catches retaining the Startup mesh after the preset runs.
-            let expected_static = world::build_scene(park, 3, view.grid, ViewMode::Underground);
-            let actual_static = meshes.get(&scene.landscape).unwrap();
-            assert_eq!(
-                actual_static.attribute(Mesh::ATTRIBUTE_COLOR),
-                expected_static.attribute(Mesh::ATTRIBUTE_COLOR)
-            );
-            assert_eq!(actual_static.indices(), expected_static.indices());
+            let expected_static =
+                world::build_static_chunks(park, 3, view.grid, ViewMode::Underground);
+            let landscape = app
+                .world()
+                .resource::<crate::static_landscape::StaticLandscape>();
+            assert_eq!(landscape.mesh_handles().count(), expected_static.len());
+            for (handle, expected) in landscape.mesh_handles().zip(expected_static) {
+                let actual = meshes.get(handle).unwrap();
+                assert_eq!(
+                    actual.attribute(Mesh::ATTRIBUTE_COLOR),
+                    expected.mesh.attribute(Mesh::ATTRIBUTE_COLOR)
+                );
+                assert_eq!(
+                    actual.attribute(Mesh::ATTRIBUTE_POSITION),
+                    expected.mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+                );
+                assert_eq!(actual.indices(), expected.mesh.indices());
+            }
             let mut expected_renderer = world::GuestRenderer::default();
             let mut expected_guests = world::GuestRenderer::empty_mesh();
             expected_renderer.update(&mut expected_guests, park, 3, ViewMode::Underground);
