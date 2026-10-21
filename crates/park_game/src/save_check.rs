@@ -13,6 +13,8 @@ use crate::{
     persistence::{self, SaveAction, SaveSession},
 };
 
+mod slopes;
+
 pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
     let index = arguments.iter().position(|value| value == "--save-check")?;
     let result = (|| -> Result<(), String> {
@@ -28,9 +30,9 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes"
             ))
-            .ok_or("--save-check requires write, verify, write-paths, verify-paths, write-terrain or verify-terrain")?;
+            .ok_or("--save-check requires write/verify, write-paths/verify-paths, write-terrain/verify-terrain or write-slopes/verify-slopes")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
             return Err("--save-check requires an explicit absolute --save-dir".into());
         }
@@ -114,6 +116,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-paths" => verify_paths(&session)?,
             "write-terrain" => write_terrain(&session)?,
             "verify-terrain" => verify_terrain(&session)?,
+            "write-slopes" => slopes::write(&session)?,
+            "verify-slopes" => slopes::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())
@@ -538,6 +542,7 @@ mod tests {
                     let name = name.to_string_lossy();
                     name.starts_with("Parkbound path proof test ")
                         || name.starts_with("Parkbound terrain proof test ")
+                        || name.starts_with("Parkbound slope proof test ")
                 })
             {
                 let _ = fs::remove_dir_all(path);
@@ -618,5 +623,36 @@ mod tests {
         assert_eq!(fs::read(store.save_path()).unwrap(), primary);
         assert_eq!(fs::read(store.backup_path()).unwrap(), backup);
         assert!(scratch.0.join("verification-terrain.txt").is_file());
+    }
+
+    #[test]
+    fn slope_modes_preserve_primary_backup_and_continue_real_moving_guests() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "Parkbound slope proof test é {} {timestamp}",
+            std::process::id()
+        )));
+        let arguments = |mode: &str| {
+            vec![
+                OsString::from("--save-check"),
+                OsString::from(mode),
+                OsString::from("--save-dir"),
+                scratch.0.as_os_str().to_owned(),
+            ]
+        };
+        assert_eq!(run(arguments("write-slopes")), Some(AppExit::Success));
+        let session = SaveSession::from_arguments(arguments("verify-slopes"));
+        let store = session.store.as_ref().unwrap();
+        let primary = fs::read(store.save_path()).unwrap();
+        let backup = fs::read(store.backup_path()).unwrap();
+        assert_ne!(primary, backup);
+        assert_eq!(run(arguments("write-slopes")), Some(AppExit::error()));
+        assert_eq!(run(arguments("verify-slopes")), Some(AppExit::Success));
+        assert_eq!(fs::read(store.save_path()).unwrap(), primary);
+        assert_eq!(fs::read(store.backup_path()).unwrap(), backup);
+        assert!(scratch.0.join("verification-slopes.txt").is_file());
     }
 }

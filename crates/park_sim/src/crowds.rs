@@ -1,13 +1,15 @@
 //! Deterministic path navigation and recovery for the small crowd proof.
 //!
-//! Paths connect through every cardinal edge at the same height. Axis controls
-//! their decoration, not connectivity. Slopes, queues, admission, needs, and
-//! ride boarding are later gameplay; these guests visit path nodes.
+//! Flat paths connect through four cardinal edges; one-step slopes connect
+//! only through their opposite matching-height ends. Guests visit path nodes.
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
-use crate::{Axis, ObjectId, ObjectKind, Park, PlacementError, SurfaceObject, TilePos};
+use crate::{
+    Axis, ObjectId, ObjectKind, PATH_UNITS, Park, PathDirection, PathPoint, PathSlope,
+    PlacementError, SurfaceObject, TilePos, paths_connect,
+};
 
 /// One tile of movement takes one second of authoritative simulation time.
 pub const WALK_TICKS: u16 = 30;
@@ -45,6 +47,8 @@ pub struct Guest {
     #[serde(deserialize_with = "crate::saves::strict_object")]
     pub anchor: TilePos,
     pub height: u8,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
+    pub anchor_slope: PathSlope,
     pub progress: u16,
     #[serde(deserialize_with = "crate::saves::string_enum")]
     pub state: GuestState,
@@ -62,6 +66,73 @@ pub struct GuestPosition {
     pub height: u8,
     pub progress: u16,
     pub steps: u16,
+    pub point: PathPoint,
+}
+
+impl Guest {
+    /// Sample the physical center→shared edge→center walk without any ID scan.
+    /// Callers with an object index may use this directly; missing current
+    /// objects retain the removed path's half-height center through anchor_slope.
+    pub fn position(
+        &self,
+        current: Option<&SurfaceObject>,
+        next: Option<&SurfaceObject>,
+    ) -> GuestPosition {
+        let anchor = self.anchor_path();
+        let current = current
+            .filter(|path| path.kind == ObjectKind::Path)
+            .unwrap_or(&anchor);
+        let next = next.filter(|path| paths_connect(current, path));
+        let from = current.path_center().expect("current or anchor is a path");
+        let to = next.and_then(SurfaceObject::path_center).unwrap_or(from);
+        let point = if let Some(next) = next {
+            let edge = PathDirection::ALL
+                .into_iter()
+                .find(|direction| direction.neighbor(current.pos) == Some(next.pos))
+                .expect("connected cardinal paths");
+            let middle = PathPoint {
+                x: (from.x + to.x) / 2,
+                y: (from.y + to.y) / 2,
+                height: i32::from(current.path_edge_height(edge).expect("connected end"))
+                    * PATH_UNITS,
+            };
+            let half = WALK_TICKS / 2;
+            let progress = self.progress.min(WALK_TICKS);
+            let (a, b, t) = if progress <= half {
+                (from, middle, progress)
+            } else {
+                (middle, to, progress - half)
+            };
+            let mix = |a: i32, b: i32| a + (b - a) * i32::from(t) / i32::from(half);
+            PathPoint {
+                x: mix(a.x, b.x),
+                y: mix(a.y, b.y),
+                height: mix(a.height, b.height),
+            }
+        } else {
+            from
+        };
+        GuestPosition {
+            from: current.pos,
+            to: next.map_or(current.pos, |path| path.pos),
+            height: current.height,
+            progress: self.progress,
+            steps: WALK_TICKS,
+            point,
+        }
+    }
+
+    fn anchor_path(&self) -> SurfaceObject {
+        SurfaceObject {
+            id: ObjectId(0),
+            pos: self.anchor,
+            kind: ObjectKind::Path,
+            axis: self.anchor_slope.axis(),
+            path_slope: self.anchor_slope,
+            height: self.height,
+            clearance: self.anchor_slope.clearance(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -140,21 +211,10 @@ impl Park {
 
     pub fn guest_position(&self, id: GuestId) -> Option<GuestPosition> {
         let guest = self.guests.iter().find(|guest| guest.id == id)?;
-        let from = guest
-            .current
-            .and_then(|id| self.object(id))
-            .map_or(guest.anchor, |path| path.pos);
-        let to = guest
-            .next
-            .and_then(|id| self.object(id))
-            .map_or(from, |path| path.pos);
-        Some(GuestPosition {
-            from,
-            to,
-            height: guest.height,
-            progress: guest.progress,
-            steps: WALK_TICKS,
-        })
+        Some(guest.position(
+            guest.current.and_then(|id| self.object(id)),
+            guest.next.and_then(|id| self.object(id)),
+        ))
     }
 
     /// Cardinal path neighbors in stable ID order. Track, a diagonal, and a
@@ -213,6 +273,7 @@ impl Park {
                     destination: None,
                     anchor: path.pos,
                     height: path.height,
+                    anchor_slope: path.path_slope,
                     progress: 0,
                     state: GuestState::Waiting,
                     arrivals: 0,
@@ -266,9 +327,10 @@ impl Park {
                 guest.current = None;
                 guest.anchor = removed.pos;
                 guest.height = removed.height;
+                guest.anchor_slope = removed.path_slope;
             }
             // A partially travelled edge returns to its retained start anchor.
-            // Recovery can move at most to an incident, same-height path.
+            // Recovery can move at most to a path incident at a matching end.
             guest.next = None;
             guest.destination = None;
             guest.route.clear();
@@ -303,13 +365,6 @@ fn fixture_paths() -> Vec<(TilePos, Axis)> {
     paths
 }
 
-fn paths_connect(a: &SurfaceObject, b: &SurfaceObject) -> bool {
-    a.kind == ObjectKind::Path
-        && b.kind == ObjectKind::Path
-        && a.height == b.height
-        && a.pos.x.abs_diff(b.pos.x) + a.pos.y.abs_diff(b.pos.y) == 1
-}
-
 /// SplitMix64; the full wrapping integer state belongs to Park and is cloned.
 pub(crate) fn next_random(state: &mut u64) -> u64 {
     *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
@@ -332,26 +387,29 @@ impl PathGraph {
             .filter(|object| object.kind == ObjectKind::Path)
             .map(|object| (object.id, *object))
             .collect();
-        // Placement/save validation prevents two paths at the same tile and
-        // height. Indexing those coordinates avoids comparing every path pair.
-        let by_position: BTreeMap<_, _> = nodes
+        // Placement/save validation prevents duplicate walking ends at the
+        // same tile and height. Indexing ends avoids comparing every path pair.
+        let by_edge: BTreeMap<_, _> = nodes
             .values()
-            .map(|path| ((path.pos.x, path.pos.y, path.height), path.id))
+            .flat_map(|path| {
+                PathDirection::ALL.into_iter().filter_map(|edge| {
+                    path.path_edge_height(edge)
+                        .map(|height| ((path.pos.x, path.pos.y, edge, height), path.id))
+                })
+            })
             .collect();
         let edges = nodes
             .values()
             .map(|path| {
-                let (x, y, h) = (path.pos.x, path.pos.y, path.height);
-                let positions = [
-                    x.checked_sub(1).map(|x| (x, y, h)),
-                    x.checked_add(1).map(|x| (x, y, h)),
-                    y.checked_sub(1).map(|y| (x, y, h)),
-                    y.checked_add(1).map(|y| (x, y, h)),
-                ];
-                let mut neighbors: Vec<_> = positions
+                let mut neighbors: Vec<_> = PathDirection::ALL
                     .into_iter()
-                    .flatten()
-                    .filter_map(|position| by_position.get(&position).copied())
+                    .filter_map(|edge| {
+                        let height = path.path_edge_height(edge)?;
+                        let pos = edge.neighbor(path.pos)?;
+                        by_edge
+                            .get(&(pos.x, pos.y, edge.opposite(), height))
+                            .copied()
+                    })
                     .collect();
                 // The previous all-pairs scan used ascending ObjectId order.
                 // Preserve that order, not cardinal/spatial traversal order,
@@ -396,16 +454,21 @@ impl PathGraph {
 
     fn step_guest(&self, guest: &mut Guest, rng: &mut u64) {
         if guest.current.is_none() {
-            // The same tile wins over an adjacent tile. Never search farther,
-            // move between heights, or jump to an unrelated component.
+            // The exact removed footprint wins over an incident path. A slope
+            // retains both end heights: side neighbors and wrong levels cannot
+            // become recovery targets, even when their centers are nearby.
+            let anchor = guest.anchor_path();
             let recovered = self
                 .nodes
                 .values()
                 .filter_map(|path| {
                     let distance =
                         path.pos.x.abs_diff(guest.anchor.x) + path.pos.y.abs_diff(guest.anchor.y);
-                    (path.height == guest.height && distance <= 1)
-                        .then_some((distance, path.id, *path))
+                    ((distance == 0
+                        && path.height == guest.height
+                        && path.path_slope == guest.anchor_slope)
+                        || paths_connect(&anchor, path))
+                    .then_some((distance, path.id, *path))
                 })
                 .min_by_key(|(distance, id, _)| (*distance, *id));
             let Some((_, id, path)) = recovered else {
@@ -414,6 +477,8 @@ impl PathGraph {
             };
             guest.current = Some(id);
             guest.anchor = path.pos;
+            guest.height = path.height;
+            guest.anchor_slope = path.path_slope;
         }
         let current = guest.current.expect("a retained or recovered current path");
         if guest.wait_ticks > 0 {
@@ -427,6 +492,8 @@ impl PathGraph {
                 let path = self.nodes[&next];
                 guest.current = Some(next);
                 guest.anchor = path.pos;
+                guest.height = path.height;
+                guest.anchor_slope = path.path_slope;
                 guest.progress = 0;
                 guest.next = None;
                 if guest.destination == Some(next) {
@@ -539,6 +606,7 @@ mod tests {
             destination: None,
             anchor: path.pos,
             height: path.height,
+            anchor_slope: path.path_slope,
             progress: 0,
             state: GuestState::Waiting,
             arrivals: 0,

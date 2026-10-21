@@ -660,8 +660,8 @@ mod tests {
         store.save(&second).unwrap();
         let serialized = String::from_utf8(second.to_save_bytes().unwrap()).unwrap();
         let unsupported = serialized
-            .replace("\"schema_version\":1", "\"schema_version\":999")
-            .replace("\"schema_version\": 1", "\"schema_version\": 999");
+            .replace("\"schema_version\":2", "\"schema_version\":999")
+            .replace("\"schema_version\": 2", "\"schema_version\": 999");
         assert_ne!(serialized, unsupported);
         fs::write(store.save_path(), unsupported).unwrap();
         let before = disk(&store);

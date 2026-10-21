@@ -9,6 +9,8 @@ use super::*;
 
 #[path = "path_input_tests.rs"]
 mod path_input_tests;
+#[path = "slope_input_tests.rs"]
+mod slope_input_tests;
 #[path = "terrain_input_tests.rs"]
 mod terrain_input_tests;
 
