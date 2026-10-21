@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-Updated 21 October 2026 for **0.15.0 guest ride seeking and queue admission**, on `codex/guest-admission` from completed 0.14.0 checkpoint `9e5a8c19354a24134bb25604c43914ee811d97df`. The current slice adds deliberate public-path approaches, owned queue membership, ordered movement, capacity, patience and physical return after closure or broken access. Boarding and ride exits remain a following stage. Current implementation verification is in progress; see [the admission report](docs/ADMISSION_REPORT.md) for the final evidence. Historical 0.14 results are retained in section 10 and [the queue report](docs/QUEUES_REPORT.md).
+Updated 21 October 2026 for **0.15.0 guest ride seeking and queue admission**, on `codex/guest-admission` from completed 0.14.0 checkpoint `9e5a8c19354a24134bb25604c43914ee811d97df`. The completed implementation adds deliberate public-path approaches, owned queue membership, ordered movement, capacity, patience and physical return after closure or broken access. All 306 tests, strict source/build checks, production continuation/migration, eleven inspected captures, relocated packaging and exact-source Windows CI passed. Native control checks were interrupted and remain open. Boarding and ride exits are the next major stage. See [the admission report](docs/ADMISSION_REPORT.md) and section 10 for exact evidence; the [queue report](docs/QUEUES_REPORT.md) retains historical 0.14 results.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>. **Parkbound** is a temporary title for an original Rust theme park simulation inspired by classic RCT1/RCT2. The user chose Windows-only free distribution with all functionality included, developed in playable stages. It is not yet a complete management game. **No reference PC is selected; this development PC is explicitly excluded.** Its measurements remain local diagnostics, not hardware requirements or 60 FPS acceptance.
 
@@ -20,7 +20,7 @@ The previously used second-PC checkout is:
 C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon
 ```
 
-That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch, and commit before continuing. This stage starts from [draft PR #12](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/12), which was open/unmerged when admission work began and targets the preceding sloped-path branch. Do not assume `main` contains the latest playable stage or that dependent PRs have merged.
+That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch, and commit before continuing. Current work is pushed in [draft PR #13](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/13), stacked on `codex/queue-connectivity` / unmerged [PR #12](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/12). Exact runtime source is `0c34f8d13139d3dc676505248dba0a9fa872cf65`; later documentation commits do not change that executable. Do not assume `main` contains the latest playable stage or that dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -65,6 +65,7 @@ Historical reports retain exact source, test, capture, native, CI, package, and 
 
 | Version | Retained report |
 | --- | --- |
+| 0.15 | [Guest admission and ordered queues](docs/ADMISSION_REPORT.md) |
 | 0.14 | [Queue geometry and entrance connectivity](docs/QUEUES_REPORT.md) |
 | 0.13 | [One-step sloped paths](docs/SLOPED_PATHS_REPORT.md) |
 | 0.12 | [Terrain editing](docs/TERRAIN_EDITING_REPORT.md) |
@@ -76,7 +77,7 @@ Historical reports retain exact source, test, capture, native, CI, package, and 
 | 0.4 / 0.3 | [Crowds](docs/CROWD_REPORT.md) / [overlap](docs/OVERLAP_REPORT.md) |
 | 0.2 / 0.1 | [Terrain](docs/TERRAIN_REPORT.md) / [foundation](docs/FOUNDATION_REPORT.md) |
 
-The completed 0.13 runtime source was `b1d26a04cc1282bb71defcb59557309b79252f1d`: 260 release tests, strict source gates, eleven inspected captures, continuation/migration, native construction/recovery, and relocated packaging passed. [CI 39583267705](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39583267705) verifies that runtime source; [CI 39584568173](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39584568173) verifies its later checkpoint. Keep those historical identities separate from the new 0.14 binary and documentation head.
+The completed 0.13 runtime source was `b1d26a04cc1282bb71defcb59557309b79252f1d`: 260 release tests, strict source gates, eleven inspected captures, continuation/migration, native construction/recovery, and relocated packaging passed. [CI 39583267705](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39583267705) verifies that runtime source; [CI 39584568173](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39584568173) verifies its later checkpoint. Keep historical identities separate from the current binary and documentation head.
 
 ## 3. Toolchain and source checks
 
@@ -287,7 +288,15 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 The previous 0.14 runtime was `4c8d42f00fe43a48ad5586240f153b833419d991`, followed by documentation checkpoint `9e5a8c19354a24134bb25604c43914ee811d97df`. Its 285 release tests, strict source/build gates, v1/v2 migration, production continuation, eleven inspected captures, package relocation and exact-source CI passed. [Runtime CI 39588999746](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39588999746) and [checkpoint CI 39590063389](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39590063389) remain historical evidence; they do not verify the new admission source. The full report remains in [QUEUES_REPORT.md](docs/QUEUES_REPORT.md).
 
-Current 0.15 verification is in progress. Record the exact source/test counts, migration and ordinary/path/terrain/slope/queue/admission proofs, inspected captures, native results, CI and package identity in [ADMISSION_REPORT.md](docs/ADMISSION_REPORT.md). Raw evidence is retained under `artifacts/guest-admission-0.15.0/`; it is ignored by Git, so another PC needs the shared folder or a deliberate transfer for raw receipts. The final guide/manifest/ZIP/remote-cleanliness receipt is `final-handoff.txt`, separate from the runtime source. Record later documentation-head CI in the associated PR without embedding a self-referential archive hash in guides.
+Current 0.15 runtime source is `0c34f8d13139d3dc676505248dba0a9fa872cf65` in [draft PR #13](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/13). Its **306 release tests (200 game / 106 simulation)**, formatting, strict all-target release Clippy and production build passed. [Exact-source Windows CI 39614500323](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39614500323) passed tests, package creation, ordinary/path/terrain/slope/queue/admission continuation, reporting smoke and uploads. No local performance batch was run.
+
+Fresh executable processes verified strict v1/v2/v3 migration using authentic 0.12/0.13/0.14 writers, plus old 0.14 rejection of v4 without changing primary or backup. All retained continuation families and the new 3,600-tick occupied-queue/closure/demolition/repair proof passed. Eleven production captures were inspected across all rotations, Flat/Terraced terrain, Surface/Underground views, and normal/minimum windows. These include approach, ramp movement, full capacity, natural patience return, occupied deletion and fresh-ID recovery.
+
+The verified executable is **46,683,648 bytes**, SHA-256 `301a970a3b25ee20855a6d9181b4dc4862f94fffb639ed400d6a659a86c5ea30`. Packaging matched **30 payload hashes and 21 current Markdown guides**. All 291 dependency notices, dependency/native manifests, runtime DLL and Rust notices are byte-identical to the previous package. An extracted copy launched from `C:\Windows` passed the admission proof and produced a byte-identical minimum-window occupied-queue capture. The adjacent `.zip.sha256` remains authoritative after guide refresh; do not embed a mutable ZIP self-hash in this guide.
+
+The new isolated native instance opened successfully, but the first F9 attempt reported user input in the window. Automated inputs stopped; no 0.15 load/pause/ride/save or queue/gate gesture pass is claimed. Its temporary instance and save paths are recorded in `native-instance.json`; it was left open. Default player saves were not accessed. Historical native checks below remain separate.
+
+Full evidence is in [ADMISSION_REPORT.md](docs/ADMISSION_REPORT.md). Raw evidence is retained under `artifacts/guest-admission-0.15.0/`; it is ignored by Git, so another PC needs the shared folder or a deliberate transfer for raw receipts. `final-handoff.txt` records final guide/manifest/ZIP hashes and remote cleanliness; later documentation-head CI is recorded there and in the PR separately from runtime CI.
 
 Historical native results remain narrowly scoped: 0.13 passed Space, wheel zoom, C/shape cycling, South-ramp placement, height buttons, X+click, F5, Save, F9 paused/reset load and Backup. Re-saving a restored ramp reproduced exact bytes. The 0.14 native Load button restored an isolated connected queue fixture paused at 00:24, four linked tiles, twelve guests and Inspect. Subsequent desktop input changed the scene, so automated input stopped and no new J/I/C placement success was inferred. These do not automatically verify changed 0.15 behavior.
 
