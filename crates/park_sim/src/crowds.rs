@@ -53,6 +53,7 @@ pub struct Guest {
     #[serde(deserialize_with = "crate::saves::string_enum")]
     pub state: GuestState,
     pub arrivals: u64,
+    pub rides_completed: u64,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub ride_visit: Option<crate::RideVisit>,
     pub ride_cooldown: u16,
@@ -212,6 +213,13 @@ impl Park {
     pub fn path_cache_stats(&self) -> PathCacheStats {
         self.path_cache.stats
     }
+    pub(crate) fn public_paths_connected(&self, from: ObjectId, to: ObjectId) -> bool {
+        if let Some(graph) = &self.path_cache.graph {
+            graph.route(from, to).is_some()
+        } else {
+            PathGraph::new(&self.objects).route(from, to).is_some()
+        }
+    }
 
     pub fn crowd_stats(&self) -> CrowdStats {
         let mut stats = CrowdStats {
@@ -231,6 +239,16 @@ impl Park {
 
     pub fn guest_position(&self, id: GuestId) -> Option<GuestPosition> {
         let guest = self.guests.iter().find(|guest| guest.id == id)?;
+        if let Some(point) = self.ride_guest_point(guest) {
+            return Some(GuestPosition {
+                from: guest.anchor,
+                to: guest.anchor,
+                height: guest.height,
+                progress: 0,
+                steps: WALK_TICKS,
+                point,
+            });
+        }
         Some(guest.position(
             guest.current.and_then(|id| self.object(id)),
             guest.next.and_then(|id| self.object(id)),
@@ -297,6 +315,7 @@ impl Park {
                     progress: 0,
                     state: GuestState::Waiting,
                     arrivals: 0,
+                    rides_completed: 0,
                     ride_visit: None,
                     ride_cooldown: 0,
                     route: VecDeque::new(),
@@ -629,6 +648,7 @@ mod tests {
             progress: 0,
             state: GuestState::Waiting,
             arrivals: 0,
+            rides_completed: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: VecDeque::new(),

@@ -5,6 +5,15 @@ use park_sim::{PathDirection, PathSlope};
 
 const GATE: TilePos = TilePos { x: 8, y: 11 };
 const QUEUE: TilePos = TilePos { x: 8, y: 12 };
+const EXIT: TilePos = TilePos { x: 8, y: 9 };
+
+fn construction_position(mode: PathTool) -> TilePos {
+    match mode {
+        PathTool::Entrance => GATE,
+        PathTool::Exit => EXIT,
+        _ => QUEUE,
+    }
+}
 
 fn tool_view(mode: PathTool, rotation: u8) -> ViewState {
     ViewState {
@@ -19,7 +28,7 @@ fn tool_view(mode: PathTool, rotation: u8) -> ViewState {
 fn aim(app: &mut App, window: Entity, pos: TilePos) {
     let view = app.world().resource::<ViewState>();
     let park = &app.world().resource::<Simulation>().0;
-    let slope = if view.path_tool.mode == PathTool::Entrance {
+    let slope = if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit) {
         PathSlope::Flat
     } else {
         view.path_tool.slope
@@ -71,20 +80,20 @@ fn release(app: &mut App) {
 
 #[test]
 fn queue_and_entrance_previews_commit_once_at_every_rotation_and_dpi() {
-    for mode in [PathTool::BuildQueue, PathTool::Entrance] {
+    for mode in [PathTool::BuildQueue, PathTool::Entrance, PathTool::Exit] {
         for rotation in 0..4 {
             for dpi in [1.0, 1.5, 2.0] {
                 let park = train_park();
                 let ride = park.ride().unwrap().id;
-                let pos = if mode == PathTool::Entrance {
-                    GATE
-                } else {
-                    QUEUE
-                };
+                let pos = construction_position(mode);
                 let mut expected = park.clone();
                 let id = if mode == PathTool::Entrance {
                     expected
                         .place_ride_entrance(pos, 8, PathDirection::North, ride)
+                        .unwrap()
+                } else if mode == PathTool::Exit {
+                    expected
+                        .place_ride_exit(pos, 8, PathDirection::South, ride)
                         .unwrap()
                 } else {
                     expected
@@ -104,8 +113,9 @@ fn queue_and_entrance_previews_commit_once_at_every_rotation_and_dpi() {
                 assert_eq!((preview.pos, preview.valid), (pos, true));
                 assert_eq!(
                     preview.entrance_facing.is_some(),
-                    mode == PathTool::Entrance
+                    matches!(mode, PathTool::Entrance | PathTool::Exit)
                 );
+                assert_eq!(preview.exit_gate, mode == PathTool::Exit);
                 click(&mut app);
                 frame(&mut app);
                 assert_eq!(app.world().resource::<Simulation>().0, expected);
@@ -132,6 +142,7 @@ fn queue_and_gate_keyboard_and_buttons_keep_their_modes_and_obey_edit_gates() {
     for (key, mode) in [
         (KeyCode::KeyJ, PathTool::BuildQueue),
         (KeyCode::KeyI, PathTool::Entrance),
+        (KeyCode::KeyK, PathTool::Exit),
     ] {
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -152,6 +163,8 @@ fn queue_and_gate_keyboard_and_buttons_keep_their_modes_and_obey_edit_gates() {
         assert_eq!(tool.mode, mode);
         if mode == PathTool::Entrance {
             assert_eq!(tool.entrance_facing, PathDirection::East);
+        } else if mode == PathTool::Exit {
+            assert_eq!(tool.exit_facing, PathDirection::West);
         } else {
             assert_eq!(tool.slope, PathSlope::North);
         }
@@ -206,15 +219,11 @@ fn queue_and_gate_keyboard_and_buttons_keep_their_modes_and_obey_edit_gates() {
 
 #[test]
 fn queue_and_gate_clicks_obey_focus_ui_pan_and_pending_load() {
-    for mode in [PathTool::BuildQueue, PathTool::Entrance] {
+    for mode in [PathTool::BuildQueue, PathTool::Entrance, PathTool::Exit] {
         for gate in 0..8 {
             let park = train_park();
             let (mut app, window) = input_app(park.clone(), tool_view(mode, 0), 1.0);
-            let pos = if mode == PathTool::Entrance {
-                GATE
-            } else {
-                QUEUE
-            };
+            let pos = construction_position(mode);
             aim(&mut app, window, pos);
             match gate {
                 0 => app.world_mut().resource_mut::<ViewState>().help = true,
@@ -271,8 +280,8 @@ fn queue_and_gate_clicks_obey_focus_ui_pan_and_pending_load() {
 
 #[test]
 fn invalid_gate_and_missing_ride_are_atomic_through_pointer_input() {
-    for mode in [PathTool::Entrance, PathTool::BuildQueue] {
-        let park = if mode == PathTool::Entrance {
+    for mode in [PathTool::Entrance, PathTool::Exit, PathTool::BuildQueue] {
+        let park = if matches!(mode, PathTool::Entrance | PathTool::Exit) {
             train_park()
         } else {
             Park::new(MAP_SIZE, MAP_SIZE)
@@ -304,39 +313,45 @@ fn invalid_gate_and_missing_ride_are_atomic_through_pointer_input() {
 
 #[test]
 fn gate_build_save_demolish_backup_and_failed_load_follow_command_order() {
+    for mode in [PathTool::Entrance, PathTool::Exit] {
+        gate_save_roundtrip(mode);
+    }
+}
+
+fn gate_save_roundtrip(mode: PathTool) {
     let directory = InputSaveDirectory::new();
     let park = train_park();
-    let (mut app, window) =
-        persistence_input_app(&directory, park.clone(), tool_view(PathTool::Entrance, 0));
+    let (mut app, window) = persistence_input_app(&directory, park.clone(), tool_view(mode, 0));
     app.add_systems(
         Update,
         apply_path_actions
             .after(keyboard_input)
             .before(pointer_input),
     );
-    aim(&mut app, window, GATE);
+    aim(&mut app, window, construction_position(mode));
     click(&mut app);
     persistence_key_frame(&mut app, &[KeyCode::F9]);
     assert_eq!(app.world().resource::<Simulation>().0, park);
     release(&mut app);
-    aim(&mut app, window, GATE);
+    aim(&mut app, window, construction_position(mode));
     click(&mut app);
     persistence_key_frame(&mut app, &[KeyCode::F5]);
     let built = app.world().resource::<Simulation>().0.clone();
-    let gate = built.ride().unwrap().entrance.as_ref().unwrap().object;
+    let gate = if mode == PathTool::Exit {
+        built.ride().unwrap().exit.as_ref().unwrap().object
+    } else {
+        built.ride().unwrap().entrance.as_ref().unwrap().object
+    };
     assert_eq!(directory.store().load().unwrap(), built);
     release(&mut app);
     app.world_mut().resource_mut::<ViewState>().selected = Some(SurfaceId::Object(gate));
     persistence_key_frame(&mut app, &[KeyCode::Delete, KeyCode::F5]);
-    assert!(
-        app.world()
-            .resource::<Simulation>()
-            .0
-            .ride()
-            .unwrap()
-            .entrance
-            .is_none()
-    );
+    let removed_ride = app.world().resource::<Simulation>().0.ride().unwrap();
+    assert!(if mode == PathTool::Exit {
+        removed_ride.exit.is_none()
+    } else {
+        removed_ride.entrance.is_none()
+    });
     assert_eq!(directory.store().load_backup().unwrap(), built);
     persistence_key_frame(&mut app, &[KeyCode::ShiftLeft, KeyCode::F9]);
     assert_eq!(app.world().resource::<Simulation>().0, built);

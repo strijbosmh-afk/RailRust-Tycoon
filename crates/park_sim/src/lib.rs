@@ -6,6 +6,7 @@
 mod admission;
 mod crowds;
 pub mod diagnostics;
+mod journeys;
 mod path_geometry;
 mod ride_access;
 #[cfg(test)]
@@ -21,6 +22,10 @@ pub use admission::{
 };
 pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
+};
+pub use journeys::{
+    PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
+    RideJourneyStats, RideTransfer, TRAIN_SEATS,
 };
 pub use path_geometry::{
     MAX_SLOPED_PATH_HEIGHT, PATH_UNITS, PathDirection, PathPoint, PathSlope, SLOPED_PATH_CLEARANCE,
@@ -344,7 +349,9 @@ impl Park {
             }
             self.ticks += 1;
             self.step_crowd();
+            self.step_ride_journeys();
             self.step_train();
+            self.reconcile_passenger_laps();
         }
     }
 }

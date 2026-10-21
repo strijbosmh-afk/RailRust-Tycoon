@@ -444,6 +444,76 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
     faces
 }
 
+/// Seated figures use the authoritative seat point and the physical car's
+/// tangent. Their depth belongs to each small face, so rims, other cars and
+/// foreground terrain occlude them without an always-on-top passenger layer.
+fn passenger_faces(
+    passenger: park_sim::RideGuestPosition,
+    pose: TrainPose,
+    size: u32,
+    rotation: u8,
+) -> Vec<Face> {
+    let mut faces = Vec::new();
+    let point = passenger.point;
+    let center = Vec3::new(point.x as f32, point.y as f32, point.height as f32)
+        / park_sim::PATH_UNITS as f32
+        + Vec3::Z * PATH_TOP_OFFSET;
+    let tangent = (ground(pose.front) - ground(pose.rear))
+        .truncate()
+        .normalize_or_zero();
+    let along = tangent.extend(0.0);
+    let side = Vec3::new(-tangent.y, tangent.x, 0.0);
+    let footprint = |length: f32, width: f32| {
+        [
+            center - along * length - side * width,
+            center - along * length + side * width,
+            center + along * length + side * width,
+            center + along * length - side * width,
+        ]
+    };
+    let shirt = match passenger.guest.0 % 6 {
+        0 => rgb(213, 77, 82),
+        1 => rgb(66, 126, 188),
+        2 => rgb(150, 88, 174),
+        3 => rgb(242, 184, 65),
+        4 => rgb(53, 154, 140),
+        _ => rgb(222, 119, 161),
+    };
+    let skin = if passenger.guest.0.is_multiple_of(3) {
+        rgb(174, 119, 84)
+    } else {
+        rgb(239, 192, 143)
+    };
+    slab(
+        &mut faces,
+        footprint(0.045, 0.038),
+        0.02,
+        0.36,
+        [shirt; 3],
+        size,
+        rotation,
+    );
+    slab(
+        &mut faces,
+        footprint(0.040, 0.034),
+        0.36,
+        0.65,
+        [skin; 3],
+        size,
+        rotation,
+    );
+    slab(
+        &mut faces,
+        footprint(0.042, 0.036),
+        0.63,
+        0.70,
+        [rgb(67, 53, 42); 3],
+        size,
+        rotation,
+    );
+    faces
+}
+
 pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     let mut painter = Painter::default();
     if park.width() != park.height() {
@@ -482,6 +552,17 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         }
         for face in car_faces(*pose, park.width(), rotation) {
             painter.surface(face.surface, face.ink);
+        }
+    }
+    for passenger in park.ride_guest_positions() {
+        if passenger.phase != RideVisitPhase::Riding {
+            continue;
+        }
+        let car = usize::from(passenger.seat) / 2;
+        if let Some(pose) = poses.get(car).filter(|_| visible.get(car) == Some(&true)) {
+            for face in passenger_faces(passenger, *pose, park.width(), rotation) {
+                painter.surface(face.surface, face.ink);
+            }
         }
     }
     // Couplers are narrow physical beams; they share the cars' actual depth.
@@ -818,6 +899,94 @@ mod tests {
                 painter.surface(surface, rgb(100, 100, 100));
             }
             assert!(mesh_depth(&painter.finish(), point).unwrap() > car_depth);
+        }
+    }
+
+    #[test]
+    fn passenger_faces_follow_seat_height_orientation_and_foreground_depth_in_all_rotations() {
+        for rotation in 0..4 {
+            let pos = unrotate(10, 10, 32, rotation);
+            let center = TrackPoint {
+                x: pos.x as i32 * TRACK_UNITS,
+                y: pos.y as i32 * TRACK_UNITS,
+                height: 4 * TRACK_UNITS,
+            };
+            let pose = TrainPose {
+                center,
+                rear: TrackPoint {
+                    x: center.x - 120,
+                    height: center.height - 100,
+                    ..center
+                },
+                front: TrackPoint {
+                    x: center.x + 120,
+                    height: center.height + 100,
+                    ..center
+                },
+            };
+            let passenger = park_sim::RideGuestPosition {
+                guest: park_sim::GuestId(2),
+                seat: 0,
+                phase: RideVisitPhase::Riding,
+                point: park_sim::PathPoint {
+                    x: pos.x as i32 * park_sim::PATH_UNITS,
+                    y: pos.y as i32 * park_sim::PATH_UNITS,
+                    height: 4 * park_sim::PATH_UNITS + 35,
+                },
+            };
+            let body = mesh(passenger_faces(passenger, pose, 32, rotation));
+            assert!(!positions(&body).is_empty());
+            assert!(
+                positions(&body)
+                    .iter()
+                    .flatten()
+                    .all(|coordinate| coordinate.is_finite())
+            );
+            let base =
+                ground(center) + Vec3::Z * (35.0 / park_sim::PATH_UNITS as f32 + PATH_TOP_OFFSET);
+            let point = projected(base + Vec3::Z * 0.2, 32, rotation).truncate();
+            let body_depth = mesh_depth(&body, point).expect("inside passenger torso");
+            let foreground = unrotate(11, 11, 32, rotation);
+            let mut terrain = Park::new(32, 32);
+            terrain.set_terrain_height(foreground, 12).unwrap();
+            assert!(
+                column_surfaces(&terrain, foreground, rotation)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|surface| surface.hit_depth(point))
+                    .any(|depth| depth > body_depth)
+            );
+            let mut deck = Park::new(32, 32);
+            let id = deck.place_path(foreground, 7).unwrap();
+            assert!(
+                object_surfaces(&deck, deck.object(id).unwrap(), rotation)
+                    .into_iter()
+                    .filter_map(|surface| surface.hit_depth(point))
+                    .any(|depth| depth > body_depth)
+            );
+            // Every seat figure remains inside the reserved track clearance.
+            for vertex in positions(&body) {
+                let sum = vertex[2] - BASE_DEPTH;
+                let height = (vertex[1] + (sum - 31.0) * HALF_HEIGHT) / HEIGHT_STEP;
+                assert!((4.8..5.51).contains(&height), "{height}");
+            }
+            let turned = TrainPose {
+                rear: TrackPoint {
+                    x: center.x,
+                    y: center.y - 120,
+                    ..pose.rear
+                },
+                front: TrackPoint {
+                    x: center.x,
+                    y: center.y + 120,
+                    ..pose.front
+                },
+                ..pose
+            };
+            assert_ne!(
+                positions(&body),
+                positions(&mesh(passenger_faces(passenger, turned, 32, rotation)))
+            );
         }
     }
 

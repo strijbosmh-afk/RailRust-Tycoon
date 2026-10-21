@@ -1,24 +1,34 @@
-//! Entrance construction uses the same deliberate-click and visibility rules as paths.
+//! Ride gates use the same deliberate-click and visibility rules as paths.
 use super::*;
 
 pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     let height = view.path_tool.height;
-    let facing = view.path_tool.entrance_facing;
+    let exit = view.path_tool.mode == PathTool::Exit;
+    let name = if exit { "exit" } else { "entrance" };
+    let facing = if exit {
+        view.path_tool.exit_facing
+    } else {
+        view.path_tool.entrance_facing
+    };
     let Some(pos) =
         world::pick_sloped_path_plane(point, park, view.rotation, height, PathSlope::Flat)
     else {
         view.path_tool.hint = "Outside the park at this height.".into();
         if click {
-            view.path_notice = Some("No entrance placed: outside the park.".into());
+            view.path_notice = Some(format!("No {name} placed: outside the park."));
         }
         return;
     };
     let owner = park.ride().map(|ride| ride.id);
     let validation = owner
-        .ok_or_else(|| "An entrance needs an existing ride.".to_string())
+        .ok_or_else(|| "A gate needs an existing ride.".to_string())
         .and_then(|ride| {
-            park.validate_ride_entrance(pos, height, facing, ride)
-                .map_err(|error| ride_placement_message(error, PathSlope::Flat))
+            let result = if exit {
+                park.validate_ride_exit(pos, height, facing, ride)
+            } else {
+                park.validate_ride_entrance(pos, height, facing, ride)
+            };
+            result.map_err(|error| ride_placement_message(error, PathSlope::Flat))
         });
     let occluded = world::sloped_path_plane_occluded(
         point,
@@ -38,13 +48,14 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             slope: PathSlope::Flat,
             queue_owner: owner,
             entrance_facing: Some(facing),
+            exit_gate: exit,
             valid: reason.is_none(),
             demolish: false,
         });
     }
     view.path_tool.hint = reason.clone().unwrap_or_else(|| {
         format!(
-            "Gate at {}, {} / height {height}\nClick to place the ride entrance.",
+            "Tile {}, {} / height {height}\nClick to place the ride {name}.",
             pos.x + 1,
             pos.y + 1
         )
@@ -53,23 +64,30 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         return;
     }
     if let Some(reason) = reason {
-        view.path_notice = Some(format!("No entrance placed: {reason}"));
+        view.path_notice = Some(format!("No {name} placed: {reason}"));
         return;
     }
-    match park.place_ride_entrance(pos, height, facing, owner.expect("validated ride")) {
+    let result = if exit {
+        park.place_ride_exit(pos, height, facing, owner.expect("validated ride"))
+    } else {
+        park.place_ride_entrance(pos, height, facing, owner.expect("validated ride"))
+    };
+    match result {
         Ok(id) => {
             view.selected = Some(SurfaceId::Object(id));
             view.hovered = view.selected;
             view.scene_dirty = true;
             view.path_tool.clear_pointer();
+            let name = if exit { "Exit" } else { "Entrance" };
+            let connection = if exit { "public path" } else { "a queue" };
             view.path_notice = Some(format!(
-                "Entrance #{} placed. Connect its outer edge to a queue.",
+                "{name} #{} placed. Connect its outer edge to {connection}.",
                 id.0
             ));
         }
         Err(error) => {
             view.path_notice = Some(format!(
-                "No entrance placed: {}",
+                "No {name} placed: {}",
                 ride_placement_message(error, PathSlope::Flat)
             ))
         }

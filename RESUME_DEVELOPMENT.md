@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-Updated 21 October 2026 for **0.15.0 guest ride seeking and queue admission**, on `codex/guest-admission` from completed 0.14.0 checkpoint `9e5a8c19354a24134bb25604c43914ee811d97df`. The completed implementation adds deliberate public-path approaches, owned queue membership, ordered movement, capacity, patience and physical return after closure or broken access. All 306 tests, strict source/build checks, production continuation/migration, eleven inspected captures, relocated packaging and exact-source Windows CI passed. Native control checks were interrupted and remain open. Boarding and ride exits are the next major stage. See [the admission report](docs/ADMISSION_REPORT.md) and section 10 for exact evidence; the [queue report](docs/QUEUES_REPORT.md) retains historical 0.14 results.
+Updated 21 October 2026 for **0.16.0 complete ride journeys**, on `codex/ride-journeys` from completed 0.15.0 checkpoint `965e3267b2ea8350067a12761fe339051b711e8d`. This stage adds a separate exit, physical station transfers, six passenger seats, completed rides, protected occupied construction and exact passenger continuation. The bounded gameplay stage and its source, runtime, native, package and hosted checks are complete; section 10 and [the journey report](docs/RIDE_JOURNEY_REPORT.md) record current evidence. Historical [admission](docs/ADMISSION_REPORT.md) and [queue](docs/QUEUES_REPORT.md) reports retain their original evidence.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>. **Parkbound** is a temporary title for an original Rust theme park simulation inspired by classic RCT1/RCT2. The user chose Windows-only free distribution with all functionality included, developed in playable stages. It is not yet a complete management game. **No reference PC is selected; this development PC is explicitly excluded.** Its measurements remain local diagnostics, not hardware requirements or 60 FPS acceptance.
 
@@ -20,7 +20,7 @@ The previously used second-PC checkout is:
 C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon
 ```
 
-That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch, and commit before continuing. Current work is pushed in [draft PR #13](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/13), stacked on `codex/queue-connectivity` / unmerged [PR #12](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/12). Exact runtime source is `0c34f8d13139d3dc676505248dba0a9fa872cf65`; later documentation commits do not change that executable. Do not assume `main` contains the latest playable stage or that dependent PRs have merged.
+That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch, and commit before continuing. The current branch is `codex/ride-journeys` in [draft PR #14](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/14), stacked on `codex/guest-admission` / unmerged [draft PR #13](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/13). Exact runtime source is `25ed0a993f1c6b63dad2e659bc6b6c9dc93d5d38`; later documentation commits do not change that executable. Do not assume `main` contains the latest playable stage or that dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -42,10 +42,10 @@ Set-Location -LiteralPath $projectDirectory
 git fetch origin
 git branch -a
 # Only after the current branch is listed on origin:
-git switch --track origin/codex/guest-admission
+git switch --track origin/codex/ride-journeys
 ```
 
-If the branch already exists locally, use `git switch codex/guest-admission` instead. If it is absent from `origin`, finish/push the first PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/ride-journeys` instead. If it is absent from `origin`, finish/push the first PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -59,12 +59,13 @@ Retain historical reports, raw benchmark data, evidence paths and notices. In pa
 
 ## 2. Read the project records
 
-Start with [ADMISSION_REPORT.md](docs/ADMISSION_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
+Start with [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
 
 Historical reports retain exact source, test, capture, native, CI, package, and checksum evidence without duplicating it all here:
 
 | Version | Retained report |
 | --- | --- |
+| 0.16 | [Complete ride journeys](docs/RIDE_JOURNEY_REPORT.md) |
 | 0.15 | [Guest admission and ordered queues](docs/ADMISSION_REPORT.md) |
 | 0.14 | [Queue geometry and entrance connectivity](docs/QUEUES_REPORT.md) |
 | 0.13 | [One-step sloped paths](docs/SLOPED_PATHS_REPORT.md) |
@@ -111,7 +112,7 @@ The playable executable is `target\release\parkbound.exe`. For a deliberate inte
 
 ## 4. Current game and source map
 
-Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (grass/water/sand at heights 0/2/4/6), with Flat and player-edited Custom states. There are 37 public paths around a loop/junction/branches, twelve seeded guests, nine legacy track pieces, and the 46-piece Meadow Flyer circuit at x7..24/y4..10 with rail heights 8..16 and three cars. Fresh startup has **no queue or entrance**. Larger 256 × 256 scenes are controlled diagnostics, not general player-map/save support.
+Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (grass/water/sand at heights 0/2/4/6), with Flat and player-edited Custom states. There are 37 public paths around a loop/junction/branches, twelve seeded guests, nine legacy track pieces, and the 46-piece Meadow Flyer circuit at x7..24/y4..10 with rail heights 8..16 and three cars. Fresh startup has **no queue, entrance or exit**. Larger 256 × 256 scenes are controlled diagnostics, not general player-map/save support.
 
 | Source | Responsibility and invariants |
 | --- | --- |
@@ -119,6 +120,7 @@ Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (
 | `park_sim/src/path_geometry.rs` | Flat/four one-step ramps; endpoint matching; integer `PATH_UNITS = 60` positions. Guest center→edge→center heights and renderer share this geometry. |
 | `park_sim/src/ride_access.rs` | Stable ride identity, entrance placement and derived owned-queue access. Public guest graph is separate. |
 | `park_sim/src/admission.rs` | Seeking, tickets, capacity, reserved queue movement, patience, physical return and local recovery. Motion remains in the shared fixed-point guest sampler. |
+| `park_sim/src/journeys.rs` | Exit connectivity, six stable seats, boarding/unloading transfers, physical passenger positions, completion counters and demolition protection. |
 | `park_game/src/main.rs`, `path_tools.rs`, `path_tools/entrance.rs`, `terrain_tools.rs` | Input ordering, tool state, immutable preview validation, commit/gating, pause/view and scene refresh. |
 | `park_game/src/world.rs`, `world/*` | Shared physical faces for painting/picking/selection, slope/gate/terrain ghosts, persistent guest rendering and sampled train geometry. |
 | `park_game/src/static_landscape.rs` | Persistent static chunk slots and conservative visibility. Complete emission groups preserve internal geometry order; small maps retain one mesh. |
@@ -129,23 +131,24 @@ Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (
 
 Public path appearance is retained. Owned queue paths use original blue procedural decks/marks and the same Flat/ramp surfaces. The gate is a platform, two posts, header and station-facing floor arrow within its two-step clearance; picking uses those actual faces, not a solid invisible clearance box. A doorway remains open. Selection/ghosts use physical depth; foreground terrain/decks can hide them. Gate action focus uses its visible header because the deck can be hidden. `geometric_paths_connect` supplies deck joins, including the gate's outward edge, independently of whole-chain readiness.
 
-## 5. Controls and reproducible queue construction
+## 5. Controls and reproducible ride construction
 
 | Control | Current behavior |
 | --- | --- |
 | P / Path | Public path tool. |
 | J / Queue | Blue queue tool owned by the existing ride. |
 | I / Gate | Entrance tool, facing toward the station. |
-| C / shape or facing button | Queue: cycle Flat/North/East/South/West while staying Queue. Gate: cycle North/East/South/West facing. Other modes: enter public Path and cycle shape. |
+| K / Exit | Teal exit tool, facing toward the station; default South, independent of entrance facing. |
+| C / shape or facing button | Queue: cycle Flat/North/East/South/West while staying Queue. Entrance/Exit: cycle that gate's facing. Other modes: enter public Path and cycle shape. |
 | Page Up/Down / height buttons | Flat/gate height 0–30; ramp low height 0–29, high end low+1. Default 8. |
 | Left click | One placement/removal; holding does not paint. Hidden or invalid targets reject without partial edits. |
-| X / Demolish | Remove visible public/queue paths or the gate. Delete acts on a currently visible selected path/gate. Track editing is absent. |
+| X / Demolish | Remove visible public/queue paths or entrance/exit. Delete acts on a currently visible selected path/gate. Active transfer walkways reject demolition. Track editing is absent. |
 | B / V | Raise/lower one visible dry terrain column by one within 0–32; Water and Underground reject. |
 | Escape / Inspect | Return to Inspect, with help closed first when open. |
 | H / F1 | Help overlay; world edits are blocked while it is open. |
 | F5 / F9 / Shift+F9 | Save / explicit primary Load / explicit Backup. Successful load pauses and clears transient tool/selection/camera state. |
 | Space / 1 / 2 / 3 | Pause / 1× / 2× / 4× simulation. |
-| O / F, ride buttons | Open/Close train and admission / find ride. Closing immediately starts queue return, even when paused; the train retains its finish-lap rule. Boarding is absent. |
+| O / F, ride buttons | Open/Close train and admission / find ride. Closing starts queue return; departed passengers finish the lap then unload. Paused commands never move guests. |
 | Q/E, arrows/WASD, wheel or +/−, right/middle drag | Rotate, pan, zoom and drag camera; Home/Fit restores framing. |
 | G / T / U / R | Grid / Flat–Terraced preset / Surface–Underground / restore public demonstration paths. |
 
@@ -162,8 +165,13 @@ For a small reproducible connected queue, pause the fresh park and use these **w
 | Queue landing | (8,14) | (9,15) | Flat | 9 |
 | Queue return | (8,15) | (9,16) | North ramp | 8 |
 | Existing public entry | (8,16) | (9,17) | Flat | 8 |
+| Exit | (8,9) | (9,10) | Facing South toward station | 8 |
+| Exit landing and return | x8..13, y8 | x9..14, y9 | Public Flat paths | 8 |
+| Return to existing network | x13, y9..11 | x14, y10..12 | Public Flat paths | 8 |
 
 This is four queue tiles and capacity for four admitted guests. Resume an open ride to see guests approach on public paths and join the blue queue. Removing bridge (8,13) gives Disconnected; rebuilding restores Ready with a fresh ObjectId. Adding a Flat queue at (9,14), height 9, creates Branch. Removing public (8,16) gives NoPublicEntry. Removing the gate gives NoEntrance; rebuilding keeps the RideId and allocates a fresh gate ObjectId. These edits now also cancel active admissions and start physical return. An isolated guest stays stranded until a local route is restored. Native construction checks remain separate from source/capture evidence.
+
+The exit's return path joins existing public (13,12); at (13,10) it fits under the raised lift. With both access routes connected, guests board at the stopped station, occupy up to six seats, ride and unload through the teal exit before walking on public paths again. Without an exit, the old approach/queue/patience behavior remains usable and the empty train still runs; no guests board. Removing an unused exit during a lap lets passengers finish that lap and wait at the station for repairs.
 
 ## 6. Queue/entrance API and navigation contract
 
@@ -180,15 +188,23 @@ Keep the two graphs separate:
 
 Flat paths expose four edges and reserve two height steps. Slopes expose only the opposite low/high ends, rise one step and reserve three; low height is at most 29. Both queue and public shapes use the shared fixed-point sampler. Keep original vector order and stable-ID lookup semantics: valid saves can reorder object/guest arrays, so raw slot indices or binary search on unproven ordering are unsafe. Renderer caches must handle removal and same-tick loads that reuse IDs but change geometry.
 
-Station linkage is re-derived from the current usable circuit; it is not a stale stored station ID. Circuit faults retain ride identity and physical entrance metadata. Repair can reconnect the same gate. Removing the gate clears its reference; rebuilding allocates a new object ID while preserving the ride. Ready describes topology. Admission additionally requires an open usable ride, capacity and no ongoing queue return. Automatic train motion still operates independently; boarding, exits, payments and ratings remain absent.
+Station linkage is re-derived from the current usable circuit; it is not a stale stored station ID. Circuit faults retain ride identity and physical gate metadata. Repair can reconnect a gate. Removing a gate clears its reference; rebuilding allocates a new object ID while preserving the ride. Ready describes topology. Admission additionally requires an open usable ride, capacity and no ongoing queue return. Boarding separately requires a usable exit. Payments and ratings remain absent.
 
 ### Guest admission and return contract
 
 `GuestState` remains Walking/Waiting/Lost. Orthogonal `Guest.ride_visit: Option<RideVisit>` stores the ride, Approaching/Queueing/Leaving phase, optional ticket and waited ticks; `ride_cooldown` limits retries. Seeking follows a public BFS route to the entry and reserves no queue space. Admission assigns a monotonically increasing ticket. Capacity is one guest per owned queue tile, with current/next tile reservations preventing overlaps and overtaking. `ride_queue_order` reports ascending tickets; `ride_queue_stats` reports seeking, queueing, leaving, stranded, capacity, movement/waiting, oldest wait, admitting/draining and cumulative joined/turned-away/abandoned counts.
 
-The oldest admitted guest's 1,800-tick (60 simulation second) patience limit, ride closure/fault or invalid access starts return for the whole single-file line. Admissions stay suspended while it empties tail-first. A surviving movement edge finishes before reversal; cancellation alone does not teleport guests. Missing paths retain the existing local anchor rules, and admitted guests may recover only onto public paths or that ride's queue. Repairs use fresh ObjectIds. Returning guests leave by a physically reachable public connection, then have a 300-tick (10 simulation second) retry cooldown. Pause freezes movement and timers; an explicit edit/Close still changes intent immediately. Guests never step onto the gate or track in this stage.
+The oldest waiting guest's 1,800-tick (60 simulation second) patience limit, ride closure/fault or invalid access starts return for the single-file queue. Admissions stay suspended while it empties tail-first. A surviving movement edge finishes before reversal; cancellation alone does not teleport guests. Missing paths retain the existing local anchor rules, and admitted guests may recover only onto public paths or that ride's queue. Repairs use fresh ObjectIds. Returning guests leave by a physically reachable public connection, then have a 300-tick (10 simulation second) retry cooldown. Pause freezes movement and timers; an explicit edit/Close still changes intent immediately. Station boarding is the explicit transition beyond ordinary queue movement.
 
-The renderer uses the authoritative positions, clipped path shadows and cached body/visit marker templates. Seeking, queueing and leaving markers distinguish purpose; Lost retains its warning. UI explains capacity, oldest wait and queue return without claiming boarding. No usable admission leaves the historical wandering/RNG behavior unchanged.
+The renderer uses the authoritative positions, clipped path shadows and cached body/visit marker templates. Seeking, queueing and leaving markers distinguish purpose; Lost retains its warning. UI explains capacity, oldest wait, queue return and passenger status. No usable admission leaves the historical wandering/RNG behavior unchanged.
+
+### Passenger journey contract
+
+`ObjectKind::RideExit` and `Ride.exit: Option<RideEntrance>` describe the separate exit. Its facing points toward the station; its outward edge meets a matching public path. `validate_ride_exit` and `place_ride_exit` share immutable placement checks. `ride_exit_access` reports Ready, RideUnavailable, NoExit, StationDisconnected, NoPublicExit or PublicDisconnected. Boarding requires Ready, including a public route back to the queue's public entry. Physical unloading only requires the healthy station, exit and outward public landing: a broken entrance/queue must not trap riders. A severed distant public network can leave an unloaded visitor following ordinary local/Lost navigation.
+
+`RideVisitPhase` now also includes Boarding/Riding/Exiting. Its `passenger: Option<PassengerJourney>` stores a stable seat 0..5, departure/completed-lap flags, and an optional `RideTransfer { path, portal, progress }`. Transfers take 60 simulation ticks through the path center, gate center and stopped seat; the boarding source remains reserved for all 60 ticks. Passengers clear ordinary current/next/destination/route references and use `Park::ride_guest_positions()` / `guest_position()` for authoritative positions. `Ride` counts boarded, exited and completed journeys; `Guest.rides_completed` counts completed laps followed by return to a public path. Predeparture cancellation is not a completed ride.
+
+`object_removal_block_reason` protects occupied circuit pieces and active transfer paths/gates. `remove_object` preserves its Option signature and returns None without mutation when protected. While a passenger is seated on a departed train, the unused exit may be removed; they finish the lap and wait at the station until a valid local exit is restored. Transfers hold the train. Closing never teleports passengers, and paused saves retain exact seats and transfer progress. The standing guest mesh renders transfers; the train mesh renders seated riders from the same sampler, so `rendered_guests` counts standing emitted bodies only. No-exit diagnostic fixtures remain unchanged.
 
 ## 7. Saves, migration and recovery
 
@@ -204,9 +220,9 @@ Save serializes and validates before touching the slots, uses same-directory uni
 
 After a crash, close all Parkbound instances before deciding that the exact lock is stale and removing that lock. Never delete a lock belonging to a running writer. If the UI says `Recovery: see save folder`, preserve `.parkbound-rollback-*.tmp` files before manual recovery. They contain previous backup bytes, which may themselves require validation. Do not sweep unrelated temporary files or replace a valid slot blindly; keep copies and validate with the codec/isolated application first.
 
-New saves are strict **schema 4/content 4**, with required visit/cooldown fields and ride admission counters/ticket allocator/draining state. Queue ownership, entrance metadata, movement anchors and public routes remain authoritative. The decoder validates role-specific path access, unique tickets/reservations, route geometry, timers and allocator/counter consistency. Unsupported pairs, unknown fields, invalid owners and ordinary guest references to queues or gates reject. Source bounds remain 8 MiB, 4,096 objects, 1,024 total paths including queues, 256 guests, 2,048 circuit pieces, and 65,536 total route IDs. The player app still accepts only 32 × 32 parks.
+New saves are strict **schema 5/content 5**, with required exit/passenger/completion fields in addition to visit/cooldown, admission counters, ticket allocator and draining state. Queue ownership, gate metadata, movement anchors, routes and passenger seat/transfer state remain authoritative. The decoder validates role-specific access, unique tickets/seats/reservations, route/transfer geometry, timers and allocator/counter consistency. Unsupported pairs, unknown fields, invalid owners and ordinary guest references to queues or gates reject. Source bounds remain 8 MiB, 4,096 objects, 1,024 total paths including queues, 256 guests, 2,048 circuit pieces, and 65,536 total route IDs. The player app still accepts only 32 × 32 parks.
 
-Explicit strict **1/1, 2/2 and 3/3 migration** initializes visitors with no visit and zero cooldown; it does not invent queue members. Versions 1/2 also supply the prior missing ownership/ride fields, and v1 supplies Flat shapes. Version 3 retains queue/gate ownership and ride identity. Existing identities, movement, RNG, train state and allocators preserve their defined continuation. Strict old DTOs reject hybrid fields. Loading leaves the old file unchanged; Save writes 4/4. **0.14 intentionally rejects 4/4**, so keep closed-game copies before returning to older binaries. A migrated connected queue begins the new admission rules when resumed; its future behavior intentionally differs from non-admitting 0.14.
+Explicit strict **1/1, 2/2, 3/3 and 4/4 migration** adds no exit or passengers and initializes completion counters to zero. Version 4 retains existing admission state, cooldowns, tickets and counters; versions 1–3 initialize no visits and zero cooldown. Versions 1/2 also supply earlier ownership/ride fields, and v1 supplies Flat shapes. Existing identities, movement, RNG, train state and allocators preserve their defined continuation. Strict old DTOs reject hybrid fields. Loading leaves the old file unchanged; Save writes 5/5. **0.15 intentionally rejects 5/5**, so keep closed-game copies before returning to older binaries. A migrated pre-0.15 connected queue adopts admission rules when resumed; v4 no-exit admission retains its behavior until the player builds an exit.
 
 ### Fresh-process continuation proof
 
@@ -214,18 +230,18 @@ Use the production executable, a new absolute directory with an existing parent,
 
 ```powershell
 $gameExecutable = (Resolve-Path '.\target\release\parkbound.exe').Path
-$queueProof = Join-Path ([IO.Path]::GetTempPath()) ('Parkbound admission proof é ' + [guid]::NewGuid())
-foreach ($proofMode in @('write-admission', 'verify-admission')) {
-    $proofArguments = '--save-check {0} --save-dir "{1}"' -f $proofMode, $queueProof
+$journeyProof = Join-Path ([IO.Path]::GetTempPath()) ('Parkbound journey proof é ' + [guid]::NewGuid())
+foreach ($proofMode in @('write-journey', 'verify-journey')) {
+    $proofArguments = '--save-check {0} --save-dir "{1}"' -f $proofMode, $journeyProof
     $proofProcess = Start-Process -FilePath $gameExecutable -ArgumentList $proofArguments -WindowStyle Hidden -Wait -PassThru
     if ($proofProcess.ExitCode -ne 0) { throw "Proof failed: $proofMode ($($proofProcess.ExitCode))" }
 }
-Get-Content -LiteralPath (Join-Path $queueProof 'verification-admission.txt')
+Get-Content -LiteralPath (Join-Path $journeyProof 'verification-journey.txt')
 ```
 
-The writer refuses an existing directory. The admission proof saves approaching and occupied/moving queue states, then checks 3,600 ticks with Close/Open, occupied queue deletion, gate/public connection removal and repair. It validates role-specific references, ticket order, exclusive reservations, exact state, paused loads, backup and unchanged slot bytes. The retained queue topology proof also uses role-aware checks now that admission exists.
+The writer refuses an existing directory. The journey proof saves natural Boarding as backup and an occupied moving train as primary, then checks 7,200 ticks with closure, exit removal, station holding, fresh exit repair, protected walkway/track demolition, empty-circuit fault/repair and another completed ride. It validates exact state, positions, seats, identities, counters, paused loads and unchanged primary/backup bytes. The retained 3,600-tick admission proof still covers approach, occupied queues, Close/Open, queue/gate/public connection removal and repair.
 
-Retain ordinary `write`/`verify`, `write-paths`/`verify-paths`, `write-terrain`/`verify-terrain`, `write-slopes`/`verify-slopes` and `write-queues`/`verify-queues`, each in a fresh directory. Repeat admission against the packaged executable. Migration evidence includes authentic 0.12 v1, 0.13 v2 and 0.14 v3 writers read by the new binary, plus old-reader rejection of 4/4 without file loss. Synthetic malformed-document tests and same-process roundtrips add coverage. Do not compare an old connected queue's non-admitting future against the new intentional behavior.
+Retain ordinary `write`/`verify`, `write-paths`/`verify-paths`, `write-terrain`/`verify-terrain`, `write-slopes`/`verify-slopes`, `write-queues`/`verify-queues` and `write-admission`/`verify-admission`, each in a fresh directory. Repeat the journey proof against the packaged executable. Migration checks use authentic 0.12 v1, 0.13 v2, 0.14 v3 and 0.15 v4 writers, plus old-reader rejection of 5/5 without file loss. Synthetic malformed-document tests and same-process roundtrips add coverage. Do not compare an old pre-admission queue's future against the intentional admission rules.
 
 ## 8. Runtime captures and diagnostics
 
@@ -244,6 +260,7 @@ Current production scene names:
 | Slopes | `slope-valid`, `slope-built`, `slope-blocked`, `slope-crowd`, `slope-removed`, `slope-recovered` |
 | Queues | `queue-entrance`, `queue-connected`, `queue-disconnected`, `queue-branch`, `queue-blocked`, `queue-rebuilt` |
 | Admission | `admission-approach`, `admission-moving`, `admission-full`, `admission-leaving`, `admission-cancelled`, `admission-recovered` |
+| Complete journeys | `journey-boarding`, `journey-riding`, `journey-unloading`, `journey-completed`, `journey-exit-blocked`, `journey-recovered` |
 
 Example, from an existing output parent:
 
@@ -272,7 +289,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.15.0 outputs under `dist\Parkbound-0.15.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Exact executable identity, package payload/guide counts, notices and relocation results belong in the admission report and `artifacts/guest-admission-0.15.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
+Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.16.0 outputs under `dist\Parkbound-0.16.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Exact executable identity, package payload/guide counts, notices and relocation results belong in the journey report and `artifacts/ride-journeys-0.16.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
 
 The package includes the executable, required redistributable runtime, third-party and Rust standard-library notices, current README/resume/development plan/docs, measurement wrapper and payload manifest. Preserve notice sources, attribution and `.gitattributes` byte rules; newline normalization can invalidate recorded hashes. Do not drop dependency/license files because a local launch succeeds. There is no imported RCT art, sound or original game data. Source licensing and final naming/trademark review remain unresolved; free binary distribution does not itself grant an open-source license.
 
@@ -280,34 +297,36 @@ Verify a fresh extraction to a path containing spaces and a non-ASCII character,
 
 When documentation changes after runtime verification, retain the runtime source commit and binary identity, refresh package guides/manifest/ZIP, and reverify them. Do **not** place a mutable ZIP's own hash inside a bundled guide: that creates self-reference. The adjacent `.zip.sha256` is the canonical archive checksum.
 
-`.github/workflows/windows.yml` runs on `windows-2022` with Rust 1.93.1: formatting, strict all-target release Clippy, workspace tests, packaging, ordinary/path/terrain/slope/queue/admission fresh-process continuation, CPU-reporting smoke and artifact uploads. Permissions are read-only contents; uploads currently retain 14 days. Read the exact run for the actual source/PR rather than inferring green from configuration or an older run. Preserve useful receipts before hosted artifacts expire. A stacked draft PR is not a public release or proof that the branch has merged.
+`.github/workflows/windows.yml` runs on `windows-2022` with Rust 1.93.1: formatting, strict all-target release Clippy, workspace tests, packaging, ordinary/path/terrain/slope/queue/admission/journey fresh-process continuation, CPU-reporting smoke and artifact uploads. Permissions are read-only contents; uploads currently retain 14 days. Read the exact run for the actual source/PR rather than inferring green from configuration or an older run. Preserve useful receipts before hosted artifacts expire. A stacked draft PR is not a public release or proof that the branch has merged.
 
 Before ending a stage, confirm the source branch is pushed, the draft PR targets the correct predecessor, exact CI completion is recorded, local source/docs are current, and final package guides match those docs. Commit only intended source/docs/locked dependency changes; generated builds and local raw captures stay in ignored output directories unless a curated evidence record is deliberately tracked.
 
 ## 10. Current verification and remaining checks
 
-The previous 0.14 runtime was `4c8d42f00fe43a48ad5586240f153b833419d991`, followed by documentation checkpoint `9e5a8c19354a24134bb25604c43914ee811d97df`. Its 285 release tests, strict source/build gates, v1/v2 migration, production continuation, eleven inspected captures, package relocation and exact-source CI passed. [Runtime CI 39588999746](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39588999746) and [checkpoint CI 39590063389](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39590063389) remain historical evidence; they do not verify the new admission source. The full report remains in [QUEUES_REPORT.md](docs/QUEUES_REPORT.md).
+Current 0.16 runtime source `25ed0a993f1c6b63dad2e659bc6b6c9dc93d5d38` is pushed in draft PR #14. All **326 release tests (210 game / 116 simulation)**, formatting, strict all-target release Clippy and production build passed. The 46,813,184-byte executable has SHA-256 `6815f2df25c0eb8e1fd2de06cc66a1d7be973927df8ab96d7da2b547b746a9a7`. [Exact-source Windows CI 39621993525](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39621993525) passed formatting, strict lint, tests, Windows packaging, all continuation proofs, reporting smoke and uploads. See [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md) for the complete scope and reproduction commands.
 
-Current 0.15 runtime source is `0c34f8d13139d3dc676505248dba0a9fa872cf65` in [draft PR #13](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/13). Its **306 release tests (200 game / 106 simulation)**, formatting, strict all-target release Clippy and production build passed. [Exact-source Windows CI 39614500323](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39614500323) passed tests, package creation, ordinary/path/terrain/slope/queue/admission continuation, reporting smoke and uploads. No local performance batch was run.
+All 37 final-executable process checks passed: authentic v1/v2/v3/v4 migration, an occupied v4 admission save continued for 3,600 ticks, v5 rejection by 0.15 without changing either slot, all retained construction/admission proofs, and the new 7,200-tick passenger journey proof. That proof covers closure, missing-exit station holds, fresh-ID exit repair, protected occupied demolition, empty-train fault/repair, a boarding backup and another completed trip. Twelve final production PNGs are byte-identical to the twelve visually inspected originals: eight journey scene variants plus admission, entrance preview, help and overview, across all four rotations, both terrain/view variants, and normal/minimum windows.
 
-Fresh executable processes verified strict v1/v2/v3 migration using authentic 0.12/0.13/0.14 writers, plus old 0.14 rejection of v4 without changing primary or backup. All retained continuation families and the new 3,600-tick occupied-queue/closure/demolition/repair proof passed. Eleven production captures were inspected across all rotations, Flat/Terraced terrain, Surface/Underground views, and normal/minimum windows. These include approach, ramp movement, full capacity, natural patience return, occupied deletion and fresh-ID recovery.
+The portable package contains 31 verified payload hashes and 22 Markdown guides. Its 291 dependency notices, native dependency manifest, third-party and Rust notices, and bundled MSVC runtime remain unchanged from 0.15. A fresh extraction launched from `C:\Windows` passed the 7,200-tick journey proof and produced a byte-identical minimum-window occupied-train capture. The final ZIP identity is in the adjacent `.zip.sha256`; guide updates require refreshing the manifest and archive as described above.
 
-The verified executable is **46,683,648 bytes**, SHA-256 `301a970a3b25ee20855a6d9181b4dc4862f94fffb639ed400d6a659a86c5ea30`. Packaging matched **30 payload hashes and 21 current Markdown guides**. All 291 dependency notices, dependency/native manifests, runtime DLL and Rust notices are byte-identical to the previous package. An extracted copy launched from `C:\Windows` passed the admission proof and produced a byte-identical minimum-window occupied-queue capture. The adjacent `.zip.sha256` remains authoritative after guide refresh; do not embed a mutable ZIP self-hash in this guide.
+Native checks used the final extracted executable and isolated saves. F9 restored the completed primary at 03:37 paused; rapid left-Shift+F9 restored the occupied backup at 01:11 paused with six riders. A subsequent ordinary F9 loaded the primary again, and right-Shift+F9 restored the backup. K selected Exit facing South; C rotated it West. O opened and closed the ride while paused. The Save button persisted tick 2,159 with all twelve guest objects unchanged and rotated the previous primary intact. Escape returned to Inspect; 3 resumed at 4x, with the occupied train observed moving on the lift and later parked closed with zero seats and six completed trips. Space paused at 02:38; F5 saved tick 4,751 with boarded/exited/completed counts of six, six individual guest completions, and no remaining active visits. The Backup button then restored the occupied park paused with Inspect reset. Default player saves were untouched.
 
-The new isolated native instance opened successfully, but the first F9 attempt reported user input in the window. Automated inputs stopped; no 0.15 load/pause/ride/save or queue/gate gesture pass is claimed. Its temporary instance and save paths are recorded in `native-instance.json`; it was left open. Default player saves were not accessed. Historical native checks below remain separate.
+The rapid backup shortcut preserves held, just-pressed and just-released Shift state for the current update. This intentionally tolerates a modifier release in the same update as F9; aggregated input does not retain exact event ordering. Regression cases cover both Shift keys, same-update chords and a Shift held from the previous update, and establish that backup selection does not latch into a later ordinary F9.
 
-Full evidence is in [ADMISSION_REPORT.md](docs/ADMISSION_REPORT.md). Raw evidence is retained under `artifacts/guest-admission-0.15.0/`; it is ignored by Git, so another PC needs the shared folder or a deliberate transfer for raw receipts. `final-handoff.txt` records final guide/manifest/ZIP hashes and remote cleanliness; later documentation-head CI is recorded there and in the PR separately from runtime CI.
+Raw evidence is retained under `artifacts/ride-journeys-0.16.0/`: `tests-final.txt`, `clippy-final.txt`, `runtime-verification-final.txt`, `capture-inspection-final.txt`, `final-captures/`, `native-instance-final.json`, `native-verification-final.txt`, `notices-comparison-final.txt`, and package/relocation receipts. This directory is ignored by Git, so another PC needs the shared folder or a deliberate transfer for raw receipts. `final-handoff.txt` records exact runtime source, binary identity, final guide/manifest/ZIP validation and remote cleanliness after the final documentation push.
 
-Historical native results remain narrowly scoped: 0.13 passed Space, wheel zoom, C/shape cycling, South-ramp placement, height buttons, X+click, F5, Save, F9 paused/reset load and Backup. Re-saving a restored ramp reproduced exact bytes. The 0.14 native Load button restored an isolated connected queue fixture paused at 00:24, four linked tiles, twelve guests and Inspect. Subsequent desktop input changed the scene, so automated input stopped and no new J/I/C placement success was inferred. These do not automatically verify changed 0.15 behavior.
+Historical 0.15 runtime source was `0c34f8d13139d3dc676505248dba0a9fa872cf65`, followed by checkpoint `965e3267b2ea8350067a12761fe339051b711e8d`. Its **306 release tests (200 game / 106 simulation)**, source/build checks, retained continuation proofs, authentic v1/v2/v3 migration, old-reader rejection and eleven inspected captures passed. [Exact-source Windows CI 39614500323](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39614500323) passed. Its executable was 46,683,648 bytes, SHA-256 `301a970a3b25ee20855a6d9181b4dc4862f94fffb639ed400d6a659a86c5ea30`; 30 payload hashes, 21 guides and 291 dependency notices were verified. Its extracted executable passed admission continuation and a byte-identical capture. These are historical results, not verification of the changed 0.16 source.
 
-Keep unverified checks visible until directly exercised: J/I and Gate-mode C/facing/queue placement/demolition; the new live admission/return behavior through normal controls; physical Delete, Page Up/Down and Shift+F9; B/V and terrain controls; O/F and ride controls; pan/drag/DPI/display behavior; clean-PC offline/standard-user operation; signing/licensing/title decisions; and selection of a representative performance PC. Inconclusive automation is neither a pass nor proof that the actual control is broken. Do not erase a historical limitation without named current evidence.
+Historical native results remain narrowly scoped. 0.13 passed Space, wheel zoom, C/shape cycling, South-ramp placement, height buttons, X+click, F5, Save, F9 paused/reset load and Backup. 0.14's Load button restored an isolated connected queue fixture paused at 00:24, four linked tiles, twelve guests and Inspect; subsequent desktop input interrupted checks. In 0.15 the new isolated instance opened, but its first F9 attempt reported user input and automated inputs stopped. No 0.15 native control pass was claimed. Paths and receipts remain in their original reports/artifact directories; default player saves were not accessed.
+
+Keep unverified native checks visible until directly exercised: J/I, actual entrance/exit placement and demolition, boarding from a player-built queue and live exit repair; physical Delete and Page Up/Down; B/V terrain controls and F ride focus; pan/drag/DPI/display behavior; clean-PC offline/standard-user operation; signing/licensing/title decisions; and representative performance hardware. Current K/C exit selection/facing, O ride operation, passenger lap completion and both Shift+F9 chords passed as described above. Inconclusive automation is neither a pass nor proof that a control is broken. Do not erase a historical limitation without named current evidence.
 
 Source input tests establish ordering and gating; captures establish rendered states; native checks establish actual keyboard/mouse interaction. Static pictures do not establish continuous motion. Same-PC relocation does not establish clean-machine compatibility. This PC remains excluded from hardware acceptance, and no local performance batch is required for this gameplay stage.
 
 ## 11. Next major gameplay milestone
 
-Implement a complete **queue → board → ride → exit → public path** journey for this one ride. Add a separately placed exit and its path connectivity, real station boarding/seats/capacity, dispatch and unloading, completed-ride counters, and physical return to public paths. Define closure, circuit fault, queue/exit demolition and lost-route behavior for every journey phase before adding animations. Persist passengers and exact seat/dispatch/unload state, migrate older saves and verify fresh-process continuation. Give players clear admission/dispatch/exit feedback and a reproducible playable scenario.
+Build a cohesive **ride economy and operating controls** stage: guest wallets, an editable ride ticket price, payment at a precisely defined boarding transition, ride revenue and park cash. Give players a clear ride panel with price, passenger totals, income and operation state. Define insufficient funds, closure before departure, refunded/cancelled boarding and save/load semantics before adding finance counters. Keep deterministic integer currency and validate conservation/accounting through complete rides and interrupted transfers. This should turn the existing journey into the first meaningful management decision.
 
-Boarding must become an explicit transition from the current ordered membership model; it must not silently turn ordinary public wandering into queue access or teleport passengers across a missing exit. Only then expand spending, ride ratings, multiple rides, track construction and management systems in further substantial stages. Keep map/save caps and original-art requirements until a scoped change deliberately revisits them.
+Then add guest needs/satisfaction and ride ratings, multiple rides, a general track builder and park-management systems in further substantial stages. Do not conflate a single fixed circuit with a completed construction game. Keep map/save caps and original-art requirements until a scoped change deliberately revisits them.
 
-For the next coding session: read this guide and the admission report, verify branch/source identity and a clean handoff, inspect remaining acceptance IDs, and complete one cohesive gameplay milestone with matching tests/runtime evidence. Update source, guides and package together before the next PC handoff.
+For the next coding session: read this guide and the journey report, verify branch/source identity and a clean handoff, inspect remaining acceptance IDs, and complete one cohesive gameplay milestone with matching tests/runtime evidence. Update source, guides and package together before the next PC handoff.

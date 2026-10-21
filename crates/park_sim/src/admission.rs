@@ -14,6 +14,9 @@ pub enum RideVisitPhase {
     Approaching,
     Queueing,
     Leaving,
+    Boarding,
+    Riding,
+    Exiting,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -25,6 +28,8 @@ pub struct RideVisit {
     #[serde(deserialize_with = "crate::saves::required_option")]
     pub ticket: Option<u64>,
     pub waited_ticks: u32,
+    #[serde(deserialize_with = "crate::saves::required_object_option")]
+    pub passenger: Option<crate::PassengerJourney>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -76,8 +81,11 @@ impl Park {
                     stats.leaving += 1;
                     stats.stranded += usize::from(guest.state == GuestState::Lost);
                 }
+                RideVisitPhase::Boarding | RideVisitPhase::Riding | RideVisitPhase::Exiting => {}
             }
-            stats.oldest_wait_ticks = stats.oldest_wait_ticks.max(visit.waited_ticks);
+            if !crate::journeys::passenger_phase(visit.phase) {
+                stats.oldest_wait_ticks = stats.oldest_wait_ticks.max(visit.waited_ticks);
+            }
         }
         stats
     }
@@ -88,6 +96,12 @@ impl Park {
             .iter()
             .filter_map(|guest| {
                 let visit = guest.ride_visit.as_ref().filter(|visit| visit.ride == id)?;
+                if !matches!(
+                    visit.phase,
+                    RideVisitPhase::Queueing | RideVisitPhase::Leaving
+                ) {
+                    return None;
+                }
                 Some((visit.ticket?, guest.id))
             })
             .collect();
@@ -205,6 +219,12 @@ impl Park {
             .enumerate()
             .filter_map(|(index, guest)| {
                 let visit = guest.ride_visit.as_ref()?;
+                if !matches!(
+                    visit.phase,
+                    RideVisitPhase::Queueing | RideVisitPhase::Leaving
+                ) {
+                    return None;
+                }
                 Some((visit.ticket?, index))
             })
             .collect();
@@ -348,6 +368,7 @@ impl Park {
                     phase: RideVisitPhase::Approaching,
                     ticket: None,
                     waited_ticks: 0,
+                    passenger: None,
                 });
                 guest.next = route.pop_front();
                 guest.destination = guest.next.map(|_| entry);
@@ -370,10 +391,14 @@ impl Park {
             .guests
             .iter()
             .filter(|guest| {
-                guest
-                    .ride_visit
-                    .as_ref()
-                    .is_some_and(|visit| visit.ticket.is_some())
+                guest.ride_visit.as_ref().is_some_and(|visit| {
+                    matches!(
+                        visit.phase,
+                        RideVisitPhase::Queueing
+                            | RideVisitPhase::Leaving
+                            | RideVisitPhase::Boarding
+                    )
+                })
             })
             .count();
         for index in applicants {
@@ -389,6 +414,7 @@ impl Park {
                     phase: RideVisitPhase::Queueing,
                     ticket: Some(ride.next_queue_ticket),
                     waited_ticks: 0,
+                    passenger: None,
                 });
                 ride.next_queue_ticket += 1;
                 ride.joined = ride.joined.saturating_add(1);
@@ -439,6 +465,7 @@ pub(crate) fn validate_admission(
     let mut reserved = BTreeMap::new();
     let mut ranks = BTreeMap::new();
     let mut queueing = 0;
+    let mut boarding = 0;
     let mut leaving = 0;
     for guest in &park.guests {
         if guest.ride_cooldown > RIDE_COOLDOWN_TICKS {
@@ -469,6 +496,25 @@ pub(crate) fn validate_admission(
         };
         if ticket == 0 || ticket >= ride.next_queue_ticket || !tickets.insert(ticket) {
             return fail("queue tickets must be unique allocated identities");
+        }
+        if crate::journeys::passenger_phase(visit.phase) {
+            if visit.phase == RideVisitPhase::Boarding {
+                boarding += 1;
+                if let Some(transfer) = visit
+                    .passenger
+                    .as_ref()
+                    .and_then(|passenger| passenger.transfer.as_ref())
+                    && reserved
+                        .insert(transfer.path, guest.id)
+                        .is_some_and(|other| other != guest.id)
+                {
+                    return fail("two guests reserve a boarding queue tile");
+                }
+            }
+            if visit.waited_ticks > QUEUE_PATIENCE_TICKS {
+                return fail("passenger queue patience is out of range");
+            }
+            continue;
         }
         if visit.waited_ticks > QUEUE_PATIENCE_TICKS
             || guest.wait_ticks != 0
@@ -533,12 +579,16 @@ pub(crate) fn validate_admission(
                     return fail("leaving member walks between ordinary paths");
                 }
             }
-            RideVisitPhase::Approaching => unreachable!(),
+            RideVisitPhase::Approaching
+            | RideVisitPhase::Boarding
+            | RideVisitPhase::Riding
+            | RideVisitPhase::Exiting => unreachable!(),
         }
     }
     if ride.draining != (leaving > 0)
-        || queueing > access.queue_tiles
-        || queueing as u64 != ride.joined - ride.abandoned
+        || queueing + boarding > access.queue_tiles
+        || ride.boarded > ride.joined - ride.abandoned
+        || (queueing + boarding) as u64 != ride.joined - ride.abandoned - ride.boarded
         || leaving as u64 > ride.abandoned
     {
         return fail("ride queue counts disagree with drain or cumulative counters");
@@ -617,7 +667,19 @@ pub(crate) fn reservations(
                 .is_some_and(|visit| visit.ticket.is_some())
         })
         .flat_map(|guest| {
-            [guest.current, guest.next]
+            let boarding = guest
+                .ride_visit
+                .as_ref()
+                .filter(|visit| visit.phase == RideVisitPhase::Boarding)
+                .and_then(|visit| {
+                    visit
+                        .passenger
+                        .as_ref()?
+                        .transfer
+                        .as_ref()
+                        .map(|transfer| transfer.path)
+                });
+            [guest.current, guest.next, boarding]
                 .into_iter()
                 .flatten()
                 .filter(|id| {

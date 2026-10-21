@@ -28,6 +28,7 @@ const WARMUP_TIME: Duration = Duration::from_secs(2);
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
 mod admission_scenes;
+mod journey_scenes;
 mod queue_scenes;
 mod slope_scenes;
 mod terrain_scenes;
@@ -83,9 +84,27 @@ enum Scene {
     AdmissionLeaving,
     AdmissionCancelled,
     AdmissionRecovered,
+    JourneyBoarding,
+    JourneyRiding,
+    JourneyUnloading,
+    JourneyCompleted,
+    JourneyExitBlocked,
+    JourneyRecovered,
 }
 
 impl Scene {
+    fn is_journey(self) -> bool {
+        matches!(
+            self,
+            Self::JourneyBoarding
+                | Self::JourneyRiding
+                | Self::JourneyUnloading
+                | Self::JourneyCompleted
+                | Self::JourneyExitBlocked
+                | Self::JourneyRecovered
+        )
+    }
+
     fn is_admission(self) -> bool {
         matches!(
             self,
@@ -254,6 +273,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("admission-leaving") => Scene::AdmissionLeaving,
                 Some("admission-cancelled") => Scene::AdmissionCancelled,
                 Some("admission-recovered") => Scene::AdmissionRecovered,
+                Some("journey-boarding") => Scene::JourneyBoarding,
+                Some("journey-riding") => Scene::JourneyRiding,
+                Some("journey-unloading") => Scene::JourneyUnloading,
+                Some("journey-completed") => Scene::JourneyCompleted,
+                Some("journey-exit-blocked") => Scene::JourneyExitBlocked,
+                Some("journey-recovered") => Scene::JourneyRecovered,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -475,6 +500,9 @@ fn apply_preset(
     }
     if capture.scene.is_admission() {
         admission_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_journey() {
+        journey_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

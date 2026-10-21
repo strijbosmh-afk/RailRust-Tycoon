@@ -10,8 +10,12 @@ pub(super) struct Face {
 }
 
 pub(super) fn facing(park: &Park, object: ObjectId) -> Option<PathDirection> {
-    let entrance = park.ride()?.entrance.as_ref()?;
-    (entrance.object == object).then_some(entrance.facing)
+    let ride = park.ride()?;
+    ride.entrance
+        .iter()
+        .chain(ride.exit.iter())
+        .find(|gate| gate.object == object)
+        .map(|gate| gate.facing)
 }
 
 fn projected(
@@ -53,6 +57,7 @@ pub(super) fn faces(
     size: u32,
     rotation: u8,
 ) -> Vec<Face> {
+    let exit = object.kind == ObjectKind::RideExit;
     let mut faces = Vec::with_capacity(23);
     let mut face = |points: [Vec3; 4], ink| {
         let surface = Surface {
@@ -67,7 +72,11 @@ pub(super) fn faces(
         (
             Vec3::new(-0.5, -0.34, 0.0),
             Vec3::new(0.5, 0.34, PATH_TOP_OFFSET),
-            [rgb(78, 145, 181), rgb(43, 103, 140), rgb(32, 76, 112)],
+            if exit {
+                [rgb(98, 163, 142), rgb(61, 117, 99), rgb(43, 87, 74)]
+            } else {
+                [rgb(78, 145, 181), rgb(43, 103, 140), rgb(32, 76, 112)]
+            },
         ),
         (
             Vec3::new(-0.07, -0.34, PATH_TOP_OFFSET),
@@ -82,7 +91,11 @@ pub(super) fn faces(
         (
             Vec3::new(-0.085, -0.34, 1.50),
             Vec3::new(0.085, 0.34, 1.83),
-            [rgb(234, 186, 84), rgb(200, 146, 53), rgb(157, 108, 36)],
+            if exit {
+                [rgb(101, 195, 160), rgb(53, 145, 116), rgb(33, 103, 85)]
+            } else {
+                [rgb(234, 186, 84), rgb(200, 146, 53), rgb(157, 108, 36)]
+            },
         ),
     ] {
         let upper = [
@@ -101,26 +114,36 @@ pub(super) fn faces(
             );
         }
     }
-    // An original floor arrow points toward the station. It is geometry on
+    // An original floor arrow points into the entrance / out of the exit.
+    // It is geometry on
     // the deck, so foreground posts/terrain can occlude it normally.
     let h = PATH_TOP_OFFSET + 0.008;
     let ink = rgb(244, 232, 172);
+    let arrow = |points: [Vec3; 4]| {
+        points.map(|point| {
+            if exit {
+                Vec3::new(-point.x, -point.y, point.z)
+            } else {
+                point
+            }
+        })
+    };
     face(
-        [
+        arrow([
             Vec3::new(-0.37, -0.035, h),
             Vec3::new(-0.37, 0.035, h),
             Vec3::new(0.12, 0.035, h),
             Vec3::new(0.12, -0.035, h),
-        ],
+        ]),
         ink,
     );
     face(
-        [
+        arrow([
             Vec3::new(0.08, -0.13, h),
             Vec3::new(0.08, 0.13, h),
             Vec3::new(0.30, 0.006, h),
             Vec3::new(0.30, -0.006, h),
-        ],
+        ]),
         ink,
     );
     faces
@@ -135,12 +158,12 @@ pub(super) fn preview(
     valid: bool,
     demolish: bool,
 ) {
-    let mut ink = if demolish {
-        rgb(235, 120, 51)
-    } else if valid {
-        rgb(47, 183, 114)
-    } else {
+    let mut ink = if !valid {
         rgb(225, 68, 63)
+    } else if demolish {
+        rgb(235, 120, 51)
+    } else {
+        rgb(47, 183, 114)
     };
     let faces = faces(object, facing, size, rotation);
     for face in &faces {
@@ -182,6 +205,10 @@ mod tests {
     }
 
     fn fixture() -> (Park, RideId, ObjectId) {
+        fixture_gate(false)
+    }
+
+    fn fixture_gate(exit: bool) -> (Park, RideId, ObjectId) {
         let mut park = Park::new(32, 32);
         park.install_train_fixture().unwrap();
         let ride = park.ride().unwrap().id;
@@ -195,9 +222,12 @@ mod tests {
             .object;
         let station = *park.object(station).unwrap();
         let pos = PathDirection::South.neighbor(station.pos).unwrap();
-        let gate = park
-            .place_ride_entrance(pos, station.height, PathDirection::North, ride)
-            .unwrap();
+        let gate = if exit {
+            park.place_ride_exit(pos, station.height, PathDirection::North, ride)
+        } else {
+            park.place_ride_entrance(pos, station.height, PathDirection::North, ride)
+        }
+        .unwrap();
         // Isolate the gate's hit geometry from unrelated hills in the circuit.
         // A disconnected station leaves its entrance visible for repair.
         let track: Vec<_> = park
@@ -210,6 +240,82 @@ mod tests {
             park.remove_object(id).unwrap();
         }
         (park, ride, gate)
+    }
+
+    #[test]
+    fn exits_share_physical_pick_and_preview_faces_with_reversed_arrow_and_distinct_header() {
+        let (park, _, id) = fixture_gate(true);
+        let object = park.object(id).unwrap();
+        let facing = facing(&park, id).unwrap();
+        let before = park.clone();
+        for rotation in 0..4 {
+            let geometry = faces(object, facing, park.width(), rotation);
+            let mut entrance = *object;
+            entrance.kind = ObjectKind::RideEntrance;
+            let original = faces(&entrance, facing, park.width(), rotation);
+            assert_eq!(geometry.len(), original.len());
+            // Changing gate purpose preserves structural geometry. Only the
+            // directed floor arrow reverses and platform/header colors differ.
+            for (exit, entry) in geometry[..geometry.len() - 2].iter().zip(&original) {
+                assert_eq!(exit.surface.vertices, entry.surface.vertices);
+            }
+            assert_ne!(geometry[0].ink, original[0].ink);
+            assert_ne!(
+                geometry.last().unwrap().surface.vertices,
+                original.last().unwrap().surface.vertices
+            );
+            assert_eq!(
+                rendered_object_surfaces(&park, object, rotation).len(),
+                geometry.len()
+            );
+            let center = surface_center(&park, SurfaceId::Object(id), rotation).unwrap();
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                assert_eq!(
+                    pick_surface(center, &park, rotation, mode),
+                    Some(SurfaceId::Object(id))
+                );
+                assert!(
+                    !positions(&selection_mesh(
+                        None,
+                        Some(SurfaceId::Object(id)),
+                        &park,
+                        rotation,
+                        mode
+                    ))
+                    .is_empty()
+                );
+            }
+            for (valid, demolish) in [(true, false), (false, false), (true, true)] {
+                let preview = path_preview_mesh(
+                    Some(PathPreview {
+                        pos: object.pos,
+                        height: object.height,
+                        slope: PathSlope::Flat,
+                        queue_owner: None,
+                        entrance_facing: Some(facing),
+                        exit_gate: true,
+                        valid,
+                        demolish,
+                    }),
+                    &park,
+                    rotation,
+                );
+                assert!(!positions(&preview).is_empty());
+                assert!(
+                    positions(&preview)
+                        .iter()
+                        .flatten()
+                        .all(|value| value.is_finite())
+                );
+                let center_z = geometry
+                    .iter()
+                    .filter_map(|face| face.surface.hit_depth(center))
+                    .max_by(f32::total_cmp)
+                    .unwrap();
+                assert!(positions(&preview).iter().any(|point| point[2] > center_z));
+            }
+        }
+        assert_eq!(park, before);
     }
 
     #[test]
@@ -299,6 +405,7 @@ mod tests {
                         slope: PathSlope::Flat,
                         queue_owner: None,
                         entrance_facing: Some(facing),
+                        exit_gate: false,
                         valid,
                         demolish,
                     }),

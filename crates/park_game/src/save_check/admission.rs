@@ -55,14 +55,36 @@ pub(super) fn require_roles(park: &Park) -> Result<(), String> {
             if park.ride().is_none_or(|ride| ride.id != visit.ride) {
                 return Err("guest visit refers to an absent ride".into());
             }
-            if let Some(admitted) = admitted {
-                let ticket = admitted.ticket.ok_or("admitted guest has no ticket")?;
+            if visit.phase != RideVisitPhase::Approaching {
+                let ticket = visit.ticket.ok_or("admitted guest has no ticket")?;
                 if !tickets.insert(ticket) {
                     return Err("duplicate queue ticket".into());
                 }
-                members.push((ticket, guest.id));
+                if admitted.is_some() {
+                    members.push((ticket, guest.id));
+                }
             } else if visit.ticket.is_some() {
                 return Err("approaching guest reserved a queue ticket".into());
+            }
+            if matches!(
+                visit.phase,
+                RideVisitPhase::Boarding | RideVisitPhase::Riding | RideVisitPhase::Exiting
+            ) && [guest.current, guest.next, guest.destination]
+                .iter()
+                .any(Option::is_some)
+            {
+                return Err("passenger retained ordinary walking references".into());
+            }
+            if let Some(transfer) = visit
+                .passenger
+                .as_ref()
+                .and_then(|passenger| passenger.transfer.as_ref())
+                && park
+                    .object(transfer.path)
+                    .is_some_and(|path| path.queue_owner.is_some())
+                && !reserved.insert(transfer.path)
+            {
+                return Err("passenger transfer duplicated a queue reservation".into());
             }
         }
         for id in [guest.current, guest.next, guest.destination]
@@ -111,8 +133,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let json: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if json["schema_version"] != 4 || json["content_version"] != 4 {
-        return Err("admission proof requires strict schema/content 4/4".into());
+    if json["schema_version"] != 5 || json["content_version"] != 5 {
+        return Err("admission proof requires strict schema/content 5/5".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("admission state changed during save roundtrip".into());
@@ -365,7 +387,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("admission verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-admission.txt"), format!(
-        "Parkbound {}\nFresh-process occupied-ramp primary equality: PASS\nContinuation: PASS (3600 complete ticks + close/open and occupied queue/gate/public-path commands)\nTicket order, capacity reservations and role-aware path references: PASS\nCancellation, fresh-ID repair and renewed admission: PASS\nGuest and ride identities preserved: PASS\nExplicit approaching backup, paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 4/4: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process occupied-ramp primary equality: PASS\nContinuation: PASS (3600 complete ticks + close/open and occupied queue/gate/public-path commands)\nTicket order, capacity reservations and role-aware path references: PASS\nCancellation, fresh-ID repair and renewed admission: PASS\nGuest and ride identities preserved: PASS\nExplicit approaching backup, paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 5/5: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process guest admission continuation and backup verified.");
     Ok(())

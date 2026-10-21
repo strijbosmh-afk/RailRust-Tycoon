@@ -24,6 +24,7 @@ pub enum ObjectKind {
     Path,
     Track,
     RideEntrance,
+    RideExit,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -180,7 +181,7 @@ impl Park {
         height: u8,
         clearance: u8,
     ) -> Result<ObjectId, PlacementError> {
-        if kind == ObjectKind::RideEntrance {
+        if matches!(kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
             return Err(PlacementError::EntranceRequiresRide);
         }
         let next_id = self.validate_object_placement(pos, kind, height, clearance)?;
@@ -348,6 +349,9 @@ impl Park {
 
     /// Remove only the requested object, retaining the order and IDs of others.
     pub fn remove_object(&mut self, id: ObjectId) -> Option<SurfaceObject> {
+        if self.object_removal_block_reason(id).is_some() {
+            return None;
+        }
         let index = self.objects.iter().position(|object| object.id == id)?;
         let removed = self.objects.remove(index);
         if removed.is_public_path() {
@@ -364,6 +368,11 @@ impl Park {
                 .is_some_and(|entrance| entrance.object == id)
         {
             ride.entrance = None;
+        }
+        if let Some(ride) = &mut self.ride
+            && ride.exit.is_some_and(|exit| exit.object == id)
+        {
+            ride.exit = None;
         }
         self.reconcile_ride_visits();
         Some(removed)
@@ -570,6 +579,7 @@ mod tests {
             progress: 0,
             state: GuestState::Waiting,
             arrivals: 0,
+            rides_completed: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: Default::default(),

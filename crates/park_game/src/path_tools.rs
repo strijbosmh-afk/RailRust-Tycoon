@@ -18,6 +18,7 @@ pub(super) enum PathTool {
     Build,
     BuildQueue,
     Entrance,
+    Exit,
     Demolish,
     RaiseTerrain,
     LowerTerrain,
@@ -30,6 +31,7 @@ pub(super) struct PathPreview {
     pub slope: PathSlope,
     pub queue_owner: Option<RideId>,
     pub entrance_facing: Option<PathDirection>,
+    pub exit_gate: bool,
     pub valid: bool,
     pub demolish: bool,
 }
@@ -40,6 +42,7 @@ pub(super) struct ToolState {
     pub height: u8,
     pub slope: PathSlope,
     pub entrance_facing: PathDirection,
+    pub exit_facing: PathDirection,
     pub preview: Option<PathPreview>,
     pub terrain_preview: Option<TerrainPreview>,
     pub hint: String,
@@ -52,9 +55,10 @@ impl Default for ToolState {
             height: 8,
             slope: PathSlope::Flat,
             entrance_facing: PathDirection::North,
+            exit_facing: PathDirection::South,
             preview: None,
             terrain_preview: None,
-            hint: "Choose Path to build.\nRemove paths or ride entrances.".into(),
+            hint: "Choose a build tool.\nRemove paths, entrances or exits.".into(),
         }
     }
 }
@@ -73,7 +77,8 @@ impl ToolState {
     }
 
     pub fn max_height(&self) -> u8 {
-        if self.mode == PathTool::Entrance || self.slope == PathSlope::Flat {
+        if matches!(self.mode, PathTool::Entrance | PathTool::Exit) || self.slope == PathSlope::Flat
+        {
             MAX_PATH_HEIGHT
         } else {
             MAX_SLOPED_PATH_HEIGHT
@@ -81,8 +86,13 @@ impl ToolState {
     }
 
     pub fn cycle_shape(&mut self) {
-        if self.mode == PathTool::Entrance {
-            self.entrance_facing = match self.entrance_facing {
+        if matches!(self.mode, PathTool::Entrance | PathTool::Exit) {
+            let facing = if self.mode == PathTool::Exit {
+                &mut self.exit_facing
+            } else {
+                &mut self.entrance_facing
+            };
+            *facing = match *facing {
                 PathDirection::North => PathDirection::East,
                 PathDirection::East => PathDirection::South,
                 PathDirection::South => PathDirection::West,
@@ -110,13 +120,14 @@ impl ToolState {
         self.preview = None;
         self.terrain_preview = None;
         self.hint = match self.mode {
-            PathTool::Inspect => "Choose Path to build.\nRemove paths or ride entrances.",
+            PathTool::Inspect => "Choose a build tool.\nRemove paths, entrances or exits.",
             PathTool::Build => "Point at the height plane.\nClick once per path tile.",
             PathTool::BuildQueue => {
                 "Build a queue for Meadow Flyer.\nJoin one public path to its gate."
             }
             PathTool::Entrance => "Place beside the station.\nC turns the gate toward it.",
-            PathTool::Demolish => "Point to a path or entrance.\nClick once to remove it.",
+            PathTool::Exit => "Place beside the station.\nConnect its outer edge to public path.",
+            PathTool::Demolish => "Point to a path, entrance or exit.\nClick once to remove it.",
             PathTool::RaiseTerrain => {
                 "Point to visible grass or sand.\nClick once to raise one step."
             }
@@ -189,7 +200,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 view.selected = view.hovered;
             }
         }
-        PathTool::Entrance => entrance::point_at(park, view, point, click),
+        PathTool::Entrance | PathTool::Exit => entrance::point_at(park, view, point, click),
         PathTool::Build | PathTool::BuildQueue => {
             let queue = view.path_tool.mode == PathTool::BuildQueue;
             let owner = queue.then(|| park.ride().map(|ride| ride.id)).flatten();
@@ -242,6 +253,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                     slope,
                     queue_owner: owner,
                     entrance_facing: None,
+                    exit_gate: false,
                     valid: reason.is_none(),
                     demolish: false,
                 });
@@ -302,7 +314,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         PathTool::Demolish => {
             let target = match view.hovered {
                 Some(SurfaceId::Object(id)) => park.object(id).copied().filter(|object| {
-                    matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance)
+                    matches!(
+                        object.kind,
+                        ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+                    )
                 }),
                 _ => None,
             };
@@ -312,31 +327,29 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                     height: object.height,
                     slope: object.path_slope,
                     queue_owner: object.queue_owner,
-                    entrance_facing: park
-                        .ride()
-                        .and_then(|ride| ride.entrance.as_ref())
-                        .filter(|entrance| entrance.object == object.id)
-                        .map(|entrance| entrance.facing),
-                    valid: true,
+                    entrance_facing: gate_facing(park, object.id),
+                    exit_gate: object.kind == ObjectKind::RideExit,
+                    valid: park.object_removal_block_reason(object.id).is_none(),
                     demolish: true,
                 });
-                let name = if object.kind == ObjectKind::RideEntrance {
-                    "Entrance"
-                } else {
-                    "Path"
-                };
-                view.path_tool.hint = format!(
-                    "{name} #{} / tile {}, {}\nClick to remove it.",
-                    object.id.0,
-                    object.pos.x + 1,
-                    object.pos.y + 1
+                let name = object_tool_name(object.kind);
+                view.path_tool.hint = park.object_removal_block_reason(object.id).map_or_else(
+                    || {
+                        format!(
+                            "{name} #{} / tile {}, {}\nClick to remove it.",
+                            object.id.0,
+                            object.pos.x + 1,
+                            object.pos.y + 1
+                        )
+                    },
+                    str::to_string,
                 );
                 if click {
                     remove_path(park, view, object.id);
                 }
             } else {
                 view.path_tool.hint =
-                    "Point to a path or entrance.\nTrack and land stay in place.".into();
+                    "Point to a path, entrance or exit.\nTrack and land stay in place.".into();
                 if click {
                     view.path_notice = Some("No path removed: point to a visible path.".into());
                 }
@@ -348,9 +361,12 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
 pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
     let target = view.selected.and_then(|surface| match surface {
         SurfaceId::Object(id)
-            if park
-                .object(id)
-                .is_some_and(|o| matches!(o.kind, ObjectKind::Path | ObjectKind::RideEntrance)) =>
+            if park.object(id).is_some_and(|o| {
+                matches!(
+                    o.kind,
+                    ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+                )
+            }) =>
         {
             world::surface_center(park, surface, view.rotation)
                 .filter(|point| {
@@ -364,24 +380,30 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
     if let Some(id) = target {
         remove_path(park, view, id);
     } else {
-        view.path_notice = Some("Select a visible path to remove it.".into());
+        view.path_notice = Some("Select a visible path or gate to remove it.".into());
     }
 }
 
 fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
-    let Some(object) = park
-        .object(id)
-        .copied()
-        .filter(|object| matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance))
-    else {
+    let Some(object) = park.object(id).copied().filter(|object| {
+        matches!(
+            object.kind,
+            ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+        )
+    }) else {
         return;
     };
-    let name = if object.kind == ObjectKind::RideEntrance {
-        "Entrance"
-    } else {
-        "Path"
-    };
-    park.remove_object(id);
+    let name = object_tool_name(object.kind);
+    if let Some(reason) = park.object_removal_block_reason(id) {
+        view.path_notice = Some(format!("{name} not removed: {reason}"));
+        return;
+    }
+    if park.remove_object(id).is_none() {
+        view.path_notice = Some(format!(
+            "{name} not removed: it is unavailable or occupied."
+        ));
+        return;
+    }
     if view.selected == Some(SurfaceId::Object(id)) {
         view.selected = None;
     }
@@ -392,4 +414,48 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
         "{name} #{} removed. Connections will be recalculated.",
         id.0
     ));
+}
+
+fn gate_facing(park: &Park, id: ObjectId) -> Option<PathDirection> {
+    let ride = park.ride()?;
+    ride.entrance
+        .iter()
+        .chain(ride.exit.iter())
+        .find(|gate| gate.object == id)
+        .map(|gate| gate.facing)
+}
+
+fn object_tool_name(kind: ObjectKind) -> &'static str {
+    match kind {
+        ObjectKind::RideEntrance => "Entrance",
+        ObjectKind::RideExit => "Exit",
+        _ => "Path",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exit_tool_keeps_its_facing_separate_from_entrance_and_path_shape() {
+        let mut tool = ToolState {
+            slope: PathSlope::West,
+            ..default()
+        };
+        tool.set_mode(PathTool::Exit);
+        assert_eq!(tool.exit_facing, PathDirection::South);
+        assert_eq!(tool.max_height(), MAX_PATH_HEIGHT);
+        tool.cycle_shape();
+        assert_eq!(tool.mode, PathTool::Exit);
+        assert_eq!(tool.exit_facing, PathDirection::West);
+        assert_eq!(tool.entrance_facing, PathDirection::North);
+        assert_eq!(tool.slope, PathSlope::West);
+        tool.set_mode(PathTool::Entrance);
+        tool.cycle_shape();
+        assert_eq!(tool.entrance_facing, PathDirection::East);
+        assert_eq!(tool.exit_facing, PathDirection::West);
+        tool.set_mode(PathTool::Inspect);
+        assert!(tool.preview.is_none());
+    }
 }
