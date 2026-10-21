@@ -658,11 +658,10 @@ mod tests {
         let (first, second, _) = parks();
         store.save(&first).unwrap();
         store.save(&second).unwrap();
-        let serialized = String::from_utf8(second.to_save_bytes().unwrap()).unwrap();
-        let unsupported = serialized
-            .replace("\"schema_version\":3", "\"schema_version\":999")
-            .replace("\"schema_version\": 3", "\"schema_version\": 999");
-        assert_ne!(serialized, unsupported);
+        let mut serialized: serde_json::Value =
+            serde_json::from_slice(&second.to_save_bytes().unwrap()).unwrap();
+        serialized["schema_version"] = 999.into();
+        let unsupported = serde_json::to_vec(&serialized).unwrap();
         fs::write(store.save_path(), unsupported).unwrap();
         let before = disk(&store);
         assert!(matches!(

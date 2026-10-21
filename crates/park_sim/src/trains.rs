@@ -288,6 +288,7 @@ impl Park {
                 TrainPhase::Closed
             };
         }
+        self.reconcile_ride_visits();
     }
 
     /// Install the fixed 46-piece PRF-03 loop above either terrain preset.
@@ -373,10 +374,7 @@ impl Park {
                 .next_ride_id
                 .checked_add(1)
                 .ok_or(PlacementError::IdExhausted)?;
-            candidate.ride = Some(crate::Ride {
-                id: crate::RideId(candidate.next_ride_id),
-                entrance: None,
-            });
+            candidate.ride = Some(crate::Ride::new(crate::RideId(candidate.next_ride_id)));
             candidate.next_ride_id = next;
         }
         let laps = candidate.train.as_ref().map_or(0, |train| train.laps);

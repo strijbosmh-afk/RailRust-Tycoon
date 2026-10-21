@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 3;
-const CONTENT_VERSION: u32 = 3;
+const SCHEMA_VERSION: u32 = 4;
+const CONTENT_VERSION: u32 = 4;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,8 +78,8 @@ struct SaveEnvelope<P = ParkData> {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>"))]
-struct ParkData<O = SurfaceObject, G = Guest> {
+#[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
+struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     width: u32,
     height: u32,
     #[serde(deserialize_with = "bounded_objects::<_, _, MAX_TILES>")]
@@ -99,7 +99,7 @@ struct ParkData<O = SurfaceObject, G = Guest> {
     #[serde(deserialize_with = "required_object_option")]
     train: Option<Train>,
     #[serde(deserialize_with = "required_object_option")]
-    ride: Option<crate::Ride>,
+    ride: Option<R>,
     next_ride_id: u64,
 }
 
@@ -257,7 +257,7 @@ impl Park {
         if header.format != FORMAT {
             return Err(invalid("unrecognized save format"));
         }
-        if !matches!(header.schema_version, 1 | 2 | SCHEMA_VERSION) {
+        if !matches!(header.schema_version, 1 | 2 | 3 | SCHEMA_VERSION) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
         if header.content_version != header.schema_version {
@@ -268,7 +268,12 @@ impl Park {
                 parse_save(bytes)?;
             legacy.park.migrate().into_park()
         } else if header.schema_version == 2 {
-            let legacy: SaveEnvelope<LegacyParkData<VersionTwoObject, Guest>> = parse_save(bytes)?;
+            let legacy: SaveEnvelope<LegacyParkData<VersionTwoObject, VersionTwoGuest>> =
+                parse_save(bytes)?;
+            legacy.park.migrate().into_park()
+        } else if header.schema_version == 3 {
+            let legacy: SaveEnvelope<ParkData<SurfaceObject, VersionTwoGuest, LegacyRide>> =
+                parse_save(bytes)?;
             legacy.park.migrate().into_park()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
@@ -320,6 +325,85 @@ struct LegacyGuest {
     #[serde(deserialize_with = "bounded_route")]
     route: VecDeque<ObjectId>,
     wait_ticks: u16,
+}
+
+/// Versions two and three have slopes but no admission state.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionTwoGuest {
+    id: crate::GuestId,
+    #[serde(deserialize_with = "required_option")]
+    current: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    next: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    destination: Option<ObjectId>,
+    #[serde(deserialize_with = "strict_object")]
+    anchor: crate::TilePos,
+    height: u8,
+    #[serde(deserialize_with = "string_enum")]
+    anchor_slope: crate::PathSlope,
+    progress: u16,
+    #[serde(deserialize_with = "string_enum")]
+    state: GuestState,
+    arrivals: u64,
+    #[serde(deserialize_with = "bounded_route")]
+    route: VecDeque<ObjectId>,
+    wait_ticks: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyRide {
+    id: crate::RideId,
+    #[serde(deserialize_with = "required_object_option")]
+    entrance: Option<crate::RideEntrance>,
+}
+
+impl From<VersionTwoGuest> for Guest {
+    fn from(guest: VersionTwoGuest) -> Self {
+        Self {
+            id: guest.id,
+            current: guest.current,
+            next: guest.next,
+            destination: guest.destination,
+            anchor: guest.anchor,
+            height: guest.height,
+            anchor_slope: guest.anchor_slope,
+            progress: guest.progress,
+            state: guest.state,
+            arrivals: guest.arrivals,
+            route: guest.route,
+            wait_ticks: guest.wait_ticks,
+            ride_visit: None,
+            ride_cooldown: 0,
+        }
+    }
+}
+
+impl ParkData<SurfaceObject, VersionTwoGuest, LegacyRide> {
+    fn migrate(self) -> ParkData {
+        ParkData {
+            width: self.width,
+            height: self.height,
+            tiles: self.tiles,
+            ticks: self.ticks,
+            objects: self.objects,
+            next_object_id: self.next_object_id,
+            guests: self.guests.into_iter().map(Into::into).collect(),
+            next_guest_id: self.next_guest_id,
+            crowd_seed: self.crowd_seed,
+            crowd_rng: self.crowd_rng,
+            circuit: self.circuit,
+            train: self.train,
+            ride: self.ride.map(|legacy| {
+                let mut ride = crate::Ride::new(legacy.id);
+                ride.entrance = legacy.entrance;
+                ride
+            }),
+            next_ride_id: self.next_ride_id,
+        }
+    }
 }
 
 /// The strict pre-ride park shape: new ride fields are not accepted in old saves.
@@ -421,6 +505,8 @@ impl From<LegacyGuest> for Guest {
             progress: guest.progress,
             state: guest.state,
             arrivals: guest.arrivals,
+            ride_visit: None,
+            ride_cooldown: 0,
             route: guest.route,
             wait_ticks: guest.wait_ticks,
         }
@@ -429,10 +515,10 @@ impl From<LegacyGuest> for Guest {
 
 impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
     fn migrate(self) -> ParkData {
-        let ride = self.train.as_ref().map(|_| crate::Ride {
-            id: crate::RideId(1),
-            entrance: None,
-        });
+        let ride = self
+            .train
+            .as_ref()
+            .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
             width: self.width,
@@ -535,6 +621,12 @@ impl ParkData {
             .transpose()?;
         validate_train(&park)?;
         crate::ride_access::validate_ride_state(&park).map_err(invalid)?;
+        let objects = park
+            .objects
+            .iter()
+            .map(|object| (object.id, object))
+            .collect();
+        crate::admission::validate_admission(&park, &objects).map_err(invalid)?;
         Ok(park)
     }
 }
@@ -653,7 +745,7 @@ fn validate_guests(
             objects
                 .get(&id)
                 .copied()
-                .filter(|object| object.is_public_path())
+                .filter(|object| guest.can_walk_path(object))
                 .ok_or_else(|| invalid("guest references a missing path"))
         };
         if let Some(current) = guest.current {
@@ -893,7 +985,7 @@ mod tests {
     }
 
     fn version_two_value(park: &Park) -> Value {
-        let mut data = value(park);
+        let mut data = version_three_value(park);
         assert!(park.ride().is_none_or(|ride| ride.entrance.is_none()));
         data["schema_version"] = json!(2);
         data["content_version"] = json!(2);
@@ -902,6 +994,30 @@ mod tests {
         for object in data["park"]["objects"].as_array_mut().unwrap() {
             assert_eq!(object["queue_owner"], Value::Null);
             object.as_object_mut().unwrap().remove("queue_owner");
+        }
+        data
+    }
+
+    fn version_three_value(park: &Park) -> Value {
+        let mut data = value(park);
+        data["schema_version"] = json!(3);
+        data["content_version"] = json!(3);
+        for guest in data["park"]["guests"].as_array_mut().unwrap() {
+            assert_eq!(guest["ride_visit"], Value::Null);
+            assert_eq!(guest["ride_cooldown"], json!(0));
+            guest.as_object_mut().unwrap().remove("ride_visit");
+            guest.as_object_mut().unwrap().remove("ride_cooldown");
+        }
+        if let Some(ride) = data["park"]["ride"].as_object_mut() {
+            for field in [
+                "draining",
+                "next_queue_ticket",
+                "joined",
+                "turned_away",
+                "abandoned",
+            ] {
+                ride.remove(field);
+            }
         }
         data
     }
@@ -959,8 +1075,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(3));
-            assert_eq!(modern["content_version"], json!(3));
+            assert_eq!(modern["schema_version"], json!(4));
+            assert_eq!(modern["content_version"], json!(4));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -1017,6 +1133,60 @@ mod tests {
                 malformed.pointer_mut(path).unwrap()[name] = added;
                 assert!(decode(&malformed).is_err(), "old schema accepted {name}");
             }
+        }
+    }
+
+    #[test]
+    fn version_three_migrates_queues_and_faults_without_inventing_visits() {
+        let mut live = fixture();
+        advance(&mut live, 47);
+        let ride = live.ride().unwrap().id;
+        live.place_ride_entrance(
+            TilePos { x: 8, y: 11 },
+            8,
+            crate::PathDirection::North,
+            ride,
+        )
+        .unwrap();
+        for y in 12..=15 {
+            live.place_queue_path(TilePos { x: 8, y }, 8, crate::PathSlope::Flat, ride)
+                .unwrap();
+        }
+        let mut fault = live.clone();
+        fault
+            .remove_object(fault.circuit().unwrap().pieces[0].object)
+            .unwrap();
+        let current = fault.guests[0].current.unwrap();
+        fault.remove_object(current).unwrap();
+        for mut original in [live, fault] {
+            let legacy = version_three_value(&original);
+            let mut migrated = decode(&legacy).unwrap();
+            assert_eq!(migrated, original);
+            for _ in 0..900 {
+                original.advance(Speed::Normal);
+                migrated.advance(Speed::Normal);
+                assert_eq!(migrated, original);
+            }
+            assert_eq!(
+                migrated.to_save_bytes().unwrap(),
+                original.to_save_bytes().unwrap()
+            );
+            for (path, field, added) in [
+                ("/park/guests/0", "ride_visit", Value::Null),
+                ("/park/guests/0", "ride_cooldown", json!(0)),
+                ("/park/ride", "joined", json!(0)),
+            ] {
+                let mut malformed = legacy.clone();
+                malformed.pointer_mut(path).unwrap()[field] = added;
+                assert!(decode(&malformed).is_err(), "old schema accepted {field}");
+            }
+        }
+        let modern = value(&fixture());
+        for (schema, content) in [(4, 3), (3, 4), (4, 2), (2, 4), (4, 1), (1, 4)] {
+            let mut malformed = modern.clone();
+            malformed["schema_version"] = json!(schema);
+            malformed["content_version"] = json!(content);
+            assert!(decode(&malformed).is_err());
         }
     }
 
@@ -1118,7 +1288,7 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (4, 4),
+            (5, 5),
             (1, 2),
             (2, 1),
             (2, 0),
@@ -1184,6 +1354,8 @@ mod tests {
             progress: 7,
             state: GuestState::Walking,
             arrivals: 0,
+            ride_visit: None,
+            ride_cooldown: 0,
             route: VecDeque::from([high]),
             wait_ticks: 0,
         });
@@ -1326,8 +1498,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":3",
-            "\"schema_version\":3,\"schema_version\":3",
+            "\"schema_version\":4",
+            "\"schema_version\":4,\"schema_version\":4",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
@@ -1335,7 +1507,11 @@ mod tests {
         let too_big_integer = text.replacen("\"ticks\":0", "\"ticks\":18446744073709551616", 1);
         assert!(Park::from_save_bytes(too_big_integer.as_bytes()).is_err());
         for (field, replacement, expected) in [
-            ("schema_version", json!(4), SaveError::UnsupportedSchema(4)),
+            (
+                "schema_version",
+                json!(999),
+                SaveError::UnsupportedSchema(999),
+            ),
             (
                 "content_version",
                 json!(9),

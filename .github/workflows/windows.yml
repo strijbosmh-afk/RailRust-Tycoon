@@ -69,6 +69,17 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-queues --save-dir $queueDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process queue continuation failed" }
           Get-Content -LiteralPath (Join-Path $queueDirectory "verification-queues.txt")
+      # Admission proof covers occupied queues, paused cancellation, and exact
+      # continuation independently of the earlier topology-only fixture.
+      - name: Verify guest admission across fresh processes
+        shell: pwsh
+        run: |
+          $admissionDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound admission proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-admission --save-dir $admissionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Guest admission proof writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-admission --save-dir $admissionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process guest admission continuation failed" }
+          Get-Content -LiteralPath (Join-Path $admissionDirectory "verification-admission.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

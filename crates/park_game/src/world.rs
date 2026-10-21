@@ -5,7 +5,8 @@ use bevy::{
     render::render_resource::PrimitiveTopology,
 };
 use park_sim::{
-    Axis, GuestState, ObjectKind, Park, PathSlope, SurfaceId, SurfaceObject, Terrain, TilePos,
+    Axis, GuestState, ObjectKind, Park, PathSlope, RideVisitPhase, SurfaceId, SurfaceObject,
+    Terrain, TilePos,
 };
 
 mod entrance_render;
@@ -1064,8 +1065,61 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 rgb(201, 68, 34),
             );
         }
+        if let Some(phase) = guest_visit_marker(guest) {
+            paint_guest_visit_marker(&mut mesh, phase, point, depth);
+        }
     }
     mesh.finish()
+}
+
+fn guest_visit_marker(guest: &park_sim::Guest) -> Option<RideVisitPhase> {
+    // A stranded visitor keeps the existing orange lost warning. Intent must
+    // not cover it or suggest that the missing supporting queue still exists.
+    if guest.state == GuestState::Lost {
+        None
+    } else {
+        guest.ride_visit.as_ref().map(|visit| visit.phase)
+    }
+}
+
+fn paint_guest_visit_marker(mesh: &mut Painter, phase: RideVisitPhase, point: Vec2, depth: f32) {
+    // Both color and shape convey intent. These small billboards share the
+    // body's physical foot depth, so foreground terrain/decks hide them too.
+    let depth = depth + 0.005;
+    match phase {
+        RideVisitPhase::Approaching => mesh.quad(
+            [
+                point + Vec2::new(0.0, 25.5),
+                point + Vec2::new(3.0, 29.0),
+                point + Vec2::new(0.0, 32.5),
+                point + Vec2::new(-3.0, 29.0),
+            ],
+            depth,
+            rgb(33, 160, 187),
+        ),
+        RideVisitPhase::Queueing => {
+            for x in [-1.8, 1.8] {
+                mesh.line(
+                    point + Vec2::new(x, 26.0),
+                    point + Vec2::new(x, 32.0),
+                    1.8,
+                    depth,
+                    rgb(218, 155, 36),
+                );
+            }
+        }
+        RideVisitPhase::Leaving => {
+            for x in [-3.0, 3.0] {
+                mesh.line(
+                    point + Vec2::new(x, 30.5),
+                    point + Vec2::new(0.0, 26.5),
+                    1.8,
+                    depth,
+                    rgb(100, 119, 141),
+                );
+            }
+        }
+    }
 }
 
 fn guest_anchor(park: &Park, id: park_sim::GuestId, rotation: u8) -> Option<Vec3> {

@@ -37,6 +37,8 @@ fn start_walk(park: &mut Park, sequence: &[ObjectId]) {
         progress: 0,
         state: GuestState::Walking,
         arrivals: 0,
+        ride_visit: None,
+        ride_cooldown: 0,
         route: sequence[2..].iter().copied().collect(),
         wait_ticks: 0,
     }];

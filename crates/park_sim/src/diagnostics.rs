@@ -124,6 +124,8 @@ pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixtur
                 progress: 0,
                 state: GuestState::Waiting,
                 arrivals: 0,
+                ride_visit: None,
+                ride_cooldown: 0,
                 route: VecDeque::new(),
                 wait_ticks: (index % (usize::from(WALK_TICKS) + 1)) as u16,
             });
