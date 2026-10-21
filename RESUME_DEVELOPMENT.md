@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-This is the handoff guide for **RailRust-Tycoon**, the original Rust theme park simulation inspired by classic RCT1/RCT2. **Parkbound** is a temporary working title. Current milestone: one-step sloped paths **0.13.0**, 21 October 2026. Read [the sloped paths report](docs/SLOPED_PATHS_REPORT.md) for the implemented edge/height/save-migration contract, passing local checks, and pending production verification. **No reference PC is selected:** this development PC is explicitly excluded. Its timings are local diagnostics only; hardware/60 FPS acceptance waits for an agreed representative PC.
+This is the handoff guide for **RailRust-Tycoon**, the original Rust theme park simulation inspired by classic RCT1/RCT2. **Parkbound** is a temporary working title. The bounded one-step sloped-path milestone **0.13.0** is complete, 21 October 2026. Read [the sloped paths report](docs/SLOPED_PATHS_REPORT.md) for the shared geometry/migration contract and source, runtime, native, CI, and package evidence. **No reference PC is selected:** this development PC is explicitly excluded. Its timings are local diagnostics only; hardware/60 FPS acceptance waits for an agreed representative PC.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
 
@@ -24,7 +24,7 @@ Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart T
 
 You can continue from that synced workspace or use a separate GitHub clone. The 0.3.0 checkout on the second PC was `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Both paths are retained intentionally. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
-Current 0.13.0 work is on `codex/sloped-paths` from completed 0.12.0 checkpoint `ef64609`. The implemented slope/migration contract passed all 260 release tests (175 game/85 simulation), including the six-scene command matrix and six slope-input regressions. Formatting passed. Strict release Clippy/build, production runtime/native controls, CI, binary identity, and package verification remain pending. Implementation source/PR identity is pending; PR #10 remains open/unmerged and the intended review base is codex/terrain-editing. The sloped paths report is the current evidence register. Historical 0.12.0 runtime `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1` is in [draft PR #10](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/10), with successful [CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779), 236 tests, ten inspected captures, continuation, and 27-payload/eighteen-guide relocation evidence. Its native terrain attempt sent no input after Windows activation/capture failures. Inspect actual branch/merge state before switching PCs; earlier source identity or tests do not verify new slope code.
+Completed 0.13.0 runtime source `b1d26a04cc1282bb71defcb59557309b79252f1d` is pushed on `codex/sloped-paths` from checkpoint `ef64609`, in [draft PR #11](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/11), stacked on still-open PR #10/`codex/terrain-editing`. All 260 release tests (175 game/85 simulation), formatting, strict all-target release Clippy, and build passed. [Windows CI run 39583267705](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39583267705) passed for this exact source, including ordinary/path/terrain/slope continuation, packaging, reporting smoke, and uploads. Eleven captures were inspected; forward v1 migration, intentional old-reader v2 rejection, slope continuation, native construction/save recovery, and package relocation passed. Inspect actual branch/merge state before switching PCs; a later documentation head has separate CI status.
 
 Historical 0.9.0 runtime source `5d49b7e00ce25692aac3ad2d6dda86939afd0a47` is in [draft PR #7](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/7), stacked on PR #6. [Windows CI run 39435077589](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39435077589) passed, along with local profiles/captures/continuation and final package verification of fifteen guides and 24 payloads. Historical 0.8.0 runtime `9460a9` plus wrapper correction `3f1ea88` remain in [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6), with successful CI run 39429282120. Inspect actual publication and merge state before switching PCs; cloning `main` may retrieve an older checkpoint.
 
@@ -46,7 +46,7 @@ Current defaults are offline single-player, an independent simulation library, o
 
 Read the project records in this order:
 
-1. [Sloped paths report](docs/SLOPED_PATHS_REPORT.md): current 0.13.0 edge/height/migration contract and pending verification.
+1. [Sloped paths report](docs/SLOPED_PATHS_REPORT.md): completed 0.13.0 edge/height/migration contract, exact evidence, and remaining manual/release gaps.
 1. [Terrain editing report](docs/TERRAIN_EDITING_REPORT.md): completed 0.12.0 single-tile tools, exact verification, and remaining native/release gaps.
 1. [Path construction report](docs/PATH_CONSTRUCTION_REPORT.md): completed 0.11.0 controls, command/persistence contract, and verification.
 1. [Static visibility report](docs/STATIC_VISIBILITY_REPORT.md): completed 0.10.0 chunk/viewport contract and evidence.
@@ -68,27 +68,27 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 
 ## 2. What exists today
 
-| Area | Implementation / current 0.13.0 work |
+| Area | Implementation / completed 0.13.0 slice |
 | --- | --- |
 | Park | Deterministic 32 × 32 site with grass, water, and sand. Starts in Terraced mode at heights 0/2/4/6; Flat mode remains available for comparison. |
 | Network and overlap | 37 path nodes at height 8 form a loop, junctions, and branches around the original walkway. Nine track tiles remain at x13/y12..20, height 0. Each occupies two height steps. |
-| Guests | Twelve seeded guests retain deterministic complete ticks/routes/waits. The 0.13.0 contract adds opposite-edge height matching and shared fixed-point piecewise slope positions, with anchor_slope for removed-surface recovery; release regression coverage passed; production behavior remains pending verification. |
+| Guests | Twelve seeded guests retain complete ticks/routes/waits. Opposite-edge height matching and shared fixed-point piecewise positions support slopes; anchor_slope retains removed-surface recovery. Release regressions, production mid-ramp continuation, and inspected crowd/removal/recovery captures passed. |
 | Circuit and train | A 46-piece loop at x7..24/y4..10, with station at x8/y10, rails at heights 8–16, and three cars. Sampled integer motion, lift/descent/braking, station dwell, and finish-lap closure. |
 | Presentation | Original terrain, connected path decks, sampled circuit rails/station/supports, and separate guest/train meshes. Surface mode hides buried track. Underground removes terrain and uses a non-selectable reference floor. No external game art is required. |
 | Camera | Four rotations, keyboard and right/middle-drag panning, zoom, height-aware Fit that reserves both control columns, and grid toggle. |
 | Inspection | Hover and selected-surface highlights with stable terrain/object identity; inspector distinguishes kind, object ID, tile, and height. Hidden surfaces cannot be picked through ordinary terrain. |
-| UI | Existing P/X/Inspect, B/V terrain tools, independent path height, camera, help, and saves remain. C/the shape button cycles Flat/North/East/South/West and enters Path build. Ramp height means its low end, 0–29; Flat remains 0–30. Six headless slope-input regressions passed; native slope controls remain unverified; historical native terrain/input gaps remain. |
-| Sloped paths | Agreed one-step rise in four world directions; low 0–29/high low+1, conservative three-step occupied column, only opposite ends with matching neighbor heights. Flat retains two-step clearance. APIs are implemented and release tests passed; production verification remains pending. |
+| UI | C/the shape button cycles Flat/North/East/South/West and enters Path build. Height means low end 0–29 for ramps; Flat stays 0–30. Six slope-input regressions passed, plus native C/shape, height buttons, construction, X, F5/F9, Save/Backup buttons. Separate Load button, physical Page Up/Down/Delete/modifiers, terrain/ride controls, and pan/DPI remain gaps. |
+| Sloped paths | Completed one-step rise in four world directions; low 0–29/high low+1, conservative clearance 3, opposite ends with matching neighbor heights. Flat retains clearance 2. Source regressions, production construction/motion/save proofs, and native South-ramp placement passed. Full BLD-08 remains open. |
 | Terrain tools | Visible Grass/Sand tops or cliffs identify a column. Each click changes height by one step within 0–32; Water/Underground edits are blocked. Shared immutable validation rejects clearance conflicts atomically. Successful edits display Custom; T explicitly applies a preset. Source/runtime/CI/package checks passed; native terrain inputs remain unverified. |
 | Simulation | Separate window-independent Rust library with bounded terrain, stable identities, shared clearance, atomic fixtures, deterministic crowds/RNG, validated circuit geometry, complete ticks, and a serde-based validated JSON codec. |
-| Persistence | One primary slot/explicit backup, staged replacement, writer lock, candidate validation, and paused load remain. The 0.13.0 format is strict schema 2/content 2 with explicit strict 1/1→Flat migration; old 0.12 rejects v2. Migration/continuation release tests passed; separate production-process proof is pending. |
-| Diagnostics | Six new slope scenes and write-slopes/verify-slopes production modes are implemented and tested in the release suite; production/runtime evidence is pending. Existing terrain/path/crowd/train/save presets remain regression inputs. Migration must use 0.12 v1→0.13 plus v2 rejection by the old executable, not the previous bidirectional-load expectation. |
+| Persistence | One primary slot/explicit backup, staged replacement, lock, validation, and paused loading. Strict schema 2/content 2 writes; explicit strict 1/1→Flat migration. Production forward migration, old 0.12 v2 rejection without loss, and new-v2 primary/backup/continuation passed. |
+| Diagnostics | Six slope scenes and write-slopes/verify-slopes passed production verification; eleven final slope/retained captures were inspected. Existing terrain/path/crowd/train/save scenes remain regressions. Migration uses 0.12 v1→0.13 plus intentional old-reader v2 rejection, not reverse-load success. |
 | Measurement | Opt-in CPU baseline/save-scale/stress fixtures; baseline main-loop frame profiling; sequential Windows wrapper with source/binary identity, hardware metadata, bounded processes, and 200 ms memory samples. Historical local diagnostic batches completed in 0.7/0.8. Version 0.9 completed controlled large-map profiles and optional actual GPU timestamp spans. Version 0.10 verifies total generated versus camera-selected static geometry; historical evidence is in the static visibility report. |
 | Delivery | Windows packaging, native-runtime inspection/copying, dependency/font notices, checksums, and a GitHub Actions workflow. |
 
-**Not implemented:** terrain brushes, water editing, terrain slopes, queues, ride construction/boarding, guest needs/spending, general ride operations, coaster design/ratings, staff, economy, scenarios, research, audio, persistent settings, autosave, save browser, or migrations beyond the current explicit v1→v2 work. The level-path tool builds/removes one tile per deliberate click; R restores only fixture paths. Guests and cars are not individually selectable. Every normal launch starts a fresh demonstration without touching saves. Trees, entrance arch, reference floor, and support posts remain decorative.
+**Not implemented:** terrain brushes, water editing, terrain slopes, queues, ride construction/boarding, guest needs/spending, general ride operations, coaster design/ratings, staff, economy, scenarios, research, audio, persistent settings, autosave, save browser, or migrations beyond the implemented strict v1→v2 migration. The level-path tool builds/removes one tile per deliberate click; R restores only fixture paths. Guests and cars are not individually selectable. Every normal launch starts a fresh demonstration without touching saves. Trees, entrance arch, reference floor, and support posts remain decorative.
 
-**Current 0.13.0 slope/migration work is in progress.** C selects Flat or a world direction of one-step rise; placement, geometry, picking, path edges, guest height/recovery, and strict schema 2/content 2 must share the contract. Strict 1/1 migration preserves legacy level-path continuation. The implemented slope/migration contract passed all 260 release tests (175 game/85 simulation), including the six-scene command matrix and six slope-input regressions. Formatting passed. Strict release Clippy/build, production runtime/native controls, CI, binary identity, and package verification remain pending. BLD-08 stays in progress for its full criterion; no local benchmark batch is planned.
+**The bounded 0.13.0 slope/migration implementation is complete.** Placement, rendering/picking, endpoint connectivity, guest motion/recovery, and strict 2/2 saves share the slope contract. Strict 1/1 migration preserves legacy level-path continuation. All 260 release tests, source gates/build, eleven inspected captures, production migration/continuation, bounded native controls, exact-source CI, and package relocation passed. BLD-08 stays in progress for its full criterion. No local performance measurement batch was run; CI CPU smoke verifies reporting only.
 
 **Historical 0.12.0 completed the bounded single-tile terrain implementation.** All 236 tests, final formatting/strict lint/build, ten inspected captures, production terrain/cross-version continuation, exact-source CI, and package relocation passed. Native terrain controls remain unverified after activation/capture errors prevented input. B/Raise and V/Lower apply one valid height change to visible Grass/Sand tops or cliffs, retain objects/guests in place, and preserve materials. Water and Underground edits are rejected. Preview and commit share validation. Terrain persists in schema 1/content 1; Save includes a same-update edit and Load/Backup gates it even on failure. BLD-06 stays in progress for brushes/slopes/material tools/costs. No local performance measurement batch was run; CI CPU smoke verifies reporting only.
 
@@ -99,7 +99,9 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 **Version 0.9.0 is a completed historical diagnostic slice.** It adds controlled baseline/save-scale/stress previews, usable overview/crowd/ride cameras, all-rotation/visibility rendering, and optional actual GPU timestamp spans through Bevy. Editing and persistence are disabled in previews; ordinary 32 × 32 play and save/load acceptance remain unchanged. CPU hooks, render-span CPU, GPU spans, and main-loop pacing are distinct; upload and presentation timing remain unmeasured. All 178 release tests (113 game/65 simulation), formatting, strict Clippy, release compilation, and 44 isolated wrapper checks passed. Six 120-interval GPU profiles completed with actual timestamp samples, visible/focused 1920 × 1080 windows, and occlusion unknown. Six captures exited 0; current images were inspected. Bidirectional 0.8/0.9 continuation passed 3,600 ticks/commands, backup, and paused loading. The normal baseline image changed only its version digit. Implementation CI passed; relocated package checks passed; the final refresh verified all fifteen current guides and all 24 payload hashes in the large-map/GPU report. Do not carry historical results forward as verification of changed code.
 **The bounded 0.8.0 optimization is complete; PRF-05 remains in progress.** All 159 release tests (65 simulation/94 game), formatting, strict Clippy, and release compilation passed. Four local CPU reports completed with paired animated workloads matched, zero measured graph rebuilds, and unchanged template/deck/buffer-growth counters. Four 0.7/0.8 image pairs differed only in the version digit; bidirectional cross-version continuation passed 3,600 ticks/commands, full state, backup, and paused loading. No reference PC is selected, and this development PC must not be treated as one. Hardware requirements and the proposed 60 FPS at 1080p acceptance wait for an agreed representative machine. The one-circuit model, 32 × 32 player presentation, and 256-guest save cap still limit the full proposed workload.
 
-All 260 release tests and formatting passed for the implementation. The 0.13.0 executable size/hash, source/PR, strict lint/build, production runtime/native/migration, CI, and package evidence remain pending. Do not reuse historical binary hashes or pass counts.
+The verified 0.13.0 executable is **46,345,728 bytes**, SHA-256 `249e2225998949197f42a8f08e1a447c62d36c9fa9d7b7baab2ff8c1f1dfa5f9`. Extraction matched 28 payload hashes and nineteen guides. From `C:\Windows`, a fresh temporary path with spaces and é passed full slope primary/backup/paused-load continuation for 3,600 ticks plus demolition/replacement/train commands; its minimum-window built-slope capture matched the source PNG byte-for-byte. Required dependency/runtime files match 0.12 exactly. Refresh/reverify bundled guides after documentation edits; the adjacent ZIP checksum is authoritative.
+
+The isolated packaged 0.13 native session activated/captured successfully. C selected North, the shape button East, then C South; a click built Path #93 at zero-based (8,21), display (9,22), lower 8/upper 9/clearance 3. Height buttons changed the selected range 8/9→9/10→8/9 without changing that path. F5 saved; X plus a click removed #93; the Save button persisted demolition. F9 loaded the demolished state paused and reset camera/tool to Inspect/Flat. The Backup button restored the ramp, and F5 reproduced the first ramp save byte-for-byte. Space pause and wheel zoom also passed. Page Up and two Shift+F9 helper spellings had no visible effect; physical Page Up/Down/Delete/modifiers, separate Load button, terrain B/V/buttons, O/F/ride controls, pan/drag/DPI/display, and clean-PC checks remain open. The 0.12 helper failure is historical, not a blanket current native blocker.
 
 The historical 0.12.0 executable is 46,266,368 bytes with SHA-256 `344e627608bc5bab1f8bd87943dd301be20552e62861e11d7bc4af5d207480a7`. The production release build passed. Bidirectional 0.11/0.12 continuation and write-terrain/verify-terrain passed, including exact primary/backup state, Custom/paused loading, 3,600 ticks, commands, and clearance rejection. All ten captures exited 0 and were inspected without a blocking visual defect. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. Package verification matched all 27 payload hashes and eighteen guides. A fresh extraction path containing spaces and é, launched from `C:\Windows`, passed terrain primary/backup/Custom/paused continuation for 3,600 ticks plus commands/clearance. Its terrain-raised/rotation-2/Surface/Terraced/1024 × 680 PNG matched the source image byte-for-byte. Native B/V/buttons/clicks remain unverified: activation failed at `GetCursorPos` with access denied `0x80070005`; one refreshed-window retry failed at `IGraphicsCaptureItemInterop.CreateForMonitor` with `0x80070057`. No input was sent, and only the owned isolated process was stopped.
 
@@ -115,7 +117,7 @@ Historical 0.7.0 local diagnostics passed 147 release tests, strict source check
 
 **Historical PRF-04 is verified narrowly for same-build authoritative continuation in 0.6.0.** All 131 workspace tests passed: 56 simulation, 27 world/rendering, 28 input-system, five persistence, nine store, four main-module, and two capture tests. They include Windows failed-primary replacement rollback, bounded reads, rejection without mutation, full continuation/cache/ID checks, input precedence/gating, and same-update mesh refresh after loading. Formatting, strict Clippy, release build, and twelve inspected GPU captures passed; all controls/status/version fit at 1024 × 680.
 
-The historical 0.6.0 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. Its 20 payload hashes and twelve guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **At that 0.6.0 checkpoint native Save/Load/Backup was unverified. Version 0.11.0 later verified F5/F9; Backup and separate Save/Load buttons remain open.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; these results do not verify changed 0.13.0 code.
+The historical 0.6.0 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. Its 20 payload hashes and twelve guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **At that 0.6.0 checkpoint native Save/Load/Backup was unverified. Version 0.11.0 later verified F5/F9; 0.13.0 additionally verified Save/Backup buttons. The separate Load button and physical Shift+F9 remain open.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; these results do not verify changed 0.13.0 code.
 
 **PRF-03 is verified for the 0.5.0 automatic circuit and fixed-update behavior.** All 99 tests passed: 43 simulation, 27 world/rendering, 23 input-system, four main-module, and two capture tests. Formatting, strict Clippy, and release compilation passed. Sixteen GPU captures completed with exit code 0 and were inspected, including all rotations, lift/descent/braking, completed lap and parked train, minimum-window layouts, terrain/views, and crowd/overlap regressions. The train report records the executable hash and observed counters. A Bevy scheduling regression produced equal whole-Park state over 120 simulated seconds at 30/60/144 Hz update schedules; this is not measured hardware performance.
 
@@ -142,15 +144,15 @@ Keyboard panning was not clearly established in the 0.3.0 native session, and ri
 | IDs | State | Meaning |
 | --- | --- | --- |
 | DEF-01, DEF-02 | Planned | Exact content/expansion audit and final product/platform decisions remain open. |
-| FND-01 | Verified | Reverified in 0.12.0: 27 payload hashes/eighteen guides matched; relocated 3,600-tick terrain continuation/backup/Custom/paused load and byte-identical minimum-window terrain capture passed from C:\Windows. Native terrain controls remain unverified after activation/capture errors; clean-machine compatibility remains open. |
+| FND-01 | Verified | Reverified in 0.13.0: 28 payload hashes/nineteen guides matched; relocated slope primary/backup/paused continuation for 3,600 ticks/commands and byte-identical minimum-window built-slope rendering passed from C:\Windows. Clean-machine compatibility remains open. |
 | FND-02 | In progress | Native selection, four rotations, wheel zoom, and Fit passed in 0.3.0. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
 | FND-03 | Verified | Earlier speed/inspector/visibility evidence is retained; 0.4.0 reverified native pause/resume, path-edit buttons, counters, and help, with complete-step speed/pause tests. |
-| FND-04 | Verified | Reverified in 0.12.0 through 236 release tests (162 game/74 simulation), final local rustfmt/strict release Clippy/build, and successful CI run 39557465779 for exact source e5dbc0e. Later documentation heads have separate CI status. |
+| FND-04 | Verified | Reverified in 0.13.0 through 260 release tests (175 game/85 simulation), formatting/strict all-target release Clippy/build, and successful exact-source CI 39583267705 on b1d26a0. Later documentation heads have separate CI status. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
 | PRF-01 | Verified | Named 0.3.0 tests, captures, native identity/visibility/preset checks, and package relocation establish the overlap baseline. New changes require regression checks. |
 | PRF-02 | Verified | 0.4.0 automated invariants, eleven inspected captures, and native path deletion/restoration/recovery establish the proof. Physical Delete shortcut retesting remains explicit; Remove path is verified. |
 | PRF-03 | Verified | 0.5.0 automatic circuit/fixed-update behavior passed 99 tests, sixteen captures, and normal launch showing lap 1; Space paused. Native O/F/buttons and physical hardware frame-rate performance remain open. |
-| PRF-04 | Verified | 0.6.0 technical continuation: 131 tests, production/extracted fresh-process replay/backup, twelve inspected captures, and relocated package hashes/guides passed. F5/F9 were later verified in 0.11.0; Backup and separate Save/Load buttons remain open. |
+| PRF-04 | Verified | Historical 0.6 technical continuation remains accepted. Current 0.13 verifies strict v1 migration and v2 primary/backup/3,600-tick slope continuation. Native F5/F9 and Save/Backup buttons passed; separate Load button and Shift+F9 gesture remain unconfirmed. |
 | PRF-05 | In progress | No reference PC is selected and this development PC is excluded as a reference. The bounded 0.8.0 guest-rendering/connectivity optimization is complete and verified. Version 0.9.0 verifies isolated large-map rendering and actual GPU diagnostics through source tests, captures, bounded profiles, continuation, and CI; relocated package checks passed. The final refresh verified all fifteen current guides and all 24 payload hashes. Version 0.10.0 static terrain chunk visibility is complete: 193 tests, 74 wrapper checks, eight exact image pairs outside version text, six GPU profiles, bidirectional save continuation, CI, and package relocation passed. Full-target hardware acceptance and the unsupported 50-ride workload remain open. |
 | Remaining gameplay/release entries | Planned / in progress | Consult the checklist for individual acceptance requirements. |
 
@@ -204,7 +206,7 @@ rustc -vV
 cargo --version
 ```
 
-The branch commands target `codex/sloped-paths`; source publication is pending in this draft. Inspect `git branch -a` and the current review/merge state before switching. A plain clone retrieves the default branch, which may be older. If the local feature branch exists, use `git switch codex/sloped-paths` rather than `--track`; do not invent a different remote checkpoint when it has not yet been pushed.
+The branch commands target pushed `codex/sloped-paths`, runtime `b1d26a04cc1282bb71defcb59557309b79252f1d` in draft PR #11. Inspect `git branch -a` and actual review/merge state before switching. A plain clone may retrieve an older default branch. If the local feature branch exists, use `git switch codex/sloped-paths` rather than `--track`.
 
 Confirm `rustc -vV` reports version 1.93.1 and host `x86_64-pc-windows-msvc`. Do not switch this project to the GNU Windows toolchain: the runtime inspection and packaging scripts assume MSVC.
 
@@ -248,9 +250,9 @@ The development executable is `target\release\parkbound.exe`; the packaged execu
 | --- | --- |
 | Left click on map | Inspect, place/remove one path, or raise/lower one terrain column according to the selected tool. |
 | P / Path; X / Demolish; Inspect | Enter Build, Demolish, or Inspect. Held clicks and drags must not paint. |
-| C / shape button | Cycle Flat → North → East → South → West → Flat, select Path build, and clamp height 30 to low height 29 for a ramp. Headless control regressions passed; native proof is pending. |
+| C / shape button | Cycle Flat → North → East → South → West → Flat, select Path build, and clamp 30 to low height 29 for a ramp. Release regressions and native C/shape-button observations passed. |
 | B / Raise; V / Lower | Raise/lower the picked visible Grass/Sand terrain column by one step within 0–32. Water and Underground edits are rejected. |
-| Page Up / Page Down / height buttons | Adjust independent path height: Flat 0–30, slope low end 0–29, default 8. This does not set terrain height. |
+| Page Up / Page Down / height buttons | Adjust independent path height: Flat 0–30, ramp low 0–29, default 8. Height buttons passed natively; injected Page Up had no visible change, so physical Page Up/Down remain retests. This does not set terrain height. |
 | Right or middle drag | Pan without a jump when dragging begins. |
 | WASD / arrow keys | Pan with the keyboard. |
 | Wheel / + / - | Zoom while preserving usable selection behavior. |
@@ -292,7 +294,10 @@ The app supports:
 parkbound.exe --capture-frame <absolute-output.png>
   [--capture-scene overview|selection|path|track|crowd|lost|recovered|help|
                    train|train-lift|train-drop|train-brake|train-return|train-closed|
-                   path-valid|path-blocked|path-built|path-demolish|path-removed|path-recovered]
+                   path-valid|path-blocked|path-built|path-demolish|path-removed|path-recovered|
+                   terrain-raise|terrain-lower|terrain-raised|terrain-lowered|terrain-blocked|
+                   terrain-water|terrain-underground|
+                   slope-valid|slope-built|slope-blocked|slope-crowd|slope-removed|slope-recovered]
   [--capture-map flat|terraced]
   [--capture-view surface|underground]
   [--capture-rotation 0|1|2|3]
@@ -306,7 +311,7 @@ Path-tool scenes use production point_at after visible-surface picking. Valid/bl
 
 Historical 0.12 terrain scenes are `terrain-raise|terrain-lower|terrain-raised|terrain-lowered|terrain-blocked|terrain-water|terrain-underground`. They target accepted raise/lower previews, committed height changes, clearance rejection, Water rejection, and Underground suppression. Preview-only scenes must preserve Park state. All ten terrain/retained-scene captures passed and were inspected; native terrain controls remain unverified after activation/capture errors; see TERRAIN_EDITING_REPORT for command examples and acceptance requirements. All terrain scenes except terrain-underground require Surface; the Underground scene forces cutaway mode.
 
-Slope scenes are `slope-valid|slope-built|slope-blocked|slope-crowd|slope-removed|slope-recovered`. They prepare a real South/Flat/East/Flat bridge from height 8 to 10, with bounded guest seeking at progress 7, deletion/rebuild, and recovery. Use the new report for exact fixtures and write-slopes/verify-slopes commands. All checks are pending; no v2→old-binary success is expected.
+Slope scenes are `slope-valid|slope-built|slope-blocked|slope-crowd|slope-removed|slope-recovered`. They prepare a real South/Flat/East/Flat bridge from height 8 to 10, with bounded guest seeking at progress 7 and removal/rebuild/recovery. Eleven final slope/retained captures exited 0 and were inspected: seven 1280 × 800 and four 1024 × 680. Separate write-slopes/verify-slopes passed full primary/backup and 3,600-tick continuation, again after relocation. Forward v1 migration and intentional old-reader v2 rejection passed. See the report for the exact matrix/commands.
 
 Train scenes focus the circuit at 150% and select its current piece. `train` captures the requested tick state; named phases seek interior section behavior with a limit of 36000 additional complete ticks. Lift requires speed 24 and lead height 12..16 (excluding 16); drop requires speed at least 60 and height above 8 through 14; brake requires speed 20 and a lead car at least one third tile into the current piece. These speeds are integer distance units per tick. Return requires a stopped station wait after at least one lap; Closed requests Close and waits for stopped parking. A fault or target state not reached within the bound fails the capture. Guests also advance during these complete ticks. Keep `--capture-ticks` separate from the final total when recording evidence.
 
@@ -318,9 +323,9 @@ Use a fresh output filename for each run. The implementation saves through a tem
 $repoDirectory = (Get-Location).Path
 $captureDirectory = Join-Path $repoDirectory 'artifacts'
 New-Item -ItemType Directory -Path $captureDirectory -Force
-$capturePath = Join-Path $captureDirectory ("track-underground-{0}.png" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
+$capturePath = Join-Path $captureDirectory ("slope-built-{0}.png" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $gameExecutable = Join-Path $repoDirectory 'target\release\parkbound.exe'
-$captureArguments = '--capture-frame "{0}" --capture-scene track --capture-map terraced --capture-view underground --capture-rotation 1' -f $capturePath
+$captureArguments = '--capture-frame "{0}" --capture-scene slope-built --capture-map terraced --capture-view surface --capture-rotation 2 --capture-small-window' -f $capturePath
 $captureProcess = Start-Process -FilePath $gameExecutable -ArgumentList $captureArguments -WindowStyle Hidden -Wait -PassThru
 if ($captureProcess.ExitCode -ne 0) { throw "Capture failed: exit code $($captureProcess.ExitCode)" }
 Get-Item -LiteralPath $capturePath
@@ -347,7 +352,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 
 Only use `-SkipBuild` immediately after a successful build of the current source. It does not prove an existing executable is up to date. The script assumes the normal host target output `release/parkbound.exe`; do not add a different `--target` layout or change its binary assumptions without updating and testing packaging.
 
-The intended 0.13.0 package layout is shown below. Source/runtime/CI/binary/notice/payload/guide/relocation checks are pending in the sloped paths report. The completed 0.12.0 archive retains its separate historical evidence.
+The verified 0.13.0 package layout is shown below. Source/runtime/CI, executable identity, dependency/runtime bytes, 28 payload hashes/nineteen guides, and relocation checks passed. The report records exact evidence; refresh/reverify the archive whenever these bundled guides change.
 
 ```text
 dist/
@@ -359,13 +364,13 @@ dist/
   Parkbound-0.13.0-windows-x64.zip.sha256
 ```
 
-The intended local ZIP path is below; the 0.13.0 archive has not yet been built/verified:
+The verified local ZIP path is:
 
 ```text
 C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon\dist\Parkbound-0.13.0-windows-x64.zip
 ```
 
-The adjacent `Parkbound-0.13.0-windows-x64.zip.sha256` is authoritative after final packaging. Verify all payloads and current guides against the final documentation snapshot; actual counts remain pending. Do not embed the archive self-hash in its bundled guides or reuse 0.12 package counts as current evidence.
+The adjacent `Parkbound-0.13.0-windows-x64.zip.sha256` is authoritative. Extraction verified all 28 payloads and nineteen guides; repeat those comparisons after the final documentation refresh. Do not embed the archive self-hash in bundled guides. The runtime executable identity remains fixed independently of documentation packaging.
 
 Packaging derives the version from Cargo metadata. It collects the locked Windows dependency notices, the embedded font license, Rust standard-library notices, and required MSVC redistributable DLLs. It writes `DEPENDENCIES.json`, `NATIVE_DEPENDENCIES.json`, `THIRD_PARTY_NOTICES.txt`, and `SHA256SUMS.txt`. Existing extracted package directories are preserved with a `.previous-...` suffix; the current ZIP is replaced. Check `dist` occasionally for accumulated previous packages.
 
@@ -434,7 +439,7 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 
 `Park::new` creates flat terrain without objects, guests, or a train. Normal startup applies Terraced, installs the crowd/overlap fixture, then installs the train fixture. `try_apply_terrain_profile` validates every proposed height before mutation; it preserves authoritative operation state, materials, time, IDs, and object heights. `apply_terrain_profile` remains a convenience wrapper that panics on a rejected profile without changing state; use the fallible API for player actions. `validate_terrain_height` checks bounds, height, and object clearance without mutation; `set_terrain_height` delegates before assigning the one height. The simulation API remains material-neutral; terrain player tools additionally reject Water and Underground targets.
 
-`SurfaceId` distinguishes `Terrain(TilePos)` from `Object(ObjectId)`. The 0.13 contract extends surface path shape with `PathSlope::{Flat, North, East, South, West}`; height is the low base, with shape-specific clearance. APIs are implemented and release-tested; production evidence remains pending. Stable IDs, tile, kind, axis, and height remain authoritative. `place_object(pos, kind, axis, height, clearance)` returns a stable ID or `PlacementError`; `remove_object(id)` returns the removed object or `None`, and never recycles an ID. Occupied intervals are half-open, with positive clearance and total height at most 32. Shared-tile overlaps are rejected. Paths stay on/above terrain; track can also be wholly buried. Terrain cannot bisect an object.
+`SurfaceId` distinguishes `Terrain(TilePos)` from `Object(ObjectId)`. The 0.13 contract extends surface path shape with `PathSlope::{Flat, North, East, South, West}`; height is the low base, with shape-specific clearance. APIs passed release regressions and production construction/continuation verification. Stable IDs, tile, kind, axis, and height remain authoritative. `place_object(pos, kind, axis, height, clearance)` returns a stable ID or `PlacementError`; `remove_object(id)` returns the removed object or `None`, and never recycles an ID. Occupied intervals are half-open, with positive clearance and total height at most 32. Shared-tile overlaps are rejected. Paths stay on/above terrain; track can also be wholly buried. Terrain cannot bisect an object.
 
 Read-only APIs are `objects()`, `object(id)`, `surface_position(id)`, `surface_height(id)`, `is_underground(id)`, and `max_surface_height()`. Invalid/removed references resolve to `None`, or `false` for the burial query. Maximum surface height excludes the empty clearance above it. `install_overlap_fixture()` is atomic, requires a 32 × 32 map, and preserves already matching objects on repeat installation.
 
@@ -442,11 +447,11 @@ Read-only APIs are `objects()`, `object(id)`, `surface_position(id)`, `surface_h
 
 `crowds.rs` adds `GuestId`, `GuestState::{Walking, Waiting, Lost}`, `Guest`, `GuestPosition`, and `CrowdStats`. Read-only APIs are `guests()`, `crowd_stats()`, `guest_position(id)`, and `path_neighbors(id)`. A guest stores current/next/destination path IDs, a retained tile/lower-height/anchor_slope footprint, integer progress, state, arrival count, and private route/wait data. Missing guest IDs return no presentation position.
 
-The 0.13 connectivity contract uses `PathDirection` and `paths_connect` to compare facing endpoint heights; ramps expose opposite ends only, with no side entry. Shared `path_edge_height`, `path_height_at`, and `path_center` use `PATH_UNITS = 60`. `GuestPosition.point` follows center → shared edge → center piecewise, preserving exact old Flat positions. Deterministic BFS retains stable object-ID order and stored SplitMix64 state. Walking and destination waits still take 30 complete ticks. The derived Arc graph remains cached between unchanged topology; successful edits invalidate it and loading starts cold. Cache warmth/counters are excluded from authoritative saves/equality. Slope/cache/continuation release checks passed; production proof is pending.
+The 0.13 connectivity contract uses `PathDirection` and `paths_connect` to compare facing endpoint heights; ramps expose opposite ends only, with no side entry. Shared `path_edge_height`, `path_height_at`, and `path_center` use `PATH_UNITS = 60`. `GuestPosition.point` follows center → shared edge → center piecewise, preserving exact old Flat positions. Deterministic BFS retains stable object-ID order and stored SplitMix64 state. Walking and destination waits still take 30 complete ticks. The derived Arc graph remains cached between unchanged topology; successful edits invalidate it and loading starts cold. Cache warmth/counters are excluded from authoritative saves/equality. Slope/cache/continuation release and production proofs passed.
 
 `install_crowd_fixture(seed)` atomically installs the 37-node network, retained overlap track, and twelve guests. Repeating it preserves existing guest identities, time, and RNG state, even if a different seed is supplied. `restore_crowd_paths()` restores missing demonstration paths only; it preserves current guests and existing objects and rejects a collision atomically. New paths get new IDs.
 
-`remove_object(id)` reconciles affected current/next/destination/routes immediately and retains a local Lost anchor. In 0.13, `anchor_slope` preserves the removed surface footprint/base; shared fixed-point samples retain its actual center height. Arrival updates lower height/slope. Recovery uses compatible local/incident paths rather than arbitrary nearest destinations. Paused deletion and rebuilt-fresh-ID recovery passed release slope regressions; production evidence is pending; retain the existing level-path regression behavior.
+`remove_object(id)` reconciles affected current/next/destination/routes immediately and retains a local Lost anchor. In 0.13, `anchor_slope` preserves the removed surface footprint/base; shared fixed-point samples retain its actual center height. Arrival updates lower height/slope. Recovery uses compatible local/incident paths rather than arbitrary nearest destinations. Paused deletion and rebuilt-fresh-ID recovery passed release and production slope proofs; retain the existing level-path regression behavior.
 
 `trains.rs` adds `TrackDirection`, `TrackPort`, `TrackPieceSpec`, `TrackKind`, `TrackPoint`, `TrackPiece`, `TrainCircuit`, `TrainPhase`, `Train`, `TrainPose`, and `TrainError`. `circuit()`/`train()` return optional read-only state; `train_cars()` supplies three center/front/rear poses. `install_train_fixture()` is atomic and a no-op when healthy. `install_train_circuit(&[TrackPieceSpec])` supports explicit headless construction/validation, not a player editor. Exactly one station, valid tile-edge connections including last→first, legal grades, positive lengths, and shared clearance are required. Curves are level quarter turns; lifts rise one step per tile; drops descend one or two; other pieces are level straights.
 
@@ -456,7 +461,7 @@ The train initially opens with a 90-tick dwell. `set_train_open(false)` parks a 
 
 The app schedules `FixedUpdate` at 30 Hz and calls `Park::advance(speed)`. This executes zero, one, two, or four **complete authoritative steps**, in order: clock → crowd → train. Reaching `u64::MAX` stops all simulation. New systems must join that complete step explicitly; never multiply only the clock for accelerated speed.
 
-There is no general gameplay command queue or queue path connectivity; sloped connectivity is current 0.13 work. There is no admission, guest needs/spending, collision avoidance, guest ride routing/boarding, multi-train operations, or money yet. Serialization covers the current authoritative Park, with future systems added to the versioned schema as implemented. Placement and fixture repair are not complete ownership/cost construction commands.
+There is no general gameplay command queue or queue path connectivity; sloped connectivity is implemented and verified in 0.13. There is no admission, guest needs/spending, collision avoidance, guest ride routing/boarding, multi-train operations, or money yet. Serialization covers the current authoritative Park, with future systems added to the versioned schema as implemented. Placement and fixture repair are not complete ownership/cost construction commands.
 
 The intended extension remains: validated atomic commands → fixed-step simulation → state/events → presentation. Store future money in integer minor units; use stable simulation/content IDs; preserve deterministic iteration and seeded randomness. Do not store Bevy entities or rendering caches as the long-term save representation.
 
@@ -506,7 +511,7 @@ Shared clearance and surface rules should become the foundation for paths, track
 
 Version 0.4.0 verifies this small proof through 72 passing tests, eleven inspected captures, native removal/restoration/recovery controls, package relocation, and hosted CI. Read the crowd report and preserve same-height/cardinal behavior for Flat regressions, stable IDs, complete ticks, and local lost recovery while extending joins to explicit slope endpoints. Do not start a second crowd implementation. Retest the physical Delete shortcut; the crowd checkpoint made no display-rate or large-park performance claim.
 
-Preserve the train/save baselines below while implementing the slope and migration contract. PRF-05 remains separate and requires agreed representative hardware. Queue ownership/access rules, slopes, actual guest entrance/exit, attraction routing, needs, and collision avoidance remain later work; the current graph treats all existing Path objects as public walkable nodes.
+Preserve the completed train/save/slope baselines. PRF-05 remains separate and requires agreed representative hardware. Queue ownership/access, actual guest entrance/exit, attraction routing, needs, and collision avoidance remain later work; the current graph treats all existing Path objects as public walkable nodes.
 
 ### D. Preserve the accepted PRF-03 automatic train baseline
 
@@ -516,7 +521,7 @@ Preserve PRF-04 below, then proceed to PRF-05. Retest O/F and Open/Close/Find th
 
 ### E. Preserve accepted save/reload continuation: PRF-04
 
-Version 0.6.0 verifies technical continuation through tests, fresh processes, inspected rendering, and package relocation; see [SAVE_REPORT.md](docs/SAVE_REPORT.md). That historical `parkbound-save` format was strict schema 1/content 1. Current 0.13 `Park::to_save_bytes()`/`from_save_bytes()` targets strict 2/2 output and explicit strict 1/1→Flat migration; preserve new slope/anchor fields and reject mismatched/future versions. Preserve terrain/materials, vector order, object IDs/envelopes/allocators, ticks, seed/RNG, guest routes/waits/motion/arrivals, ordered circuit specifications/object IDs, and all train motion/open/dwell/lap fields. Reconstruct samples/lengths/station cache without fixture installation or newly allocated IDs. Lost guests without a current path and faulted trains without a circuit are legitimate states.
+Version 0.6.0 verifies technical continuation through tests, fresh processes, inspected rendering, and package relocation; see [SAVE_REPORT.md](docs/SAVE_REPORT.md). That historical `parkbound-save` format was strict schema 1/content 1. Current 0.13 `Park::to_save_bytes()`/`from_save_bytes()` writes strict 2/2 output and explicit strict 1/1→Flat migration; preserve new slope/anchor fields and reject mismatched/future versions. Preserve terrain/materials, vector order, object IDs/envelopes/allocators, ticks, seed/RNG, guest routes/waits/motion/arrivals, ordered circuit specifications/object IDs, and all train motion/open/dwell/lap fields. Reconstruct samples/lengths/station cache without fixture installation or newly allocated IDs. Lost guests without a current path and faulted trains without a circuit are legitimate states.
 
 The 8 MiB format bounds collection sizes before graph validation: 4,096 objects, 1,024 paths, 256 guests, 2,048 circuit pieces, and 65,536 remaining route IDs total. These limits are for the proof, not the proposed benchmark. Validate references, adjacency/heights, IDs/allocators, clearance, circuit closure/grades, and train state before replacing the live park. Unknown fields/versions are rejected; migration support remains future work.
 
@@ -524,7 +529,7 @@ The game layer owns filesystem storage and controls. `SaveStore::user_directory(
 
 Startup neither loads nor saves. F5/Save writes one slot; F9/Load and Shift+F9/Backup explicitly choose a file. Loading into a candidate preserves the live park on errors, rejects non-32 × 32 presentation, then resets selection/camera/view and dirty caches and starts paused at a 1x resume speed. Train Open/Close intent survives. Custom valid terrain heights survive and display Custom. UI/camera/pause preferences are not saved.
 
-Preserve whole-Park continuation, corruption, version/bounds, disk failure/recovery, and render/cache checks when changing code. Include moving train, station dwell, pending Close, lost guests, and path edits. The opt-in `--save-check write` then separate `--save-check verify` process diagnostic requires a fresh absolute `--save-dir` whose parent exists; write creates that directory and refuses an existing one. Verify checks 3,600 continued ticks/commands plus explicit backup and creates a new `verification.txt` receipt. It uses production save actions without a renderer; Windows CI is configured to run both after packaging. Render scenes `saved|loaded|backup|load-error` also require an explicit isolated `--save-dir`; the saved scene writes that slot and the error scene asserts no live-Park mutation. Use only QA directories, never player slots. F5/F9 passed natively in 0.11.0. Retain Backup and separate Save/Load-button retests alongside the other native gaps; PRF-05 still needs an agreed representative PC.
+Preserve whole-Park continuation, corruption, version/bounds, disk failure/recovery, and render/cache checks when changing code. Include moving train, station dwell, pending Close, lost guests, and path edits. The opt-in `--save-check write` then separate `--save-check verify` process diagnostic requires a fresh absolute `--save-dir` whose parent exists; write creates that directory and refuses an existing one. Verify checks 3,600 continued ticks/commands plus explicit backup and creates a new `verification.txt` receipt. It uses production save actions without a renderer; Windows CI is configured to run both after packaging. Render scenes `saved|loaded|backup|load-error` also require an explicit isolated `--save-dir`; the saved scene writes that slot and the error scene asserts no live-Park mutation. Use only QA directories, never player slots. F5/F9 passed natively in 0.11 and 0.13; 0.13 also verified Save/Backup buttons. Retain separate Load-button and physical Shift+F9 retests alongside the other native gaps; PRF-05 still needs an agreed representative PC.
 
 ### F. Optimize with local diagnostics: PRF-05
 
@@ -546,7 +551,7 @@ The retained historical local diagnostic data is in `benchmarks/results/2026-10-
 
 Version 0.8.0 completes reusable guest geometry and cached path connectivity with explicit invalidation. Its six raw JSON files and manifest are retained at `benchmarks/results/2026-10-20-optimization-local/`. One 300-tick run per case and one 1,800-tick stress run all completed, using clean source checkpoint `3f1ea88` and the unchanged runtime binary. Each animated pair completed sixty samples with equal final state/vertex totals; every measured tick reused the graph, and templates/decks/buffer capacities stayed unchanged through retained updates. The optimization report contains the timing table and noise limits. These are single local observations, not representative-hardware speedup claims.
 
-Retain the verified optimization and its regression oracles. Version 0.9 below verifies controlled large-map/GPU diagnostics, and 0.10 completes the bounded static visibility change. Version 0.11 completed level-path placement/demolition; 0.12 completed single-tile terrain editing, and current 0.13 work adds slopes/migration. The earlier 0.7.0 frame result cannot identify a GPU cause, and 0.8 made no frame-performance comparison. Agree a representative PC separately before hardware acceptance; full ride-count/player-map/save-cap scaling remains open.
+Retain the verified optimization and its regression oracles. Version 0.9 below verifies controlled large-map/GPU diagnostics, and 0.10 completes the bounded static visibility change. Version 0.11 completed level-path placement/demolition; 0.12 completed single-tile terrain editing, and 0.13 completed the bounded slopes/migration slice. The earlier 0.7.0 frame result cannot identify a GPU cause, and 0.8 made no frame-performance comparison. Agree a representative PC separately before hardware acceptance; full ride-count/player-map/save-cap scaling remains open.
 
 ### G. Retain the verified 0.9.0 controlled rendering/GPU baseline
 
@@ -584,19 +589,19 @@ The immutable `Park::validate_terrain_height` shares bounds/clearance rules with
 
 Runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1` is pushed in [draft PR #10](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/10), stacked on still-unmerged PR #9/`codex/path-construction` at `13c4063`. All 236 local release tests passed (162 game/74 simulation), and final strict all-target release Clippy passed. The final source also passed all 236 tests in Windows CI; final local rustfmt passed. The production release build passed. Bidirectional 0.11/0.12 continuation and write-terrain/verify-terrain passed, including exact primary/backup state, Custom/paused loading, 3,600 ticks, commands, and clearance rejection. All ten captures exited 0 and were inspected without a blocking visual defect. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. Package verification matched all 27 payload hashes and eighteen guides. A fresh extraction path containing spaces and é, launched from `C:\Windows`, passed terrain primary/backup/Custom/paused continuation for 3,600 ticks plus commands/clearance. Its terrain-raised/rotation-2/Surface/Terraced/1024 × 680 PNG matched the source image byte-for-byte. Native terrain controls remain unverified after capture/activation errors prevented input. Do not copy previous pass counts into this checkpoint. Seven terrain scenes cover valid raise/lower previews, committed changes, clearance rejection, Water, and Underground. `--save-check write-terrain` then a separate `--save-check verify-terrain` uses a fresh absolute QA directory and writes `verification-terrain.txt`. The report supplies full commands. It compares primary/backup, Custom/paused loading, and 3,600 ticks with terrain/path commands. Retain existing and cross-version continuation proofs.
 
-BLD-06 stays in progress: no brushes, terrain slopes, material editing, water, or prices/refunds. The current 0.13.0 work below implements the separately specified one-step slope contract under BLD-08; keep the completed terrain regressions and native limitation explicit.
+BLD-06 stays in progress: no brushes, terrain slopes, material editing, water, or prices/refunds. The completed 0.13.0 slice below implements one-step paths under BLD-08; keep terrain regressions and the untested terrain-control gap explicit.
 
-### K. Finish the 0.13.0 one-step slopes and save upgrade
+### K. Preserve the completed 0.13.0 one-step slopes and save upgrade
 
-Read [SLOPED_PATHS_REPORT.md](docs/SLOPED_PATHS_REPORT.md). PathSlope Flat/North/East/South/West defines world rise direction (North=-Y, East=+X). Flat uses height 0..30 / clearance 2; ramps use low 0..29 / high low+1 and a conservative three-step column. C/the shape button cycles shapes and enters Path build; selecting a ramp clamps height 30 to 29. Page Up/Down and height buttons then set its low end. Headless control/geometry tests and formatting passed; strict lint/build and production/native proof remain pending.
+Read [SLOPED_PATHS_REPORT.md](docs/SLOPED_PATHS_REPORT.md). PathSlope Flat/North/East/South/West defines world rise direction (North=-Y, East=+X). Flat uses height 0..30 / clearance 2; ramps low 0..29 / high low+1 and clearance 3. C/the shape button enters Path build and cycles shape, clamping 30 to 29 for ramps; height buttons/Page Up/Down set the low end. Shared geometry/validation, headless input, source gates, captures, and bounded native controls passed. Physical Page Up/Down remain unconfirmed.
 
 Connect only opposite facing edges at equal endpoint heights; no ramp side entry or diagonal shortcut. Shared fixed-point piecewise geometry drives guest height, preview, picking, and rendering. anchor_slope preserves removed-surface orientation/base for local lost/recovery behavior. Keep stable IDs, rejected-state atomicity, deterministic route/RNG/ticks, and path-cache invalidation.
 
 New saves use strict schema 2/content 2 with explicit strict 1/1→Flat migration. Preserve old guest progress/routes, IDs/order, terrain, clock/RNG, and train state; validate before replacement. Loading alone does not rewrite files. Old 0.12 intentionally rejects v2: replace the former bidirectional-load recipe with forward migration plus old-reader rejection and new-v2 continuation. Keep v1 copies separately if rollback is needed. The app still loads only 32×32 and keeps existing caps/store protection.
 
-The implemented slope/migration contract passed all 260 release tests (175 game/85 simulation), including the six-scene command matrix and six slope-input regressions. Formatting passed. Strict release Clippy/build, production runtime/native controls, CI, binary identity, and package verification remain pending. Source/PR identity is pending. Do not reuse 0.12 counts or hashes. Six slope capture scenes and write-slopes/verify-slopes are implemented; verification-slopes.txt records exact primary/backup and 3,600-tick continuation after bridge removal/rebuild and train commands once verified. Release tests passed; production/native/CI/package results remain pending. Preserve all historical reports/data/notices and both PC paths.
+Runtime source `b1d26a04cc1282bb71defcb59557309b79252f1d` is pushed in draft PR #11 on `codex/sloped-paths`, stacked on open PR #10. All 260 release tests (175 game/85 simulation), formatting, strict all-target Clippy, release build, and exact-source CI 39583267705 passed. Eleven final captures were inspected. Production forward migration/old-reader rejection, terrain proof, and slope full-state/3,600-tick/backup/paused continuation passed. Native C/shape, South construction, height buttons, X, F5/F9, Save and Backup buttons passed. The 28-payload/nineteen-guide package passed relocation and byte-identical built-slope rendering. Preserve historical reports/data/notices and both PC paths; do not reimplement this completed slice.
 
-After acceptance, design queue-path ownership and entrance/connectivity for one explicit ride access point; settle minimal ride identity first. Boarding, ride catalogues, and economy remain separate. BLD-08 remains in progress for its full criterion, BLD-06 retains broader terrain gaps, and PRF-05 still lacks representative hardware.
+The next recommended bounded design is queue-path ownership and entrance/connectivity for one explicit ride access point; settle minimal ride identity first. Boarding, ride catalogues, and economy remain separate. BLD-08 remains in progress for its full criterion, BLD-06 retains broader terrain gaps, and PRF-05 still lacks representative hardware.
 
 ### L. Continue the full milestones
 
@@ -616,7 +621,7 @@ git fetch origin
 git remote show origin
 ```
 
-Check the default branch and outstanding pull requests. Current 0.13.0 work is on `codex/sloped-paths` from `ef64609`; source/PR publication is pending. Inspect PR #10 and all stacked reviews before choosing or changing a base. Preserve ancestry and switch/pull only with a clean working tree or deliberately preserved changes.
+Check the default branch and outstanding pull requests. Current runtime source b1d26a0 is pushed on `codex/sloped-paths` from `ef64609` in draft PR #11, stacked on still-open PR #10/codex/terrain-editing. Inspect all stacked reviews before choosing or changing a base. Preserve ancestry; switch/pull only with a clean working tree or deliberately preserved changes.
 
 To resume the published feature branch on a PC without a local copy:
 
@@ -674,7 +679,7 @@ The following hosted runs were verified successful on 20 October 2026:
 | `e93eb99` (0.7.0 measurement runtime source) | [Successful PR run 39425219126](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126) for draft PR #5. The performance report distinguishes historical local diagnostic measurements from hosted checks. |
 | `3f1ea88` (0.8.0 wrapper checkpoint, runtime `9460a9`) | [Successful PR run 39429282120](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120) for draft PR #6, including build, package, continuation, and CPU-wrapper checks. The optimization report retains that historical evidence. |
 | `5d49b7e` (0.9.0 render/GPU runtime source) | [Successful PR run 39435077589](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39435077589) for draft PR #7: formatting, lint, tests, build/package, production continuation, CPU-report smoke checks, and artifact upload. |
-| 0.13.0 slope runtime source | 260 release tests and formatting passed. Implementation identity, strict lint/build, and hosted CI remain pending. Historical runs below do not verify slope/migration changes. |
+| 0.13.0 slope runtime source | `b1d26a04cc1282bb71defcb59557309b79252f1d`: 260 release tests, formatting, strict Clippy, and build passed. [Windows CI 39583267705](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39583267705) passed the complete workflow, including ordinary/path/terrain/slope fresh-process proofs, packaging, CPU-reporting smoke, and uploads. |
 | `e5dbc0e` (0.12.0 terrain runtime source) | Draft PR #10, stacked on PR #9. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. This does not claim a later documentation head passed. |
 | `eed600b` (0.11.0 path construction runtime source) | [Successful PR run 39447839922](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39447839922) for draft PR #9: source tests/checks, build/package, continuation, CPU-wrapper smoke and artifact upload. This success is for the runtime source, not a later documentation head. |
 | `ff2857e` (0.10.0 static visibility runtime source) | [Successful PR run 39440918757](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39440918757) for draft PR #8. Runtime/source/package evidence is in the static visibility report. |
@@ -701,10 +706,22 @@ and proposed 60 FPS at 1080p acceptance wait for an agreed representative PC.
 Preserve historical raw JSON/hashes/path names in benchmarks/results; the old
 2026-10-20-reference directory name is not hardware approval.
 
-Current bounded work is 0.13.0 one-step sloped paths on codex/sloped-paths from ef64609.
-Implemented APIs/migration, six-scene matrix, and six headless slope-input cases passed
-within 260 release tests (175 game/85 sim); formatting passed. Source/PR identity, strict lint/build,
-production captures/native controls/migration/continuation, CI, binary/package evidence are PENDING.
+The bounded 0.13.0 one-step slope implementation is COMPLETE; do not reimplement it.
+Runtime source b1d26a04cc1282bb71defcb59557309b79252f1d is pushed on codex/sloped-paths
+from ef64609 in draft PR #11, stacked on still-open PR #10/codex/terrain-editing.
+All 260 release tests (175 game/85 sim), formatting, strict release Clippy/build passed.
+Exact-source Windows CI 39583267705 passed the complete workflow; later documentation
+heads have separate CI status. Eleven final captures exited 0 and were visually inspected.
+Forward v1 migration, intentional old-reader v2 rejection, terrain continuation, and
+slope full-state/3,600-tick commands/backup/paused continuation passed in fresh processes.
+Native C/shape, South-ramp build, height buttons, X removal, F5/F9, Save and Backup buttons
+passed. F9 loaded the saved demolished state paused/reset; Backup restored the ramp.
+F5 then produced bytes identical to the first native ramp save.
+Executable: 46,345,728 bytes; SHA256
+249e2225998949197f42a8f08e1a447c62d36c9fa9d7b7baab2ff8c1f1dfa5f9.
+Package: 28 payload hashes/nineteen guides matched; relocated slope continuation and
+byte-identical small built-slope capture passed from C:\Windows in a spaces/é path.
+Refresh/reverify guides whenever packaging changes; adjacent ZIP checksum is authoritative.
 Contract: PathSlope Flat/North/East/South/West, world uphill direction N=-Y/E=+X.
 Flat height 0..30 / clearance 2; ramp low 0..29 / high low+1/conservative clearance 3.
 C/shape button cycles Flat→N→E→S→W→Flat and selects Path build; clamp 30→29 for ramp.
@@ -715,12 +732,13 @@ Old 0.12 rejects v2 intentionally. Verify logical migration continuation, not v1
 Keep closed-game v1 copies for rollback; loading alone never rewrites them.
 Existing 32×32 app restriction/caps/backup/lock and save-after-edit/load-priority gates remain.
 Scenes: slope-valid/built/blocked/crowd/removed/recovered. Separate write-slopes/verify-slopes
-uses a new absolute QA directory and verification-slopes.txt; release tests passed, production results pending.
+uses a new absolute QA directory and verification-slopes.txt; release/production/relocated proofs passed.
 
 Completed 0.12 terrain source e5dbc0e passed 236 tests, strict source checks/build,
 10 inspected captures, continuation, CI 39557465779, and 27-payload/18-guide relocation.
-Native terrain attempt sent no input: GetCursorPos 0x80070005 then CreateForMonitor 0x80070057.
-Preserve that native gap and historical report; earlier evidence is not 0.13 verification.
+That historical native terrain attempt sent no input: GetCursorPos 0x80070005 then
+CreateForMonitor 0x80070057. Activation/capture worked in 0.13; terrain B/V/buttons remain
+untested, not a current blanket native blocker. Preserve historical reports unchanged.
 Do not infer current verification from historical counts. Completed 0.11.0 source eed600b
 passed CI 39447839922, 217 tests and targeted post-hint checks, nine captures, native P/X,
 height buttons/F5/F9, continuation, and 26-payload/17-guide package relocation.
@@ -744,7 +762,7 @@ Historical 0.9.0 source 5d49b7e passed 178 tests,
 profiles/captures/continuation, CI 39435077589, and final 24-payload/15-guide packaging.
 Do not infer current verification from historical 159 tests or CI 39429282120.
 The bounded 0.8.0 cache/rendering optimization is complete; do not reimplement it.
-Inspect PR #9 and all stacked reviews/merge state before choosing the next base.
+Inspect PR #11 and all stacked reviews/merge state before choosing the next base.
 Preserve unrelated changes and remote history. Current source is the original shared
 OneDrive path in this guide; the second-PC path is a separate clone. Use one active
 editing/build/Git session in the shared folder.
@@ -773,7 +791,7 @@ Preserve GuestRenderer templates, cached roofs, five reused vectors, same-ID loa
 invalidation, shadows/depth/occlusion, and the legacy geometry oracle. Normal 32-map output
 and save behavior need regressions alongside all-rotation 256-map bounds/picking/render proof.
 
-Implement strict schema 2/content 2 and explicit 1/1 migration, retaining 8 MiB/collection limits, backup/lock/recovery,
+Preserve implemented strict schema 2/content 2 and explicit 1/1 migration, retaining 8 MiB/collection limits, backup/lock/recovery,
 and full authoritative continuation. Default saves are %LOCALAPPDATA%\Parkbound\saves,
 outside app/OneDrive; copy saves separately between PCs. Startup never writes; successful
 load pauses/resets presentation at 1x while preserving train intent. Production --save-check
@@ -796,11 +814,16 @@ The 0.11 level-path construction/demolition milestone is complete on 32×32; pre
 with preview/rejection feedback, clearance/stable IDs/cache invalidation, guest routing,
 and same-step save/load/continuation tests. This begins BLD-01/02/04 but does not complete
 costs/refunds/queues/full construction. P/X are the level-path tools; R restores only the fixture.
-Preserve completed terrain behavior/native gap. Finish current slope and migration proof before another feature. BLD-06 and BLD-08 remain in progress for full criteria. Then consider queue-path ownership/entry connectivity for one explicit ride access point, minimal ride identity first; do not bundle boarding/economy.
+Preserve completed terrain and slope/migration behavior and their regression proofs.
+BLD-06 and BLD-08 remain in progress for full criteria. Next consider queue-path ownership/
+entry connectivity for one explicit ride access point, minimal ride identity first;
+boarding/economy remain separate and are not implemented.
 Choose work from gameplay needs and verified evidence,
-not this PC's FPS. New native B/V/terrain buttons remain unverified after Windows capture/activation errors prevented all input; native Backup/Save/Load buttons, O/F/buttons, physical Delete/Page Up/Page Down, pan/drag/display,
-and clean PC offline/standard-user checks remain open unless directly reverified.
-No full construction, boarding/queues, money, scenarios, autosave/browser/migrations,
+not this PC's FPS. Native terrain B/V/buttons, separate Load button, O/F/ride controls,
+physical Delete/Page Up/Page Down, modifier gestures including Shift+F9, pan/drag/DPI/display,
+and clean-PC offline/standard-user checks remain open. Page Up and Shift+F9 helper injection
+showed no visible change; no cause is inferred. Save/Backup buttons and F9 passed separately.
+No full construction, boarding/queues, money, scenarios, autosave/browser/future migrations,
 or audio exists. Preserve original assets and exact notice bytes.
 
 Use Rust 1.93.1 MSVC / Bevy 0.17.3/Cargo.lock. Complete authorized work and relevant checks,
