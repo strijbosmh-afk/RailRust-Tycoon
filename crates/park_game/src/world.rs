@@ -74,7 +74,7 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
         SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
         SurfaceId::Object(id) => {
             let object = park.object(id)?;
-            if object.kind == ObjectKind::RideEntrance {
+            if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
                 let facing = entrance_render::facing(park, id)?;
                 return Some(entrance_render::center(
                     object,
@@ -328,7 +328,10 @@ fn object_visible(park: &Park, object: &SurfaceObject, mode: ViewMode) -> bool {
 
 fn object_top(object: &SurfaceObject) -> f32 {
     object_base_at(object, Vec2::ZERO)
-        + if matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance) {
+        + if matches!(
+            object.kind,
+            ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+        ) {
             PATH_TOP_OFFSET
         } else {
             0.12
@@ -405,7 +408,7 @@ fn object_point(
 /// their axis selects plank orientation, not the legal walking directions.
 fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     let across = match object.kind {
-        ObjectKind::Path | ObjectKind::RideEntrance => 0.34,
+        ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit => 0.34,
         ObjectKind::Track => 0.31,
     };
     let (half_x, half_y) = match object_axis(object) {
@@ -457,7 +460,10 @@ fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surfac
         let offset = rotated_offset(Vec2::new(du, dv), (4 - rotation % 4) % 4);
         let height = object_base_at(object, offset)
             + if top {
-                if matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance) {
+                if matches!(
+                    object.kind,
+                    ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+                ) {
                     PATH_TOP_OFFSET
                 } else {
                     0.12
@@ -517,7 +523,7 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
 }
 
 fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> Vec<Surface> {
-    if object.kind == ObjectKind::RideEntrance {
+    if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
         entrance_render::facing(park, object.id)
             .map(|facing| entrance_render::faces(object, facing, park.width(), rotation))
             .unwrap_or_default()
@@ -549,7 +555,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         if !object_visible(park, object, mode) {
             continue;
         }
-        if object.kind == ObjectKind::RideEntrance {
+        if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
             if let Some(facing) = entrance_render::facing(park, object.id) {
                 for face in entrance_render::faces(object, facing, park.width(), rotation) {
                     mesh.surface(face.surface, face.ink);
@@ -584,7 +590,9 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 (ObjectKind::Track, SurfaceKind::Top) => rgb(65, 79, 84),
                 (ObjectKind::Track, SurfaceKind::LeftCliff) => rgb(48, 60, 65),
                 (ObjectKind::Track, SurfaceKind::RightCliff) => rgb(37, 48, 54),
-                (ObjectKind::RideEntrance, _) => unreachable!("entrance faces are handled above"),
+                (ObjectKind::RideEntrance | ObjectKind::RideExit, _) => {
+                    unreachable!("entrance faces are handled above")
+                }
             };
             mesh.surface(surface, ink);
         }
@@ -657,7 +665,9 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                     }
                 }
             }
-            ObjectKind::RideEntrance => unreachable!("entrance faces are handled above"),
+            ObjectKind::RideEntrance | ObjectKind::RideExit => {
+                unreachable!("entrance faces are handled above")
+            }
             ObjectKind::Track => {
                 for along in [-0.4, -0.2, 0.0, 0.2, 0.4] {
                     mesh.surface_line(
@@ -965,6 +975,9 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         return mesh.finish();
     }
     for guest in park.guests() {
+        if guest_is_riding(guest) {
+            continue;
+        }
         if guest
             .current
             .and_then(|id| park.object(id))
@@ -978,7 +991,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         let point = base.truncate();
         // Clip the contact shadow to the actual supporting path decks. While
         // crossing a tile edge the two roofs form the continuous support.
-        for object in [guest.current, guest.next]
+        for object in guest_supports(guest)
             .into_iter()
             .flatten()
             .filter_map(|id| park.object(id))
@@ -989,9 +1002,8 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         // A tiny billboard has the depth of its feet, so nearer terrain or
         // decks can hide it. The bias only separates it from its own roof.
         let depth = base.z + 0.04;
-        let stride = if guest.state == GuestState::Walking {
-            ((f32::from(guest.progress) / f32::from(park_sim::WALK_TICKS)) * std::f32::consts::TAU)
-                .sin()
+        let stride = if let Some(progress) = guest_walk_progress(guest) {
+            ((f32::from(progress) / f32::from(park_sim::WALK_TICKS)) * std::f32::consts::TAU).sin()
                 * 1.8
         } else {
             0.0
@@ -1072,6 +1084,49 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     mesh.finish()
 }
 
+fn guest_is_riding(guest: &park_sim::Guest) -> bool {
+    guest
+        .ride_visit
+        .as_ref()
+        .is_some_and(|visit| visit.phase == RideVisitPhase::Riding)
+}
+
+fn guest_is_transfer(guest: &park_sim::Guest) -> bool {
+    guest.ride_visit.as_ref().is_some_and(|visit| {
+        matches!(
+            visit.phase,
+            RideVisitPhase::Boarding | RideVisitPhase::Exiting
+        )
+    })
+}
+
+fn guest_supports(guest: &park_sim::Guest) -> [Option<park_sim::ObjectId>; 2] {
+    if guest_is_transfer(guest) {
+        if let Some(transfer) = guest
+            .ride_visit
+            .as_ref()
+            .and_then(|visit| visit.passenger.as_ref())
+            .and_then(|passenger| passenger.transfer.as_ref())
+        {
+            return [Some(transfer.path), Some(transfer.portal)];
+        }
+        return [None, None];
+    }
+    [guest.current, guest.next]
+}
+
+fn guest_walk_progress(guest: &park_sim::Guest) -> Option<u16> {
+    if guest_is_transfer(guest) {
+        return guest
+            .ride_visit
+            .as_ref()
+            .and_then(|visit| visit.passenger.as_ref())
+            .and_then(|passenger| passenger.transfer.as_ref())
+            .map(|transfer| transfer.progress % park_sim::WALK_TICKS);
+    }
+    (guest.state == GuestState::Walking).then_some(guest.progress)
+}
+
 fn guest_visit_marker(guest: &park_sim::Guest) -> Option<RideVisitPhase> {
     // A stranded visitor keeps the existing orange lost warning. Intent must
     // not cover it or suggest that the missing supporting queue still exists.
@@ -1119,6 +1174,23 @@ fn paint_guest_visit_marker(mesh: &mut Painter, phase: RideVisitPhase, point: Ve
                 );
             }
         }
+        RideVisitPhase::Boarding | RideVisitPhase::Exiting => {
+            let boarding = phase == RideVisitPhase::Boarding;
+            for x in [-3.0, 3.0] {
+                mesh.line(
+                    point + Vec2::new(x, if boarding { 26.5 } else { 30.5 }),
+                    point + Vec2::new(0.0, if boarding { 30.5 } else { 26.5 }),
+                    1.8,
+                    depth,
+                    if boarding {
+                        rgb(224, 137, 48)
+                    } else {
+                        rgb(49, 161, 112)
+                    },
+                );
+            }
+        }
+        RideVisitPhase::Riding => {}
     }
 }
 

@@ -19,11 +19,16 @@ pub struct Ride {
     pub id: RideId,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub entrance: Option<RideEntrance>,
+    #[serde(deserialize_with = "crate::saves::required_object_option")]
+    pub exit: Option<RideEntrance>,
     pub draining: bool,
     pub next_queue_ticket: u64,
     pub joined: u64,
     pub turned_away: u64,
     pub abandoned: u64,
+    pub boarded: u64,
+    pub exited: u64,
+    pub completed: u64,
 }
 
 impl Ride {
@@ -31,11 +36,15 @@ impl Ride {
         Self {
             id,
             entrance: None,
+            exit: None,
             draining: false,
             next_queue_ticket: 1,
             joined: 0,
             turned_away: 0,
             abandoned: 0,
+            boarded: 0,
+            exited: 0,
+            completed: 0,
         }
     }
 }
@@ -100,6 +109,7 @@ pub enum RideAccessError {
     UnknownRide(RideId),
     CircuitUnavailable,
     EntranceAlreadyExists,
+    ExitAlreadyExists,
     NotBesideStation,
     WrongStationHeight { expected: u8, actual: u8 },
     InvalidStationSide,
@@ -120,6 +130,7 @@ impl std::fmt::Display for RideAccessError {
                 f.write_str("repair the ride circuit before placing an entrance")
             }
             Self::EntranceAlreadyExists => f.write_str("remove the existing ride entrance first"),
+            Self::ExitAlreadyExists => f.write_str("remove the existing ride exit first"),
             Self::NotBesideStation => f.write_str("face an adjacent station tile"),
             Self::WrongStationHeight { expected, actual } => write!(
                 f,
@@ -133,7 +144,7 @@ impl std::fmt::Display for RideAccessError {
 }
 impl std::error::Error for RideAccessError {}
 
-fn axis(facing: PathDirection) -> Axis {
+pub(crate) fn axis(facing: PathDirection) -> Axis {
     match facing {
         PathDirection::North | PathDirection::South => Axis::Y,
         _ => Axis::X,
@@ -145,7 +156,7 @@ impl Park {
         self.ride.as_ref()
     }
 
-    fn require_ride(&self, id: RideId) -> Result<&Ride, RideAccessError> {
+    pub(crate) fn require_ride(&self, id: RideId) -> Result<&Ride, RideAccessError> {
         self.ride
             .as_ref()
             .filter(|ride| ride.id == id)
@@ -247,7 +258,7 @@ impl Park {
         Ok(object)
     }
 
-    fn entrance_station(
+    pub(crate) fn entrance_station(
         &self,
         pos: TilePos,
         height: u8,
@@ -311,7 +322,11 @@ impl Park {
     /// Physical deck joins, separate from public guest traversal. A transient
     /// queue preview can connect to an existing gate without an allocated ID.
     pub fn geometric_paths_connect(&self, a: &SurfaceObject, b: &SurfaceObject) -> bool {
-        paths_connect(a, b) || self.gate_connects(a, b, true) || self.gate_connects(b, a, true)
+        paths_connect(a, b)
+            || self.gate_connects(a, b, true)
+            || self.gate_connects(b, a, true)
+            || self.exit_connects(a, b)
+            || self.exit_connects(b, a)
     }
 
     pub fn geometric_path_neighbors(&self, id: ObjectId) -> Vec<ObjectId> {
@@ -508,6 +523,7 @@ pub(crate) fn validate_ride_state(park: &Park) -> Result<(), String> {
         return Err("ride identity would be reused".into());
     }
     let entrance = park.ride.as_ref().and_then(|ride| ride.entrance.as_ref());
+    let exit = park.ride.as_ref().and_then(|ride| ride.exit.as_ref());
     for object in &park.objects {
         if let Some(owner) = object.queue_owner
             && (object.kind != ObjectKind::Path
@@ -516,8 +532,13 @@ pub(crate) fn validate_ride_state(park: &Park) -> Result<(), String> {
         {
             return Err("queue owner, path kind or clearance is invalid".into());
         }
-        if object.kind == ObjectKind::RideEntrance {
-            let Some(entrance) = entrance.filter(|entrance| entrance.object == object.id) else {
+        if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
+            let metadata = if object.kind == ObjectKind::RideEntrance {
+                entrance
+            } else {
+                exit
+            };
+            let Some(entrance) = metadata.filter(|entrance| entrance.object == object.id) else {
                 return Err("entrance object has no ride metadata".into());
             };
             if object.path_slope != PathSlope::Flat
@@ -534,6 +555,12 @@ pub(crate) fn validate_ride_state(park: &Park) -> Result<(), String> {
             .is_none_or(|o| o.kind != ObjectKind::RideEntrance)
     }) {
         return Err("ride entrance references a missing entrance object".into());
+    }
+    if exit.is_some_and(|exit| {
+        park.object(exit.object)
+            .is_none_or(|object| object.kind != ObjectKind::RideExit)
+    }) {
+        return Err("ride exit references a missing exit object".into());
     }
     Ok(())
 }

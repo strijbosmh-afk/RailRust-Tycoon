@@ -445,6 +445,9 @@ impl Park {
     }
 
     pub(crate) fn step_train(&mut self) {
+        if self.ride_holds_train() {
+            return;
+        }
         let (Some(circuit), Some(train)) = (&self.circuit, &mut self.train) else {
             return;
         };

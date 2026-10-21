@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod admission;
+mod journey;
 mod queues;
 mod slopes;
 
@@ -32,9 +33,9 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey"
             ))
-            .ok_or("--save-check requires write/verify, write-paths/verify-paths, write-terrain/verify-terrain, write-slopes/verify-slopes, write-queues/verify-queues or write-admission/verify-admission")?;
+            .ok_or("--save-check requires write/verify, write-paths/verify-paths, write-terrain/verify-terrain, write-slopes/verify-slopes, write-queues/verify-queues, write-admission/verify-admission or write-journey/verify-journey")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
             return Err("--save-check requires an explicit absolute --save-dir".into());
         }
@@ -124,6 +125,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-queues" => queues::verify(&session)?,
             "write-admission" => admission::write(&session)?,
             "verify-admission" => admission::verify(&session)?,
+            "write-journey" => journey::write(&session)?,
+            "verify-journey" => journey::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

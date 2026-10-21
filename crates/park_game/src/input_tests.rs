@@ -9,6 +9,8 @@ use super::*;
 
 #[path = "admission_input_tests.rs"]
 mod admission_input_tests;
+#[path = "journey_input_tests.rs"]
+mod journey_input_tests;
 #[path = "path_input_tests.rs"]
 mod path_input_tests;
 #[path = "queue_input_tests.rs"]

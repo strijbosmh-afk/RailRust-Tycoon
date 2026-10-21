@@ -5,8 +5,8 @@ use super::{
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{
     CrowdStats, ObjectKind, PathDirection, PathSlope, QUEUE_PATIENCE_TICKS, RideAccessStatus,
-    RideQueueStats, Speed, SurfaceId, TICKS_PER_SECOND, Terrain, TerrainProfile, TrackKind,
-    TrainPhase,
+    RideExitStatus, RideJourneyStats, RideQueueStats, Speed, SurfaceId, TICKS_PER_SECOND, Terrain,
+    TerrainProfile, TrackKind, TrainPhase,
 };
 
 use crate::path_tools::PathTool;
@@ -412,9 +412,10 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             });
             p.spawn(row()).with_children(|p| {
-                button(p, "Close", Action::ToggleTrain, 64.0);
-                button(p, "Find [F]", Action::FocusTrain, 64.0);
-                button(p, "Gate [I]", Action::SetPathTool(PathTool::Entrance), 64.0);
+                button(p, "Close", Action::ToggleTrain, 47.0);
+                button(p, "Find", Action::FocusTrain, 47.0);
+                button(p, "Gate", Action::SetPathTool(PathTool::Entrance), 47.0);
+                button(p, "Exit", Action::SetPathTool(PathTool::Exit), 47.0);
             });
         });
 
@@ -438,7 +439,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "P/J: paths  I: gate  X: demolish  B/V: land  H: help",
+                "P/J: paths  I/K: gates  X: remove  B/V: land  H: help",
                 11.0,
                 MUTED,
             );
@@ -476,7 +477,7 @@ pub(super) fn setup(mut commands: Commands) {
                 label(
                     p,
                     &format!(
-                        "Queues empty after {}s; boarding comes later.",
+                        "Board at station; queues return after {}s waiting.",
                         u64::from(QUEUE_PATIENCE_TICKS) / TICKS_PER_SECOND
                     ),
                     12.0,
@@ -484,8 +485,8 @@ pub(super) fn setup(mut commands: Commands) {
                 );
                 for (keys, purpose) in [
                     ("Left click", "Inspect / edit one tile"),
-                    ("P / J / I / X", "Public path / queue / gate / demolish"),
-                    ("C / shape button", "Cycle slope / gate faces station"),
+                    ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
+                    ("C / shape button", "Cycle slope / turn gate toward station"),
                     ("B / V", "Raise / lower dry land one step"),
                     ("PgUp / PgDn", "Raise / lower path build height"),
                     ("Right / middle drag", "Pan around the park"),
@@ -515,7 +516,7 @@ pub(super) fn setup(mut commands: Commands) {
                 }
                 label(
                     p,
-                    "Diamond: seeking / bars: queueing / chevron: returning.\nLoad replaces park, paused. Save keeps previous backup.",
+                    "Diamond: seeking / bars: queued / arrows: moving on or off.\nA separate exit must lead to public path before boarding.",
                     12.0,
                     MUTED,
                 );
@@ -604,6 +605,7 @@ pub(super) fn refresh(
     let directions = ["NE", "SE", "SW", "NW"];
     let access = sim.0.ride().map(|ride| sim.0.ride_access(ride.id));
     let queue = sim.0.ride().map(|ride| sim.0.ride_queue_stats(ride.id));
+    let journey = sim.0.ride().map(|ride| sim.0.ride_journey_stats(ride.id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
             Label::ParkInfo => format!(
@@ -680,23 +682,36 @@ pub(super) fn refresh(
                                     .map_or_else(|| "Ride unavailable".into(), queue_details),
                             );
                         }
-                        if object.kind == ObjectKind::RideEntrance {
+                        if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
                             return sim
                                 .0
                                 .ride()
                                 .and_then(|ride| {
-                                    let entrance = ride.entrance.as_ref()?;
-                                    (entrance.object == id).then(|| {
+                                    let exit = object.kind == ObjectKind::RideExit;
+                                    let gate = if exit {
+                                        ride.exit.as_ref()?
+                                    } else {
+                                        ride.entrance.as_ref()?
+                                    };
+                                    (gate.object == id).then(|| {
+                                        let status = if exit {
+                                            sim.0.ride_exit_access(ride.id).status.to_string()
+                                        } else {
+                                            access
+                                                .as_ref()
+                                                .map_or("Ride unavailable", |access| {
+                                                    access_reason(access.status)
+                                                })
+                                                .into()
+                                        };
                                         format!(
                                             "Tile {}, {} / Ride #{}\nHeight: {} / faces {}\n{}\n{}",
                                             object.pos.x + 1,
                                             object.pos.y + 1,
                                             ride.id.0,
                                             object.height,
-                                            direction_name(entrance.facing),
-                                            access.as_ref().map_or("Ride unavailable", |access| {
-                                                access_reason(access.status)
-                                            }),
+                                            direction_name(gate.facing),
+                                            status,
                                             queue.as_ref().map_or_else(
                                                 || "Ride unavailable".into(),
                                                 queue_details
@@ -704,7 +719,7 @@ pub(super) fn refresh(
                                         )
                                     })
                                 })
-                                .unwrap_or_else(|| "Entrance metadata unavailable".into());
+                                .unwrap_or_else(|| "Gate metadata unavailable".into());
                         }
                         if let Some(piece) = sim.0.circuit().and_then(|circuit| {
                             circuit.pieces.iter().find(|piece| piece.object == id)
@@ -756,6 +771,9 @@ pub(super) fn refresh(
             }
             Label::Status if view.path_tool.mode == PathTool::Entrance => {
                 "Place a gate facing the station. C changes direction.".into()
+            }
+            Label::Status if view.path_tool.mode == PathTool::Exit => {
+                "Place an exit facing the station. Link to public path.".into()
             }
             Label::Status if view.path_tool.mode == PathTool::Demolish => {
                 "Demolish tool / click a visible path or gate".into()
@@ -812,7 +830,7 @@ pub(super) fn refresh(
                 ViewMode::Underground => "Underground: on [U]",
             }
             .into(),
-            Label::Crowd => crowd_summary(sim.0.crowd_stats(), queue.as_ref()),
+            Label::Crowd => crowd_summary(sim.0.crowd_stats(), queue.as_ref(), journey.as_ref()),
             Label::Train => sim
                 .0
                 .train()
@@ -836,20 +854,23 @@ pub(super) fn refresh(
                     } else {
                         "Closing after this lap"
                     };
-                    let speed = train.speed as f32 * park_sim::TICKS_PER_SECOND as f32
-                        / park_sim::TRACK_UNITS as f32;
-                    format!(
-                        "{operation} / {phase}\n{speed:.2} tiles/s / Laps: {} / 3 cars",
-                        train.laps
-                    )
+                    let seats = journey
+                        .as_ref()
+                        .map_or(0, |stats| stats.boarding + stats.riding + stats.exiting);
+                    let capacity = journey
+                        .as_ref()
+                        .map_or(park_sim::TRAIN_SEATS, |stats| stats.capacity);
+                    let completed =
+                        compact_count(journey.as_ref().map_or(0, |stats| stats.completed));
+                    format!("{operation} / {phase}\nSeats {seats}/{capacity} / Done {completed}")
                 }),
             Label::RideAccess => match (access.as_ref(), queue.as_ref()) {
                 (Some(access), Some(queue)) => format!(
                     "{}\n{}",
-                    queue_status(access.status, queue),
+                    journey_status(access.status, queue, journey.as_ref()),
                     queue_details(queue)
                 ),
-                _ => "Queue: no ride\nNo boarding yet".into(),
+                _ => "Queue: no ride\nBuild a ride first".into(),
             },
             Label::TrainToggle => if sim.0.train().is_some_and(|train| train.open) {
                 "Close"
@@ -858,16 +879,26 @@ pub(super) fn refresh(
             }
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
-            Label::PathShape if view.path_tool.mode == PathTool::Entrance => format!(
-                "Face {} [C]",
-                direction_name(view.path_tool.entrance_facing),
-            ),
+            Label::PathShape
+                if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit) =>
+            {
+                format!(
+                    "Face {} [C]",
+                    direction_name(if view.path_tool.mode == PathTool::Exit {
+                        view.path_tool.exit_facing
+                    } else {
+                        view.path_tool.entrance_facing
+                    }),
+                )
+            }
             Label::PathShape => format!(
                 "{} [C]",
                 crate::path_tools::shape_name(view.path_tool.slope)
             ),
             Label::PathHeight => {
-                if view.path_tool.mode == PathTool::Entrance {
+                if view.path_tool.mode == PathTool::Exit {
+                    format!("Exit height: {}", view.path_tool.height)
+                } else if view.path_tool.mode == PathTool::Entrance {
                     format!("Entrance height: {}", view.path_tool.height)
                 } else if view.path_tool.slope == PathSlope::Flat {
                     format!("Path height: {}", view.path_tool.height)
@@ -950,6 +981,7 @@ fn object_name(kind: ObjectKind) -> &'static str {
         ObjectKind::Path => "Path",
         ObjectKind::Track => "Track",
         ObjectKind::RideEntrance => "Ride entrance",
+        ObjectKind::RideExit => "Ride exit",
     }
 }
 
@@ -975,11 +1007,11 @@ fn queue_status(access: RideAccessStatus, queue: &RideQueueStats) -> String {
         .into();
     }
     if queue.capacity > 0 && queue.queueing >= queue.capacity {
-        "Queue full / no boarding".into()
+        "Queue full".into()
     } else if queue.admitting {
-        "Queue open / no boarding".into()
+        "Queue open".into()
     } else {
-        "Queue closed / no boarding".into()
+        "Queue closed".into()
     }
 }
 
@@ -992,7 +1024,50 @@ fn queue_details(queue: &RideQueueStats) -> String {
     )
 }
 
-fn crowd_summary(crowd: CrowdStats, queue: Option<&RideQueueStats>) -> String {
+fn journey_status(
+    access: RideAccessStatus,
+    queue: &RideQueueStats,
+    journey: Option<&RideJourneyStats>,
+) -> String {
+    if access != RideAccessStatus::Ready || queue.draining {
+        return queue_status(access, queue);
+    }
+    if let Some(journey) = journey {
+        if journey.exiting > 0 {
+            return format!("Leaving train: {}", journey.exiting);
+        }
+        if journey.boarding > 0 {
+            return format!("Boarding: {}", journey.boarding);
+        }
+        if journey.held {
+            return "Ride held / check exit".into();
+        }
+        match journey.exit_status {
+            RideExitStatus::Ready => {}
+            RideExitStatus::NoExit => return "Boarding needs an exit [K]".into(),
+            RideExitStatus::NoPublicExit | RideExitStatus::PublicDisconnected => {
+                return "Link exit to public paths".into();
+            }
+            RideExitStatus::StationDisconnected => return "Exit must face the station".into(),
+            RideExitStatus::RideUnavailable => return "Ride circuit unavailable".into(),
+        }
+    }
+    queue_status(access, queue)
+}
+
+fn compact_count(count: u64) -> String {
+    if count > 9999 {
+        "9999+".into()
+    } else {
+        count.to_string()
+    }
+}
+
+fn crowd_summary(
+    crowd: CrowdStats,
+    queue: Option<&RideQueueStats>,
+    journey: Option<&RideJourneyStats>,
+) -> String {
     let Some(queue) = queue else {
         return format!(
             "{} guests / {} lost\n{} walking / {} resting\nNo ride installed",
@@ -1001,20 +1076,27 @@ fn crowd_summary(crowd: CrowdStats, queue: Option<&RideQueueStats>) -> String {
     };
     // Cumulative counts may grow indefinitely in a long-running save. Keep
     // this line inside the unchanged sidebar rather than wrapping below it.
-    let cancelled = if queue.abandoned > 9999 {
-        "9999+".into()
+    let movement = if let Some(journey) = journey {
+        format!(
+            "{} riding / {} board / {} exit",
+            journey.riding, journey.boarding, journey.exiting
+        )
     } else {
-        queue.abandoned.to_string()
+        format!(
+            "Returning {} / cancelled {}",
+            queue.leaving,
+            compact_count(queue.abandoned)
+        )
     };
     format!(
-        "{} guests / {} lost\n{} seeking / {} queued\nReturning {} / cancelled {}",
-        crowd.total, crowd.lost, queue.seeking, queue.queueing, queue.leaving, cancelled,
+        "{} guests / {} lost\n{} seeking / {} queued\n{movement}",
+        crowd.total, crowd.lost, queue.seeking, queue.queueing,
     )
 }
 
 fn access_reason(status: RideAccessStatus) -> &'static str {
     match status {
-        RideAccessStatus::Ready => "Connected / no boarding yet",
+        RideAccessStatus::Ready => "Connected",
         RideAccessStatus::RideUnavailable => "ride unavailable",
         RideAccessStatus::NoEntrance => "place an entrance",
         RideAccessStatus::StationDisconnected => "gate needs a station",
@@ -1052,23 +1134,71 @@ mod tests {
     }
 
     #[test]
+    fn boarding_feedback_explains_exit_and_transfer_states_without_growing_panels() {
+        let queue = queue_stats();
+        let mut journey = RideJourneyStats {
+            capacity: 6,
+            boarding: 0,
+            riding: 0,
+            exiting: 0,
+            boarded: 0,
+            exited: 0,
+            completed: 0,
+            held: false,
+            exit_status: RideExitStatus::NoExit,
+        };
+        assert_eq!(
+            journey_status(RideAccessStatus::Ready, &queue, Some(&journey)),
+            "Boarding needs an exit [K]"
+        );
+        journey.exit_status = RideExitStatus::PublicDisconnected;
+        assert_eq!(
+            journey_status(RideAccessStatus::Ready, &queue, Some(&journey)),
+            "Link exit to public paths"
+        );
+        journey.exit_status = RideExitStatus::Ready;
+        journey.boarding = 1;
+        journey.held = true;
+        assert_eq!(
+            journey_status(RideAccessStatus::Ready, &queue, Some(&journey)),
+            "Boarding: 1"
+        );
+        journey.boarding = 0;
+        journey.riding = 5;
+        journey.exiting = 1;
+        assert_eq!(
+            journey_status(RideAccessStatus::Ready, &queue, Some(&journey)),
+            "Leaving train: 1"
+        );
+        let text = crowd_summary(
+            CrowdStats {
+                total: 12,
+                ..default()
+            },
+            Some(&queue),
+            Some(&journey),
+        );
+        assert_eq!(
+            text,
+            "12 guests / 0 lost\n2 seeking / 3 queued\n5 riding / 0 board / 1 exit"
+        );
+        assert_eq!(text.lines().count(), 3);
+        assert!(text.lines().all(|line| line.len() <= 35));
+        assert_eq!(compact_count(u64::MAX), "9999+");
+    }
+
+    #[test]
     fn queue_feedback_distinguishes_admission_capacity_and_topology() {
         let mut queue = queue_stats();
-        assert_eq!(
-            queue_status(RideAccessStatus::Ready, &queue),
-            "Queue open / no boarding"
-        );
+        assert_eq!(queue_status(RideAccessStatus::Ready, &queue), "Queue open");
         assert_eq!(queue_details(&queue), "3/4 queued / longest 49s");
         queue.queueing = 4;
-        assert_eq!(
-            queue_status(RideAccessStatus::Ready, &queue),
-            "Queue full / no boarding"
-        );
+        assert_eq!(queue_status(RideAccessStatus::Ready, &queue), "Queue full");
         queue.admitting = false;
         queue.queueing = 0;
         assert_eq!(
             queue_status(RideAccessStatus::Ready, &queue),
-            "Queue closed / no boarding"
+            "Queue closed"
         );
         assert_eq!(
             queue_status(RideAccessStatus::NoPublicEntry, &queue),
@@ -1103,7 +1233,7 @@ mod tests {
             ..default()
         };
         assert_eq!(
-            crowd_summary(crowd, Some(&queue)),
+            crowd_summary(crowd, Some(&queue), None),
             "12 guests / 1 lost\n2 seeking / 0 queued\nReturning 3 / cancelled 3"
         );
     }
@@ -1124,6 +1254,7 @@ mod tests {
                 ..default()
             },
             Some(&queue),
+            None,
         );
         assert_eq!(text.lines().count(), 3);
         assert!(text.lines().all(|line| line.len() <= 35));

@@ -21,7 +21,7 @@ const CLIPPED_POINTS: usize = 16;
 pub struct GuestRenderStats {
     pub updates: u64,
     pub deck_rebuilds: u64,
-    /// Body-template builds; the three fixed visit markers are separate.
+    /// Body-template builds; fixed visit markers are separate.
     pub template_builds: u64,
     pub buffer_growths: u64,
     pub rendered_guests: usize,
@@ -73,6 +73,8 @@ impl GuestRenderer {
         if square {
             self.prepare(park, rotation);
         }
+        // At most six reserved train seats; sample once, outside the guest loop.
+        let transfers = park.ride_guest_positions();
         // Accept a fresh mesh as well as one created by empty_mesh. Once
         // initialized, attributes remain inserted and retain their allocation.
         if !matches!(
@@ -136,24 +138,44 @@ impl GuestRenderer {
                     colors: &mut *colors,
                 };
                 for guest in park.guests() {
+                    if guest_is_riding(guest) {
+                        continue;
+                    }
                     let current = guest.current.and_then(|id| self.deck(id));
                     if current.is_some_and(|deck| !visible(park, deck.object, mode)) {
                         continue;
                     }
                     let next = guest.next.and_then(|id| self.deck(id));
-                    let position = guest.position(
-                        current.as_ref().map(|deck| &deck.object),
-                        next.as_ref().map(|deck| &deck.object),
-                    );
-                    let base = project_path_point(position.point, park.width(), rotation);
-                    for deck in [current, next].into_iter().flatten() {
+                    let point = if guest_is_transfer(guest) {
+                        let Some(position) =
+                            transfers.iter().find(|position| position.guest == guest.id)
+                        else {
+                            continue;
+                        };
+                        position.point
+                    } else {
+                        guest
+                            .position(
+                                current.as_ref().map(|deck| &deck.object),
+                                next.as_ref().map(|deck| &deck.object),
+                            )
+                            .point
+                    };
+                    let base = project_path_point(point, park.width(), rotation);
+                    for deck in guest_supports(guest)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|id| self.deck(id))
+                    {
                         writer.shadow(deck.roof, base.truncate(), &self.shadow, self.shadow_color);
                     }
-                    let pose = match guest.state {
-                        GuestState::Walking => usize::from(guest.progress),
-                        GuestState::Waiting => usize::from(WALK_TICKS),
-                        GuestState::Lost => usize::from(WALK_TICKS) + 1,
-                    };
+                    let pose = guest_walk_progress(guest).map_or_else(
+                        || match guest.state {
+                            GuestState::Lost => usize::from(WALK_TICKS) + 1,
+                            _ => usize::from(WALK_TICKS),
+                        },
+                        usize::from,
+                    );
                     // Guest progress is validated below WALK_TICKS by the
                     // simulation and save codec, including diagnostic inputs.
                     debug_assert!(
@@ -203,6 +225,9 @@ impl GuestRenderer {
                 RideVisitPhase::Approaching,
                 RideVisitPhase::Queueing,
                 RideVisitPhase::Leaving,
+                RideVisitPhase::Boarding,
+                RideVisitPhase::Riding,
+                RideVisitPhase::Exiting,
             ]
             .map(marker_template)
             .into();
@@ -387,6 +412,9 @@ fn marker_index(phase: RideVisitPhase) -> usize {
         RideVisitPhase::Approaching => 0,
         RideVisitPhase::Queueing => 1,
         RideVisitPhase::Leaving => 2,
+        RideVisitPhase::Boarding => 3,
+        RideVisitPhase::Riding => 4,
+        RideVisitPhase::Exiting => 5,
     }
 }
 
@@ -487,6 +515,132 @@ mod tests {
         })
     }
 
+    fn journey_fixture() -> Park {
+        let mut park = admission_fixture();
+        let ride = park.ride().unwrap().id;
+        park.place_ride_exit(TilePos { x: 8, y: 9 }, 8, PathDirection::South, ride)
+            .unwrap();
+        for pos in (8..=13)
+            .map(|x| TilePos { x, y: 8 })
+            .chain((9..=11).map(|y| TilePos { x: 13, y }))
+        {
+            park.place_sloped_path(pos, 8, PathSlope::Flat).unwrap();
+        }
+        assert_eq!(
+            park.ride_exit_access(ride).status,
+            park_sim::RideExitStatus::Ready
+        );
+        park
+    }
+
+    #[test]
+    fn boarding_riding_and_exit_use_authoritative_points_without_duplicate_guest_bodies() {
+        let mut park = journey_fixture();
+        let mut snapshots: [Option<Park>; 3] = [None, None, None];
+        for _ in 0..18000 {
+            for guest in park.guests() {
+                let Some(visit) = &guest.ride_visit else {
+                    continue;
+                };
+                let Some(passenger) = &visit.passenger else {
+                    continue;
+                };
+                let index = match visit.phase {
+                    RideVisitPhase::Boarding
+                        if passenger
+                            .transfer
+                            .as_ref()
+                            .is_some_and(|transfer| transfer.progress == 30) =>
+                    {
+                        0
+                    }
+                    RideVisitPhase::Riding if park.train().unwrap().speed > 0 => 1,
+                    RideVisitPhase::Exiting
+                        if passenger
+                            .transfer
+                            .as_ref()
+                            .is_some_and(|transfer| transfer.progress == 30) =>
+                    {
+                        2
+                    }
+                    _ => continue,
+                };
+                if snapshots[index].is_none() {
+                    snapshots[index] = Some(park.clone());
+                }
+            }
+            if snapshots.iter().all(Option::is_some) {
+                break;
+            }
+            park.advance(Speed::Normal);
+        }
+        assert!(
+            snapshots.iter().all(Option::is_some),
+            "production fixture must board, carry and unload guests"
+        );
+        let mut renderer = GuestRenderer::default();
+        let mut mesh = GuestRenderer::empty_mesh();
+        for snapshot in snapshots.into_iter().flatten() {
+            for passenger in snapshot.ride_guest_positions() {
+                let guest = snapshot
+                    .guests()
+                    .iter()
+                    .find(|guest| guest.id == passenger.guest)
+                    .unwrap();
+                assert_eq!(
+                    snapshot.guest_position(guest.id).unwrap().point,
+                    passenger.point
+                );
+                if let Some(transfer) = guest
+                    .ride_visit
+                    .as_ref()
+                    .unwrap()
+                    .passenger
+                    .as_ref()
+                    .unwrap()
+                    .transfer
+                    .as_ref()
+                    && transfer.progress == 30
+                {
+                    let gate = snapshot.object(transfer.portal).unwrap();
+                    assert_eq!(passenger.point.x, gate.pos.x as i32 * park_sim::PATH_UNITS);
+                    assert_eq!(passenger.point.y, gate.pos.y as i32 * park_sim::PATH_UNITS);
+                    assert_eq!(
+                        passenger.point.height,
+                        i32::from(gate.height) * park_sim::PATH_UNITS
+                    );
+                }
+            }
+            for rotation in 0..4 {
+                for mode in [ViewMode::Surface, ViewMode::Underground] {
+                    renderer.update(&mut mesh, &snapshot, rotation, mode);
+                    equivalent(&mesh, &guest_mesh(&snapshot, rotation, mode));
+                    assert_eq!(
+                        renderer.stats().rendered_guests,
+                        snapshot
+                            .guests()
+                            .iter()
+                            .filter(|guest| !guest_is_riding(guest))
+                            .count()
+                    );
+                    assert!(
+                        positions(&mesh)
+                            .iter()
+                            .flatten()
+                            .all(|coordinate| coordinate.is_finite())
+                    );
+                    let loaded = Park::from_save_bytes(&snapshot.to_save_bytes().unwrap()).unwrap();
+                    let before = renderer.stats();
+                    renderer.update(&mut mesh, &loaded, rotation, mode);
+                    equivalent(&mesh, &guest_mesh(&loaded, rotation, mode));
+                    assert_eq!(before.template_builds, renderer.stats().template_builds);
+                    assert_eq!(before.deck_rebuilds, renderer.stats().deck_rebuilds);
+                    assert_eq!(before.buffer_growths, renderer.stats().buffer_growths);
+                }
+            }
+        }
+    }
+
     #[test]
     fn visit_markers_have_distinct_shapes_colors_and_physical_depth() {
         let base = Vec3::new(123.0, -234.0, 56.0);
@@ -494,8 +648,16 @@ mod tests {
             RideVisitPhase::Approaching,
             RideVisitPhase::Queueing,
             RideVisitPhase::Leaving,
+            RideVisitPhase::Boarding,
+            RideVisitPhase::Exiting,
         ];
-        let inks = [rgb(33, 160, 187), rgb(218, 155, 36), rgb(100, 119, 141)];
+        let inks = [
+            rgb(33, 160, 187),
+            rgb(218, 155, 36),
+            rgb(100, 119, 141),
+            rgb(224, 137, 48),
+            rgb(49, 161, 112),
+        ];
         let mut shapes = Vec::new();
         for (phase, ink) in phases.into_iter().zip(inks) {
             let template = marker_template(phase);
@@ -526,6 +688,7 @@ mod tests {
         }
         assert_ne!(shapes[0], shapes[1]);
         assert_ne!(shapes[1], shapes[2]);
+        assert_ne!(shapes[3], shapes[4]);
     }
 
     #[test]
@@ -730,6 +893,7 @@ mod tests {
             "route": [],
             "wait_ticks": 0,
             "ride_visit": null,
+            "rides_completed": 0,
             "ride_cooldown": 0
         }]);
         encoded["park"]["next_guest_id"] = 2.into();

@@ -448,6 +448,9 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if keys.just_pressed(KeyCode::KeyI) {
         view.set_path_tool(path_tools::PathTool::Entrance);
     }
+    if keys.just_pressed(KeyCode::KeyK) {
+        view.set_path_tool(path_tools::PathTool::Exit);
+    }
     if keys.just_pressed(KeyCode::KeyC) {
         view.cycle_path_shape();
     }

@@ -87,7 +87,11 @@ fn preview_candidate(preview: &PathPreview) -> SurfaceObject {
     let mut object = candidate(preview.pos, preview.height, preview.slope);
     object.queue_owner = preview.queue_owner;
     if let Some(facing) = preview.entrance_facing {
-        object.kind = ObjectKind::RideEntrance;
+        object.kind = if preview.exit_gate {
+            ObjectKind::RideExit
+        } else {
+            ObjectKind::RideEntrance
+        };
         object.path_slope = PathSlope::Flat;
         object.clearance = 2;
         object.axis = match facing {
@@ -228,12 +232,12 @@ pub fn path_preview_mesh(preview: Option<PathPreview>, park: &Park, rotation: u8
         return painter.finish();
     }
     let surface = preview_surface(&preview, park, rotation);
-    let mut ink = if preview.demolish {
-        rgb(235, 120, 51)
-    } else if preview.valid {
-        rgb(47, 183, 114)
-    } else {
+    let mut ink = if !preview.valid {
         rgb(225, 68, 63)
+    } else if preview.demolish {
+        rgb(235, 120, 51)
+    } else {
+        rgb(47, 183, 114)
     };
     ink[3] = 0.22;
     let mut fill = surface;
@@ -324,6 +328,7 @@ mod tests {
                     slope,
                     queue_owner: Some(owner),
                     entrance_facing: None,
+                    exit_gate: false,
                     valid: true,
                     demolish: false,
                 };
@@ -389,6 +394,7 @@ mod tests {
             slope: PathSlope::Flat,
             queue_owner: Some(owner),
             entrance_facing: None,
+            exit_gate: false,
             valid: true,
             demolish: false,
         };
@@ -442,6 +448,7 @@ mod tests {
                             demolish: false,
                             queue_owner: None,
                             entrance_facing: None,
+                            exit_gate: false,
                         },
                         &park,
                         rotation,
@@ -495,6 +502,7 @@ mod tests {
                         demolish: false,
                         queue_owner: None,
                         entrance_facing: None,
+                        exit_gate: false,
                     };
                     let mesh = path_preview_mesh(Some(preview), &park, rotation);
                     let Some(VertexAttributeValues::Float32x3(points)) =
@@ -587,6 +595,7 @@ mod tests {
                         demolish: false,
                         queue_owner: None,
                         entrance_facing: None,
+                        exit_gate: false,
                     };
                     assert_eq!(
                         preview_surface(&preview, &park, rotation).vertices,
@@ -775,6 +784,7 @@ mod tests {
             demolish: false,
             queue_owner: None,
             entrance_facing: None,
+            exit_gate: false,
             slope: PathSlope::Flat,
         };
         let id = park

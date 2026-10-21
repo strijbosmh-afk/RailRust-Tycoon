@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 4;
-const CONTENT_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 5;
+const CONTENT_VERSION: u32 = 5;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -257,7 +257,7 @@ impl Park {
         if header.format != FORMAT {
             return Err(invalid("unrecognized save format"));
         }
-        if !matches!(header.schema_version, 1 | 2 | 3 | SCHEMA_VERSION) {
+        if !matches!(header.schema_version, 1 | 2 | 3 | 4 | SCHEMA_VERSION) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
         if header.content_version != header.schema_version {
@@ -273,6 +273,10 @@ impl Park {
             legacy.park.migrate().into_park()
         } else if header.schema_version == 3 {
             let legacy: SaveEnvelope<ParkData<SurfaceObject, VersionTwoGuest, LegacyRide>> =
+                parse_save(bytes)?;
+            legacy.park.migrate().into_park()
+        } else if header.schema_version == 4 {
+            let legacy: SaveEnvelope<ParkData<SurfaceObject, VersionFourGuest, VersionFourRide>> =
                 parse_save(bytes)?;
             legacy.park.migrate().into_park()
         } else {
@@ -360,6 +364,109 @@ struct LegacyRide {
     entrance: Option<crate::RideEntrance>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFourRide {
+    id: crate::RideId,
+    #[serde(deserialize_with = "required_object_option")]
+    entrance: Option<crate::RideEntrance>,
+    draining: bool,
+    next_queue_ticket: u64,
+    joined: u64,
+    turned_away: u64,
+    abandoned: u64,
+}
+#[derive(Deserialize)]
+enum VersionFourPhase {
+    Approaching,
+    Queueing,
+    Leaving,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFourVisit {
+    ride: crate::RideId,
+    #[serde(deserialize_with = "string_enum")]
+    phase: VersionFourPhase,
+    #[serde(deserialize_with = "required_option")]
+    ticket: Option<u64>,
+    waited_ticks: u32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFourGuest {
+    id: crate::GuestId,
+    #[serde(deserialize_with = "required_option")]
+    current: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    next: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    destination: Option<ObjectId>,
+    #[serde(deserialize_with = "strict_object")]
+    anchor: crate::TilePos,
+    height: u8,
+    #[serde(deserialize_with = "string_enum")]
+    anchor_slope: crate::PathSlope,
+    progress: u16,
+    #[serde(deserialize_with = "string_enum")]
+    state: GuestState,
+    arrivals: u64,
+    #[serde(deserialize_with = "required_object_option")]
+    ride_visit: Option<VersionFourVisit>,
+    ride_cooldown: u16,
+    #[serde(deserialize_with = "bounded_route")]
+    route: VecDeque<ObjectId>,
+    wait_ticks: u16,
+}
+impl From<VersionFourRide> for crate::Ride {
+    fn from(old: VersionFourRide) -> Self {
+        Self {
+            id: old.id,
+            entrance: old.entrance,
+            exit: None,
+            draining: old.draining,
+            next_queue_ticket: old.next_queue_ticket,
+            joined: old.joined,
+            turned_away: old.turned_away,
+            abandoned: old.abandoned,
+            boarded: 0,
+            exited: 0,
+            completed: 0,
+        }
+    }
+}
+impl From<VersionFourGuest> for Guest {
+    fn from(old: VersionFourGuest) -> Self {
+        Self {
+            id: old.id,
+            current: old.current,
+            next: old.next,
+            destination: old.destination,
+            anchor: old.anchor,
+            height: old.height,
+            anchor_slope: old.anchor_slope,
+            progress: old.progress,
+            state: old.state,
+            arrivals: old.arrivals,
+            rides_completed: 0,
+            ride_visit: old.ride_visit.map(|visit| crate::RideVisit {
+                ride: visit.ride,
+                phase: match visit.phase {
+                    VersionFourPhase::Approaching => crate::RideVisitPhase::Approaching,
+                    VersionFourPhase::Queueing => crate::RideVisitPhase::Queueing,
+                    VersionFourPhase::Leaving => crate::RideVisitPhase::Leaving,
+                },
+                ticket: visit.ticket,
+                waited_ticks: visit.waited_ticks,
+                passenger: None,
+            }),
+            ride_cooldown: old.ride_cooldown,
+            route: old.route,
+            wait_ticks: old.wait_ticks,
+        }
+    }
+}
+
 impl From<VersionTwoGuest> for Guest {
     fn from(guest: VersionTwoGuest) -> Self {
         Self {
@@ -373,6 +480,7 @@ impl From<VersionTwoGuest> for Guest {
             progress: guest.progress,
             state: guest.state,
             arrivals: guest.arrivals,
+            rides_completed: 0,
             route: guest.route,
             wait_ticks: guest.wait_ticks,
             ride_visit: None,
@@ -381,14 +489,22 @@ impl From<VersionTwoGuest> for Guest {
     }
 }
 
-impl ParkData<SurfaceObject, VersionTwoGuest, LegacyRide> {
+impl From<LegacyRide> for crate::Ride {
+    fn from(legacy: LegacyRide) -> Self {
+        let mut ride = Self::new(legacy.id);
+        ride.entrance = legacy.entrance;
+        ride
+    }
+}
+
+impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> ParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
             width: self.width,
             height: self.height,
             tiles: self.tiles,
             ticks: self.ticks,
-            objects: self.objects,
+            objects: self.objects.into_iter().map(Into::into).collect(),
             next_object_id: self.next_object_id,
             guests: self.guests.into_iter().map(Into::into).collect(),
             next_guest_id: self.next_guest_id,
@@ -396,11 +512,7 @@ impl ParkData<SurfaceObject, VersionTwoGuest, LegacyRide> {
             crowd_rng: self.crowd_rng,
             circuit: self.circuit,
             train: self.train,
-            ride: self.ride.map(|legacy| {
-                let mut ride = crate::Ride::new(legacy.id);
-                ride.entrance = legacy.entrance;
-                ride
-            }),
+            ride: self.ride.map(Into::into),
             next_ride_id: self.next_ride_id,
         }
     }
@@ -505,6 +617,7 @@ impl From<LegacyGuest> for Guest {
             progress: guest.progress,
             state: guest.state,
             arrivals: guest.arrivals,
+            rides_completed: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: guest.route,
@@ -627,6 +740,7 @@ impl ParkData {
             .map(|object| (object.id, object))
             .collect();
         crate::admission::validate_admission(&park, &objects).map_err(invalid)?;
+        crate::journeys::validate_journeys(&park, &objects).map_err(invalid)?;
         Ok(park)
     }
 }
@@ -740,6 +854,13 @@ fn validate_guests(
             || guest.wait_ticks > 30
         {
             return Err(invalid("guest anchor, progress or wait is out of range"));
+        }
+        if guest
+            .ride_visit
+            .as_ref()
+            .is_some_and(|visit| crate::journeys::passenger_phase(visit.phase))
+        {
+            continue;
         }
         let path = |id| {
             objects
@@ -999,7 +1120,7 @@ mod tests {
     }
 
     fn version_three_value(park: &Park) -> Value {
-        let mut data = value(park);
+        let mut data = version_four_value(park);
         data["schema_version"] = json!(3);
         data["content_version"] = json!(3);
         for guest in data["park"]["guests"].as_array_mut().unwrap() {
@@ -1016,6 +1137,27 @@ mod tests {
                 "turned_away",
                 "abandoned",
             ] {
+                ride.remove(field);
+            }
+        }
+        data
+    }
+
+    fn version_four_value(park: &Park) -> Value {
+        let mut data = value(park);
+        data["schema_version"] = json!(4);
+        data["content_version"] = json!(4);
+        for guest in data["park"]["guests"].as_array_mut().unwrap() {
+            assert_eq!(guest["rides_completed"], json!(0));
+            guest.as_object_mut().unwrap().remove("rides_completed");
+            if let Some(visit) = guest["ride_visit"].as_object_mut() {
+                assert_eq!(visit["passenger"], Value::Null);
+                visit.remove("passenger");
+            }
+        }
+        if let Some(ride) = data["park"]["ride"].as_object_mut() {
+            assert_eq!(ride["exit"], Value::Null);
+            for field in ["exit", "boarded", "exited", "completed"] {
                 ride.remove(field);
             }
         }
@@ -1075,8 +1217,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(4));
-            assert_eq!(modern["content_version"], json!(4));
+            assert_eq!(modern["schema_version"], json!(5));
+            assert_eq!(modern["content_version"], json!(5));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -1133,6 +1275,115 @@ mod tests {
                 malformed.pointer_mut(path).unwrap()[name] = added;
                 assert!(decode(&malformed).is_err(), "old schema accepted {name}");
             }
+        }
+    }
+
+    #[test]
+    fn version_four_migrates_live_queue_and_cancelled_visits_without_changing_future() {
+        let mut park = fixture();
+        let ride = park.ride().unwrap().id;
+        park.place_ride_entrance(
+            TilePos { x: 8, y: 11 },
+            8,
+            crate::PathDirection::North,
+            ride,
+        )
+        .unwrap();
+        for (y, height, slope) in [
+            (12, 8, crate::PathSlope::Flat),
+            (13, 8, crate::PathSlope::South),
+            (14, 9, crate::PathSlope::Flat),
+            (15, 8, crate::PathSlope::North),
+        ] {
+            park.place_queue_path(TilePos { x: 8, y }, height, slope, ride)
+                .unwrap();
+        }
+        advance(&mut park, 10);
+        let seeking = park.clone();
+        for _ in 0..2000 {
+            if park.guests.iter().any(|guest| {
+                guest
+                    .ride_visit
+                    .as_ref()
+                    .is_some_and(|visit| visit.phase == crate::RideVisitPhase::Queueing)
+                    && guest.progress == 7
+            }) {
+                break;
+            }
+            park.advance(Speed::Normal);
+        }
+        assert!(park.guests.iter().any(|guest| {
+            guest
+                .ride_visit
+                .as_ref()
+                .is_some_and(|visit| visit.phase == crate::RideVisitPhase::Queueing)
+        }));
+        let moving = park.clone();
+        park.set_train_open(false);
+        let leaving = park.clone();
+        let removed = park
+            .guests
+            .iter()
+            .find(|guest| {
+                guest
+                    .ride_visit
+                    .as_ref()
+                    .is_some_and(|visit| visit.ticket.is_some())
+            })
+            .and_then(|guest| guest.current)
+            .unwrap();
+        park.remove_object(removed).unwrap();
+        for mut original in [seeking, moving, leaving, park] {
+            let legacy = version_four_value(&original);
+            let mut migrated = decode(&legacy).unwrap();
+            assert_eq!(original, migrated);
+            for _ in 0..600 {
+                original.advance(Speed::Normal);
+                migrated.advance(Speed::Normal);
+                assert_eq!(original, migrated);
+            }
+            assert_eq!(
+                original.to_save_bytes().unwrap(),
+                migrated.to_save_bytes().unwrap()
+            );
+            for (path, field, value) in [
+                ("/park/ride", "exit", Value::Null),
+                ("/park/ride", "boarded", json!(0)),
+                ("/park/guests/0", "rides_completed", json!(0)),
+            ] {
+                let mut malformed = legacy.clone();
+                malformed.pointer_mut(path).unwrap()[field] = value;
+                assert!(decode(&malformed).is_err());
+            }
+            if let Some(index) = legacy["park"]["guests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .position(|guest| !guest["ride_visit"].is_null())
+            {
+                let mut malformed = legacy.clone();
+                malformed["park"]["guests"][index]["ride_visit"]["passenger"] = Value::Null;
+                assert!(decode(&malformed).is_err());
+                let mut malformed = legacy.clone();
+                malformed["park"]["guests"][index]["ride_visit"]["phase"] = json!("Boarding");
+                assert!(decode(&malformed).is_err());
+            }
+        }
+        let current = value(&fixture());
+        for (schema, content) in [
+            (5, 4),
+            (4, 5),
+            (5, 3),
+            (3, 5),
+            (5, 2),
+            (2, 5),
+            (5, 1),
+            (1, 5),
+        ] {
+            let mut invalid = current.clone();
+            invalid["schema_version"] = json!(schema);
+            invalid["content_version"] = json!(content);
+            assert!(decode(&invalid).is_err());
         }
     }
 
@@ -1288,7 +1539,7 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (5, 5),
+            (6, 6),
             (1, 2),
             (2, 1),
             (2, 0),
@@ -1354,6 +1605,7 @@ mod tests {
             progress: 7,
             state: GuestState::Walking,
             arrivals: 0,
+            rides_completed: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: VecDeque::from([high]),
@@ -1498,8 +1750,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":4",
-            "\"schema_version\":4,\"schema_version\":4",
+            "\"schema_version\":5",
+            "\"schema_version\":5,\"schema_version\":5",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
