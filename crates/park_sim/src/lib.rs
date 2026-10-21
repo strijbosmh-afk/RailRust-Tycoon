@@ -263,13 +263,12 @@ impl Park {
         Ok(())
     }
 
-    /// Set a single elevation after validating the coordinate and height.
-    ///
-    /// An error leaves the entire park unchanged. This low-level setter permits
-    /// every terrain material and preserves placed-object clearance. Ownership,
-    /// cost, and other gameplay editing rules belong in the future command layer.
-    pub fn set_terrain_height(
-        &mut self,
+    /// Preview a single elevation using exactly the setter's bounds and
+    /// occupied-space rules. Validation never changes state or path caches.
+    /// Every terrain material is supported by this low-level simulation API;
+    /// the application's editing tools may impose additional gameplay rules.
+    pub fn validate_terrain_height(
+        &self,
         pos: TilePos,
         height: u8,
     ) -> Result<(), TerrainHeightError> {
@@ -282,7 +281,20 @@ impl Park {
                 max: MAX_TERRAIN_HEIGHT,
             });
         }
-        self.validate_terrain_clearance(pos, height)?;
+        self.validate_terrain_clearance(pos, height)
+    }
+
+    /// Set a single elevation after validating the coordinate and height.
+    ///
+    /// An error leaves the entire park unchanged. This low-level setter permits
+    /// every terrain material and preserves placed-object clearance. Ownership,
+    /// cost, and other gameplay editing rules belong in the future command layer.
+    pub fn set_terrain_height(
+        &mut self,
+        pos: TilePos,
+        height: u8,
+    ) -> Result<(), TerrainHeightError> {
+        self.validate_terrain_height(pos, height)?;
         self.tiles[(pos.y * self.width + pos.x) as usize].height = height;
         Ok(())
     }
@@ -530,6 +542,121 @@ mod tests {
         assert_eq!(park.ticks(), original.ticks());
         assert_eq!(park.set_terrain_height(pos, 0), Ok(()));
         assert_eq!(park, original);
+    }
+
+    fn live_terrain_fixture() -> Park {
+        let mut park = Park::new(32, 32);
+        park.apply_terrain_profile(TerrainProfile::Terraced);
+        park.install_crowd_fixture(123).unwrap();
+        park.install_train_fixture().unwrap();
+        for _ in 0..41 {
+            park.advance(Speed::Normal);
+        }
+        assert!(park.path_cache_stats().cached);
+        park
+    }
+
+    fn assert_terrain_preview_commit(park: &Park, pos: TilePos, height: u8, allowed: bool) {
+        let before_cache = park.path_cache_stats();
+        let before_bytes = park.to_save_bytes().unwrap();
+        let preview = park.validate_terrain_height(pos, height);
+        assert_eq!(preview.is_ok(), allowed, "{pos:?} at {height}");
+        assert_eq!(park.to_save_bytes().unwrap(), before_bytes);
+        assert_eq!(park.path_cache_stats(), before_cache);
+        let mut changed = park.clone();
+        assert_eq!(changed.set_terrain_height(pos, height), preview);
+        let mut expected = park.clone();
+        if allowed {
+            // Whole-Park equality checks every authoritative field: only this
+            // elevation may differ, including during crowd and train motion.
+            expected.tiles[(pos.y * expected.width + pos.x) as usize].height = height;
+        }
+        assert_eq!(changed, expected);
+        assert_eq!(changed.path_cache_stats(), before_cache);
+        assert_eq!(
+            changed.to_save_bytes().unwrap(),
+            expected.to_save_bytes().unwrap()
+        );
+    }
+
+    #[test]
+    fn terrain_validation_matches_commit_at_map_and_height_boundaries_without_mutation() {
+        let park = live_terrain_fixture();
+        for height in [0, MAX_TERRAIN_HEIGHT, MAX_TERRAIN_HEIGHT + 1, u8::MAX] {
+            assert_terrain_preview_commit(
+                &park,
+                TilePos { x: 0, y: 0 },
+                height,
+                height <= MAX_TERRAIN_HEIGHT,
+            );
+        }
+        for pos in [
+            TilePos { x: 32, y: 0 },
+            TilePos { x: 0, y: 32 },
+            TilePos {
+                x: u32::MAX,
+                y: u32::MAX,
+            },
+        ] {
+            assert_eq!(
+                park.validate_terrain_height(pos, u8::MAX),
+                Err(TerrainHeightError::OutOfBounds { pos })
+            );
+            assert_terrain_preview_commit(&park, pos, 0, false);
+        }
+    }
+
+    #[test]
+    fn terrain_validation_preserves_all_materials_and_every_other_live_state_field() {
+        let park = live_terrain_fixture();
+        for terrain in [Terrain::Grass, Terrain::Sand, Terrain::Water] {
+            let pos = (0..park.height)
+                .flat_map(|y| (0..park.width).map(move |x| TilePos { x, y }))
+                .find(|pos| {
+                    park.tile(*pos).unwrap().terrain == terrain
+                        && !park.objects.iter().any(|object| object.pos == *pos)
+                })
+                .unwrap();
+            for height in [1, MAX_TERRAIN_HEIGHT, 0] {
+                assert_terrain_preview_commit(&park, pos, height, true);
+            }
+        }
+    }
+
+    #[test]
+    fn terrain_validation_respects_path_and_buried_graded_track_envelopes() {
+        let park = live_terrain_fixture();
+        let overlap = TilePos { x: 13, y: 16 };
+        // A ground track occupies [0,2); the path occupies [8,10).
+        // Terrain can expose the track at zero, or cover it up to the path.
+        for height in [0, 1, 2, 7, 8, 9, MAX_TERRAIN_HEIGHT] {
+            assert_terrain_preview_commit(&park, overlap, height, matches!(height, 0 | 2..=8));
+        }
+        let graded = park
+            .objects
+            .iter()
+            .find(|object| object.kind == ObjectKind::Track && object.clearance > 2)
+            .unwrap();
+        let top = graded.height + graded.clearance;
+        for (height, allowed) in [
+            (graded.height, true),
+            (graded.height + 1, false),
+            (top - 1, false),
+            (top, true),
+            (MAX_TERRAIN_HEIGHT, true),
+        ] {
+            assert_terrain_preview_commit(&park, graded.pos, height, allowed);
+        }
+        let mut buried = park.clone();
+        buried.set_terrain_height(graded.pos, top).unwrap();
+        assert!(buried.is_underground(graded.id));
+        assert_terrain_preview_commit(&buried, graded.pos, top - 1, false);
+        buried
+            .set_terrain_height(graded.pos, graded.height)
+            .unwrap();
+        assert!(!buried.is_underground(graded.id));
+        assert_eq!(buried.objects(), park.objects());
+        assert_eq!(buried.train(), park.train());
     }
 
     #[test]

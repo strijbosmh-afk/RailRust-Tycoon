@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 use park_sim::{MAX_PATH_HEIGHT, ObjectId, ObjectKind, Park, PlacementError, SurfaceId, TilePos};
 
+use crate::terrain_tools::{self, TerrainPreview};
 use crate::{ViewState, world};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -11,6 +12,8 @@ pub(super) enum PathTool {
     Inspect,
     Build,
     Demolish,
+    RaiseTerrain,
+    LowerTerrain,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,6 +29,7 @@ pub(super) struct ToolState {
     pub mode: PathTool,
     pub height: u8,
     pub preview: Option<PathPreview>,
+    pub terrain_preview: Option<TerrainPreview>,
     pub hint: String,
 }
 
@@ -35,6 +39,7 @@ impl Default for ToolState {
             mode: PathTool::Inspect,
             height: 8,
             preview: None,
+            terrain_preview: None,
             hint: "Choose Path to build.\nDemolish removes paths only.".into(),
         }
     }
@@ -54,10 +59,17 @@ impl ToolState {
 
     pub fn clear_pointer(&mut self) {
         self.preview = None;
+        self.terrain_preview = None;
         self.hint = match self.mode {
             PathTool::Inspect => "Choose Path to build.\nDemolish removes paths only.",
             PathTool::Build => "Point at the height plane.\nClick once per path tile.",
             PathTool::Demolish => "Point to a visible path.\nClick once to remove it.",
+            PathTool::RaiseTerrain => {
+                "Point to visible grass or sand.\nClick once to raise one step."
+            }
+            PathTool::LowerTerrain => {
+                "Point to visible grass or sand.\nClick once to lower one step."
+            }
         }
         .into();
     }
@@ -91,7 +103,11 @@ pub(super) fn placement_message(error: PlacementError) -> String {
 /// Revalidate against current authoritative state on every deliberate click.
 pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     view.path_tool.preview = None;
+    view.path_tool.terrain_preview = None;
     match view.path_tool.mode {
+        PathTool::RaiseTerrain | PathTool::LowerTerrain => {
+            terrain_tools::point_at(park, view, click)
+        }
         PathTool::Inspect => {
             if click {
                 view.selected = view.hovered;

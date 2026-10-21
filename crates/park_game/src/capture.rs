@@ -27,6 +27,8 @@ const WARMUP_FRAMES: u32 = 90;
 const WARMUP_TIME: Duration = Duration::from_secs(2);
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
+mod terrain_scenes;
+
 #[derive(Clone, Copy)]
 enum Scene {
     Overview,
@@ -53,9 +55,29 @@ enum Scene {
     PathDemolish,
     PathRemoved,
     PathRecovered,
+    TerrainRaise,
+    TerrainLower,
+    TerrainRaised,
+    TerrainLowered,
+    TerrainBlocked,
+    TerrainWater,
+    TerrainUnderground,
 }
 
 impl Scene {
+    fn is_terrain_tool(self) -> bool {
+        matches!(
+            self,
+            Self::TerrainRaise
+                | Self::TerrainLower
+                | Self::TerrainRaised
+                | Self::TerrainLowered
+                | Self::TerrainBlocked
+                | Self::TerrainWater
+                | Self::TerrainUnderground
+        )
+    }
+
     fn is_path_tool(self) -> bool {
         matches!(
             self,
@@ -152,6 +174,13 @@ pub(super) fn configure(app: &mut App) {
                 Some("path-demolish") => Scene::PathDemolish,
                 Some("path-removed") => Scene::PathRemoved,
                 Some("path-recovered") => Scene::PathRecovered,
+                Some("terrain-raise") => Scene::TerrainRaise,
+                Some("terrain-lower") => Scene::TerrainLower,
+                Some("terrain-raised") => Scene::TerrainRaised,
+                Some("terrain-lowered") => Scene::TerrainLowered,
+                Some("terrain-blocked") => Scene::TerrainBlocked,
+                Some("terrain-water") => Scene::TerrainWater,
+                Some("terrain-underground") => Scene::TerrainUnderground,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -203,6 +232,12 @@ pub(super) fn configure(app: &mut App) {
     let small_window = arguments
         .iter()
         .any(|value| value == "--capture-small-window");
+    assert!(
+        !scene.is_terrain_tool()
+            || matches!(scene, Scene::TerrainUnderground)
+            || view_mode == ViewMode::Surface,
+        "use terrain-underground to capture a rejected Underground terrain edit"
+    );
     let ticks = arguments
         .iter()
         .position(|value| value == "--capture-ticks")
@@ -358,6 +393,9 @@ fn apply_preset(
     }
     if capture.scene.is_path_tool() {
         prepare_path_scene(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_terrain_tool() {
+        terrain_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if matches!(
         capture.scene,

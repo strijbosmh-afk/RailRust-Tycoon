@@ -42,6 +42,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-paths --save-dir $pathDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process path continuation failed" }
           Get-Content -LiteralPath (Join-Path $pathDirectory "verification-paths.txt")
+      - name: Verify terrain edits across fresh processes
+        shell: pwsh
+        run: |
+          $terrainDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound terrain proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-terrain --save-dir $terrainDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Terrain editing proof writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-terrain --save-dir $terrainDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process terrain continuation failed" }
+          Get-Content -LiteralPath (Join-Path $terrainDirectory "verification-terrain.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:
