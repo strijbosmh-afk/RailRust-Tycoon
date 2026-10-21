@@ -27,6 +27,7 @@ const WARMUP_FRAMES: u32 = 90;
 const WARMUP_TIME: Duration = Duration::from_secs(2);
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
+mod queue_scenes;
 mod slope_scenes;
 mod terrain_scenes;
 
@@ -69,9 +70,26 @@ enum Scene {
     SlopeCrowd,
     SlopeRemoved,
     SlopeRecovered,
+    QueueEntrance,
+    QueueConnected,
+    QueueDisconnected,
+    QueueBranch,
+    QueueBlocked,
+    QueueRebuilt,
 }
 
 impl Scene {
+    fn is_queue_tool(self) -> bool {
+        matches!(
+            self,
+            Self::QueueEntrance
+                | Self::QueueConnected
+                | Self::QueueDisconnected
+                | Self::QueueBranch
+                | Self::QueueBlocked
+                | Self::QueueRebuilt
+        )
+    }
     fn is_slope_tool(self) -> bool {
         matches!(
             self,
@@ -205,6 +223,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("slope-crowd") => Scene::SlopeCrowd,
                 Some("slope-removed") => Scene::SlopeRemoved,
                 Some("slope-recovered") => Scene::SlopeRecovered,
+                Some("queue-entrance") => Scene::QueueEntrance,
+                Some("queue-connected") => Scene::QueueConnected,
+                Some("queue-disconnected") => Scene::QueueDisconnected,
+                Some("queue-branch") => Scene::QueueBranch,
+                Some("queue-blocked") => Scene::QueueBlocked,
+                Some("queue-rebuilt") => Scene::QueueRebuilt,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -420,6 +444,9 @@ fn apply_preset(
     }
     if capture.scene.is_terrain_tool() {
         terrain_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_queue_tool() {
+        queue_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

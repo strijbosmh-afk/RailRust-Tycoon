@@ -692,6 +692,45 @@ mod tests {
         equivalent(&mesh, &guest_mesh(&park, 0, ViewMode::Surface));
     }
 
+    #[test]
+    fn queue_joins_refresh_cached_public_decks_without_admitting_any_guest() {
+        let mut original = fixture();
+        original.install_train_fixture().unwrap();
+        let owner = original.ride().unwrap().id;
+        for rotation in 0..4 {
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                let mut park = original.clone();
+                let mut renderer = GuestRenderer::default();
+                let mut mesh = GuestRenderer::empty_mesh();
+                renderer.update(&mut mesh, &park, rotation, mode);
+                let before = renderer.stats();
+                let queue = park
+                    .place_queue_path(TilePos { x: 8, y: 15 }, 8, PathSlope::Flat, owner)
+                    .unwrap();
+                renderer.update(&mut mesh, &park, rotation, mode);
+                equivalent(&mesh, &guest_mesh(&park, rotation, mode));
+                assert_eq!(renderer.stats().deck_rebuilds, before.deck_rebuilds + 1);
+                assert_eq!(renderer.stats().template_builds, before.template_builds);
+                let rebuilt = renderer.stats().deck_rebuilds;
+                for _ in 0..65 {
+                    park.advance(Speed::Normal);
+                    renderer.update(&mut mesh, &park, rotation, mode);
+                    assert!(park.guests().iter().all(|guest| {
+                        guest.current != Some(queue)
+                            && guest.next != Some(queue)
+                            && guest.destination != Some(queue)
+                    }));
+                }
+                assert_eq!(renderer.stats().deck_rebuilds, rebuilt);
+                equivalent(&mesh, &guest_mesh(&park, rotation, mode));
+                park.remove_object(queue).unwrap();
+                renderer.update(&mut mesh, &park, rotation, mode);
+                equivalent(&mesh, &guest_mesh(&park, rotation, mode));
+                assert_eq!(renderer.stats().deck_rebuilds, rebuilt + 1);
+            }
+        }
+    }
+
     fn buffer_storage(mesh: &Mesh) -> Vec<(usize, usize)> {
         let mut storage: Vec<_> = mesh
             .attributes()

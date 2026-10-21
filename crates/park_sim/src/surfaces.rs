@@ -23,6 +23,7 @@ pub enum SurfaceId {
 pub enum ObjectKind {
     Path,
     Track,
+    RideEntrance,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -45,6 +46,8 @@ pub struct SurfaceObject {
     pub axis: Axis,
     #[serde(deserialize_with = "crate::saves::string_enum")]
     pub path_slope: PathSlope,
+    #[serde(deserialize_with = "crate::saves::required_option")]
+    pub queue_owner: Option<crate::RideId>,
     pub height: u8,
     pub clearance: u8,
 }
@@ -59,6 +62,7 @@ pub enum PlacementError {
     IdExhausted,
     CapacityExceeded { resource: &'static str, max: usize },
     FixtureMapSize { width: u32, height: u32 },
+    EntranceRequiresRide,
 }
 
 impl std::fmt::Display for PlacementError {
@@ -70,6 +74,10 @@ impl std::fmt::Display for PlacementError {
                 pos.x, pos.y
             ),
             Self::EmptyClearance => write!(formatter, "object clearance must be positive"),
+            Self::EntranceRequiresRide => write!(
+                formatter,
+                "an entrance needs a ride and a station-facing direction"
+            ),
             Self::HeightOutOfRange {
                 height,
                 clearance,
@@ -172,6 +180,9 @@ impl Park {
         height: u8,
         clearance: u8,
     ) -> Result<ObjectId, PlacementError> {
+        if kind == ObjectKind::RideEntrance {
+            return Err(PlacementError::EntranceRequiresRide);
+        }
         let next_id = self.validate_object_placement(pos, kind, height, clearance)?;
         Ok(self.insert_validated_object(pos, kind, axis, height, clearance, next_id))
     }
@@ -221,7 +232,7 @@ impl Park {
         Ok(id)
     }
 
-    fn validate_path_placement(
+    pub(crate) fn validate_path_placement(
         &self,
         pos: TilePos,
         height: u8,
@@ -252,7 +263,7 @@ impl Park {
 
     /// Return the next allocator value only after all geometric rules pass.
     /// Both generic construction and the player preview use this validation.
-    fn validate_object_placement(
+    pub(crate) fn validate_object_placement(
         &self,
         pos: TilePos,
         kind: ObjectKind,
@@ -301,18 +312,32 @@ impl Park {
         clearance: u8,
         next_id: u64,
     ) -> ObjectId {
+        self.insert_surface_object(
+            SurfaceObject {
+                id: ObjectId(0),
+                pos,
+                kind,
+                axis,
+                path_slope: PathSlope::Flat,
+                queue_owner: None,
+                height,
+                clearance,
+            },
+            next_id,
+        )
+    }
+
+    pub(crate) fn insert_surface_object(
+        &mut self,
+        mut object: SurfaceObject,
+        next_id: u64,
+    ) -> ObjectId {
         let id = ObjectId(self.next_object_id);
-        self.objects.push(SurfaceObject {
-            id,
-            pos,
-            kind,
-            axis,
-            path_slope: PathSlope::Flat,
-            height,
-            clearance,
-        });
+        object.id = id;
+        let public = object.is_public_path();
+        self.objects.push(object);
         self.next_object_id = next_id;
-        if kind == ObjectKind::Path {
+        if public {
             self.path_cache.invalidate();
         }
         id
@@ -322,11 +347,19 @@ impl Park {
     pub fn remove_object(&mut self, id: ObjectId) -> Option<SurfaceObject> {
         let index = self.objects.iter().position(|object| object.id == id)?;
         let removed = self.objects.remove(index);
-        if removed.kind == ObjectKind::Path {
+        if removed.is_public_path() {
             self.path_cache.invalidate();
             self.reconcile_guests_after_removal(removed);
         }
         self.reconcile_train_after_removal(id);
+        if let Some(ride) = &mut self.ride
+            && ride
+                .entrance
+                .as_ref()
+                .is_some_and(|entrance| entrance.object == id)
+        {
+            ride.entrance = None;
+        }
         Some(removed)
     }
 
@@ -350,6 +383,7 @@ impl Park {
                     && object.axis == axis
                     && object.height == height
                     && object.clearance == 2
+                    && object.queue_owner.is_none()
             }) {
                 candidate.place_object(pos, kind, axis, height, 2)?;
             }

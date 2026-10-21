@@ -60,6 +60,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-slopes --save-dir $slopeDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process slope continuation failed" }
           Get-Content -LiteralPath (Join-Path $slopeDirectory "verification-slopes.txt")
+      - name: Verify queues and entrances across fresh processes
+        shell: pwsh
+        run: |
+          $queueDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound queue proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-queues --save-dir $queueDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Queue proof writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-queues --save-dir $queueDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process queue continuation failed" }
+          Get-Content -LiteralPath (Join-Path $queueDirectory "verification-queues.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

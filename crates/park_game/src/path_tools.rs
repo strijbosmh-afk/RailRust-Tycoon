@@ -2,18 +2,22 @@
 
 use bevy::prelude::*;
 use park_sim::{
-    MAX_PATH_HEIGHT, MAX_SLOPED_PATH_HEIGHT, ObjectId, ObjectKind, Park, PathSlope, PlacementError,
-    SurfaceId, TilePos,
+    MAX_PATH_HEIGHT, MAX_SLOPED_PATH_HEIGHT, ObjectId, ObjectKind, Park, PathDirection, PathSlope,
+    PlacementError, RideAccessError, RideId, SurfaceId, TilePos,
 };
 
 use crate::terrain_tools::{self, TerrainPreview};
 use crate::{ViewState, world};
+
+mod entrance;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) enum PathTool {
     #[default]
     Inspect,
     Build,
+    BuildQueue,
+    Entrance,
     Demolish,
     RaiseTerrain,
     LowerTerrain,
@@ -24,6 +28,8 @@ pub(super) struct PathPreview {
     pub pos: TilePos,
     pub height: u8,
     pub slope: PathSlope,
+    pub queue_owner: Option<RideId>,
+    pub entrance_facing: Option<PathDirection>,
     pub valid: bool,
     pub demolish: bool,
 }
@@ -33,6 +39,7 @@ pub(super) struct ToolState {
     pub mode: PathTool,
     pub height: u8,
     pub slope: PathSlope,
+    pub entrance_facing: PathDirection,
     pub preview: Option<PathPreview>,
     pub terrain_preview: Option<TerrainPreview>,
     pub hint: String,
@@ -44,9 +51,10 @@ impl Default for ToolState {
             mode: PathTool::Inspect,
             height: 8,
             slope: PathSlope::Flat,
+            entrance_facing: PathDirection::North,
             preview: None,
             terrain_preview: None,
-            hint: "Choose Path to build.\nDemolish removes paths only.".into(),
+            hint: "Choose Path to build.\nRemove paths or ride entrances.".into(),
         }
     }
 }
@@ -54,6 +62,7 @@ impl Default for ToolState {
 impl ToolState {
     pub fn set_mode(&mut self, mode: PathTool) {
         self.mode = mode;
+        self.height = self.height.min(self.max_height());
         self.clear_pointer();
     }
 
@@ -64,7 +73,7 @@ impl ToolState {
     }
 
     pub fn max_height(&self) -> u8 {
-        if self.slope == PathSlope::Flat {
+        if self.mode == PathTool::Entrance || self.slope == PathSlope::Flat {
             MAX_PATH_HEIGHT
         } else {
             MAX_SLOPED_PATH_HEIGHT
@@ -72,6 +81,16 @@ impl ToolState {
     }
 
     pub fn cycle_shape(&mut self) {
+        if self.mode == PathTool::Entrance {
+            self.entrance_facing = match self.entrance_facing {
+                PathDirection::North => PathDirection::East,
+                PathDirection::East => PathDirection::South,
+                PathDirection::South => PathDirection::West,
+                PathDirection::West => PathDirection::North,
+            };
+            self.clear_pointer();
+            return;
+        }
         self.slope = match self.slope {
             PathSlope::Flat => PathSlope::North,
             PathSlope::North => PathSlope::East,
@@ -80,16 +99,24 @@ impl ToolState {
             PathSlope::West => PathSlope::Flat,
         };
         self.height = self.height.min(self.max_height());
-        self.set_mode(PathTool::Build);
+        self.set_mode(if self.mode == PathTool::BuildQueue {
+            PathTool::BuildQueue
+        } else {
+            PathTool::Build
+        });
     }
 
     pub fn clear_pointer(&mut self) {
         self.preview = None;
         self.terrain_preview = None;
         self.hint = match self.mode {
-            PathTool::Inspect => "Choose Path to build.\nDemolish removes paths only.",
+            PathTool::Inspect => "Choose Path to build.\nRemove paths or ride entrances.",
             PathTool::Build => "Point at the height plane.\nClick once per path tile.",
-            PathTool::Demolish => "Point to a visible path.\nClick once to remove it.",
+            PathTool::BuildQueue => {
+                "Build a queue for Meadow Flyer.\nJoin one public path to its gate."
+            }
+            PathTool::Entrance => "Place beside the station.\nC turns the gate toward it.",
+            PathTool::Demolish => "Point to a path or entrance.\nClick once to remove it.",
             PathTool::RaiseTerrain => {
                 "Point to visible grass or sand.\nClick once to raise one step."
             }
@@ -132,6 +159,19 @@ pub(super) fn placement_message(error: PlacementError) -> String {
         PlacementError::IdExhausted => "No more park objects can be created.".into(),
         PlacementError::EmptyClearance => "A path needs two height steps of clearance.".into(),
         PlacementError::FixtureMapSize { .. } => "Demo paths require a 32 x 32 park.".into(),
+        PlacementError::EntranceRequiresRide => "Choose the ride Entrance tool.".into(),
+    }
+}
+
+fn ride_placement_message(error: RideAccessError, slope: PathSlope) -> String {
+    match error {
+        RideAccessError::Placement(PlacementError::HeightOutOfRange { .. })
+            if slope != PathSlope::Flat =>
+        {
+            format!("Choose a slope low end from 0 to {MAX_SLOPED_PATH_HEIGHT}.")
+        }
+        RideAccessError::Placement(error) => placement_message(error),
+        error => error.to_string(),
     }
 }
 
@@ -149,7 +189,11 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 view.selected = view.hovered;
             }
         }
-        PathTool::Build => {
+        PathTool::Entrance => entrance::point_at(park, view, point, click),
+        PathTool::Build | PathTool::BuildQueue => {
+            let queue = view.path_tool.mode == PathTool::BuildQueue;
+            let owner = queue.then(|| park.ride().map(|ride| ride.id)).flatten();
+            let name = if queue { "Queue" } else { "Path" };
             let height = view.path_tool.height;
             let slope = view.path_tool.slope;
             let Some(pos) =
@@ -161,7 +205,25 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 }
                 return;
             };
-            let validation = park.validate_sloped_path(pos, height, slope);
+            let validation = if queue {
+                owner
+                    .ok_or_else(|| "A queue needs an existing ride.".to_string())
+                    .and_then(|ride| {
+                        park.validate_queue_path(pos, height, slope, ride)
+                            .map_err(|error| ride_placement_message(error, slope))
+                    })
+            } else {
+                park.validate_sloped_path(pos, height, slope)
+                    .map_err(|error| {
+                        if matches!(error, PlacementError::HeightOutOfRange { .. })
+                            && slope != PathSlope::Flat
+                        {
+                            format!("Choose a slope low end from 0 to {MAX_SLOPED_PATH_HEIGHT}.")
+                        } else {
+                            placement_message(error)
+                        }
+                    })
+            };
             let occluded = world::sloped_path_plane_occluded(
                 point,
                 park,
@@ -170,31 +232,28 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 slope,
                 view.view_mode,
             );
-            let reason = validation
-                .err()
-                .map(|error| {
-                    if matches!(error, PlacementError::HeightOutOfRange { .. })
-                        && slope != PathSlope::Flat
-                    {
-                        format!("Choose a slope low end from 0 to {MAX_SLOPED_PATH_HEIGHT}.")
-                    } else {
-                        placement_message(error)
-                    }
-                })
-                .or_else(|| {
-                    occluded.then(|| "Surface hidden here.\nRotate or use underground view.".into())
-                });
+            let reason = validation.err().or_else(|| {
+                occluded.then(|| "Surface hidden here.\nRotate or use underground view.".into())
+            });
             if !occluded {
                 view.path_tool.preview = Some(PathPreview {
                     pos,
                     height,
                     slope,
+                    queue_owner: owner,
+                    entrance_facing: None,
                     valid: reason.is_none(),
                     demolish: false,
                 });
             }
             view.path_tool.hint = reason.clone().unwrap_or_else(|| {
-                if slope == PathSlope::Flat {
+                if queue {
+                    format!(
+                        "Queue / {} -> {}\nClick once for Meadow Flyer.",
+                        height,
+                        height + u8::from(slope != PathSlope::Flat)
+                    )
+                } else if slope == PathSlope::Flat {
                     format!(
                         "Tile {}, {} / height {height}\nClick to place path.",
                         pos.x + 1,
@@ -213,22 +272,28 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 if let Some(reason) = reason {
                     view.path_notice = Some(format!("No path placed: {reason}"));
                 } else {
-                    match park.place_sloped_path(pos, height, slope) {
+                    let placed = if queue {
+                        park.place_queue_path(pos, height, slope, owner.expect("validated ride"))
+                            .map_err(|error| ride_placement_message(error, slope))
+                    } else {
+                        park.place_sloped_path(pos, height, slope)
+                            .map_err(placement_message)
+                    };
+                    match placed {
                         Ok(id) => {
                             view.selected = Some(SurfaceId::Object(id));
                             view.hovered = view.selected;
                             view.scene_dirty = true;
                             view.path_tool.clear_pointer();
                             view.path_notice = Some(format!(
-                                "Path #{} placed at {}, {} / height {height}.",
+                                "{name} #{} placed at {}, {} / height {height}.",
                                 id.0,
                                 pos.x + 1,
                                 pos.y + 1
                             ));
                         }
                         Err(error) => {
-                            view.path_notice =
-                                Some(format!("No path placed: {}", placement_message(error)));
+                            view.path_notice = Some(format!("No path placed: {error}"));
                         }
                     }
                 }
@@ -236,10 +301,9 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         }
         PathTool::Demolish => {
             let target = match view.hovered {
-                Some(SurfaceId::Object(id)) => park
-                    .object(id)
-                    .copied()
-                    .filter(|object| object.kind == ObjectKind::Path),
+                Some(SurfaceId::Object(id)) => park.object(id).copied().filter(|object| {
+                    matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance)
+                }),
                 _ => None,
             };
             if let Some(object) = target {
@@ -247,11 +311,22 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                     pos: object.pos,
                     height: object.height,
                     slope: object.path_slope,
+                    queue_owner: object.queue_owner,
+                    entrance_facing: park
+                        .ride()
+                        .and_then(|ride| ride.entrance.as_ref())
+                        .filter(|entrance| entrance.object == object.id)
+                        .map(|entrance| entrance.facing),
                     valid: true,
                     demolish: true,
                 });
+                let name = if object.kind == ObjectKind::RideEntrance {
+                    "Entrance"
+                } else {
+                    "Path"
+                };
                 view.path_tool.hint = format!(
-                    "Path #{} / tile {}, {}\nClick to remove path.",
+                    "{name} #{} / tile {}, {}\nClick to remove it.",
                     object.id.0,
                     object.pos.x + 1,
                     object.pos.y + 1
@@ -261,7 +336,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 }
             } else {
                 view.path_tool.hint =
-                    "Point to a visible path.\nTrack and land stay in place.".into();
+                    "Point to a path or entrance.\nTrack and land stay in place.".into();
                 if click {
                     view.path_notice = Some("No path removed: point to a visible path.".into());
                 }
@@ -272,7 +347,11 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
 
 pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
     let target = view.selected.and_then(|surface| match surface {
-        SurfaceId::Object(id) if park.object(id).is_some_and(|o| o.kind == ObjectKind::Path) => {
+        SurfaceId::Object(id)
+            if park
+                .object(id)
+                .is_some_and(|o| matches!(o.kind, ObjectKind::Path | ObjectKind::RideEntrance)) =>
+        {
             world::surface_center(park, surface, view.rotation)
                 .filter(|point| {
                     world::pick_surface(*point, park, view.rotation, view.view_mode)
@@ -290,12 +369,18 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
 }
 
 fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
-    if park
+    let Some(object) = park
         .object(id)
-        .is_none_or(|object| object.kind != ObjectKind::Path)
-    {
+        .copied()
+        .filter(|object| matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance))
+    else {
         return;
-    }
+    };
+    let name = if object.kind == ObjectKind::RideEntrance {
+        "Entrance"
+    } else {
+        "Path"
+    };
     park.remove_object(id);
     if view.selected == Some(SurfaceId::Object(id)) {
         view.selected = None;
@@ -304,7 +389,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
     view.path_tool.clear_pointer();
     view.scene_dirty = true;
     view.path_notice = Some(format!(
-        "Path #{} removed. Guest routes will be recalculated.",
+        "{name} #{} removed. Connections will be recalculated.",
         id.0
     ));
 }

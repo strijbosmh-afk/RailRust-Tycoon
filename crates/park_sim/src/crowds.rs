@@ -80,9 +80,9 @@ impl Guest {
     ) -> GuestPosition {
         let anchor = self.anchor_path();
         let current = current
-            .filter(|path| path.kind == ObjectKind::Path)
+            .filter(|path| path.is_public_path())
             .unwrap_or(&anchor);
-        let next = next.filter(|path| paths_connect(current, path));
+        let next = next.filter(|path| path.is_public_path() && paths_connect(current, path));
         let from = current.path_center().expect("current or anchor is a path");
         let to = next.and_then(SurfaceObject::path_center).unwrap_or(from);
         let point = if let Some(next) = next {
@@ -129,6 +129,7 @@ impl Guest {
             kind: ObjectKind::Path,
             axis: self.anchor_slope.axis(),
             path_slope: self.anchor_slope,
+            queue_owner: None,
             height: self.height,
             clearance: self.anchor_slope.clearance(),
         }
@@ -223,13 +224,13 @@ impl Park {
         if let Some(graph) = &self.path_cache.graph {
             return graph.edges.get(&id).cloned().unwrap_or_default();
         }
-        let Some(path) = self.object(id).filter(|path| path.kind == ObjectKind::Path) else {
+        let Some(path) = self.object(id).filter(|path| path.is_public_path()) else {
             return Vec::new();
         };
         let mut neighbors: Vec<_> = self
             .objects
             .iter()
-            .filter(|other| paths_connect(path, other))
+            .filter(|other| other.is_public_path() && paths_connect(path, other))
             .map(|other| other.id)
             .collect();
         neighbors.sort_unstable();
@@ -253,7 +254,7 @@ impl Park {
                 .objects
                 .iter()
                 .filter(|path| {
-                    path.kind == ObjectKind::Path
+                    path.is_public_path()
                         && path.height == FIXTURE_HEIGHT
                         && fixture_positions.iter().any(|(pos, _)| *pos == path.pos)
                 })
@@ -302,7 +303,7 @@ impl Park {
         for (pos, axis) in fixture_paths() {
             if !candidate.objects.iter().any(|path| {
                 path.pos == pos
-                    && path.kind == ObjectKind::Path
+                    && path.is_public_path()
                     && path.height == FIXTURE_HEIGHT
                     && path.clearance == 2
             }) {
@@ -384,7 +385,7 @@ impl PathGraph {
     pub(crate) fn new(objects: &[SurfaceObject]) -> Self {
         let nodes: BTreeMap<_, _> = objects
             .iter()
-            .filter(|object| object.kind == ObjectKind::Path)
+            .filter(|object| object.is_public_path())
             .map(|object| (object.id, *object))
             .collect();
         // Placement/save validation prevents duplicate walking ends at the
@@ -555,7 +556,7 @@ mod tests {
     fn all_pairs_graph(objects: &[SurfaceObject]) -> PathGraph {
         let nodes: BTreeMap<_, _> = objects
             .iter()
-            .filter(|object| object.kind == ObjectKind::Path)
+            .filter(|object| object.is_public_path())
             .map(|object| (object.id, *object))
             .collect();
         let edges = nodes
