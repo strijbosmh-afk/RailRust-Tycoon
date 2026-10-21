@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 1;
-const CONTENT_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
+const CONTENT_VERSION: u32 = 2;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,27 +67,29 @@ fn json_error(error: serde_json::Error) -> SaveError {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct SaveEnvelope {
+#[serde(bound(deserialize = "P: Deserialize<'de>"))]
+struct SaveEnvelope<P = ParkData> {
     format: String,
     schema_version: u32,
     content_version: u32,
     #[serde(deserialize_with = "strict_object")]
-    park: ParkData,
+    park: P,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ParkData {
+#[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>"))]
+struct ParkData<O = SurfaceObject, G = Guest> {
     width: u32,
     height: u32,
     #[serde(deserialize_with = "bounded_objects::<_, _, MAX_TILES>")]
     tiles: Vec<Tile>,
     ticks: u64,
     #[serde(deserialize_with = "bounded_objects::<_, _, MAX_OBJECTS>")]
-    objects: Vec<SurfaceObject>,
+    objects: Vec<O>,
     next_object_id: u64,
     #[serde(deserialize_with = "bounded_objects::<_, _, MAX_GUESTS>")]
-    guests: Vec<Guest>,
+    guests: Vec<G>,
     next_guest_id: u64,
     #[serde(deserialize_with = "required_option")]
     crowd_seed: Option<u64>,
@@ -246,19 +248,118 @@ impl Park {
     /// Limits are checked before parsing arrays or doing geometry/graph work.
     pub fn from_save_bytes(bytes: &[u8]) -> Result<Self, SaveError> {
         check_bytes(bytes.len())?;
-        let mut deserializer = serde_json::Deserializer::from_slice(bytes);
-        let envelope: SaveEnvelope = strict_object(&mut deserializer).map_err(json_error)?;
-        deserializer.end().map_err(json_error)?;
-        if envelope.format != FORMAT {
+        // Read only the envelope first. IgnoredAny does not allocate the park
+        // graph; each version is then decoded through its own strict, bounded DTO.
+        let header: SaveEnvelope<de::IgnoredAny> = parse_save(bytes)?;
+        if header.format != FORMAT {
             return Err(invalid("unrecognized save format"));
         }
-        if envelope.schema_version != SCHEMA_VERSION {
-            return Err(SaveError::UnsupportedSchema(envelope.schema_version));
+        if !matches!(header.schema_version, 1 | SCHEMA_VERSION) {
+            return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
-        if envelope.content_version != CONTENT_VERSION {
-            return Err(SaveError::UnsupportedContent(envelope.content_version));
+        if header.content_version != header.schema_version {
+            return Err(SaveError::UnsupportedContent(header.content_version));
         }
-        envelope.park.into_park()
+        if header.schema_version == 1 {
+            let legacy: SaveEnvelope<ParkData<LegacyObject, LegacyGuest>> = parse_save(bytes)?;
+            legacy.park.migrate().into_park()
+        } else {
+            let envelope: SaveEnvelope = parse_save(bytes)?;
+            envelope.park.into_park()
+        }
+    }
+}
+
+fn parse_save<T: de::DeserializeOwned>(bytes: &[u8]) -> Result<T, SaveError> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let value = strict_object(&mut deserializer).map_err(json_error)?;
+    deserializer.end().map_err(json_error)?;
+    Ok(value)
+}
+
+/// Version one has no slope fields. Reject those fields instead of accepting
+/// version-two state disguised as an older save. Migration adds only Flat.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyObject {
+    id: ObjectId,
+    #[serde(deserialize_with = "strict_object")]
+    pos: crate::TilePos,
+    #[serde(deserialize_with = "string_enum")]
+    kind: ObjectKind,
+    #[serde(deserialize_with = "string_enum")]
+    axis: crate::Axis,
+    height: u8,
+    clearance: u8,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyGuest {
+    id: crate::GuestId,
+    #[serde(deserialize_with = "required_option")]
+    current: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    next: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    destination: Option<ObjectId>,
+    #[serde(deserialize_with = "strict_object")]
+    anchor: crate::TilePos,
+    height: u8,
+    progress: u16,
+    #[serde(deserialize_with = "string_enum")]
+    state: GuestState,
+    arrivals: u64,
+    #[serde(deserialize_with = "bounded_route")]
+    route: VecDeque<ObjectId>,
+    wait_ticks: u16,
+}
+
+impl ParkData<LegacyObject, LegacyGuest> {
+    fn migrate(self) -> ParkData {
+        ParkData {
+            width: self.width,
+            height: self.height,
+            tiles: self.tiles,
+            ticks: self.ticks,
+            objects: self
+                .objects
+                .into_iter()
+                .map(|object| SurfaceObject {
+                    id: object.id,
+                    pos: object.pos,
+                    kind: object.kind,
+                    axis: object.axis,
+                    height: object.height,
+                    clearance: object.clearance,
+                    path_slope: crate::PathSlope::Flat,
+                })
+                .collect(),
+            guests: self
+                .guests
+                .into_iter()
+                .map(|guest| Guest {
+                    id: guest.id,
+                    current: guest.current,
+                    next: guest.next,
+                    destination: guest.destination,
+                    anchor: guest.anchor,
+                    height: guest.height,
+                    progress: guest.progress,
+                    state: guest.state,
+                    arrivals: guest.arrivals,
+                    route: guest.route,
+                    wait_ticks: guest.wait_ticks,
+                    anchor_slope: crate::PathSlope::Flat,
+                })
+                .collect(),
+            next_object_id: self.next_object_id,
+            next_guest_id: self.next_guest_id,
+            crowd_seed: self.crowd_seed,
+            crowd_rng: self.crowd_rng,
+            circuit: self.circuit,
+            train: self.train,
+        }
     }
 }
 
@@ -388,6 +489,15 @@ fn validate_objects(park: &Park) -> Result<BTreeMap<ObjectId, &SurfaceObject>, S
         if object.clearance == 0 || top > u16::from(MAX_TERRAIN_HEIGHT) {
             return Err(invalid("object has an invalid height or clearance"));
         }
+        if object.path_slope != crate::PathSlope::Flat
+            && (object.kind != ObjectKind::Path
+                || object.clearance != crate::SLOPED_PATH_CLEARANCE
+                || object.axis != object.path_slope.axis())
+        {
+            return Err(invalid(
+                "sloped paths require a matching axis, one step and three-step clearance",
+            ));
+        }
         if !crate::surfaces::terrain_allows(
             object.kind,
             object.height,
@@ -437,6 +547,8 @@ fn validate_guests(
         }
         if park.tile(guest.anchor).is_none()
             || guest.height >= MAX_TERRAIN_HEIGHT
+            || (guest.anchor_slope != crate::PathSlope::Flat
+                && guest.height > crate::MAX_SLOPED_PATH_HEIGHT)
             || guest.progress >= WALK_TICKS
             || guest.wait_ticks > 30
         {
@@ -446,12 +558,15 @@ fn validate_guests(
             objects
                 .get(&id)
                 .copied()
-                .filter(|object| object.kind == ObjectKind::Path && object.height == guest.height)
-                .ok_or_else(|| invalid("guest references a missing path or a different height"))
+                .filter(|object| object.kind == ObjectKind::Path)
+                .ok_or_else(|| invalid("guest references a missing path"))
         };
         if let Some(current) = guest.current {
             let current_path = path(current)?;
-            if current_path.pos != guest.anchor {
+            if current_path.pos != guest.anchor
+                || current_path.height != guest.height
+                || current_path.path_slope != guest.anchor_slope
+            {
                 return Err(invalid("guest anchor does not match its current path"));
             }
         } else if guest.state != GuestState::Lost {
@@ -476,11 +591,7 @@ fn validate_guests(
                 let mut last = next;
                 for id in std::iter::once(next).chain(guest.route.iter().copied()) {
                     let following = path(id)?;
-                    if !visited.insert(id)
-                        || previous.pos.x.abs_diff(following.pos.x)
-                            + previous.pos.y.abs_diff(following.pos.y)
-                            != 1
-                    {
+                    if !visited.insert(id) || !crate::paths_connect(previous, following) {
                         return Err(invalid("guest route loops or crosses disconnected paths"));
                     }
                     previous = following;
@@ -671,6 +782,21 @@ mod tests {
         Park::from_save_bytes(&serde_json::to_vec(value).unwrap())
     }
 
+    fn legacy_value(park: &Park) -> Value {
+        let mut data = value(park);
+        data["schema_version"] = json!(1);
+        data["content_version"] = json!(1);
+        for object in data["park"]["objects"].as_array_mut().unwrap() {
+            assert_eq!(object["path_slope"], json!("Flat"));
+            object.as_object_mut().unwrap().remove("path_slope");
+        }
+        for guest in data["park"]["guests"].as_array_mut().unwrap() {
+            assert_eq!(guest["anchor_slope"], json!("Flat"));
+            guest.as_object_mut().unwrap().remove("anchor_slope");
+        }
+        data
+    }
+
     fn assert_continuation(mut original: Park, ticks: u32) {
         let bytes = original.to_save_bytes().unwrap();
         let mut loaded = Park::from_save_bytes(&bytes).unwrap();
@@ -697,6 +823,142 @@ mod tests {
             park.set_terrain_height(TilePos { x: 0, y: 0 }, 32).unwrap();
             assert_continuation(park, 8);
         }
+    }
+
+    #[test]
+    fn legacy_flat_migration_preserves_live_lost_faulted_and_empty_continuation() {
+        let mut live = fixture();
+        advance(&mut live, 47);
+        assert!(
+            live.guests
+                .iter()
+                .any(|guest| guest.state == GuestState::Walking && guest.progress > 0)
+        );
+        live.set_train_open(false);
+        // Vector order is authoritative and need not follow stable ID order.
+        live.objects.reverse();
+        let mut lost = live.clone();
+        let current = lost.guests[0].current.unwrap();
+        lost.remove_object(current).unwrap();
+        assert_eq!(lost.guests[0].current, None);
+        let track = lost.circuit().unwrap().pieces[4].object;
+        lost.remove_object(track).unwrap();
+        assert_eq!(lost.train().unwrap().phase, TrainPhase::Fault);
+        for mut original in [Park::new(2, 3), fixture(), live, lost] {
+            let old_data = legacy_value(&original);
+            let old_bytes = serde_json::to_vec(&old_data).unwrap();
+            let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
+            assert_eq!(migrated, original);
+            let modern = value(&migrated);
+            assert_eq!(modern["schema_version"], json!(2));
+            assert_eq!(modern["content_version"], json!(2));
+            assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
+            for index in 0..600 {
+                let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
+                original.advance(speed);
+                migrated.advance(speed);
+                assert_eq!(migrated, original);
+            }
+            assert_eq!(
+                migrated.to_save_bytes().unwrap(),
+                original.to_save_bytes().unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn schema_versions_are_strict_pairs_and_slope_fields_are_required_only_in_v2() {
+        let park = fixture();
+        let legacy = legacy_value(&park);
+        let modern = value(&park);
+        for (schema, content) in [(0, 0), (3, 3), (1, 2), (2, 1), (2, 0), (1, 9)] {
+            let mut altered = modern.clone();
+            altered["schema_version"] = json!(schema);
+            altered["content_version"] = json!(content);
+            assert!(
+                decode(&altered).is_err(),
+                "accepted versions {schema}/{content}"
+            );
+        }
+        for (path, field) in [
+            ("/park/objects/0", "path_slope"),
+            ("/park/guests/0", "anchor_slope"),
+        ] {
+            let mut old_with_new_field = legacy.clone();
+            old_with_new_field.pointer_mut(path).unwrap()[field] = json!("Flat");
+            assert!(decode(&old_with_new_field).is_err());
+            let mut missing = modern.clone();
+            missing
+                .pointer_mut(path)
+                .unwrap()
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(decode(&missing).is_err());
+            for malformed in [
+                json!(null),
+                json!("Northeast"),
+                json!({"Flat":null}),
+                json!(2),
+            ] {
+                let mut altered = modern.clone();
+                altered.pointer_mut(path).unwrap()[field] = malformed;
+                assert!(decode(&altered).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn v2_rejects_invalid_slope_shape_track_anchor_and_route_endpoints() {
+        let mut park = Park::new(4, 4);
+        let low = park.place_path(TilePos { x: 0, y: 1 }, 4).unwrap();
+        let slope = park
+            .place_sloped_path(TilePos { x: 1, y: 1 }, 4, crate::PathSlope::East)
+            .unwrap();
+        let high = park.place_path(TilePos { x: 2, y: 1 }, 5).unwrap();
+        park.crowd_seed = Some(1);
+        park.crowd_rng = 1;
+        park.next_guest_id = 2;
+        park.guests.push(Guest {
+            id: crate::GuestId(1),
+            current: Some(low),
+            next: Some(slope),
+            destination: Some(high),
+            anchor: TilePos { x: 0, y: 1 },
+            height: 4,
+            anchor_slope: crate::PathSlope::Flat,
+            progress: 7,
+            state: GuestState::Walking,
+            arrivals: 0,
+            route: VecDeque::from([high]),
+            wait_ticks: 0,
+        });
+        let baseline = value(&park);
+        for (path, replacement) in [
+            ("/park/objects/1/kind", json!("Track")),
+            ("/park/objects/1/clearance", json!(2)),
+            ("/park/objects/1/clearance", json!(4)),
+            ("/park/objects/1/axis", json!("Y")),
+            ("/park/objects/1/height", json!(30)),
+            ("/park/objects/2/height", json!(4)),
+            ("/park/guests/0/anchor_slope", json!("East")),
+        ] {
+            let mut altered = baseline.clone();
+            *altered.pointer_mut(path).unwrap() = replacement;
+            assert!(decode(&altered).is_err(), "accepted {path}");
+        }
+        let mut side = baseline;
+        side["park"]["objects"][1]["path_slope"] = json!("North");
+        side["park"]["objects"][1]["axis"] = json!("Y");
+        assert!(
+            decode(&side).is_err(),
+            "wrong-side routes must fail even with valid slope shape"
+        );
+        park.remove_object(low).unwrap();
+        let mut lost = value(&park);
+        lost["park"]["guests"][0]["anchor_slope"] = json!("East");
+        lost["park"]["guests"][0]["height"] = json!(30);
+        assert!(decode(&lost).is_err());
     }
 
     #[test]
@@ -810,8 +1072,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":1",
-            "\"schema_version\":1,\"schema_version\":1",
+            "\"schema_version\":2",
+            "\"schema_version\":2,\"schema_version\":2",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
@@ -819,7 +1081,7 @@ mod tests {
         let too_big_integer = text.replacen("\"ticks\":0", "\"ticks\":18446744073709551616", 1);
         assert!(Park::from_save_bytes(too_big_integer.as_bytes()).is_err());
         for (field, replacement, expected) in [
-            ("schema_version", json!(2), SaveError::UnsupportedSchema(2)),
+            ("schema_version", json!(3), SaveError::UnsupportedSchema(3)),
             (
                 "content_version",
                 json!(9),

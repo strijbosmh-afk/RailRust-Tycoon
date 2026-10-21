@@ -20,7 +20,7 @@ pub fn scene_bounds(park: &Park) -> Option<Rect> {
     let highest = park
         .guests()
         .iter()
-        .map(|guest| guest.height)
+        .map(|guest| guest.height + u8::from(guest.anchor_slope != PathSlope::Flat))
         .fold(park.max_surface_height(), u8::max);
     // The arch extends 36 units sideways and 67 upwards; the tallest tree
     // reaches 73.125 upwards. Guest markers and train cars fit below 80.

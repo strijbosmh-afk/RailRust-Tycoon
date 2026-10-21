@@ -1,7 +1,10 @@
 //! Transient construction controls. Only successful edits enter the Park/save.
 
 use bevy::prelude::*;
-use park_sim::{MAX_PATH_HEIGHT, ObjectId, ObjectKind, Park, PlacementError, SurfaceId, TilePos};
+use park_sim::{
+    MAX_PATH_HEIGHT, MAX_SLOPED_PATH_HEIGHT, ObjectId, ObjectKind, Park, PathSlope, PlacementError,
+    SurfaceId, TilePos,
+};
 
 use crate::terrain_tools::{self, TerrainPreview};
 use crate::{ViewState, world};
@@ -20,6 +23,7 @@ pub(super) enum PathTool {
 pub(super) struct PathPreview {
     pub pos: TilePos,
     pub height: u8,
+    pub slope: PathSlope,
     pub valid: bool,
     pub demolish: bool,
 }
@@ -28,6 +32,7 @@ pub(super) struct PathPreview {
 pub(super) struct ToolState {
     pub mode: PathTool,
     pub height: u8,
+    pub slope: PathSlope,
     pub preview: Option<PathPreview>,
     pub terrain_preview: Option<TerrainPreview>,
     pub hint: String,
@@ -38,6 +43,7 @@ impl Default for ToolState {
         Self {
             mode: PathTool::Inspect,
             height: 8,
+            slope: PathSlope::Flat,
             preview: None,
             terrain_preview: None,
             hint: "Choose Path to build.\nDemolish removes paths only.".into(),
@@ -52,9 +58,29 @@ impl ToolState {
     }
 
     pub fn adjust_height(&mut self, delta: i8) {
-        self.height =
-            (i16::from(self.height) + i16::from(delta)).clamp(0, i16::from(MAX_PATH_HEIGHT)) as u8;
+        self.height = (i16::from(self.height) + i16::from(delta))
+            .clamp(0, i16::from(self.max_height())) as u8;
         self.clear_pointer();
+    }
+
+    pub fn max_height(&self) -> u8 {
+        if self.slope == PathSlope::Flat {
+            MAX_PATH_HEIGHT
+        } else {
+            MAX_SLOPED_PATH_HEIGHT
+        }
+    }
+
+    pub fn cycle_shape(&mut self) {
+        self.slope = match self.slope {
+            PathSlope::Flat => PathSlope::North,
+            PathSlope::North => PathSlope::East,
+            PathSlope::East => PathSlope::South,
+            PathSlope::South => PathSlope::West,
+            PathSlope::West => PathSlope::Flat,
+        };
+        self.height = self.height.min(self.max_height());
+        self.set_mode(PathTool::Build);
     }
 
     pub fn clear_pointer(&mut self) {
@@ -72,6 +98,16 @@ impl ToolState {
             }
         }
         .into();
+    }
+}
+
+pub(super) fn shape_name(slope: PathSlope) -> &'static str {
+    match slope {
+        PathSlope::Flat => "Level path",
+        PathSlope::North => "Rise north",
+        PathSlope::East => "Rise east",
+        PathSlope::South => "Rise south",
+        PathSlope::West => "Rise west",
     }
 }
 
@@ -115,39 +151,69 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         }
         PathTool::Build => {
             let height = view.path_tool.height;
-            let Some(pos) = world::pick_path_plane(point, park, view.rotation, height) else {
+            let slope = view.path_tool.slope;
+            let Some(pos) =
+                world::pick_sloped_path_plane(point, park, view.rotation, height, slope)
+            else {
                 view.path_tool.hint = "Outside the park at this height.".into();
                 if click {
                     view.path_notice = Some("No path placed: outside the park.".into());
                 }
                 return;
             };
-            let validation = park.validate_path(pos, height);
-            let occluded =
-                world::path_plane_occluded(point, park, view.rotation, height, view.view_mode);
-            let reason = validation.err().map(placement_message).or_else(|| {
-                occluded.then(|| "Surface hidden here.\nRotate or use underground view.".into())
-            });
+            let validation = park.validate_sloped_path(pos, height, slope);
+            let occluded = world::sloped_path_plane_occluded(
+                point,
+                park,
+                view.rotation,
+                height,
+                slope,
+                view.view_mode,
+            );
+            let reason = validation
+                .err()
+                .map(|error| {
+                    if matches!(error, PlacementError::HeightOutOfRange { .. })
+                        && slope != PathSlope::Flat
+                    {
+                        format!("Choose a slope low end from 0 to {MAX_SLOPED_PATH_HEIGHT}.")
+                    } else {
+                        placement_message(error)
+                    }
+                })
+                .or_else(|| {
+                    occluded.then(|| "Surface hidden here.\nRotate or use underground view.".into())
+                });
             if !occluded {
                 view.path_tool.preview = Some(PathPreview {
                     pos,
                     height,
+                    slope,
                     valid: reason.is_none(),
                     demolish: false,
                 });
             }
             view.path_tool.hint = reason.clone().unwrap_or_else(|| {
-                format!(
-                    "Tile {}, {} / height {height}\nClick to place path.",
-                    pos.x + 1,
-                    pos.y + 1
-                )
+                if slope == PathSlope::Flat {
+                    format!(
+                        "Tile {}, {} / height {height}\nClick to place path.",
+                        pos.x + 1,
+                        pos.y + 1
+                    )
+                } else {
+                    format!(
+                        "{} / {} -> {}\nClick to place one ramp.",
+                        shape_name(slope),
+                        height,
+                        height.saturating_add(1)
+                    )
+                }
             });
             if click {
                 if let Some(reason) = reason {
                     view.path_notice = Some(format!("No path placed: {reason}"));
                 } else {
-                    match park.place_path(pos, height) {
+                    match park.place_sloped_path(pos, height, slope) {
                         Ok(id) => {
                             view.selected = Some(SurfaceId::Object(id));
                             view.hovered = view.selected;
@@ -180,6 +246,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 view.path_tool.preview = Some(PathPreview {
                     pos: object.pos,
                     height: object.height,
+                    slope: object.path_slope,
                     valid: true,
                     demolish: true,
                 });

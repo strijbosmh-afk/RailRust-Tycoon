@@ -3,14 +3,16 @@ use super::{
     Simulation, ViewState, world::ViewMode,
 };
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
-use park_sim::{ObjectKind, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase};
+use park_sim::{
+    ObjectKind, PathSlope, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase,
+};
 
 use crate::path_tools::PathTool;
 
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_RIGHT: f32 = RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
-pub(super) const PATH_PANEL_HEIGHT: f32 = 322.0;
+pub(super) const PATH_PANEL_HEIGHT: f32 = 358.0;
 
 const INK: Color = Color::srgb_u8(30, 62, 53);
 const MUTED: Color = Color::srgb_u8(91, 109, 95);
@@ -40,6 +42,7 @@ pub(super) enum Action {
     LoadBackup,
     SetPathTool(PathTool),
     PathHeight(i8),
+    CyclePathShape,
     Help,
     CloseHelp,
 }
@@ -61,6 +64,7 @@ pub(super) enum Label {
     SaveStatus,
     ParkInfo,
     PathHeight,
+    PathShape,
     PathHint,
     PathResult,
 }
@@ -120,6 +124,7 @@ fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: 
             Action::Terrain => dynamic_label(p, text, 13.0, INK, Label::Terrain),
             Action::Underground => dynamic_label(p, text, 13.0, INK, Label::Underground),
             Action::ToggleTrain => dynamic_label(p, text, 13.0, INK, Label::TrainToggle),
+            Action::CyclePathShape => dynamic_label(p, text, 13.0, INK, Label::PathShape),
             _ => label(p, text, 13.0, INK),
         });
 }
@@ -338,6 +343,7 @@ pub(super) fn setup(mut commands: Commands) {
                     100.0,
                 );
             });
+            button(p, "Level path [C]", Action::CyclePathShape, 207.0);
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
                 button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
@@ -456,7 +462,8 @@ pub(super) fn setup(mut commands: Commands) {
                 );
                 for (keys, purpose) in [
                     ("Left click", "Inspect / edit one tile"),
-                    ("P / X", "Build level paths / demolish paths"),
+                    ("P / X", "Build paths / demolish paths"),
+                    ("C / shape button", "Cycle level / uphill N, E, S, W"),
                     ("B / V", "Raise / lower dry land one step"),
                     ("PgUp / PgDn", "Raise / lower path build height"),
                     ("Right / middle drag", "Pan around the park"),
@@ -525,6 +532,7 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
                     | Action::LoadBackup
                     | Action::SetPathTool(_)
                     | Action::PathHeight(_)
+                    | Action::CyclePathShape
             )
         {
             continue;
@@ -552,6 +560,7 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             Action::LoadBackup => view.request_save(SaveAction::Backup),
             Action::SetPathTool(mode) => view.set_path_tool(*mode),
             Action::PathHeight(delta) => view.adjust_path_height(*delta),
+            Action::CyclePathShape => view.cycle_path_shape(),
             Action::Help => view.help = !view.help,
             Action::CloseHelp => view.help = false,
         }
@@ -638,6 +647,16 @@ pub(super) fn refresh(
                                 object.pos.y + 1,
                                 low / park_sim::TRACK_UNITS,
                                 high / park_sim::TRACK_UNITS,
+                            );
+                        }
+                        if object.kind == ObjectKind::Path && object.path_slope != PathSlope::Flat {
+                            return format!(
+                                "Tile {}, {}\n{} / height {} -> {}\nEnds connect; sides closed.",
+                                object.pos.x + 1,
+                                object.pos.y + 1,
+                                crate::path_tools::shape_name(object.path_slope),
+                                object.height,
+                                object.height + 1
                             );
                         }
                         format!(
@@ -760,7 +779,21 @@ pub(super) fn refresh(
             }
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
-            Label::PathHeight => format!("Path height: {}", view.path_tool.height),
+            Label::PathShape => format!(
+                "{} [C]",
+                crate::path_tools::shape_name(view.path_tool.slope)
+            ),
+            Label::PathHeight => {
+                if view.path_tool.slope == PathSlope::Flat {
+                    format!("Path height: {}", view.path_tool.height)
+                } else {
+                    format!(
+                        "Low end: {} / high end: {}",
+                        view.path_tool.height,
+                        view.path_tool.height + 1
+                    )
+                }
+            }
             Label::PathHint if view.diagnostic_case.is_some() => {
                 "Read-only render preview.\nBuild tools are disabled.".into()
             }
@@ -787,8 +820,10 @@ pub(super) fn refresh(
             Action::SetPathTool(mode) => view.path_tool.mode == *mode,
             _ => false,
         };
-        let tool_disabled = matches!(action, Action::SetPathTool(_) | Action::PathHeight(_))
-            && (view.capture_active || view.diagnostic_case.is_some());
+        let tool_disabled = matches!(
+            action,
+            Action::SetPathTool(_) | Action::PathHeight(_) | Action::CyclePathShape
+        ) && (view.capture_active || view.diagnostic_case.is_some());
         let color = if tool_disabled {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {

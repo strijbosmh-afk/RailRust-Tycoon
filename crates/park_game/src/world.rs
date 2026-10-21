@@ -4,7 +4,9 @@ use bevy::{
     asset::RenderAssetUsages, color::ColorToComponents, mesh::Indices, prelude::*,
     render::render_resource::PrimitiveTopology,
 };
-use park_sim::{Axis, GuestState, ObjectKind, Park, SurfaceId, SurfaceObject, Terrain, TilePos};
+use park_sim::{
+    Axis, GuestState, ObjectKind, Park, PathSlope, SurfaceId, SurfaceObject, Terrain, TilePos,
+};
 
 mod guest_render;
 mod layout;
@@ -15,7 +17,9 @@ mod train_render;
 
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};
-pub use path_preview::{path_plane_occluded, path_preview_mesh, pick_path_plane};
+pub use path_preview::{
+    path_build_center, path_preview_mesh, pick_sloped_path_plane, sloped_path_plane_occluded,
+};
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
 
@@ -312,11 +316,51 @@ fn object_visible(park: &Park, object: &SurfaceObject, mode: ViewMode) -> bool {
 }
 
 fn object_top(object: &SurfaceObject) -> f32 {
-    f32::from(object.height)
-        + match object.kind {
-            ObjectKind::Path => PATH_TOP_OFFSET,
-            ObjectKind::Track => 0.12,
+    object_base_at(object, Vec2::ZERO)
+        + if object.kind == ObjectKind::Path {
+            PATH_TOP_OFFSET
+        } else {
+            0.12
         }
+}
+
+fn slope_direction(slope: PathSlope) -> Vec2 {
+    match slope {
+        PathSlope::Flat => Vec2::ZERO,
+        PathSlope::North => -Vec2::Y,
+        PathSlope::East => Vec2::X,
+        PathSlope::South => Vec2::Y,
+        PathSlope::West => -Vec2::X,
+    }
+}
+
+fn object_axis(object: &SurfaceObject) -> Axis {
+    if object.kind == ObjectKind::Path {
+        match object.path_slope {
+            PathSlope::North | PathSlope::South => return Axis::Y,
+            PathSlope::East | PathSlope::West => return Axis::X,
+            PathSlope::Flat => {}
+        }
+    }
+    object.axis
+}
+
+fn object_base_at(object: &SurfaceObject, offset: Vec2) -> f32 {
+    f32::from(object.height)
+        + if object.kind == ObjectKind::Path && object.path_slope != PathSlope::Flat {
+            0.5 + slope_direction(object.path_slope).dot(offset)
+        } else {
+            0.0
+        }
+}
+
+fn rotated_offset(offset: Vec2, rotation: u8) -> Vec2 {
+    match rotation % 4 {
+        0 => offset,
+        1 => Vec2::new(-offset.y, offset.x),
+        2 => -offset,
+        _ => Vec2::new(offset.y, -offset.x),
+    }
 }
 
 fn object_point(
@@ -328,7 +372,7 @@ fn object_point(
     rotation: u8,
 ) -> Vec2 {
     let (x, y) = rotate(object.pos, size, rotation);
-    let (dx, dy) = match object.axis {
+    let (dx, dy) = match object_axis(object) {
         Axis::X => (along, across),
         Axis::Y => (across, along),
     };
@@ -337,6 +381,11 @@ fn object_point(
         1 => (-dy, dx),
         2 => (-dx, -dy),
         _ => (dy, -dx),
+    };
+    let height = if object.kind == ObjectKind::Path {
+        object_base_at(object, Vec2::new(dx, dy)) + PATH_TOP_OFFSET
+    } else {
+        height
     };
     project(x as f32 + du, y as f32 + dv, height, size).truncate()
 }
@@ -348,17 +397,24 @@ fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
         ObjectKind::Path => 0.34,
         ObjectKind::Track => 0.31,
     };
-    let (half_x, half_y) = match object.axis {
+    let (half_x, half_y) = match object_axis(object) {
         Axis::X => (0.5, across),
         Axis::Y => (across, 0.5),
     };
     let (mut min_x, mut max_x, mut min_y, mut max_y) = (-half_x, half_x, -half_y, half_y);
-    if object.kind == ObjectKind::Path {
-        for neighbor in park
-            .path_neighbors(object.id)
-            .into_iter()
-            .filter_map(|id| park.object(id))
-        {
+    if object.kind == ObjectKind::Path && object.path_slope == PathSlope::Flat {
+        let neighbors = if object.id.0 == 0 {
+            // A transient preview has no allocated identity. Match the same
+            // endpoint rule as the cached graph without mutating the park.
+            park.objects()
+                .iter()
+                .filter(|other| park_sim::paths_connect(object, other))
+                .map(|other| other.id)
+                .collect::<Vec<_>>()
+        } else {
+            park.path_neighbors(object.id)
+        };
+        for neighbor in neighbors.iter().filter_map(|id| park.object(*id)) {
             if neighbor.pos.x < object.pos.x {
                 min_x = -0.5;
             } else if neighbor.pos.x > object.pos.x {
@@ -373,7 +429,7 @@ fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     (min_x, max_x, min_y, max_y)
 }
 
-/// A horizontal deck and its two front faces. Detail strokes are clipped to
+/// A level or sloped deck and its two front faces. Detail strokes are clipped to
 /// the top, so rendering, picking, and outlines share the connected footprint.
 fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surface; 3] {
     let size = park.width();
@@ -386,14 +442,26 @@ fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surfac
         2 => (-max_x, -min_x, -max_y, -min_y),
         _ => (min_y, max_y, -max_x, -min_x),
     };
-    let height = object_top(object);
-    let bottom = f32::from(object.height);
+    let at = |du: f32, dv: f32, top: bool| {
+        let offset = rotated_offset(Vec2::new(du, dv), (4 - rotation % 4) % 4);
+        let height = object_base_at(object, offset)
+            + if top {
+                if object.kind == ObjectKind::Path {
+                    PATH_TOP_OFFSET
+                } else {
+                    0.12
+                }
+            } else {
+                0.0
+            };
+        project(u + du, v + dv, height, size)
+    };
     let top = Surface {
         vertices: [
-            project(u + min_u, v + min_v, height, size),
-            project(u + min_u, v + max_v, height, size),
-            project(u + max_u, v + max_v, height, size),
-            project(u + max_u, v + min_v, height, size),
+            at(min_u, min_v, true),
+            at(min_u, max_v, true),
+            at(max_u, max_v, true),
+            at(max_u, min_v, true),
         ],
         kind: SurfaceKind::Top,
     };
@@ -403,8 +471,8 @@ fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surfac
             vertices: [
                 top.vertices[1],
                 top.vertices[2],
-                project(u + max_u, v + max_v, bottom, size),
-                project(u + min_u, v + max_v, bottom, size),
+                at(max_u, max_v, false),
+                at(min_u, max_v, false),
             ],
             kind: SurfaceKind::LeftCliff,
         },
@@ -412,8 +480,8 @@ fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surfac
             vertices: [
                 top.vertices[2],
                 top.vertices[3],
-                project(u + max_u, v + min_v, bottom, size),
-                project(u + max_u, v + max_v, bottom, size),
+                at(max_u, min_v, false),
+                at(max_u, max_v, false),
             ],
             kind: SurfaceKind::RightCliff,
         },
@@ -496,7 +564,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         match object.kind {
             ObjectKind::Path => {
                 let (min_x, max_x, min_y, max_y) = object_bounds(park, object);
-                let (min_across, max_across) = match object.axis {
+                let (min_across, max_across) = match object_axis(object) {
                     Axis::X => (min_y, max_y),
                     Axis::Y => (min_x, max_x),
                 };
@@ -943,19 +1011,26 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
 
 fn guest_anchor(park: &Park, id: park_sim::GuestId, rotation: u8) -> Option<Vec3> {
     let position = park.guest_position(id)?;
-    let (from_u, from_v) = rotate(position.from, park.width(), rotation);
-    let (to_u, to_v) = rotate(position.to, park.width(), rotation);
-    let fraction = f32::from(position.progress) / f32::from(position.steps.max(1));
-    let u = from_u as f32 + (to_u as f32 - from_u as f32) * fraction;
-    let v = from_v as f32 + (to_v as f32 - from_v as f32) * fraction;
-    // Path tops are shallow decks within their two-step clearance interval.
-    // The guest's base follows that visible roof, not the terrain underneath.
-    Some(project(
-        u,
-        v,
-        f32::from(position.height) + 0.22,
-        park.width(),
-    ))
+    Some(project_path_point(position.point, park.width(), rotation))
+}
+
+fn project_path_point(point: park_sim::PathPoint, size: u32, rotation: u8) -> Vec3 {
+    let units = park_sim::PATH_UNITS;
+    let last = (size as i32 - 1) * units;
+    // Rotate while still integral, then convert once. Cached and oracle guests
+    // share exact depth even when a path rises halfway through a walking edge.
+    let (u, v) = match rotation % 4 {
+        0 => (point.x, point.y),
+        1 => (last - point.y, point.x),
+        2 => (last - point.x, last - point.y),
+        _ => (point.y, last - point.x),
+    };
+    project(
+        u as f32 / units as f32,
+        v as f32 / units as f32,
+        point.height as f32 / units as f32 + PATH_TOP_OFFSET,
+        size,
+    )
 }
 
 fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {

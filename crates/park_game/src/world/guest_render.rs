@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use bevy::mesh::VertexAttributeValues;
-use park_sim::{Guest, ObjectId, WALK_TICKS};
+use park_sim::{ObjectId, WALK_TICKS};
 
 use super::*;
 
@@ -138,9 +138,11 @@ impl GuestRenderer {
                         continue;
                     }
                     let next = guest.next.and_then(|id| self.deck(id));
-                    let from = current.map_or(guest.anchor, |deck| deck.object.pos);
-                    let to = next.map_or(from, |deck| deck.object.pos);
-                    let base = anchor(guest, from, to, park.width(), rotation);
+                    let position = guest.position(
+                        current.as_ref().map(|deck| &deck.object),
+                        next.as_ref().map(|deck| &deck.object),
+                    );
+                    let base = project_path_point(position.point, park.width(), rotation);
                     for deck in [current, next].into_iter().flatten() {
                         writer.shadow(deck.roof, base.truncate(), &self.shadow, self.shadow_color);
                     }
@@ -229,18 +231,6 @@ fn visible(park: &Park, object: SurfaceObject, mode: ViewMode) -> bool {
         || park.tile(object.pos).is_none_or(|tile| {
             u16::from(object.height) + u16::from(object.clearance) > u16::from(tile.height)
         })
-}
-
-fn anchor(guest: &Guest, from: TilePos, to: TilePos, size: u32, rotation: u8) -> Vec3 {
-    let (from_u, from_v) = rotate(from, size, rotation);
-    let (to_u, to_v) = rotate(to, size, rotation);
-    let fraction = f32::from(guest.progress) / f32::from(WALK_TICKS);
-    project(
-        from_u as f32 + (to_u as f32 - from_u as f32) * fraction,
-        from_v as f32 + (to_v as f32 - from_v as f32) * fraction,
-        f32::from(guest.height) + 0.22,
-        size,
-    )
 }
 
 struct Writer<'a> {
@@ -429,6 +419,150 @@ mod tests {
         park.apply_terrain_profile(TerrainProfile::Terraced);
         park.install_crowd_fixture(42).unwrap();
         park
+    }
+
+    fn with_guest(park: &Park, current: ObjectId, next: Option<ObjectId>, progress: u16) -> Park {
+        let object = park.object(current).unwrap();
+        let mut encoded: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        encoded["park"]["guests"] = serde_json::json!([{
+            "id": 1,
+            "current": current,
+            "next": next,
+            "destination": next,
+            "anchor": object.pos,
+            "height": object.height,
+            "anchor_slope": object.path_slope,
+            "progress": progress,
+            "state": if next.is_some() { GuestState::Walking } else { GuestState::Waiting },
+            "arrivals": 0,
+            "route": [],
+            "wait_ticks": 0
+        }]);
+        encoded["park"]["next_guest_id"] = 2.into();
+        encoded["park"]["crowd_seed"] = 42.into();
+        encoded["park"]["crowd_rng"] = 42.into();
+        Park::from_save_bytes(&serde_json::to_vec(&encoded).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn slope_walks_follow_each_half_edge_and_cached_geometry_matches_every_phase() {
+        for slope in [
+            PathSlope::North,
+            PathSlope::East,
+            PathSlope::South,
+            PathSlope::West,
+        ] {
+            let mut network = Park::new(32, 32);
+            let pos = TilePos { x: 10, y: 10 };
+            let direction = slope.direction().unwrap();
+            let low = network
+                .place_path(direction.opposite().neighbor(pos).unwrap(), 8)
+                .unwrap();
+            let ramp = network.place_sloped_path(pos, 8, slope).unwrap();
+            let high = network
+                .place_path(direction.neighbor(pos).unwrap(), 9)
+                .unwrap();
+            let mut renderer = GuestRenderer::default();
+            let mut mesh = GuestRenderer::empty_mesh();
+            for rotation in 0..4 {
+                for (from, to, start, crossing, end) in [
+                    (low, ramp, 8.0, 8.0, 8.5),
+                    (ramp, high, 8.5, 9.0, 9.0),
+                    (high, ramp, 9.0, 9.0, 8.5),
+                    (ramp, low, 8.5, 8.0, 8.0),
+                ] {
+                    for progress in 0..WALK_TICKS {
+                        let park = with_guest(&network, from, Some(to), progress);
+                        let guest = &park.guests()[0];
+                        let position = park.guest_position(guest.id).unwrap();
+                        let (a, b, time) = if progress <= WALK_TICKS / 2 {
+                            (start, crossing, progress)
+                        } else {
+                            (crossing, end, progress - WALK_TICKS / 2)
+                        };
+                        let expected = a + (b - a) * f32::from(time) / f32::from(WALK_TICKS / 2);
+                        assert!(
+                            (position.point.height as f32 / park_sim::PATH_UNITS as f32 - expected)
+                                .abs()
+                                < 0.0001
+                        );
+                        let base = guest_anchor(&park, guest.id, rotation).unwrap();
+                        let support = if progress <= WALK_TICKS / 2 { from } else { to };
+                        let roof =
+                            object_surfaces(&park, park.object(support).unwrap(), rotation)[0];
+                        assert!(
+                            (roof.hit_depth(base.truncate()).unwrap() - base.z).abs() < 0.0001,
+                            "feet left the piecewise physical ramp"
+                        );
+                        for mode in [ViewMode::Surface, ViewMode::Underground] {
+                            renderer.update(&mut mesh, &park, rotation, mode);
+                            equivalent(&mesh, &guest_mesh(&park, rotation, mode));
+                        }
+                    }
+                }
+                let waiting = with_guest(&network, ramp, None, 0);
+                renderer.update(&mut mesh, &waiting, rotation, ViewMode::Surface);
+                equivalent(&mesh, &guest_mesh(&waiting, rotation, ViewMode::Surface));
+                assert_eq!(
+                    waiting
+                        .guest_position(waiting.guests()[0].id)
+                        .unwrap()
+                        .point
+                        .height,
+                    8 * 60 + 30
+                );
+            }
+            assert_eq!(
+                renderer.stats().deck_rebuilds,
+                4,
+                "walking phases must reuse cached decks"
+            );
+            assert_eq!(
+                renderer.stats().template_builds,
+                (APPEARANCES * POSES) as u64
+            );
+        }
+    }
+
+    #[test]
+    fn same_tick_slope_loads_rebuild_decks_and_removed_ramps_keep_lost_center_height() {
+        let pos = TilePos { x: 10, y: 10 };
+        let mut first = Park::new(32, 32);
+        let original = first.place_sloped_path(pos, 8, PathSlope::East).unwrap();
+        let first = with_guest(&first, original, None, 0);
+        let mut second = Park::new(32, 32);
+        let replacement = second.place_sloped_path(pos, 8, PathSlope::North).unwrap();
+        let second = with_guest(&second, replacement, None, 0);
+        assert_eq!(original, replacement);
+        assert_eq!(first.ticks(), second.ticks());
+        let mut renderer = GuestRenderer::default();
+        let mut mesh = GuestRenderer::empty_mesh();
+        renderer.update(&mut mesh, &first, 0, ViewMode::Surface);
+        let before = positions(&mesh).to_vec();
+        renderer.update(&mut mesh, &second, 0, ViewMode::Surface);
+        assert_eq!(renderer.stats().deck_rebuilds, 2);
+        assert_ne!(
+            positions(&mesh),
+            before,
+            "sloped shadow must be rebuilt after same-ID load"
+        );
+        equivalent(&mesh, &guest_mesh(&second, 0, ViewMode::Surface));
+        let mut lost = second.clone();
+        lost.remove_object(replacement).unwrap();
+        assert_eq!(lost.guests()[0].state, GuestState::Lost);
+        assert_eq!(
+            lost.guest_position(lost.guests()[0].id)
+                .unwrap()
+                .point
+                .height,
+            8 * 60 + 30
+        );
+        for rotation in 0..4 {
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                renderer.update(&mut mesh, &lost, rotation, mode);
+                equivalent(&mesh, &guest_mesh(&lost, rotation, mode));
+            }
+        }
     }
 
     #[test]

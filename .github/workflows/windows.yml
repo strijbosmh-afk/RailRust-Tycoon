@@ -51,6 +51,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-terrain --save-dir $terrainDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process terrain continuation failed" }
           Get-Content -LiteralPath (Join-Path $terrainDirectory "verification-terrain.txt")
+      - name: Verify sloped paths across fresh processes
+        shell: pwsh
+        run: |
+          $slopeDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound slope proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-slopes --save-dir $slopeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Sloped path proof writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-slopes --save-dir $slopeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process slope continuation failed" }
+          Get-Content -LiteralPath (Join-Path $slopeDirectory "verification-slopes.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -120,6 +120,7 @@ pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixtur
                 destination: None,
                 anchor: path.pos,
                 height: path.height,
+                anchor_slope: path.path_slope,
                 progress: 0,
                 state: GuestState::Waiting,
                 arrivals: 0,

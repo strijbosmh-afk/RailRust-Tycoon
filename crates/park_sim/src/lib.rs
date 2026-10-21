@@ -5,12 +5,19 @@
 
 mod crowds;
 pub mod diagnostics;
+mod path_geometry;
 mod saves;
+#[cfg(test)]
+mod slope_tests;
 mod surfaces;
 mod trains;
 
 pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
+};
+pub use path_geometry::{
+    MAX_SLOPED_PATH_HEIGHT, PATH_UNITS, PathDirection, PathPoint, PathSlope, SLOPED_PATH_CLEARANCE,
+    paths_connect,
 };
 pub use saves::{MAX_SAVE_BYTES, SaveError};
 pub use surfaces::{

@@ -1,6 +1,6 @@
 //! Stable identities and shared occupied-space rules for the overlap proof.
 
-use crate::{MAX_TERRAIN_HEIGHT, Park, TerrainHeightError, TilePos};
+use crate::{MAX_TERRAIN_HEIGHT, Park, PathSlope, TerrainHeightError, TilePos};
 
 /// Reserved height above the deck of a player-built level path.
 pub const PATH_CLEARANCE: u8 = 2;
@@ -43,6 +43,8 @@ pub struct SurfaceObject {
     pub kind: ObjectKind,
     #[serde(deserialize_with = "crate::saves::string_enum")]
     pub axis: Axis,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
+    pub path_slope: PathSlope,
     pub height: u8,
     pub clearance: u8,
 }
@@ -148,7 +150,7 @@ impl Park {
         let object_height = self
             .objects
             .iter()
-            .map(|object| object.height)
+            .map(|object| object.height + u8::from(object.path_slope != PathSlope::Flat))
             .fold(self.max_terrain_height(), u8::max);
         self.circuit
             .as_ref()
@@ -177,27 +179,56 @@ impl Park {
     /// Preview the exact player path placement without changing authoritative
     /// state, allocating an identity, or warming/invalidating connectivity.
     pub fn validate_path(&self, pos: TilePos, height: u8) -> Result<(), PlacementError> {
-        self.validate_path_placement(pos, height).map(|_| ())
+        self.validate_sloped_path(pos, height, PathSlope::Flat)
     }
 
     /// Place one level path with the same rules used by its read-only preview.
     /// Player construction stays within the save format's path/object limits;
     /// generic fixture construction intentionally retains its existing limits.
     pub fn place_path(&mut self, pos: TilePos, height: u8) -> Result<ObjectId, PlacementError> {
-        let next_id = self.validate_path_placement(pos, height)?;
-        Ok(self.insert_validated_object(
-            pos,
-            ObjectKind::Path,
-            Axis::X,
-            height,
-            PATH_CLEARANCE,
-            next_id,
-        ))
+        self.place_sloped_path(pos, height, PathSlope::Flat)
     }
 
-    fn validate_path_placement(&self, pos: TilePos, height: u8) -> Result<u64, PlacementError> {
+    pub fn validate_sloped_path(
+        &self,
+        pos: TilePos,
+        height: u8,
+        slope: PathSlope,
+    ) -> Result<(), PlacementError> {
+        self.validate_path_placement(pos, height, slope).map(|_| ())
+    }
+
+    /// The lower edge is `height`; slopes reserve the complete column up to high edge +2.
+    pub fn place_sloped_path(
+        &mut self,
+        pos: TilePos,
+        height: u8,
+        slope: PathSlope,
+    ) -> Result<ObjectId, PlacementError> {
+        let next_id = self.validate_path_placement(pos, height, slope)?;
+        let id = self.insert_validated_object(
+            pos,
+            ObjectKind::Path,
+            slope.axis(),
+            height,
+            slope.clearance(),
+            next_id,
+        );
+        self.objects
+            .last_mut()
+            .expect("just inserted path")
+            .path_slope = slope;
+        Ok(id)
+    }
+
+    fn validate_path_placement(
+        &self,
+        pos: TilePos,
+        height: u8,
+        slope: PathSlope,
+    ) -> Result<u64, PlacementError> {
         let next_id =
-            self.validate_object_placement(pos, ObjectKind::Path, height, PATH_CLEARANCE)?;
+            self.validate_object_placement(pos, ObjectKind::Path, height, slope.clearance())?;
         if self.objects.len() >= crate::saves::MAX_OBJECTS {
             return Err(PlacementError::CapacityExceeded {
                 resource: "objects",
@@ -276,6 +307,7 @@ impl Park {
             pos,
             kind,
             axis,
+            path_slope: PathSlope::Flat,
             height,
             clearance,
         });
@@ -494,6 +526,7 @@ mod tests {
             destination: None,
             anchor: TilePos { x: 1, y: 1 },
             height: 0,
+            anchor_slope: PathSlope::Flat,
             progress: 0,
             state: GuestState::Waiting,
             arrivals: 0,
