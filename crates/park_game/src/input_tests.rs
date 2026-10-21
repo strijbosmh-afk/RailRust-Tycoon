@@ -1366,6 +1366,48 @@ fn simultaneous_keyboard_and_button_load_requests_never_save_over_their_source()
 }
 
 #[test]
+fn rapid_released_backup_chords_keep_the_modifier_and_do_not_latch_it_for_later_loads() {
+    for (shift, held_before_update) in [
+        (KeyCode::ShiftLeft, false),
+        (KeyCode::ShiftRight, false),
+        (KeyCode::ShiftLeft, true),
+        (KeyCode::ShiftRight, true),
+    ] {
+        let directory = InputSaveDirectory::new();
+        let (backup, primary, live) = persistence_parks();
+        directory.store().save(&backup).unwrap();
+        directory.store().save(&primary).unwrap();
+        let files = saved_file_pair(&directory.store());
+        let (mut app, _) = persistence_input_app(&directory, live, ViewState::default());
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(shift);
+        if held_before_update {
+            frame(&mut app);
+        }
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::F9);
+            keys.release(KeyCode::F9);
+            keys.release(shift);
+        }
+        frame(&mut app);
+        assert_eq!(app.world().resource::<Simulation>().0, backup);
+        assert!(
+            app.world()
+                .resource::<ViewState>()
+                .save_notice
+                .starts_with("Backup loaded")
+        );
+        assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
+        // The modifier is an update-local edge, not a sticky backup mode.
+        persistence_key_frame(&mut app, &[KeyCode::F9]);
+        assert_eq!(app.world().resource::<Simulation>().0, primary);
+        assert_eq!(saved_file_pair(&directory.store()), files);
+    }
+}
+
+#[test]
 fn help_and_capture_gate_all_persistence_inputs_without_deferred_actions() {
     for (help, capture_active) in [(true, false), (false, true)] {
         let directory = InputSaveDirectory::new();

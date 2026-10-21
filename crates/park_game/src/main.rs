@@ -485,7 +485,12 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
         view.request_save(SaveAction::Save);
     }
     if keys.just_pressed(KeyCode::F9) {
-        let backup = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+        // Native events can press and release the entire chord before the
+        // next update, including Shift held since an earlier update. Preserve
+        // this update's modifier edges as well as held Shift.
+        let backup = [KeyCode::ShiftLeft, KeyCode::ShiftRight]
+            .into_iter()
+            .any(|key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key));
         view.request_save(if backup {
             SaveAction::Backup
         } else {
