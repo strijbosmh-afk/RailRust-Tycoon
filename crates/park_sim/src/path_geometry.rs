@@ -7,7 +7,9 @@ pub const PATH_UNITS: i32 = 60;
 pub const SLOPED_PATH_CLEARANCE: u8 = 3;
 pub const MAX_SLOPED_PATH_HEIGHT: u8 = crate::MAX_TERRAIN_HEIGHT - SLOPED_PATH_CLEARANCE;
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(
+    Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+)]
 pub enum PathDirection {
     North,
     East,
@@ -92,6 +94,10 @@ pub struct PathPoint {
 }
 
 impl SurfaceObject {
+    /// Public navigation deliberately excludes queues until admission exists.
+    pub fn is_public_path(&self) -> bool {
+        self.kind == ObjectKind::Path && self.queue_owner.is_none()
+    }
     /// Only an enabled walking edge has a height. Slopes have two opposite ends.
     pub fn path_edge_height(&self, edge: PathDirection) -> Option<u8> {
         if self.kind != ObjectKind::Path {

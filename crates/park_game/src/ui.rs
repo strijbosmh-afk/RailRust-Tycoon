@@ -4,7 +4,8 @@ use super::{
 };
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{
-    ObjectKind, PathSlope, Speed, SurfaceId, Terrain, TerrainProfile, TrackKind, TrainPhase,
+    ObjectKind, PathDirection, PathSlope, RideAccessStatus, Speed, SurfaceId, Terrain,
+    TerrainProfile, TrackKind, TrainPhase,
 };
 
 use crate::path_tools::PathTool;
@@ -61,6 +62,7 @@ pub(super) enum Label {
     Crowd,
     Train,
     TrainToggle,
+    RideAccess,
     SaveStatus,
     ParkInfo,
     PathHeight,
@@ -323,12 +325,20 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Inspect", Action::SetPathTool(PathTool::Inspect), 100.0);
                 button(p, "Path [P]", Action::SetPathTool(PathTool::Build), 100.0);
             });
-            button(
-                p,
-                "Demolish [X]",
-                Action::SetPathTool(PathTool::Demolish),
-                207.0,
-            );
+            p.spawn(row()).with_children(|p| {
+                button(
+                    p,
+                    "Queue [J]",
+                    Action::SetPathTool(PathTool::BuildQueue),
+                    100.0,
+                );
+                button(
+                    p,
+                    "Demolish [X]",
+                    Action::SetPathTool(PathTool::Demolish),
+                    100.0,
+                );
+            });
             p.spawn(row()).with_children(|p| {
                 button(
                     p,
@@ -350,7 +360,7 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "+ [PgUp]", Action::PathHeight(1), 100.0);
             });
             for (initial, kind, color) in [
-                ("Choose a path or terrain tool.", Label::PathHint, INK),
+                ("Choose a build tool.", Label::PathHint, INK),
                 ("Last: no build changes yet.", Label::PathResult, MUTED),
             ] {
                 p.spawn(Node {
@@ -389,13 +399,15 @@ pub(super) fn setup(mut commands: Commands) {
         .with_children(|p| {
             label(p, "Meadow Flyer", 18.0, INK);
             dynamic_label(p, "Waiting at station", 11.0, MUTED, Label::Train);
+            dynamic_label(p, "Queue: no entrance", 11.0, INK, Label::RideAccess);
             p.spawn(Node {
                 flex_grow: 1.0,
                 ..default()
             });
             p.spawn(row()).with_children(|p| {
-                button(p, "Close [O]", Action::ToggleTrain, 100.0);
-                button(p, "Find [F]", Action::FocusTrain, 100.0);
+                button(p, "Close", Action::ToggleTrain, 64.0);
+                button(p, "Find [F]", Action::FocusTrain, 64.0);
+                button(p, "Gate [I]", Action::SetPathTool(PathTool::Entrance), 64.0);
             });
         });
 
@@ -419,7 +431,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "P: path  X: demolish  B/V: terrain  Esc: inspect  H: help",
+                "P/J: paths  I: gate  X: demolish  B/V: land  H: help",
                 11.0,
                 MUTED,
             );
@@ -462,8 +474,8 @@ pub(super) fn setup(mut commands: Commands) {
                 );
                 for (keys, purpose) in [
                     ("Left click", "Inspect / edit one tile"),
-                    ("P / X", "Build paths / demolish paths"),
-                    ("C / shape button", "Cycle level / uphill N, E, S, W"),
+                    ("P / J / I / X", "Public path / queue / gate / demolish"),
+                    ("C / shape button", "Cycle slope / gate faces station"),
                     ("B / V", "Raise / lower dry land one step"),
                     ("PgUp / PgDn", "Raise / lower path build height"),
                     ("Right / middle drag", "Pan around the park"),
@@ -474,7 +486,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
                     ("U", "Show / hide underground view"),
-                    ("Delete", "Remove the selected path"),
+                    ("Delete", "Remove the selected path or gate"),
                     ("R", "Restore the demonstration paths"),
                     ("O / F", "Open or close ride / find circuit"),
                     ("F5 / F9", "Save / load park"),
@@ -580,6 +592,7 @@ pub(super) fn refresh(
         Terrain::Sand => "Sandy shore",
     };
     let directions = ["NE", "SE", "SW", "NW"];
+    let access = sim.0.ride().map(|ride| sim.0.ride_access(ride.id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
             Label::ParkInfo => format!(
@@ -607,7 +620,12 @@ pub(super) fn refresh(
                 }
                 Some(SurfaceId::Object(id)) => {
                     sim.0.object(id).map_or("Pick a surface".into(), |object| {
-                        format!("{} #{}", object_name(object.kind), id.0)
+                        let name = if object.queue_owner.is_some() {
+                            "Queue path"
+                        } else {
+                            object_name(object.kind)
+                        };
+                        format!("{name} #{}", id.0)
                     })
                 }
                 _ => "Pick a surface".into(),
@@ -635,6 +653,33 @@ pub(super) fn refresh(
                         } else {
                             "At / above ground"
                         };
+                        if let Some(owner) = object.queue_owner {
+                            let status = access
+                                .as_ref()
+                                .map_or("Ride unavailable", |access| access_reason(access.status));
+                            return format!(
+                                "Tile {}, {} / Ride #{}\n{} / low {}\n{status}\nGuest admission comes later.",
+                                object.pos.x + 1,
+                                object.pos.y + 1,
+                                owner.0,
+                                crate::path_tools::shape_name(object.path_slope),
+                                object.height,
+                            );
+                        }
+                        if object.kind == ObjectKind::RideEntrance {
+                            return sim.0.ride().and_then(|ride| {
+                                let entrance = ride.entrance.as_ref()?;
+                                (entrance.object == id).then(|| format!(
+                                    "Tile {}, {} / Ride #{}\nHeight: {} / faces {}\n{}\nGuest admission comes later.",
+                                    object.pos.x + 1,
+                                    object.pos.y + 1,
+                                    ride.id.0,
+                                    object.height,
+                                    direction_name(entrance.facing),
+                                    access.as_ref().map_or("Ride unavailable", |access| access_reason(access.status)),
+                                ))
+                            }).unwrap_or_else(|| "Entrance metadata unavailable".into());
+                        }
                         if let Some(piece) = sim.0.circuit().and_then(|circuit| {
                             circuit.pieces.iter().find(|piece| piece.object == id)
                         }) {
@@ -668,7 +713,7 @@ pub(super) fn refresh(
                         )
                     })
                 }
-                None => "Click land, a path or track\nto inspect its height.".into(),
+                None => "Click land, a path, gate or track\nto inspect its height.".into(),
             },
             Label::ViewInfo => format!(
                 "View {} / Zoom {:.0}%",
@@ -680,8 +725,14 @@ pub(super) fn refresh(
                 "Path tool / height {} / click to place",
                 view.path_tool.height
             ),
+            Label::Status if view.path_tool.mode == PathTool::BuildQueue => {
+                "Build a blue queue. Details in Build Tools.".into()
+            }
+            Label::Status if view.path_tool.mode == PathTool::Entrance => {
+                "Place a gate facing the station. C changes direction.".into()
+            }
             Label::Status if view.path_tool.mode == PathTool::Demolish => {
-                "Demolish tool / click a visible path".into()
+                "Demolish tool / click a visible path or gate".into()
             }
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
                 "Raise terrain / click dry land / +1 step".into()
@@ -768,23 +819,36 @@ pub(super) fn refresh(
                     let speed = train.speed as f32 * park_sim::TICKS_PER_SECOND as f32
                         / park_sim::TRACK_UNITS as f32;
                     format!(
-                        "{operation}\n{phase} / {speed:.2} tiles/s\nLaps: {} / 3 cars",
+                        "{operation} / {phase}\n{speed:.2} tiles/s / Laps: {} / 3 cars",
                         train.laps
                     )
                 }),
+            Label::RideAccess => access.as_ref().map_or("Queue: no ride".into(), |access| {
+                if access.status == RideAccessStatus::Ready {
+                    format!("{} queue tiles linked / no boarding", access.queue_tiles)
+                } else {
+                    format!("Queue: {}", access_reason(access.status))
+                }
+            }),
             Label::TrainToggle => if sim.0.train().is_some_and(|train| train.open) {
-                "Close [O]"
+                "Close"
             } else {
-                "Open [O]"
+                "Open"
             }
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
+            Label::PathShape if view.path_tool.mode == PathTool::Entrance => format!(
+                "Face {} [C]",
+                direction_name(view.path_tool.entrance_facing),
+            ),
             Label::PathShape => format!(
                 "{} [C]",
                 crate::path_tools::shape_name(view.path_tool.slope)
             ),
             Label::PathHeight => {
-                if view.path_tool.slope == PathSlope::Flat {
+                if view.path_tool.mode == PathTool::Entrance {
+                    format!("Entrance height: {}", view.path_tool.height)
+                } else if view.path_tool.slope == PathSlope::Flat {
                     format!("Path height: {}", view.path_tool.height)
                 } else {
                     format!(
@@ -864,5 +928,32 @@ fn object_name(kind: ObjectKind) -> &'static str {
     match kind {
         ObjectKind::Path => "Path",
         ObjectKind::Track => "Track",
+        ObjectKind::RideEntrance => "Ride entrance",
+    }
+}
+
+fn direction_name(direction: PathDirection) -> &'static str {
+    match direction {
+        PathDirection::North => "north",
+        PathDirection::East => "east",
+        PathDirection::South => "south",
+        PathDirection::West => "west",
+    }
+}
+
+fn access_reason(status: RideAccessStatus) -> &'static str {
+    match status {
+        RideAccessStatus::Ready => "Linked / no boarding yet",
+        RideAccessStatus::RideUnavailable => "ride unavailable",
+        RideAccessStatus::NoEntrance => "place an entrance",
+        RideAccessStatus::StationDisconnected => "gate needs a station",
+        RideAccessStatus::NoQueue => "connect blue paths",
+        RideAccessStatus::Disconnected => "disconnected tiles",
+        RideAccessStatus::Branch => "branch not allowed",
+        RideAccessStatus::Loop => "loop not allowed",
+        RideAccessStatus::NoPublicEntry => "no public entry",
+        RideAccessStatus::MultiplePublicEntries => "multiple public entries",
+        RideAccessStatus::PublicEntryNotAtEnd => "entry must be at the end",
+        RideAccessStatus::ForeignQueue => "mixed ride owners",
     }
 }

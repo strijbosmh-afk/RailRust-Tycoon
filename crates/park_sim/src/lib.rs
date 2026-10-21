@@ -6,6 +6,9 @@
 mod crowds;
 pub mod diagnostics;
 mod path_geometry;
+mod ride_access;
+#[cfg(test)]
+mod ride_access_tests;
 mod saves;
 #[cfg(test)]
 mod slope_tests;
@@ -19,6 +22,7 @@ pub use path_geometry::{
     MAX_SLOPED_PATH_HEIGHT, PATH_UNITS, PathDirection, PathPoint, PathSlope, SLOPED_PATH_CLEARANCE,
     paths_connect,
 };
+pub use ride_access::{Ride, RideAccess, RideAccessError, RideAccessStatus, RideEntrance, RideId};
 pub use saves::{MAX_SAVE_BYTES, SaveError};
 pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,
@@ -138,6 +142,8 @@ pub struct Park {
     crowd_rng: u64,
     circuit: Option<TrainCircuit>,
     train: Option<Train>,
+    ride: Option<Ride>,
+    next_ride_id: u64,
     path_cache: crowds::PathCache,
 }
 
@@ -158,6 +164,8 @@ impl PartialEq for Park {
             && self.crowd_rng == other.crowd_rng
             && self.circuit == other.circuit
             && self.train == other.train
+            && self.ride == other.ride
+            && self.next_ride_id == other.next_ride_id
     }
 }
 
@@ -199,6 +207,8 @@ impl Park {
             crowd_rng: 0,
             circuit: None,
             train: None,
+            ride: None,
+            next_ride_id: 1,
             path_cache: crowds::PathCache::default(),
         }
     }

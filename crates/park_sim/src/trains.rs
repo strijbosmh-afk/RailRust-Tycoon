@@ -368,6 +368,17 @@ impl Park {
             station_stop,
         };
         let restoring = candidate.train.is_some();
+        if candidate.ride.is_none() {
+            let next = candidate
+                .next_ride_id
+                .checked_add(1)
+                .ok_or(PlacementError::IdExhausted)?;
+            candidate.ride = Some(crate::Ride {
+                id: crate::RideId(candidate.next_ride_id),
+                entrance: None,
+            });
+            candidate.next_ride_id = next;
+        }
         let laps = candidate.train.as_ref().map_or(0, |train| train.laps);
         candidate.train = Some(Train {
             open: !restoring,

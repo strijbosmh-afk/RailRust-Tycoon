@@ -8,6 +8,7 @@ use park_sim::{
     Axis, GuestState, ObjectKind, Park, PathSlope, SurfaceId, SurfaceObject, Terrain, TilePos,
 };
 
+mod entrance_render;
 mod guest_render;
 mod layout;
 mod path_preview;
@@ -72,6 +73,15 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
         SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
         SurfaceId::Object(id) => {
             let object = park.object(id)?;
+            if object.kind == ObjectKind::RideEntrance {
+                let facing = entrance_render::facing(park, id)?;
+                return Some(entrance_render::center(
+                    object,
+                    facing,
+                    park.width(),
+                    rotation,
+                ));
+            }
             if let Some(piece) = train_render::piece_for(park, id) {
                 return train_render::piece_center(park, piece, rotation);
             }
@@ -317,7 +327,7 @@ fn object_visible(park: &Park, object: &SurfaceObject, mode: ViewMode) -> bool {
 
 fn object_top(object: &SurfaceObject) -> f32 {
     object_base_at(object, Vec2::ZERO)
-        + if object.kind == ObjectKind::Path {
+        + if matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance) {
             PATH_TOP_OFFSET
         } else {
             0.12
@@ -394,7 +404,7 @@ fn object_point(
 /// their axis selects plank orientation, not the legal walking directions.
 fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     let across = match object.kind {
-        ObjectKind::Path => 0.34,
+        ObjectKind::Path | ObjectKind::RideEntrance => 0.34,
         ObjectKind::Track => 0.31,
     };
     let (half_x, half_y) = match object_axis(object) {
@@ -408,11 +418,11 @@ fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
             // endpoint rule as the cached graph without mutating the park.
             park.objects()
                 .iter()
-                .filter(|other| park_sim::paths_connect(object, other))
+                .filter(|other| park.geometric_paths_connect(object, other))
                 .map(|other| other.id)
                 .collect::<Vec<_>>()
         } else {
-            park.path_neighbors(object.id)
+            park.geometric_path_neighbors(object.id)
         };
         for neighbor in neighbors.iter().filter_map(|id| park.object(*id)) {
             if neighbor.pos.x < object.pos.x {
@@ -446,7 +456,7 @@ fn object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> [Surfac
         let offset = rotated_offset(Vec2::new(du, dv), (4 - rotation % 4) % 4);
         let height = object_base_at(object, offset)
             + if top {
-                if object.kind == ObjectKind::Path {
+                if matches!(object.kind, ObjectKind::Path | ObjectKind::RideEntrance) {
                     PATH_TOP_OFFSET
                 } else {
                     0.12
@@ -506,7 +516,14 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
 }
 
 fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> Vec<Surface> {
-    if let Some(piece) = train_render::piece_for(park, object.id) {
+    if object.kind == ObjectKind::RideEntrance {
+        entrance_render::facing(park, object.id)
+            .map(|facing| entrance_render::faces(object, facing, park.width(), rotation))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|face| face.surface)
+            .collect()
+    } else if let Some(piece) = train_render::piece_for(park, object.id) {
         train_render::piece_faces(park, piece, rotation)
             .into_iter()
             .map(|face| face.surface)
@@ -531,6 +548,15 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         if !object_visible(park, object, mode) {
             continue;
         }
+        if object.kind == ObjectKind::RideEntrance {
+            if let Some(facing) = entrance_render::facing(park, object.id) {
+                for face in entrance_render::faces(object, facing, park.width(), rotation) {
+                    mesh.surface(face.surface, face.ink);
+                }
+                mesh.end_group(PaintLayer::Object);
+            }
+            continue;
+        }
         if let Some(piece) = train_render::piece_for(park, object.id) {
             for face in train_render::piece_faces(park, piece, rotation) {
                 mesh.surface(face.surface, face.ink);
@@ -542,12 +568,22 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         let top = surfaces[0];
         for surface in surfaces {
             let ink = match (object.kind, surface.kind) {
+                (ObjectKind::Path, SurfaceKind::Top) if object.queue_owner.is_some() => {
+                    rgb(78, 145, 181)
+                }
+                (ObjectKind::Path, SurfaceKind::LeftCliff) if object.queue_owner.is_some() => {
+                    rgb(43, 103, 140)
+                }
+                (ObjectKind::Path, SurfaceKind::RightCliff) if object.queue_owner.is_some() => {
+                    rgb(32, 76, 112)
+                }
                 (ObjectKind::Path, SurfaceKind::Top) => rgb(224, 189, 128),
                 (ObjectKind::Path, SurfaceKind::LeftCliff) => rgb(155, 108, 65),
                 (ObjectKind::Path, SurfaceKind::RightCliff) => rgb(116, 76, 47),
                 (ObjectKind::Track, SurfaceKind::Top) => rgb(65, 79, 84),
                 (ObjectKind::Track, SurfaceKind::LeftCliff) => rgb(48, 60, 65),
                 (ObjectKind::Track, SurfaceKind::RightCliff) => rgb(37, 48, 54),
+                (ObjectKind::RideEntrance, _) => unreachable!("entrance faces are handled above"),
             };
             mesh.surface(surface, ink);
         }
@@ -578,7 +614,11 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                         point(along, max_across - 0.02),
                         0.8,
                         DETAIL_BIAS,
-                        rgb(188, 143, 88),
+                        if object.queue_owner.is_some() {
+                            rgb(164, 204, 218)
+                        } else {
+                            rgb(188, 143, 88)
+                        },
                     );
                 }
                 for across in [
@@ -594,10 +634,29 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                         point(0.5, across),
                         1.8,
                         DETAIL_BIAS * 2.0,
-                        rgb(139, 91, 54),
+                        if object.queue_owner.is_some() {
+                            rgb(219, 230, 206)
+                        } else {
+                            rgb(139, 91, 54)
+                        },
                     );
                 }
+                if object.queue_owner.is_some() {
+                    // A broken center stripe distinguishes queues even when
+                    // their blue palette is hard to distinguish from timber.
+                    for along in [-0.30, 0.0, 0.30] {
+                        mesh.surface_line(
+                            top,
+                            point(along - 0.065, 0.0),
+                            point(along + 0.065, 0.0),
+                            1.8,
+                            DETAIL_BIAS * 3.0,
+                            rgb(240, 225, 160),
+                        );
+                    }
+                }
             }
+            ObjectKind::RideEntrance => unreachable!("entrance faces are handled above"),
             ObjectKind::Track => {
                 for along in [-0.4, -0.2, 0.0, 0.2, 0.4] {
                     mesh.surface_line(

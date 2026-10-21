@@ -79,7 +79,24 @@ fn candidate(pos: TilePos, height: u8, slope: PathSlope) -> SurfaceObject {
         height,
         clearance: if slope == PathSlope::Flat { 2 } else { 3 },
         path_slope: slope,
+        queue_owner: None,
     }
+}
+
+fn preview_candidate(preview: &PathPreview) -> SurfaceObject {
+    let mut object = candidate(preview.pos, preview.height, preview.slope);
+    object.queue_owner = preview.queue_owner;
+    if let Some(facing) = preview.entrance_facing {
+        object.kind = ObjectKind::RideEntrance;
+        object.path_slope = PathSlope::Flat;
+        object.clearance = 2;
+        object.axis = match facing {
+            park_sim::PathDirection::North | park_sim::PathDirection::South => Axis::Y,
+            park_sim::PathDirection::East | park_sim::PathDirection::West => Axis::X,
+        };
+        object.queue_owner = None;
+    }
+    object
 }
 
 /// Center of the actual proposed deck, including its half-step slope rise.
@@ -177,16 +194,13 @@ fn preview_surface(preview: &PathPreview, park: &Park, rotation: u8) -> Surface 
                 && object.pos == preview.pos
                 && object.height == preview.height
                 && object.path_slope == preview.slope
+                && object.queue_owner == preview.queue_owner
         })
     {
         return object_surfaces(park, object, rotation)[0];
     }
 
-    object_surfaces(
-        park,
-        &candidate(preview.pos, preview.height, preview.slope),
-        rotation,
-    )[0]
+    object_surfaces(park, &preview_candidate(preview), rotation)[0]
 }
 
 /// Temporary construction feedback. Use a separate alpha-blended material:
@@ -199,6 +213,18 @@ pub fn path_preview_mesh(preview: Option<PathPreview>, park: &Park, rotation: u8
         return painter.finish();
     };
     if park.width() != park.height() || park.tile(preview.pos).is_none() {
+        return painter.finish();
+    }
+    if let Some(facing) = preview.entrance_facing {
+        entrance_render::preview(
+            &mut painter,
+            &preview_candidate(&preview),
+            facing,
+            park.width(),
+            rotation,
+            preview.valid,
+            preview.demolish,
+        );
         return painter.finish();
     }
     let surface = preview_surface(&preview, park, rotation);
@@ -214,7 +240,12 @@ pub fn path_preview_mesh(preview: Option<PathPreview>, park: &Park, rotation: u8
     for vertex in &mut fill.vertices {
         vertex.z += SELECTION_BIAS;
     }
-    painter.surface(fill, ink);
+    let mut fill_ink = ink;
+    if preview.queue_owner.is_some() && preview.valid && !preview.demolish {
+        fill_ink = rgb(65, 153, 211);
+        fill_ink[3] = 0.35;
+    }
+    painter.surface(fill, fill_ink);
     ink[3] = 0.95;
     painter.surface_outline(surface, 1.5, SELECTION_BIAS * 2.0, ink);
     if preview.slope != PathSlope::Flat && preview.valid && !preview.demolish {
@@ -263,6 +294,128 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn queue_decks_keep_exact_public_slope_geometry_with_distinct_original_marks() {
+        for slope in [
+            PathSlope::Flat,
+            PathSlope::North,
+            PathSlope::East,
+            PathSlope::South,
+            PathSlope::West,
+        ] {
+            let mut public = Park::new(32, 32);
+            public.install_train_fixture().unwrap();
+            let mut queue = public.clone();
+            let owner = queue.ride().unwrap().id;
+            let pos = TilePos { x: 15, y: 22 };
+            let path = public.place_sloped_path(pos, 8, slope).unwrap();
+            let queued = queue.place_queue_path(pos, 8, slope, owner).unwrap();
+            for rotation in 0..4 {
+                let public_surfaces =
+                    object_surfaces(&public, public.object(path).unwrap(), rotation);
+                let queue_surfaces =
+                    object_surfaces(&queue, queue.object(queued).unwrap(), rotation);
+                for (a, b) in public_surfaces.into_iter().zip(queue_surfaces) {
+                    assert_eq!(a.vertices, b.vertices);
+                }
+                let preview = PathPreview {
+                    pos,
+                    height: 8,
+                    slope,
+                    queue_owner: Some(owner),
+                    entrance_facing: None,
+                    valid: true,
+                    demolish: false,
+                };
+                assert_eq!(
+                    preview_surface(&preview, &queue, rotation).vertices,
+                    queue_surfaces[0].vertices
+                );
+                let point = surface_center(&queue, SurfaceId::Object(queued), rotation).unwrap();
+                for mode in [ViewMode::Surface, ViewMode::Underground] {
+                    assert_eq!(
+                        pick_surface(point, &queue, rotation, mode),
+                        Some(SurfaceId::Object(queued))
+                    );
+                    let mut painted = Painter::default();
+                    paint_objects(&mut painted, &queue, rotation, mode);
+                    assert!(painted.colors.contains(&rgb(78, 145, 181)));
+                    assert!(painted.colors.contains(&rgb(240, 225, 160)));
+                }
+                let ghost = path_preview_mesh(Some(preview), &queue, rotation);
+                let Some(VertexAttributeValues::Float32x4(colors)) =
+                    ghost.attribute(Mesh::ATTRIBUTE_COLOR)
+                else {
+                    panic!("colors")
+                };
+                let mut blue = rgb(65, 153, 211);
+                blue[3] = 0.35;
+                assert!(colors.contains(&blue));
+            }
+        }
+    }
+
+    #[test]
+    fn queue_preview_joins_the_gate_outer_edge_without_a_public_navigation_edge() {
+        let mut park = Park::new(32, 32);
+        park.install_train_fixture().unwrap();
+        let owner = park.ride().unwrap().id;
+        let station = park
+            .circuit()
+            .unwrap()
+            .pieces
+            .iter()
+            .find(|piece| piece.kind == park_sim::TrackKind::Station)
+            .unwrap()
+            .object;
+        let station = *park.object(station).unwrap();
+        let gate_pos = park_sim::PathDirection::South
+            .neighbor(station.pos)
+            .unwrap();
+        let gate = park
+            .place_ride_entrance(
+                gate_pos,
+                station.height,
+                park_sim::PathDirection::North,
+                owner,
+            )
+            .unwrap();
+        let pos = park_sim::PathDirection::South.neighbor(gate_pos).unwrap();
+        let public_pos = park_sim::PathDirection::South.neighbor(pos).unwrap();
+        let public = park.place_path(public_pos, station.height).unwrap();
+        let preview = PathPreview {
+            pos,
+            height: station.height,
+            slope: PathSlope::Flat,
+            queue_owner: Some(owner),
+            entrance_facing: None,
+            valid: true,
+            demolish: false,
+        };
+        let before = park.clone();
+        let expected: Vec<_> = (0..4)
+            .map(|rotation| preview_surface(&preview, &park, rotation))
+            .collect();
+        assert_eq!(park, before, "preview must remain read-only");
+        let queue = park
+            .place_queue_path(pos, station.height, PathSlope::Flat, owner)
+            .unwrap();
+        assert!(park.path_neighbors(public).is_empty());
+        assert!(park.path_neighbors(queue).is_empty());
+        assert!(park.geometric_path_neighbors(queue).contains(&gate));
+        assert!(park.geometric_path_neighbors(queue).contains(&public));
+        assert_eq!(
+            object_bounds(&park, park.object(queue).unwrap()),
+            (-0.5, 0.5, -0.5, 0.5)
+        );
+        for (rotation, expected) in expected.into_iter().enumerate() {
+            assert_eq!(
+                expected.vertices,
+                object_surfaces(&park, park.object(queue).unwrap(), rotation as u8)[0].vertices
+            );
+        }
+    }
+
     const SLOPES: [PathSlope; 4] = [
         PathSlope::North,
         PathSlope::East,
@@ -287,6 +440,8 @@ mod tests {
                             slope,
                             valid: true,
                             demolish: false,
+                            queue_owner: None,
+                            entrance_facing: None,
                         },
                         &park,
                         rotation,
@@ -338,6 +493,8 @@ mod tests {
                         slope,
                         valid: true,
                         demolish: false,
+                        queue_owner: None,
+                        entrance_facing: None,
                     };
                     let mesh = path_preview_mesh(Some(preview), &park, rotation);
                     let Some(VertexAttributeValues::Float32x3(points)) =
@@ -428,6 +585,8 @@ mod tests {
                         slope: PathSlope::Flat,
                         valid: false,
                         demolish: false,
+                        queue_owner: None,
+                        entrance_facing: None,
                     };
                     assert_eq!(
                         preview_surface(&preview, &park, rotation).vertices,
@@ -614,6 +773,8 @@ mod tests {
             height: 8,
             valid: true,
             demolish: false,
+            queue_owner: None,
+            entrance_facing: None,
             slope: PathSlope::Flat,
         };
         let id = park
