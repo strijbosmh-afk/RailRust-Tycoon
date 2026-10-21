@@ -13,6 +13,7 @@ mod render_scene;
 mod save_check;
 mod save_store;
 mod static_landscape;
+mod terrain_tools;
 mod ui;
 mod world;
 
@@ -437,6 +438,12 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if keys.just_pressed(KeyCode::KeyX) {
         view.set_path_tool(path_tools::PathTool::Demolish);
     }
+    if keys.just_pressed(KeyCode::KeyB) {
+        view.set_path_tool(path_tools::PathTool::RaiseTerrain);
+    }
+    if keys.just_pressed(KeyCode::KeyV) {
+        view.set_path_tool(path_tools::PathTool::LowerTerrain);
+    }
     if keys.just_pressed(KeyCode::PageUp) {
         view.adjust_path_height(1);
     }
@@ -745,6 +752,7 @@ type SelectionSnapshot = (
     u8,
     world::ViewMode,
     Option<path_tools::PathPreview>,
+    Option<terrain_tools::TerrainPreview>,
 );
 
 #[derive(bevy::ecs::system::SystemParam)]
@@ -791,6 +799,7 @@ fn update_scene(
         view.rotation,
         view.view_mode,
         view.path_tool.preview,
+        view.path_tool.terrain_preview,
     );
     if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
@@ -803,7 +812,11 @@ fn update_scene(
             );
         }
         if let Some(mesh) = meshes.get_mut(&scene.path_preview) {
-            *mesh = world::path_preview_mesh(view.path_tool.preview, &sim.0, view.rotation);
+            *mesh = if view.path_tool.terrain_preview.is_some() {
+                world::terrain_preview_mesh(view.path_tool.terrain_preview, &sim.0, view.rotation)
+            } else {
+                world::path_preview_mesh(view.path_tool.preview, &sim.0, view.rotation)
+            };
         }
         *last_selection = Some(selection);
     }

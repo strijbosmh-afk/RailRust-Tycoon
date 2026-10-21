@@ -1,12 +1,12 @@
 //! Opt-in cross-process continuation proof using the production save commands.
-//! `write`/`write-paths` require a new absolute directory. Verification modes
+//! All write modes require a new absolute directory. Verification modes
 //! never replace their saves. The original write/verify scenario stays stable
 //! so older releases can participate in the same cross-version proof.
 
 use std::{ffi::OsString, fs, io::Write, path::Path};
 
 use bevy::app::AppExit;
-use park_sim::{ObjectId, ObjectKind, Park, Speed, TilePos};
+use park_sim::{ObjectId, ObjectKind, Park, Speed, Terrain, TerrainHeightError, TilePos};
 
 use crate::{
     ViewState, demonstration_park,
@@ -27,8 +27,10 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
         let mode = arguments
             .get(index + 1)
             .and_then(|value| value.to_str())
-            .filter(|value| matches!(*value, "write" | "verify" | "write-paths" | "verify-paths"))
-            .ok_or("--save-check requires write, verify, write-paths or verify-paths")?;
+            .filter(|value| matches!(*value,
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain"
+            ))
+            .ok_or("--save-check requires write, verify, write-paths, verify-paths, write-terrain or verify-terrain")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
             return Err("--save-check requires an explicit absolute --save-dir".into());
         }
@@ -110,6 +112,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             }
             "write-paths" => write_paths(&session)?,
             "verify-paths" => verify_paths(&session)?,
+            "write-terrain" => write_terrain(&session)?,
+            "verify-terrain" => verify_terrain(&session)?,
             _ => unreachable!(),
         }
         Ok(())
@@ -277,6 +281,207 @@ fn continue_paths(park: &mut Park) -> Result<(), String> {
     Ok(())
 }
 
+const TERRAIN_GRASS: TilePos = TilePos { x: 3, y: 24 };
+const TERRAIN_SAND: TilePos = TilePos { x: 24, y: 3 };
+const TERRAIN_OVERLAP: TilePos = TilePos { x: 13, y: 16 };
+
+fn write_terrain(session: &SaveSession) -> Result<(), String> {
+    let store = session.store.as_ref().ok_or("invalid --save-dir")?;
+    fs::create_dir(store.directory()).map_err(|error| error.to_string())?;
+    let mut park = demonstration_park();
+    if park.tile(TERRAIN_GRASS).map(|tile| tile.terrain) != Some(Terrain::Grass)
+        || park.tile(TERRAIN_SAND).map(|tile| tile.terrain) != Some(Terrain::Sand)
+    {
+        return Err("terrain proof requires its original grass and sand materials".into());
+    }
+    for _ in 0..731 {
+        park.advance(Speed::Normal);
+    }
+    for (pos, height) in [(TERRAIN_GRASS, 1), (TERRAIN_SAND, 1), (TERRAIN_OVERLAP, 7)] {
+        terrain_step(&mut park, pos, height)?;
+    }
+    for pos in [BRANCH_START, BRANCH_BRIDGE] {
+        park.place_path(pos, PATH_HEIGHT)
+            .map_err(|error| error.to_string())?;
+    }
+    let mut view = ViewState::default();
+    if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Save) {
+        return Err(view.save_notice);
+    }
+    write_new(
+        &store.directory().join("expected-backup.park.json"),
+        &park.to_save_bytes().map_err(|error| error.to_string())?,
+    )?;
+    for (pos, height) in [(TERRAIN_GRASS, 2), (TERRAIN_SAND, 0), (TERRAIN_OVERLAP, 8)] {
+        terrain_step(&mut park, pos, height)?;
+    }
+    reject_terrain_step(&mut park, TERRAIN_OVERLAP, 9)?;
+    let bridge = path_at(&park, BRANCH_BRIDGE).ok_or("terrain proof bridge is missing")?;
+    park.remove_object(bridge)
+        .ok_or("terrain proof bridge demolition failed")?;
+    let alternate = park
+        .place_path(BRANCH_ALTERNATE, PATH_HEIGHT)
+        .map_err(|error| error.to_string())?;
+    if alternate.0 <= bridge.0 {
+        return Err("terrain proof reused a demolished path identity".into());
+    }
+    park.set_train_open(false);
+    validate_terrain_primary(&park)?;
+    if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Save) {
+        return Err(view.save_notice);
+    }
+    write_new(
+        &store.directory().join("expected-primary.park.json"),
+        &park.to_save_bytes().map_err(|error| error.to_string())?,
+    )?;
+    continue_terrain(&mut park)?;
+    write_new(
+        &store.directory().join("expected-after.park.json"),
+        &park.to_save_bytes().map_err(|error| error.to_string())?,
+    )?;
+    println!("Terrain editing continuation proof written.");
+    Ok(())
+}
+
+fn verify_terrain(session: &SaveSession) -> Result<(), String> {
+    let store = session.store.as_ref().ok_or("invalid --save-dir")?;
+    let mut park = demonstration_park();
+    let mut view = ViewState::default();
+    if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Load) {
+        return Err(view.save_notice);
+    }
+    validate_terrain_primary(&park)?;
+    if view.speed != Speed::Paused
+        || !view.terrain_custom
+        || park != read_expected(&store.directory().join("expected-primary.park.json"))?
+    {
+        return Err("edited terrain primary did not load exactly, custom and paused".into());
+    }
+    continue_terrain(&mut park)?;
+    if park != read_expected(&store.directory().join("expected-after.park.json"))? {
+        return Err("terrain continuation differs from uninterrupted state".into());
+    }
+    if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Backup) {
+        return Err(view.save_notice);
+    }
+    if view.speed != Speed::Paused
+        || !view.terrain_custom
+        || park != read_expected(&store.directory().join("expected-backup.park.json"))?
+    {
+        return Err("terrain backup differs from the previous edited save".into());
+    }
+    write_new(
+        &store.directory().join("verification-terrain.txt"),
+        format!(
+            "Parkbound {}\nFresh-process edited terrain primary equality: PASS\nTerrain/path continuation: PASS (3600 ticks + single-step terrain edits and path commands)\nPath and buried-track clearance rejection: PASS\nExplicit edited terrain backup restoration: PASS\nLoad starts paused with custom terrain: PASS\n",
+            env!("CARGO_PKG_VERSION")
+        ).as_bytes(),
+    )?;
+    println!("Fresh-process terrain editing continuation and backup verified.");
+    Ok(())
+}
+
+fn validate_terrain_primary(park: &Park) -> Result<(), String> {
+    let expected_tiles = [
+        (TERRAIN_GRASS, Terrain::Grass, 2),
+        (TERRAIN_SAND, Terrain::Sand, 0),
+        (TERRAIN_OVERLAP, Terrain::Grass, 8),
+    ];
+    if expected_tiles.into_iter().any(|(pos, material, height)| {
+        park.tile(pos)
+            .is_none_or(|tile| tile.terrain != material || tile.height != height)
+    }) || path_at(park, BRANCH_START).is_none()
+        || path_at(park, BRANCH_BRIDGE).is_some()
+        || path_at(park, BRANCH_ALTERNATE).is_none()
+        || park
+            .train()
+            .is_none_or(|train| train.open || train.speed == 0)
+    {
+        return Err(
+            "terrain proof requires edited grass/sand, a demolished bridge and a closing train"
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+fn terrain_step(park: &mut Park, pos: TilePos, height: u8) -> Result<(), String> {
+    let tile = park
+        .tile(pos)
+        .ok_or("terrain proof tile is outside the park")?;
+    if tile.height.abs_diff(height) != 1 || tile.terrain == Terrain::Water {
+        return Err("terrain proof edits must be single steps on grass or sand".into());
+    }
+    park.validate_terrain_height(pos, height)
+        .map_err(|error| error.to_string())?;
+    park.set_terrain_height(pos, height)
+        .map_err(|error| error.to_string())
+}
+
+fn reject_terrain_step(park: &mut Park, pos: TilePos, height: u8) -> Result<(), String> {
+    if park
+        .tile(pos)
+        .is_none_or(|tile| tile.height.abs_diff(height) != 1)
+    {
+        return Err("clearance proof must attempt one terrain step".into());
+    }
+    let before = park.clone();
+    let cache = park.path_cache_stats();
+    let preview = park.validate_terrain_height(pos, height);
+    let committed = park.set_terrain_height(pos, height);
+    if !matches!(preview, Err(TerrainHeightError::ObjectIntersection { .. }))
+        || committed != preview
+        || *park != before
+        || park.path_cache_stats() != cache
+    {
+        return Err("terrain clearance rejection changed state or disagreed with preview".into());
+    }
+    Ok(())
+}
+
+fn continue_terrain(park: &mut Park) -> Result<(), String> {
+    for tick in 0..3_600 {
+        match tick {
+            100 | 160 | 220 | 280 | 340 | 400 => {
+                let height = 7 - ((tick - 100) / 60) as u8;
+                terrain_step(park, TERRAIN_OVERLAP, height)?;
+            }
+            460 => reject_terrain_step(park, TERRAIN_OVERLAP, 1)?,
+            520 | 580 | 640 | 700 | 760 | 820 => {
+                let height = 3 + ((tick - 520) / 60) as u8;
+                terrain_step(park, TERRAIN_OVERLAP, height)?;
+            }
+            880 => reject_terrain_step(park, TERRAIN_OVERLAP, 9)?,
+            150 => terrain_step(park, TERRAIN_GRASS, 3)?,
+            300 => terrain_step(park, TERRAIN_SAND, 1)?,
+            1_200 => terrain_step(park, TERRAIN_GRASS, 2)?,
+            1_500 => terrain_step(park, TERRAIN_SAND, 2)?,
+            240 => {
+                park.place_path(BRANCH_BRIDGE, PATH_HEIGHT)
+                    .map_err(|error| error.to_string())?;
+            }
+            600 => {
+                let alternate =
+                    path_at(park, BRANCH_ALTERNATE).ok_or("terrain proof alternate is missing")?;
+                park.remove_object(alternate)
+                    .ok_or("terrain proof alternate demolition failed")?;
+            }
+            900 => {
+                park.place_path(BRANCH_ALTERNATE, PATH_HEIGHT)
+                    .map_err(|error| error.to_string())?;
+            }
+            1_800 => park.set_train_open(true),
+            3_300 => {
+                terrain_step(park, TERRAIN_GRASS, 1)?;
+                terrain_step(park, TERRAIN_SAND, 1)?;
+            }
+            _ => {}
+        }
+        park.advance(Speed::Normal);
+    }
+    Ok(())
+}
+
 fn continue_park(park: &mut Park) -> Result<(), String> {
     for tick in 0..3_600 {
         if tick == 100 {
@@ -330,8 +535,9 @@ mod tests {
                 fs::canonicalize(std::env::temp_dir()),
             ) && path.parent() == Some(root.as_path())
                 && path.file_name().is_some_and(|name| {
-                    name.to_string_lossy()
-                        .starts_with("Parkbound path proof test ")
+                    let name = name.to_string_lossy();
+                    name.starts_with("Parkbound path proof test ")
+                        || name.starts_with("Parkbound terrain proof test ")
                 })
             {
                 let _ = fs::remove_dir_all(path);
@@ -370,5 +576,47 @@ mod tests {
         assert_eq!(store.load().unwrap(), before);
         assert_eq!(store.load_backup().unwrap(), backup);
         assert!(scratch.0.join("verification-paths.txt").is_file());
+    }
+
+    #[test]
+    fn terrain_modes_verify_real_store_custom_terrain_without_replacing_saved_files() {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "Parkbound terrain proof test é {} {timestamp}",
+            std::process::id()
+        )));
+        let arguments = |mode: &str| {
+            vec![
+                OsString::from("--save-check"),
+                OsString::from(mode),
+                OsString::from("--save-dir"),
+                scratch.0.as_os_str().to_owned(),
+            ]
+        };
+        assert_eq!(
+            run(vec![
+                OsString::from("--save-check"),
+                OsString::from("write-terrain")
+            ]),
+            Some(AppExit::error())
+        );
+        assert!(!scratch.0.exists());
+        assert_eq!(run(arguments("write-terrain")), Some(AppExit::Success));
+        let session = SaveSession::from_arguments(arguments("verify-terrain"));
+        let store = session.store.as_ref().unwrap();
+        let primary = fs::read(store.save_path()).unwrap();
+        let backup = fs::read(store.backup_path()).unwrap();
+        assert_ne!(primary, backup);
+        validate_terrain_primary(&store.load().unwrap()).unwrap();
+        assert_eq!(run(arguments("write-terrain")), Some(AppExit::error()));
+        assert_eq!(fs::read(store.save_path()).unwrap(), primary);
+        assert_eq!(fs::read(store.backup_path()).unwrap(), backup);
+        assert_eq!(run(arguments("verify-terrain")), Some(AppExit::Success));
+        assert_eq!(fs::read(store.save_path()).unwrap(), primary);
+        assert_eq!(fs::read(store.backup_path()).unwrap(), backup);
+        assert!(scratch.0.join("verification-terrain.txt").is_file());
     }
 }

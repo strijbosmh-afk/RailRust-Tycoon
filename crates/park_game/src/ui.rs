@@ -10,7 +10,7 @@ use crate::path_tools::PathTool;
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_RIGHT: f32 = RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
-pub(super) const PATH_PANEL_HEIGHT: f32 = 284.0;
+pub(super) const PATH_PANEL_HEIGHT: f32 = 322.0;
 
 const INK: Color = Color::srgb_u8(30, 62, 53);
 const MUTED: Color = Color::srgb_u8(91, 109, 95);
@@ -313,7 +313,7 @@ pub(super) fn setup(mut commands: Commands) {
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
-            label(p, "PATH TOOLS", 16.0, INK);
+            label(p, "BUILD TOOLS", 16.0, INK);
             p.spawn(row()).with_children(|p| {
                 button(p, "Inspect", Action::SetPathTool(PathTool::Inspect), 100.0);
                 button(p, "Path [P]", Action::SetPathTool(PathTool::Build), 100.0);
@@ -324,14 +324,28 @@ pub(super) fn setup(mut commands: Commands) {
                 Action::SetPathTool(PathTool::Demolish),
                 207.0,
             );
-            dynamic_label(p, "Level path / height 8", 11.0, INK, Label::PathHeight);
+            p.spawn(row()).with_children(|p| {
+                button(
+                    p,
+                    "Raise [B]",
+                    Action::SetPathTool(PathTool::RaiseTerrain),
+                    100.0,
+                );
+                button(
+                    p,
+                    "Lower [V]",
+                    Action::SetPathTool(PathTool::LowerTerrain),
+                    100.0,
+                );
+            });
+            dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
                 button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
                 button(p, "+ [PgUp]", Action::PathHeight(1), 100.0);
             });
             for (initial, kind, color) in [
-                ("Choose Path or Demolish.", Label::PathHint, INK),
-                ("Last: no path changes yet.", Label::PathResult, MUTED),
+                ("Choose a path or terrain tool.", Label::PathHint, INK),
+                ("Last: no build changes yet.", Label::PathResult, MUTED),
             ] {
                 p.spawn(Node {
                     width: percent(100),
@@ -399,7 +413,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "P: path   X: demolish   Esc: inspect   H: help",
+                "P: path  X: demolish  B/V: terrain  Esc: inspect  H: help",
                 11.0,
                 MUTED,
             );
@@ -441,8 +455,9 @@ pub(super) fn setup(mut commands: Commands) {
                     MUTED,
                 );
                 for (keys, purpose) in [
-                    ("Left click", "Inspect / place / remove one path"),
+                    ("Left click", "Inspect / edit one tile"),
                     ("P / X", "Build level paths / demolish paths"),
+                    ("B / V", "Raise / lower dry land one step"),
                     ("PgUp / PgDn", "Raise / lower path build height"),
                     ("Right / middle drag", "Pan around the park"),
                     ("WASD / arrow keys", "Pan with the keyboard"),
@@ -649,8 +664,14 @@ pub(super) fn refresh(
             Label::Status if view.path_tool.mode == PathTool::Demolish => {
                 "Demolish tool / click a visible path".into()
             }
+            Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
+                "Raise terrain / click dry land / +1 step".into()
+            }
+            Label::Status if view.path_tool.mode == PathTool::LowerTerrain => {
+                "Lower terrain / click dry land / -1 step".into()
+            }
             Label::Status if view.path_notice.is_some() && view.hovered.is_none() => {
-                "Path edit result: see Path tools".into()
+                "Edit result: see Build tools".into()
             }
             Label::Status => view.hovered.map_or(
                 format!(
@@ -739,16 +760,16 @@ pub(super) fn refresh(
             }
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
-            Label::PathHeight => format!("Level path / height {}", view.path_tool.height),
+            Label::PathHeight => format!("Path height: {}", view.path_tool.height),
             Label::PathHint if view.diagnostic_case.is_some() => {
-                "Read-only render preview.\nPath tools are disabled.".into()
+                "Read-only render preview.\nBuild tools are disabled.".into()
             }
             Label::PathHint => view.path_tool.hint.clone(),
             Label::PathResult => format!(
                 "Last: {}",
                 view.path_notice
                     .as_deref()
-                    .unwrap_or("no path changes yet.")
+                    .unwrap_or("no build changes yet.")
             ),
         };
         if text.0 != value {

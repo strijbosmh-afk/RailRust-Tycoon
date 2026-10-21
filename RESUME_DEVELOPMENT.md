@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-This is the handoff guide for **RailRust-Tycoon**, the original Rust theme park simulation inspired by classic RCT1/RCT2. **Parkbound** is a temporary working title. Current milestone: level-path construction/demolition **0.11.0**, 20 October 2026. Read [the path construction report](docs/PATH_CONSTRUCTION_REPORT.md) for the implementation contract and current verification status. **No reference PC is selected:** this poorly performing development PC is explicitly excluded; its measurements are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC.
+This is the handoff guide for **RailRust-Tycoon**, the original Rust theme park simulation inspired by classic RCT1/RCT2. **Parkbound** is a temporary working title. Current milestone: single-tile terrain raising/lowering **0.12.0**, 21 October 2026. Read [the terrain editing report](docs/TERRAIN_EDITING_REPORT.md) for the completed bounded implementation, exact evidence, and remaining native-control gap. **No reference PC is selected:** this poorly performing development PC is explicitly excluded; its measurements are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
 
@@ -8,7 +8,7 @@ The repository contains the source, locked dependencies, build scripts, notices,
 
 ### Shared OneDrive working folder
 
-The current 0.11.0 session uses the original PC's shared OneDrive workspace. Its full local path, recorded on 20 October 2026, is:
+The current 0.12.0 session uses the original PC's shared OneDrive workspace. Its full local path, recorded on 21 October 2026, is:
 
 ```text
 C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon
@@ -24,13 +24,13 @@ Set-Location -LiteralPath 'C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart T
 
 You can continue from that synced workspace or use a separate GitHub clone. The 0.3.0 checkout on the second PC was `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`; it is a separate local path, not evidence that OneDrive is syncing it. Both paths are retained intentionally. Verify Git state and the expected commit on whichever checkout you use. For a shared workspace, let OneDrive finish syncing and follow the two-PC workflow in section 9. The clone commands below are unnecessary when opening an existing checkout.
 
-The current feature branch is `codex/path-construction`, from 0.10.0 checkpoint `dbe650f`. The bounded 0.11.0 implementation is complete in `eed600b1f86efb6c92dccb1a589167caeb44951f`, pushed in [draft PR #9](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/9), stacked on unmerged PR #8. [Windows CI run 39447839922](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39447839922) passed for that exact source. All 26 package payload hashes and seventeen guides matched, and relocated construction continuation/rendering passed. The path construction report records source/runtime/native/delivery evidence. Later documentation commits have separate CI status; inspect actual branch/merge state before switching PCs.
+The current feature branch is `codex/terrain-editing`, based on completed 0.11.0 checkpoint `13c4063`. Runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1` is pushed in [draft PR #10](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/10), stacked on still-unmerged PR #9/`codex/path-construction` at `13c4063`. All 236 local release tests passed (162 game/74 simulation), and final strict all-target release Clippy passed. The final source also passed all 236 tests in Windows CI; final local rustfmt passed. The production release build passed. Bidirectional 0.11/0.12 continuation and write-terrain/verify-terrain passed, including exact primary/backup state, Custom/paused loading, 3,600 ticks, commands, and clearance rejection. All ten captures exited 0 and were inspected without a blocking visual defect. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. Package verification matched all 27 payload hashes and eighteen guides. A fresh extraction path containing spaces and é, launched from `C:\Windows`, passed terrain primary/backup/Custom/paused continuation for 3,600 ticks plus commands/clearance. Its terrain-raised/rotation-2/Surface/Terraced/1024 × 680 PNG matched the source image byte-for-byte. Native terrain controls remain unverified after capture/activation errors prevented input. The terrain editing report is the current evidence register. Historical 0.11.0 runtime source `eed600b1f86efb6c92dccb1a589167caeb44951f` is in [draft PR #9](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/9) with successful [Windows CI run 39447839922](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39447839922), 26 payload/seventeen-guide verification, and relocated construction continuation/rendering. Those results belong to 0.11.0. Inspect actual branch/merge state before switching PCs.
 
 Historical 0.9.0 runtime source `5d49b7e00ce25692aac3ad2d6dda86939afd0a47` is in [draft PR #7](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/7), stacked on PR #6. [Windows CI run 39435077589](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39435077589) passed, along with local profiles/captures/continuation and final package verification of fifteen guides and 24 payloads. Historical 0.8.0 runtime `9460a9` plus wrapper correction `3f1ea88` remain in [draft PR #6](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/6), with successful CI run 39429282120. Inspect actual publication and merge state before switching PCs; cloning `main` may retrieve an older checkpoint.
 
-Historical [Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. Its local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report retains that evidence; current measurement code requires its own checks. Documentation-only follow-up commits retain runtime source identity, but must be repackaged and their guides/hashes verified before handoff.
+Historical [Windows CI run 39417086959](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39417086959) passed for the train implementation. Its local ZIP passed all 19 payload hashes and eleven guide checks after extraction into a fresh path containing spaces and `é`. The relocated executable ran from `C:\Windows`, captured the parked train, exited 0, and produced an image byte-for-byte identical to the original. The train report retains that evidence; current terrain-editing code requires its own checks. Documentation-only follow-up commits retain runtime source identity, but must be repackaged and their guides/hashes verified before handoff.
 
-The retained crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation checkpoint `51a79e8`. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); they were unmerged when the train work began. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. Its local ZIP passed relocation and all 18 payload hashes. This historical evidence does not verify changed 0.11.0 code; record current evidence in the path construction report.
+The retained crowd implementation is commit `20cbc76936d698bdb1f7a6dc2e22789d987b3d93`, followed by documentation checkpoint `51a79e8`. [Draft PR #2](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/2) targets the overlap branch and depends on [PR #1](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/1); they were unmerged when the train work began. [Windows CI for the crowd implementation](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39412913892) passed tests, formatting, linting, packaging, and artifact upload. Its local ZIP passed relocation and all 18 payload hashes. This historical evidence does not verify changed 0.12.0 code; record current evidence in the terrain editing report.
 
 ## 1. Read this first
 
@@ -46,7 +46,8 @@ Current defaults are offline single-player, an independent simulation library, o
 
 Read the project records in this order:
 
-1. [Path construction report](docs/PATH_CONSTRUCTION_REPORT.md): current 0.11.0 controls, command/persistence contract, and verification.
+1. [Terrain editing report](docs/TERRAIN_EDITING_REPORT.md): completed 0.12.0 single-tile tools, exact verification, and remaining native/release gaps.
+1. [Path construction report](docs/PATH_CONSTRUCTION_REPORT.md): completed 0.11.0 controls, command/persistence contract, and verification.
 1. [Static visibility report](docs/STATIC_VISIBILITY_REPORT.md): completed 0.10.0 chunk/viewport contract and evidence.
 1. [Large-map/GPU report](docs/LARGE_MAP_GPU_REPORT.md): completed 0.9.0 preview, measurement semantics, and verification.
 1. [Optimization report](docs/OPTIMIZATION_REPORT.md): completed 0.8.0 cache/rendering implementation and verification.
@@ -66,7 +67,7 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 
 ## 2. What exists today
 
-| Area | Implementation / current 0.11.0 work |
+| Area | Implementation / current 0.12.0 work |
 | --- | --- |
 | Park | Deterministic 32 × 32 site with grass, water, and sand. Starts in Terraced mode at heights 0/2/4/6; Flat mode remains available for comparison. |
 | Network and overlap | 37 path nodes at height 8 form a loop, junctions, and branches around the original walkway. Nine track tiles remain at x13/y12..20, height 0. Each occupies two height steps. |
@@ -75,23 +76,28 @@ This guide is a continuation aid. Update the checklist and milestone reports as 
 | Presentation | Original terrain, connected path decks, sampled circuit rails/station/supports, and separate guest/train meshes. Surface mode hides buried track. Underground removes terrain and uses a non-selectable reference floor. No external game art is required. |
 | Camera | Four rotations, keyboard and right/middle-drag panning, zoom, height-aware Fit that reserves both control columns, and grid toggle. |
 | Inspection | Hover and selected-surface highlights with stable terrain/object identity; inspector distinguishes kind, object ID, tile, and height. Hidden surfaces cannot be picked through ordinary terrain. |
-| UI | Inspect/Path/Demolish with P/X/Escape, height 0–30 (default 8) with Page Up/Down, live green/red/orange preview and rejection text. Existing pause/speeds, T/U, selected Delete, R/Restore, O/F, F5/F9/Shift+F9, help, and counters remain. Native P/X, Path and height buttons, F5/F9, rejection and Inspect reset passed; physical Page Up/Down remains open. |
+| UI | BUILD TOOLS retains Inspect/Path/Demolish, P/X/Escape, and independent path height 0–30/default 8. B/Raise and V/Lower add single-tile terrain editing with plus/minus/X previews. New terrain controls remain unverified after activation/capture errors prevented input; 0.11.0 native P/X, Path/height buttons, and F5/F9 remain historical evidence. |
+| Terrain tools | Visible Grass/Sand tops or cliffs identify a column. Each click changes height by one step within 0–32; Water/Underground edits are blocked. Shared immutable validation rejects clearance conflicts atomically. Successful edits display Custom; T explicitly applies a preset. Source/runtime/CI/package checks passed; native terrain inputs remain unverified. |
 | Simulation | Separate window-independent Rust library with bounded terrain, stable identities, shared clearance, atomic fixtures, deterministic crowds/RNG, validated circuit geometry, complete ticks, and a serde-based validated JSON codec. |
 | Persistence | One primary slot and explicit previous-valid backup under LocalAppData; staged replacement, exclusive writer lock, bounded parsing/validation, and load paused with rebuilt presentation. No startup save/load. |
-| Diagnostics | Six production path-tool scenes, retained crowd/train/surface/save presets, bounded seeking, map/view/rotation/minimum-window options, PNG checks, and exit status. Path-specific write-paths/verify-paths processes test construction persistence. |
+| Diagnostics | Seven terrain scenes plus retained overview/help/path captures and write-terrain/verify-terrain production continuation passed. Six retained path-tool scenes, crowd/train/surface/save presets, bounded seeking, map/view/rotation/minimum-window options, and path-specific continuation remain available. |
 | Measurement | Opt-in CPU baseline/save-scale/stress fixtures; baseline main-loop frame profiling; sequential Windows wrapper with source/binary identity, hardware metadata, bounded processes, and 200 ms memory samples. Historical local diagnostic batches completed in 0.7/0.8. Version 0.9 completed controlled large-map profiles and optional actual GPU timestamp spans. Version 0.10 verifies total generated versus camera-selected static geometry; historical evidence is in the static visibility report. |
 | Delivery | Windows packaging, native-runtime inspection/copying, dependency/font notices, checksums, and a GitHub Actions workflow. |
 
-**Not implemented:** terrain brush/height UI, path slopes/queues, ride construction/boarding, guest needs/spending, general ride operations, coaster design/ratings, staff, economy, scenarios, research, audio, persistent settings, autosave, save browser, or migration support. The level-path tool builds/removes one tile per deliberate click; R restores only fixture paths. Guests and cars are not individually selectable. Every normal launch starts a fresh demonstration without touching saves. Trees, entrance arch, reference floor, and support posts remain decorative.
+**Not implemented:** terrain brushes, water editing, terrain/path slopes, queues, ride construction/boarding, guest needs/spending, general ride operations, coaster design/ratings, staff, economy, scenarios, research, audio, persistent settings, autosave, save browser, or migration support. The level-path tool builds/removes one tile per deliberate click; R restores only fixture paths. Guests and cars are not individually selectable. Every normal launch starts a fresh demonstration without touching saves. Trees, entrance arch, reference floor, and support posts remain decorative.
 
-**Version 0.11.0 completes the bounded level-path construction/demolition slice.** All 217 release tests, strict source checks, nine inspected captures, native P/X/height-button/F5/F9 checks, bidirectional 0.10/0.11 continuation, the new construction save proof, hosted source CI, and relocated-package verification passed. Placement uses the selected plane and shared validation; invalid/hidden targets preserve the park. Visible-only demolition reconciles guests while paused. Player edits persist in schema 1/content 1 with unchanged limits of 1,024 paths, 4,096 objects, and 256 guests. Save includes a same-update click; pending Load/Backup gates edits even on failure. BLD-01/02/04 remain in progress because costs/refunds and queues are absent. Physical Page Up/Down and other listed native/release gaps remain separate.
+**Version 0.12.0 completes the bounded single-tile terrain implementation.** All 236 tests, final formatting/strict lint/build, ten inspected captures, production terrain/cross-version continuation, exact-source CI, and package relocation passed. Native terrain controls remain unverified after activation/capture errors prevented input. B/Raise and V/Lower apply one valid height change to visible Grass/Sand tops or cliffs, retain objects/guests in place, and preserve materials. Water and Underground edits are rejected. Preview and commit share validation. Terrain persists in schema 1/content 1; Save includes a same-update edit and Load/Backup gates it even on failure. BLD-06 stays in progress for brushes/slopes/material tools/costs. No local performance measurement batch was run; CI CPU smoke verifies reporting only.
+
+**Historical 0.11.0 completed the bounded level-path construction/demolition slice.** All 217 release tests, strict source checks, nine inspected captures, native P/X/height-button/F5/F9 checks, bidirectional 0.10/0.11 continuation, the new construction save proof, hosted source CI, and relocated-package verification passed. Placement uses the selected plane and shared validation; invalid/hidden targets preserve the park. Visible-only demolition reconciles guests while paused. Player edits persist in schema 1/content 1 with unchanged limits of 1,024 paths, 4,096 objects, and 256 guests. Save includes a same-update click; pending Load/Backup gates edits even on failure. BLD-01/02/04 remain in progress because costs/refunds and queues are absent. Physical Page Up/Down and other listed native/release gaps remain separate.
 
 **Historical version 0.10.0 completed the bounded static visibility slice.** Maps larger than 32 × 32 partition atomic terrain/scenery/surface emission groups into spatial chunks, retaining all their complete triangles and within-group order; the small demonstration retains its legacy mesh. Actual vertex bounds and a guarded full-window viewport select existing chunk entities on camera movement without rebuilding geometry. Static changes reuse slots and remove excess resources. The full-scene build remains the oracle; guest/train meshes and save behavior remain separate. The final diagnostic schema and 74 passing wrapper checks are recorded in the static visibility report; all 193 release tests (128 game/65 simulation), formatting, strict release Clippy, release build, and implementation CI passed. Eight image pairs match outside 709 version-line pixels each. Bidirectional 0.9/0.10 save continuation and all six GPU profiles passed; focused stress selected 13 of 212 chunks, or 149,556 of 2,251,764 generated static vertices. Package relocation also passed. These are correctness/work-selection results, not an FPS or hardware-acceptance claim.
 
 **Version 0.9.0 is a completed historical diagnostic slice.** It adds controlled baseline/save-scale/stress previews, usable overview/crowd/ride cameras, all-rotation/visibility rendering, and optional actual GPU timestamp spans through Bevy. Editing and persistence are disabled in previews; ordinary 32 × 32 play and save/load acceptance remain unchanged. CPU hooks, render-span CPU, GPU spans, and main-loop pacing are distinct; upload and presentation timing remain unmeasured. All 178 release tests (113 game/65 simulation), formatting, strict Clippy, release compilation, and 44 isolated wrapper checks passed. Six 120-interval GPU profiles completed with actual timestamp samples, visible/focused 1920 × 1080 windows, and occlusion unknown. Six captures exited 0; current images were inspected. Bidirectional 0.8/0.9 continuation passed 3,600 ticks/commands, backup, and paused loading. The normal baseline image changed only its version digit. Implementation CI passed; relocated package checks passed; the final refresh verified all fifteen current guides and all 24 payload hashes in the large-map/GPU report. Do not carry historical results forward as verification of changed code.
 **The bounded 0.8.0 optimization is complete; PRF-05 remains in progress.** All 159 release tests (65 simulation/94 game), formatting, strict Clippy, and release compilation passed. Four local CPU reports completed with paired animated workloads matched, zero measured graph rebuilds, and unchanged template/deck/buffer-growth counters. Four 0.7/0.8 image pairs differed only in the version digit; bidirectional cross-version continuation passed 3,600 ticks/commands, full state, backup, and paused loading. No reference PC is selected, and this development PC must not be treated as one. Hardware requirements and the proposed 60 FPS at 1080p acceptance wait for an agreed representative machine. The one-circuit model, 32 × 32 player presentation, and 256-guest save cap still limit the full proposed workload.
 
-The final 0.11.0 executable is 46,213,120 bytes with SHA-256 `8e3bfc2971791f0eb85577d0ae8608bf99bba37e16141be00d101dfd7622e6d0`. The 217-test local suite preceded the final hint-only text adjustment; afterward eleven targeted input tests, final rustfmt, strict all-target release Clippy, and the release rebuild passed. Hosted CI then passed the complete workflow on eed600b. Package refresh matched all 26 payload hashes and seventeen current guides. Fresh TEMP extraction into a path containing spaces and é, launched from C:\Windows, passed primary equality, 3,600 construction-continuation ticks/commands, fresh IDs, explicit backup and paused load. Its path-built/rotation-2/Surface/Terraced/1024 × 680 PNG matched the final source image byte-for-byte. Notices and the required DLL match 0.10.0 hashes. See the path construction report and adjacent archive checksum.
+The 0.12.0 executable is 46,266,368 bytes with SHA-256 `344e627608bc5bab1f8bd87943dd301be20552e62861e11d7bc4af5d207480a7`. The production release build passed. Bidirectional 0.11/0.12 continuation and write-terrain/verify-terrain passed, including exact primary/backup state, Custom/paused loading, 3,600 ticks, commands, and clearance rejection. All ten captures exited 0 and were inspected without a blocking visual defect. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. Package verification matched all 27 payload hashes and eighteen guides. A fresh extraction path containing spaces and é, launched from `C:\Windows`, passed terrain primary/backup/Custom/paused continuation for 3,600 ticks plus commands/clearance. Its terrain-raised/rotation-2/Surface/Terraced/1024 × 680 PNG matched the source image byte-for-byte. Native B/V/buttons/clicks remain unverified: activation failed at `GetCursorPos` with access denied `0x80070005`; one refreshed-window retry failed at `IGraphicsCaptureItemInterop.CreateForMonitor` with `0x80070057`. No input was sent, and only the owned isolated process was stopped.
+
+The historical 0.11.0 executable is 46,213,120 bytes with SHA-256 `8e3bfc2971791f0eb85577d0ae8608bf99bba37e16141be00d101dfd7622e6d0`. The 217-test local suite preceded the final hint-only text adjustment; afterward eleven targeted input tests, final rustfmt, strict all-target release Clippy, and the release rebuild passed. Hosted CI then passed the complete workflow on eed600b. Package refresh matched all 26 payload hashes and seventeen current guides. Fresh TEMP extraction into a path containing spaces and é, launched from C:\Windows, passed primary equality, 3,600 construction-continuation ticks/commands, fresh IDs, explicit backup and paused load. Its path-built/rotation-2/Surface/Terraced/1024 × 680 PNG matched the final source image byte-for-byte. Notices and the required DLL match 0.10.0 hashes. See the path construction report and adjacent archive checksum.
 
 The historical 0.10.0 executable is 46,168,064 bytes with SHA-256 `b3a63267dc450f1deab1a8a48aa1f93e93d0c4d6c9ba1e05bc2009f12bdb6c52`. The final refresh verified all 25 payload hashes and sixteen current guides. A fresh extraction path containing spaces and `é` ran from `C:\Windows`: 3,600-tick primary continuation/commands, full state, explicit backup, paused loading, and a byte-identical stress Ride/rotation-2 Surface capture all passed. The sibling wrapper selected its adjacent executable, reported no source checkout as expected, and passed one 30-tick CPU baseline plus both 120-interval save-scale Ride/rotation-2 Underground GPU profiles. The adjacent `.zip.sha256` is authoritative for the final archive.
 
@@ -99,11 +105,11 @@ The historical 0.9.0 executable is 46,109,696 bytes with SHA-256 `28df016814b5a8
 
 The historical 0.8.0 45,947,392-byte executable has SHA-256 `f907dbfc3effdcd460ab5e84ef15bf58cf623f9321231f89dd4a2c2f99ba6c24`. All 23 extracted payload hashes matched in a fresh temporary path containing spaces and `é`. From `C:\Windows`, the extracted executable passed continuation/backup/paused-load verification, and the sibling wrapper passed baseline 30-tick CPU plus two 120-sample frame smoke checks. The frame windows were actually 1920 × 1080, visible/focused, with occlusion unknown; these are functional checks, not an FPS comparison. The final documentation refresh verified all 23 payload hashes and fourteen current guides against the workspace. The optimization report records exact source/CI/package identities and the adjacent archive checksum rule.
 
-Historical 0.7.0 local diagnostics passed 147 release tests, strict source checks, fourteen measurement processes, hosted CI, and package relocation with 22 payload hashes/thirteen guides. They recorded 37.94–40.15 main-loop FPS and 114.61–135.45 ms per stress guest-mesh rebuild on this PC. These remain local observations, not reference-hardware results or a target pass/fail. Original raw JSON/checksums/path names are preserved at `benchmarks/results/2026-10-20-reference/`; the historical name does not confer reference status. Changed 0.10.0 code requires its own evidence.
+Historical 0.7.0 local diagnostics passed 147 release tests, strict source checks, fourteen measurement processes, hosted CI, and package relocation with 22 payload hashes/thirteen guides. They recorded 37.94–40.15 main-loop FPS and 114.61–135.45 ms per stress guest-mesh rebuild on this PC. These remain local observations, not reference-hardware results or a target pass/fail. Original raw JSON/checksums/path names are preserved at `benchmarks/results/2026-10-20-reference/`; the historical name does not confer reference status. Changed 0.12.0 code requires its own evidence.
 
 **Historical PRF-04 is verified narrowly for same-build authoritative continuation in 0.6.0.** All 131 workspace tests passed: 56 simulation, 27 world/rendering, 28 input-system, five persistence, nine store, four main-module, and two capture tests. They include Windows failed-primary replacement rollback, bounded reads, rejection without mutation, full continuation/cache/ID checks, input precedence/gating, and same-update mesh refresh after loading. Formatting, strict Clippy, release build, and twelve inspected GPU captures passed; all controls/status/version fit at 1024 × 680.
 
-The historical 0.6.0 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. Its 20 payload hashes and twelve guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **At that 0.6.0 checkpoint native Save/Load/Backup was unverified. Version 0.11.0 later verified F5/F9; Backup and separate Save/Load buttons remain open.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; these results do not verify changed 0.11.0 code.
+The historical 0.6.0 45,597,184-byte executable has SHA-256 `eb2b21b97e6053dd256034ade6cd17d5cac0c7ca7770db8873f17aab791f04fd`. Its 20 payload hashes and twelve guides matched after extraction into a fresh temporary path with spaces and `é`. Separate extracted processes launched from `C:\Windows` passed 3,600-tick continuation plus commands, explicit backup, and paused load; the loaded-small PNG matched the original byte-for-byte. Native testing was attempted with an isolated extracted instance, but another app obscured it; no keyboard/mouse input was issued and only that test process was closed. **At that 0.6.0 checkpoint native Save/Load/Backup was unverified. Version 0.11.0 later verified F5/F9; Backup and separate Save/Load buttons remain open.** Implementation `d7a16f6` is pushed in draft PR #4 and passed Windows CI run 39422425034; these results do not verify changed 0.12.0 code.
 
 **PRF-03 is verified for the 0.5.0 automatic circuit and fixed-update behavior.** All 99 tests passed: 43 simulation, 27 world/rendering, 23 input-system, four main-module, and two capture tests. Formatting, strict Clippy, and release compilation passed. Sixteen GPU captures completed with exit code 0 and were inspected, including all rotations, lift/descent/braking, completed lap and parked train, minimum-window layouts, terrain/views, and crowd/overlap regressions. The train report records the executable hash and observed counters. A Bevy scheduling regression produced equal whole-Park state over 120 simulated seconds at 30/60/144 Hz update schedules; this is not measured hardware performance.
 
@@ -117,7 +123,7 @@ The **0.3.0 overlap proof is verified (PRF-01)**. Source commit `0220c7b` passed
 
 Historical 0.3.0 native input at 1280 × 800 selected Path #7 (display tile 15,17, height 8), revealed track with U, then selected Track #18 (14,18, height 0). The visibility button hid the track while retaining its ID and burial hint. Space paused at 02:14; Flat exposed the same track, all four rotations preserved identity/time, wheel zoom changed 100% → 113%, and Fit restored 100%. Hills hid the track again; clicking its old projection selected foreground terrain (12,19, height 6). Help/close preserved selection/time, and the native close button exited the process.
 
-Historical **0.2.0** evidence includes 34 passing tests, formatting, Clippy with warnings denied, seven inspected engine captures, and a release Windows ZIP. Its 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. See the terrain report. Clean-machine testing remains open; these results do not verify changed 0.11.0 code.
+Historical **0.2.0** evidence includes 34 passing tests, formatting, Clippy with warnings denied, seven inspected engine captures, and a release Windows ZIP. Its 16 payload hashes matched after extraction into a separate path containing spaces and `é`; the extracted executable rendered selected raised terrain from an unrelated working directory and exited with code 0. See the terrain report. Clean-machine testing remains open; these results do not verify changed 0.12.0 code.
 
 The historical **0.1.0** foundation report records 16 passing tests, release compilation, formatting, Clippy, three inspected images, and a relocated ZIP launch with matching payload hashes. Keep these results attached to their named checkpoint.
 
@@ -130,10 +136,10 @@ Keyboard panning was not clearly established in the 0.3.0 native session, and ri
 | IDs | State | Meaning |
 | --- | --- | --- |
 | DEF-01, DEF-02 | Planned | Exact content/expansion audit and final product/platform decisions remain open. |
-| FND-01 | Verified | Reverified in 0.11.0: all 26 payload hashes and seventeen guides matched; relocated construction continuation/backup/paused load and byte-identical path-built rendering passed from C:\Windows. Native P/X/height buttons/F5/F9 passed. Clean-machine compatibility and remaining controls are separate gaps. |
+| FND-01 | Verified | Reverified in 0.12.0: 27 payload hashes/eighteen guides matched; relocated 3,600-tick terrain continuation/backup/Custom/paused load and byte-identical minimum-window terrain capture passed from C:\Windows. Native terrain controls remain unverified after activation/capture errors; clean-machine compatibility remains open. |
 | FND-02 | In progress | Native selection, four rotations, wheel zoom, and Fit passed in 0.3.0. Visible panning, right/middle dragging, and physical DPI/display checks remain open. |
 | FND-03 | Verified | Earlier speed/inspector/visibility evidence is retained; 0.4.0 reverified native pause/resume, path-edit buttons, counters, and help, with complete-step speed/pause tests. |
-| FND-04 | Verified | Reverified in 0.11.0 through 217 release tests (146 game/71 simulation), final formatting/strict Clippy/release build, and successful Windows CI run 39447839922 for eed600b. The current report records the final hint-only change and targeted rerun. Later heads need their own CI status. |
+| FND-04 | Verified | Reverified in 0.12.0 through 236 release tests (162 game/74 simulation), final local rustfmt/strict release Clippy/build, and successful CI run 39557465779 for exact source e5dbc0e. Later documentation heads have separate CI status. |
 | REL-01 | In progress | Packaging is implemented and a ZIP was checked; do not silently change its checklist state without reviewing its acceptance evidence. |
 | PRF-01 | Verified | Named 0.3.0 tests, captures, native identity/visibility/preset checks, and package relocation establish the overlap baseline. New changes require regression checks. |
 | PRF-02 | Verified | 0.4.0 automated invariants, eleven inspected captures, and native path deletion/restoration/recovery establish the proof. Physical Delete shortcut retesting remains explicit; Remove path is verified. |
@@ -165,7 +171,7 @@ On the second PC used for 0.3.0, pinned Rust and requested components were insta
 $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
 ```
 
-That second PC lacked MSVC build tools and the Windows SDK because their installer could not obtain UAC elevation; its verified 0.3.0 runtime/package came from CI. The current 0.11.0 session uses the original OneDrive development PC, which built the crowd and train checkpoints locally. Inspect the actual toolchain on whichever PC is active rather than carrying the other machine's installation state forward. Install missing prerequisites before local builds, or use the hosted Windows workflow.
+That second PC lacked MSVC build tools and the Windows SDK because their installer could not obtain UAC elevation; its verified 0.3.0 runtime/package came from CI. The current 0.12.0 session uses the original OneDrive development PC, which built the crowd and train checkpoints locally. Inspect the actual toolchain on whichever PC is active rather than carrying the other machine's installation state forward. Install missing prerequisites before local builds, or use the hosted Windows workflow.
 
 Open a new PowerShell 7 terminal after installing the prerequisites. These commands inspect the tools and install the pinned Rust toolchain without changing your global default toolchain:
 
@@ -184,7 +190,7 @@ Set-Location "$env:USERPROFILE\source"
 git clone https://github.com/strijbosmh-afk/RailRust-Tycoon.git
 Set-Location RailRust-Tycoon
 git fetch origin
-git switch --track origin/codex/path-construction
+git switch --track origin/codex/terrain-editing
 git status --short --branch
 git remote -v
 rustup show active-toolchain
@@ -192,7 +198,7 @@ rustc -vV
 cargo --version
 ```
 
-The branch-switch example assumes the 0.11.0 feature branch has been published and has not been merged elsewhere. Inspect `git branch -a` and the current PR before substituting another branch; a plain clone initially checks out the default branch, which may be older. If the local feature branch already exists, use `git switch codex/path-construction` instead of `--track`.
+The 0.12.0 feature branch is published as `origin/codex/terrain-editing` with runtime source `e5dbc0e` in draft PR #10. Inspect `git branch -a` and the current review/merge state before switching. A plain clone checks out the default branch, which may be older. If the local branch exists, use `git switch codex/terrain-editing` instead of `--track`.
 
 Confirm `rustc -vV` reports version 1.93.1 and host `x86_64-pc-windows-msvc`. Do not switch this project to the GNU Windows toolchain: the runtime inspection and packaging scripts assume MSVC.
 
@@ -234,16 +240,17 @@ The development executable is `target\release\parkbound.exe`; the packaged execu
 
 | Input | Expected result |
 | --- | --- |
-| Left click on map | Inspect, place one level path, or remove one visible path according to the current tool. |
+| Left click on map | Inspect, place/remove one path, or raise/lower one terrain column according to the selected tool. |
 | P / Path; X / Demolish; Inspect | Enter Build, Demolish, or Inspect. Held clicks and drags must not paint. |
-| Page Up / Page Down / height buttons | Adjust one step within 0–30; default 8. The ghost targets the selected plane. |
+| B / Raise; V / Lower | Raise/lower the picked visible Grass/Sand terrain column by one step within 0–32. Water and Underground edits are rejected. |
+| Page Up / Page Down / height buttons | Adjust the independent path plane within 0–30; default 8. This does not set terrain height. |
 | Right or middle drag | Pan without a jump when dragging begins. |
 | WASD / arrow keys | Pan with the keyboard. |
 | Wheel / + / - | Zoom while preserving usable selection behavior. |
 | Q / E | Rotate through four views; selected simulation surface remains the same. |
 | Home / Fit | Reset zoom and pan; preserve selection. |
 | G | Toggle grid. |
-| T / terrain preset button | Switch Flat ↔ Terraced while preserving time, materials, object IDs/heights, and selected identity. |
+| T / terrain preset button | Explicitly reset heights to a terrain preset when shared clearance permits, preserving time, materials, object IDs/heights, and selected identity. |
 | U / visibility button | Switch Surface ↔ Underground; hidden terrain and the decorative reference floor cannot be selected underground. |
 | Delete / Remove path | Remove the selected path only if still visible, clear stale selection/navigation references, and preserve unrelated objects. Non-path selections must be rejected with a status message. |
 | R / Restore paths | Atomically restore missing demonstration paths with new IDs; preserve time, guest state/IDs, and surviving object IDs. |
@@ -264,7 +271,7 @@ FND-03 retains recorded 0.2.0 evidence and passed the relevant 0.3.0 control reg
 
 For the crowd proof, watch guests and arrival counts advance, then pause before deleting a path. A deletion must reconcile guest references even while paused. Resume to observe rerouting or a lost state; isolate a remaining path to exercise disconnection. Restore paths and confirm local recovery without resetting time or guests. Test removal of occupied, next, and destination nodes separately. Guests must not jump to distant paths or retain removed IDs. The 0.4.0 native session verified Remove path, R, and Restore; physical Delete needs a retest because the helper's two injections had no effect despite the passing headless key test.
 
-For the train proof, use Find, observe all phases and a completed lap, then Close during motion and wait for station parking. Open again and confirm the full 90-tick dwell before dispatch. Repeat Close at the station and while globally paused: the command can change operation, but only resumed ticks can advance a moving train. Guests must keep moving while the train is closed. Verify O/F and both buttons, all rotations, sampled track picking, the top-right ride panel's map-input exclusion, and the minimum window. Record current regression evidence in the path construction report.
+For the train proof, use Find, observe all phases and a completed lap, then Close during motion and wait for station parking. Open again and confirm the full 90-tick dwell before dispatch. Repeat Close at the station and while globally paused: the command can change operation, but only resumed ticks can advance a moving train. Guests must keep moving while the train is closed. Verify O/F and both buttons, all rotations, sampled track picking, the top-right ride panel's map-input exclusion, and the minimum window. Record current regression evidence in the terrain editing report.
 
 For persistence, use a separate absolute save directory and record time, train phase/lap/open request, and guest counters. Save, change the park and advance, then Load: the prior state must return paused with reset view and no click-through or stale pending edit. Resume and compare continuation. Save twice and explicitly load Backup to recover the first state. Test missing/corrupt/unsupported saves without losing the current park, and confirm a fresh launch does not overwrite either file. Check all three shortcuts/buttons and help/input gating. File-level and headless tests supplement normal UI observations.
 
@@ -288,6 +295,8 @@ It installs diagnostic systems only when `--capture-frame` is present. The prese
 
 Path-tool scenes use production point_at after visible-surface picking. Valid/blocked/demolish preserve Park state; built commits a nonfixture spur, removed deletes an occupied path while paused, and recovered rebuilds its tile with a fresh ID and adds 120 complete ticks. Targets are focused at 200% zoom. These are command/render checks, not native input evidence. See the path construction report for the isolated write-paths/verify-paths continuation commands.
 
+Terrain scenes are `terrain-raise|terrain-lower|terrain-raised|terrain-lowered|terrain-blocked|terrain-water|terrain-underground`. They target accepted raise/lower previews, committed height changes, clearance rejection, Water rejection, and Underground suppression. Preview-only scenes must preserve Park state. All ten terrain/retained-scene captures passed and were inspected; native terrain controls remain unverified after activation/capture errors; see TERRAIN_EDITING_REPORT for command examples and acceptance requirements. All terrain scenes except terrain-underground require Surface; the Underground scene forces cutaway mode.
+
 Train scenes focus the circuit at 150% and select its current piece. `train` captures the requested tick state; named phases seek interior section behavior with a limit of 36000 additional complete ticks. Lift requires speed 24 and lead height 12..16 (excluding 16); drop requires speed at least 60 and height above 8 through 14; brake requires speed 20 and a lead car at least one third tile into the current piece. These speeds are integer distance units per tick. Return requires a stopped station wait after at least one lap; Closed requests Close and waits for stopped parking. A fault or target state not reached within the bound fails the capture. Guests also advance during these complete ticks. Keep `--capture-ticks` separate from the final total when recording evidence.
 
 Specify map, visibility, rotation, and ticks explicitly when comparing views. A selected buried track can intentionally remain invisible in Surface view. `--capture-small-window` requests 1024 × 680. A successful capture waits at least 90 frames and two seconds, checks the PNG, and exits with code 0; timeout is 120 seconds. This requires a rendering environment and is not ordinary-input evidence.
@@ -306,7 +315,7 @@ if ($captureProcess.ExitCode -ne 0) { throw "Capture failed: exit code $($captur
 Get-Item -LiteralPath $capturePath
 ```
 
-Repeat with train phases and the retained crowd/surface/help scenes; compare Flat/Terraced and Surface/Underground in all four rotations, including minimum-window captures. Inspect cars on the rails, slopes/curves, station fit, foreground occlusion, track picking, guest recovery, and legible controls/counters. Compare phase/lap/tick states to establish movement, not merely the existence of markers. A valid PNG and successful exit do not prove visual correctness. Do not report another application's screenshot as game evidence. `artifacts` is ignored by Git; describe exact current evidence in the path construction report.
+Repeat with train phases and the retained crowd/surface/help scenes; compare Flat/Terraced and Surface/Underground in all four rotations, including minimum-window captures. Inspect cars on the rails, slopes/curves, station fit, foreground occlusion, track picking, guest recovery, and legible controls/counters. Compare phase/lap/tick states to establish movement, not merely the existence of markers. A valid PNG and successful exit do not prove visual correctness. Do not report another application's screenshot as game evidence. `artifacts` is ignored by Git; describe exact current evidence in the terrain editing report.
 
 ## 6. Package a portable Windows build
 
@@ -327,25 +336,25 @@ if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 
 Only use `-SkipBuild` immediately after a successful build of the current source. It does not prove an existing executable is up to date. The script assumes the normal host target output `release/parkbound.exe`; do not add a different `--target` layout or change its binary assumptions without updating and testing packaging.
 
-The verified version 0.11.0 package layout is shown below; exact source, hash, and relocation evidence is in the path construction report:
+The verified 0.12.0 package contains 291 dependency notices, font/Rust notices, and one required MSVC DLL. Package verification matched all 27 payload hashes and eighteen guides. A fresh extraction path containing spaces and é, launched from `C:\Windows`, passed terrain primary/backup/Custom/paused continuation for 3,600 ticks plus commands/clearance. Its terrain-raised/rotation-2/Surface/Terraced/1024 × 680 PNG matched the source image byte-for-byte. The layout is shown below; the terrain editing report records exact source/runtime/CI evidence.
 
 ```text
 dist/
-  Parkbound-0.11.0-windows-x64/
+  Parkbound-0.12.0-windows-x64/
     Parkbound.exe
     measure-performance.ps1
     ...runtime, notices, documentation, manifests...
-  Parkbound-0.11.0-windows-x64.zip
-  Parkbound-0.11.0-windows-x64.zip.sha256
+  Parkbound-0.12.0-windows-x64.zip
+  Parkbound-0.12.0-windows-x64.zip.sha256
 ```
 
-The current local ZIP is at the full shared-workspace path:
+The verified local ZIP is at the following path; refresh it after final guide edits:
 
 ```text
-C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon\dist\Parkbound-0.11.0-windows-x64.zip
+C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon\dist\Parkbound-0.12.0-windows-x64.zip
 ```
 
-The adjacent Parkbound-0.11.0-windows-x64.zip.sha256 is authoritative. Refresh and verify all 26 payload hashes and seventeen bundled guides after documentation updates; do not embed the self-referential ZIP hash in those guides.
+The adjacent `Parkbound-0.12.0-windows-x64.zip.sha256` is authoritative for the final archive. Package verification matched 27 payload hashes and eighteen guides. Refresh and reverify all payloads/current guides after documentation updates; do not embed the self-referential ZIP hash in the bundled guides.
 
 Packaging derives the version from Cargo metadata. It collects the locked Windows dependency notices, the embedded font license, Rust standard-library notices, and required MSVC redistributable DLLs. It writes `DEPENDENCIES.json`, `NATIVE_DEPENDENCIES.json`, `THIRD_PARTY_NOTICES.txt`, and `SHA256SUMS.txt`. Existing extracted package directories are preserved with a `.previous-...` suffix; the current ZIP is replaced. Check `dist` occasionally for accumulated previous packages.
 
@@ -356,8 +365,8 @@ If packaging reports missing Rust standard-library notices, install `rust-docs` 
 Check the ZIP hash against its adjacent `.sha256` file:
 
 ```powershell
-Get-FileHash -LiteralPath 'dist\Parkbound-0.11.0-windows-x64.zip' -Algorithm SHA256
-Get-Content -LiteralPath 'dist\Parkbound-0.11.0-windows-x64.zip.sha256'
+Get-FileHash -LiteralPath 'dist\Parkbound-0.12.0-windows-x64.zip' -Algorithm SHA256
+Get-Content -LiteralPath 'dist\Parkbound-0.12.0-windows-x64.zip.sha256'
 ```
 
 Extract **the entire ZIP**, then run `Parkbound.exe` from the extracted package. Test with an unrelated working directory, standard-user permissions, and a path containing spaces and non-ASCII characters. Run the same package on a clean Windows PC without Rust or Visual Studio and without networking before claiming portable release compatibility. Keep its required DLLs and notices beside the executable.
@@ -372,7 +381,7 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 | `Cargo.lock` | Exact dependency graph; committed and retained for reproducible dependency resolution. |
 | `rust-toolchain.toml` | Tested Rust toolchain and component pin for new PCs. |
 | `.gitattributes` | Normalizes source text to LF while preserving exact bytes under `scripts/notices/`. |
-| `crates/park_sim/src/lib.rs` | Authoritative terrain/map storage, validated heights, Flat/Terraced profiles, clock, speed enum, and simulation tests. |
+| `crates/park_sim/src/lib.rs` | Authoritative terrain/map storage, immutable terrain validation/atomic height edits, Flat/Terraced profiles, clock, speed enum, and simulation tests. |
 | `crates/park_sim/src/surfaces.rs` | Stable terrain/object identity, placement/removal, shared clearance, deterministic overlap fixture, and invariant tests. |
 | `crates/park_sim/src/crowds.rs` | Same-height path connectivity, deterministic BFS and SplitMix64 state, guest identities/progress, lost-state recovery, crowd fixture/restoration, and simulation regressions. |
 | `crates/park_sim/src/trains.rs` | Track ports/spec validation, integer sampled circuit/arc distances, stable envelopes, train motion/operation/dwell/laps, fault/repair, poses, and simulation regressions. |
@@ -387,8 +396,10 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 | `crates/park_game/src/persistence.rs` | Save/Load/Backup requests, 32 × 32 app guard, atomic live-state replacement, paused view reset, and status. |
 | `crates/park_game/src/save_check.rs` | Opt-in fresh-process continuation/backup diagnostic using production save commands and a new explicit directory. |
 | `crates/park_game/src/main.rs` | Bevy app setup, resources, fixed update, camera layout, keyboard/pointer input, scene refresh, and input-state tests. |
-| `crates/park_game/src/path_tools.rs` | Transient tool/height/ghost/hint state, command dispatch, visible-only removal, and rejection feedback. |
-| `crates/park_game/src/world/path_preview.rs` | Selected-level plane picking, visible-face occlusion, connected ghost footprints, and translucent preview geometry. |
+| `crates/park_game/src/path_tools.rs` | Transient path/terrain tool state, height/ghost/hints, command dispatch, visible-only removal, and rejection feedback. |
+| `crates/park_game/src/terrain_tools.rs` | Picked terrain-column targeting, player material/view gates, candidate heights, validation/commit, and Custom feedback. |
+| `crates/park_game/src/capture/terrain_scenes.rs` | Seven production-command terrain capture fixtures, Surface requirements, and forced Underground rejection scene. |
+| `crates/park_game/src/world/path_preview.rs` | Selected-level path plane picking, visible-face occlusion, path ghosts, and shared translucent terrain direction/height previews. |
 | `crates/park_game/src/static_landscape.rs` | Retained static entity/mesh slots, guarded full-window eligibility, resource replacement, and final geometry-selection counters. |
 | `crates/park_game/src/world/static_chunks.rs` | Atomic emission-group partitioning, per-layer spatial/overflow buckets, exact vertex bounds, and full-scene equivalence tests. |
 | `crates/park_game/src/world/guest_render.rs` | Persistent guest templates, projected roof/object lookup, stack shadow clipping, reusable CPU mesh vectors, work counters, and equivalence tests. |
@@ -408,7 +419,7 @@ The script does not sign or publish anything. `dist` is ignored by Git. A source
 
 `park_sim` has no Bevy dependency. `Park` owns dimensions, a row-major `Vec<Tile>`, a `u64` tick count, `Vec<SurfaceObject>`, guests/seed/RNG, optional circuit/train state, and monotonically increasing object/guest-ID allocators. Dimensions are validated in `1..=256`; invalid map construction panics. Tile access is bounds checked. A `Tile` has a `Terrain` enum and `height: u8` in abstract steps; `MAX_TERRAIN_HEIGHT` is 32.
 
-`Park::new` creates flat terrain without objects, guests, or a train. Normal startup applies Terraced, installs the crowd/overlap fixture, then installs the train fixture. `try_apply_terrain_profile` validates every proposed height before mutation; it preserves authoritative operation state, materials, time, IDs, and object heights. `apply_terrain_profile` remains a convenience wrapper that panics on a rejected profile without changing state; use the fallible API for player actions. `set_terrain_height` validates bounds, height, and object clearance atomically.
+`Park::new` creates flat terrain without objects, guests, or a train. Normal startup applies Terraced, installs the crowd/overlap fixture, then installs the train fixture. `try_apply_terrain_profile` validates every proposed height before mutation; it preserves authoritative operation state, materials, time, IDs, and object heights. `apply_terrain_profile` remains a convenience wrapper that panics on a rejected profile without changing state; use the fallible API for player actions. `validate_terrain_height` checks bounds, height, and object clearance without mutation; `set_terrain_height` delegates before assigning the one height. The simulation API remains material-neutral; terrain player tools additionally reject Water and Underground targets.
 
 `SurfaceId` distinguishes `Terrain(TilePos)` from `Object(ObjectId)`. A `SurfaceObject` contains ID, tile, `Path`/`Track` kind, X/Y axis, height, and clearance. `place_object(pos, kind, axis, height, clearance)` returns a stable ID or `PlacementError`; `remove_object(id)` returns the removed object or `None`, and never recycles an ID. Occupied intervals are half-open, with positive clearance and total height at most 32. Shared-tile overlaps are rejected. Paths stay on/above terrain; track can also be wholly buried. Terrain cannot bisect an object.
 
@@ -467,7 +478,7 @@ Build from the existing or newly cloned repository using the pinned toolchain; r
 
 ### B. Preserve the accepted PRF-01 overlap baseline
 
-The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while improving performance. Its historical evidence is recorded in the overlap report; record current regression results in the path construction report.
+The 0.3.0 overlap fixture, stable identity, visibility, and clearance proof is accepted. Retain it as a regression scene while improving performance. Its historical evidence is recorded in the overlap report; record current regression results in the terrain editing report.
 
 1. Run simulation, geometry, input, formatting, lint, and release checks on the exact current source; inspect hosted CI for that commit.
 2. Demonstrate the shared crossing in all four rotations and both visibility modes, including Flat/Terraced comparison, zoom, pan, UI exclusion, and boundaries.
@@ -522,7 +533,7 @@ The retained historical local diagnostic data is in `benchmarks/results/2026-10-
 
 Version 0.8.0 completes reusable guest geometry and cached path connectivity with explicit invalidation. Its six raw JSON files and manifest are retained at `benchmarks/results/2026-10-20-optimization-local/`. One 300-tick run per case and one 1,800-tick stress run all completed, using clean source checkpoint `3f1ea88` and the unchanged runtime binary. Each animated pair completed sixty samples with equal final state/vertex totals; every measured tick reused the graph, and templates/decks/buffer capacities stayed unchanged through retained updates. The optimization report contains the timing table and noise limits. These are single local observations, not representative-hardware speedup claims.
 
-Retain the verified optimization and its regression oracles. Version 0.9 below verifies controlled large-map/GPU diagnostics, and 0.10 completes the bounded static visibility change. The next recommended gameplay slice is interactive path placement/demolition in the existing park. The earlier 0.7.0 frame result cannot identify a GPU cause, and 0.8 made no frame-performance comparison. Agree a representative PC separately before hardware acceptance; full ride-count/player-map/save-cap scaling remains open.
+Retain the verified optimization and its regression oracles. Version 0.9 below verifies controlled large-map/GPU diagnostics, and 0.10 completes the bounded static visibility change. Version 0.11 completed level-path placement/demolition; current 0.12 work extends editing to single terrain columns. The earlier 0.7.0 frame result cannot identify a GPU cause, and 0.8 made no frame-performance comparison. Agree a representative PC separately before hardware acceptance; full ride-count/player-map/save-cap scaling remains open.
 
 ### G. Retain the verified 0.9.0 controlled rendering/GPU baseline
 
@@ -550,9 +561,19 @@ Read [PATH_CONSTRUCTION_REPORT.md](docs/PATH_CONSTRUCTION_REPORT.md). The implem
 
 All 217 release tests (146 game/71 simulation), formatting, strict Clippy, and release build passed. Nine inspected final captures and both cross-version and new construction continuation passed. Native P/X, height buttons, F5/F9, blocked clicks, and Inspect reset passed in an isolated directory. Source eed600b is pushed in draft PR #9 and passed CI run 39447839922. All 26 package payload hashes and seventeen guides matched; relocated construction continuation and byte-identical path-built rendering passed. The bounded milestone is complete; preserve its evidence and regression contracts. Preserve invalid-command byte/cache identity, all-rotation/height picking, UI/help/drag/focus gates, Delete/Restore precedence, same-update Save and Load/Backup priority, and same-tick mesh refresh. The native session placed Path #93 at one-based (11,19), height 8, saved with F5, removed with X, then restored with F9 paused at 02:39 and reset to Inspect. Height buttons 8→9→8, Path, rejected occupied/outside clicks, Escape, and close passed. Physical Page Up/Down injection had no visible effect; retain that shortcut gap separately from the verified buttons.
 
-The recommended next bounded slice is single-tile terrain raise/lower using the atomic setter and shared clearance, with preview/rejection feedback and save continuation. Keep water, brushes, supported slopes, prices, and full terrain-editor scope separate. BLD-01/02/04 remain in progress because costs/refunds and queues are absent. The recommendation begins BLD-06 without changing the full Stage 3 park-loop plan or expanding player maps/save caps.
+BLD-01/02/04 remain in progress because costs/refunds and queues are absent. Preserve the completed path-tool and terrain implementations below; it does not expand player maps, save caps, or full Stage 3 scope.
 
-### J. Continue the full milestones
+### J. Preserve the completed 0.12.0 single-tile terrain implementation
+
+Read [TERRAIN_EDITING_REPORT.md](docs/TERRAIN_EDITING_REPORT.md). B/Raise and V/Lower act on the normally picked visible Grass/Sand column, including cliff faces, one +/-1 step per deliberate click within 0–32. Water and Underground edits are rejected by the player tool. The path plane remains independent. The preview reuses the existing mesh slot: current-face plus/minus or red X, with a proposed-height outline that obeys real occlusion.
+
+The immutable `Park::validate_terrain_height` shares bounds/clearance rules with `set_terrain_height`. The low-level API remains material-neutral. Rejected commands preserve the complete Park; accepted commands change only one height and leave materials, object IDs/positions, guests, train, and path connectivity intact. Normal simulation ticks remain separate. Successful editing displays Custom; T explicitly applies a valid preset. Preserve help/UI/pan/focus/capture/preview gates, Save-after-edit ordering, pending Load/Backup priority even on failure, and tool reset on successful load.
+
+Runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1` is pushed in [draft PR #10](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/10), stacked on still-unmerged PR #9/`codex/path-construction` at `13c4063`. All 236 local release tests passed (162 game/74 simulation), and final strict all-target release Clippy passed. The final source also passed all 236 tests in Windows CI; final local rustfmt passed. The production release build passed. Bidirectional 0.11/0.12 continuation and write-terrain/verify-terrain passed, including exact primary/backup state, Custom/paused loading, 3,600 ticks, commands, and clearance rejection. All ten captures exited 0 and were inspected without a blocking visual defect. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. Package verification matched all 27 payload hashes and eighteen guides. A fresh extraction path containing spaces and é, launched from `C:\Windows`, passed terrain primary/backup/Custom/paused continuation for 3,600 ticks plus commands/clearance. Its terrain-raised/rotation-2/Surface/Terraced/1024 × 680 PNG matched the source image byte-for-byte. Native terrain controls remain unverified after capture/activation errors prevented input. Do not copy previous pass counts into this checkpoint. Seven terrain scenes cover valid raise/lower previews, committed changes, clearance rejection, Water, and Underground. `--save-check write-terrain` then a separate `--save-check verify-terrain` uses a fresh absolute QA directory and writes `verification-terrain.txt`. The report supplies full commands. It compares primary/backup, Custom/paused loading, and 3,600 ticks with terrain/path commands. Retain existing and cross-version continuation proofs.
+
+BLD-06 stays in progress: no brushes, terrain slopes, material editing, water, or prices/refunds. Next, specify one-step sloped paths under BLD-08 with explicit endpoint heights, clearance, connectivity/guest movement, preview/picking, and save compatibility. Current single-height objects cannot gain slope behavior through rendering alone. Keep queues/boarding separate.
+
+### K. Continue the full milestones
 
 After technical proofs, Stage 3 integrates the first complete park loop: construction, paths, a flat ride, a shop, guests, queues, pricing, money, demolition, inspection, and saves. Stages 4–7 expand coasters, operations, ride families, original content, scenarios, and editors. Stage 8 covers performance, stability, balance, accessibility, and polish; Stage 9 closes public distribution. Keep each feature's persistence, UI, acceptance demonstration, and relevant tests in the same milestone.
 
@@ -560,7 +581,7 @@ Do not start all of these systems in one change. Select a small observable behav
 
 ## 9. Work safely across two PCs
 
-Use GitHub as the shared source history. This 0.11.0 session uses the original OneDrive folder recorded above. The separate second-PC clone remains `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`, with no verified OneDrive sync. For separate clones, push completed work to GitHub and fetch it on the receiving PC. For the shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
+Use GitHub as the shared source history. This 0.12.0 session uses the original OneDrive folder recorded above. The separate second-PC clone remains `C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon`, with no verified OneDrive sync. For separate clones, push completed work to GitHub and fetch it on the receiving PC. For the shared folder, finish the editing/build/Git session on the first PC, let OneDrive finish syncing on both PCs, then check Git status and the expected commit on the receiving PC. Use only one active editing/build/Git session for that shared checkout. Rebuild generated output as needed rather than relying on another PC's `target` cache.
 
 Before a work session:
 
@@ -570,19 +591,19 @@ git fetch origin
 git remote show origin
 ```
 
-Check the default branch and outstanding pull requests. This checkpoint is on `codex/path-construction` from completed 0.10.0 checkpoint `dbe650f`. Inspect PR #8 and all stacked reviews before choosing the current review base. Preserve ancestry and check actual merge status before changing a PR base. Switch/pull only with a clean working tree or deliberately preserved local changes.
+Check the default branch and outstanding pull requests. Current source `e5dbc0e` is pushed on `codex/terrain-editing` from completed 0.11.0 checkpoint `13c4063`, in draft PR #10 stacked on still-unmerged PR #9/`codex/path-construction`. Inspect all reviews and actual merge status before changing the base. Preserve ancestry and switch/pull only with a clean working tree or deliberately preserved changes.
 
 To resume the published feature branch on a PC without a local copy:
 
 ```powershell
-git switch --track origin/codex/path-construction
+git switch --track origin/codex/terrain-editing
 ```
 
 If the local branch already exists:
 
 ```powershell
-git switch codex/path-construction
-git pull --ff-only origin codex/path-construction
+git switch codex/terrain-editing
+git pull --ff-only origin codex/terrain-editing
 ```
 
 After the full review stack merges, resume from the verified merge on `main` instead. Until then, retain the optimization branch ancestry and keep the review stacked deliberately. When a fast-forward fails, inspect histories and resolve intentionally; do not force-push or reset away the other PC's changes.
@@ -597,7 +618,7 @@ git status --short
 git diff --cached --stat
 git diff --cached
 git commit -m "Reuse guest rendering and cache path connectivity"
-git push -u origin codex/path-construction
+git push -u origin codex/terrain-editing
 ```
 
 The staging step is intentionally task-specific; do not accidentally include credentials, unrelated or unrequested private machine paths, diagnostics from other apps, executables, caches, or unrelated files. Ensure `Cargo.lock`, relevant notices, and documentation changes are included when they belong to the change. Do not commit generated `target`, `dist`, or `artifacts` directories. Preserve `.gitattributes`: supplementary notice files have recorded SHA-256 hashes, so changing their line endings through Windows Git settings would break verification. They are deliberately excluded from text normalization.
@@ -628,6 +649,7 @@ The following hosted runs were verified successful on 20 October 2026:
 | `e93eb99` (0.7.0 measurement runtime source) | [Successful PR run 39425219126](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39425219126) for draft PR #5. The performance report distinguishes historical local diagnostic measurements from hosted checks. |
 | `3f1ea88` (0.8.0 wrapper checkpoint, runtime `9460a9`) | [Successful PR run 39429282120](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39429282120) for draft PR #6, including build, package, continuation, and CPU-wrapper checks. The optimization report retains that historical evidence. |
 | `5d49b7e` (0.9.0 render/GPU runtime source) | [Successful PR run 39435077589](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39435077589) for draft PR #7: formatting, lint, tests, build/package, production continuation, CPU-report smoke checks, and artifact upload. |
+| `e5dbc0e` (0.12.0 terrain runtime source) | Draft PR #10, stacked on PR #9. [Windows CI run 39557465779](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39557465779) passed for exact runtime source `e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1`, including formatting, strict lint, all 236 tests, packaging, ordinary/path/terrain continuation, CPU-reporting smoke, and artifact uploads. This does not claim a later documentation head passed. |
 | `eed600b` (0.11.0 path construction runtime source) | [Successful PR run 39447839922](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39447839922) for draft PR #9: source tests/checks, build/package, continuation, CPU-wrapper smoke and artifact upload. This success is for the runtime source, not a later documentation head. |
 | `ff2857e` (0.10.0 static visibility runtime source) | [Successful PR run 39440918757](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39440918757) for draft PR #8. Runtime/source/package evidence is in the static visibility report. |
 
@@ -643,7 +665,7 @@ Public naming, final hardware/Windows requirements, signing, installer choice, s
 
 ```text
 Continue https://github.com/strijbosmh-afk/RailRust-Tycoon, temporarily named Parkbound.
-Read RESUME_DEVELOPMENT.md, docs/PATH_CONSTRUCTION_REPORT.md, the historical STATIC_VISIBILITY/LARGE_MAP_GPU/OPTIMIZATION/
+Read RESUME_DEVELOPMENT.md, docs/TERRAIN_EDITING_REPORT.md, the historical PATH_CONSTRUCTION/STATIC_VISIBILITY/LARGE_MAP_GPU/OPTIMIZATION/
 PERFORMANCE/SAVE/TRAIN/CROWD/OVERLAP/TERRAIN/FOUNDATION reports, PRODUCT_DECISIONS,
 GAMEPLAY_CHECKLIST, and DEVELOPMENT_PLAN. Inspect actual source/Git state first.
 
@@ -653,18 +675,37 @@ and proposed 60 FPS at 1080p acceptance wait for an agreed representative PC.
 Preserve historical raw JSON/hashes/path names in benchmarks/results; the old
 2026-10-20-reference directory name is not hardware approval.
 
-Completed bounded milestone is 0.11.0 level-path construction/demolition, branch codex/path-construction
-from dbe650f. All 217 release tests (146 game/71 simulation), formatting, strict Clippy, and release build passed;
-nine final captures and cross-version/new path continuation passed. Native P/X, height buttons, F5/F9, rejection and reset passed; current
-source eed600b is pushed in draft PR #9 (stacked on PR #8) and passed CI run 39447839922.
-All 26 payload hashes and 17 guides and relocated construction-continuation/byte-identical capture passed.
-PATH_CONSTRUCTION_REPORT records exact evidence; later documentation heads have separate CI status.
-Preserve P/X/Inspect, selected height0..30/default8, one-click placement, visible-only
-removal, shared validation, 1024-path/4096-object caps, and atomic fixture restoration.
-Load/Backup gates all edits even on failure; Save includes same-update construction;
-Delete wins Restore and consumes the world click. Tool state resets on load. The final EXE is 46,213,120 bytes, SHA-256
-8e3bfc2971791f0eb85577d0ae8608bf99bba37e16141be00d101dfd7622e6d0.
-Retain six path capture presets and write-paths/verify-paths production continuation.
+Completed bounded implementation is 0.12.0 single-tile terrain editing on codex/terrain-editing from 13c4063.
+Runtime source e5dbc0e61a9fdc3870f89a9c664ed13fbf4c4fc1 is pushed in draft PR #10,
+stacked on still-unmerged PR #9. Local 236 release tests (162 game/74 sim) and final strict
+release Clippy/build/rustfmt passed. Final-source CI 39557465779 passed all 236 tests,
+checks, package, ordinary/path/terrain proofs, CPU smoke, and uploads. Ten inspected
+captures, bidirectional 0.11/0.12 saves, and terrain 3,600-tick/commands/backup/Custom/paused
+continuation passed. EXE 46,266,368 bytes SHA256
+344e627608bc5bab1f8bd87943dd301be20552e62861e11d7bc4af5d207480a7.
+Native testing sent no input: GetCursorPos access denied 0x80070005; refreshed-window retry
+failed CreateForMonitor 0x80070057. Terrain controls remain unverified.
+Package verified 27 payload hashes/18 guides, 291 dependency notices, font/Rust notices, and one MSVC DLL.
+Extracted terrain proof from C:\Windows in a spaces/é path passed; its terrain-raised
+r2 Surface Terraced 1024x680 capture is byte-identical to source. Notices/runtime match 0.11.
+Refresh final package after docs edits; adjacent ZIP .sha256 is authoritative. Read the current report and actual source before continuing.
+Do not infer current verification from historical counts. Completed 0.11.0 source eed600b
+passed CI 39447839922, 217 tests and targeted post-hint checks, nine captures, native P/X,
+height buttons/F5/F9, continuation, and 26-payload/17-guide package relocation.
+Preserve that level-path baseline; do not reimplement it.
+
+Terrain contract: B/Raise and V/Lower target visible Grass/Sand tops or cliffs,
+one +/-1 height step per click within 0..32; Water and Underground edits blocked.
+Immutable validate_terrain_height and atomic set_terrain_height share clearance;
+low-level simulation validation remains material-neutral. Paths/track/guests stay in place.
+Preview reuses the existing mesh slot and obeys depth; path height remains independent.
+Successful edits display Custom; T explicitly applies a preset if valid.
+Schema 1/content 1 persists heights/materials; tool state resets Inspect on load.
+Load/Backup gates all edits even on failure; Save includes same-update terrain/path edits.
+Retain H/F1 click consumption, Delete-over-Restore, drag/focus/UI/diagnostic gates.
+Verify seven terrain scenes and separate write-terrain/verify-terrain processes with
+verification-terrain.txt, full primary/backup, Custom/paused load, and 3,600 ticks/commands.
+Keep existing save/path proofs and compatible cross-version continuation.
 Historical ff2857e passed 193 tests, exact images, bidirectional saves, GPU diagnostics,
 CI39440918757, and final 25-payload/16-guide package verification. Do not reimplement it.
 Historical 0.9.0 source 5d49b7e passed 178 tests,
@@ -723,9 +764,9 @@ The 0.11 level-path construction/demolition milestone is complete on 32×32; pre
 with preview/rejection feedback, clearance/stable IDs/cache invalidation, guest routing,
 and same-step save/load/continuation tests. This begins BLD-01/02/04 but does not complete
 costs/refunds/queues/full construction. P/X are the level-path tools; R restores only the fixture.
-Then consider single-tile terrain raise/lower with preview/clearance and saved continuation.
+The bounded terrain implementation is verified through source/runtime/CI/package checks; preserve the native-input gap. Next specify one-step sloped paths with endpoint heights, clearance, guest traversal, preview/picking, and explicit save compatibility. BLD-06 remains in progress and BLD-08 remains planned; do not bundle queues/boarding.
 Choose work from gameplay needs and verified evidence,
-not this PC's FPS. Native Backup/Save/Load buttons, O/F/buttons, physical Delete/Page Up/Page Down, pan/drag/display,
+not this PC's FPS. New native B/V/terrain buttons remain unverified after Windows capture/activation errors prevented all input; native Backup/Save/Load buttons, O/F/buttons, physical Delete/Page Up/Page Down, pan/drag/display,
 and clean PC offline/standard-user checks remain open unless directly reverified.
 No full construction, boarding/queues, money, scenarios, autosave/browser/migrations,
 or audio exists. Preserve original assets and exact notice bytes.

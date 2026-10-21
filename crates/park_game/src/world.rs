@@ -10,12 +10,14 @@ mod guest_render;
 mod layout;
 mod path_preview;
 mod static_chunks;
+mod terrain_preview;
 mod train_render;
 
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};
 pub use path_preview::{path_plane_occluded, path_preview_mesh, pick_path_plane};
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
+pub use terrain_preview::terrain_preview_mesh;
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
