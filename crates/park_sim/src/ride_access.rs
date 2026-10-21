@@ -1,5 +1,5 @@
 //! Construction and derived access checks for the single existing ride.
-//! Queues do not admit, transport or board public guests in this stage.
+//! Queue construction is distinct from public navigation and ride admission.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -19,6 +19,25 @@ pub struct Ride {
     pub id: RideId,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub entrance: Option<RideEntrance>,
+    pub draining: bool,
+    pub next_queue_ticket: u64,
+    pub joined: u64,
+    pub turned_away: u64,
+    pub abandoned: u64,
+}
+
+impl Ride {
+    pub(crate) fn new(id: RideId) -> Self {
+        Self {
+            id,
+            entrance: None,
+            draining: false,
+            next_queue_ticket: 1,
+            joined: 0,
+            turned_away: 0,
+            abandoned: 0,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -154,7 +173,7 @@ impl Park {
     ) -> Result<ObjectId, RideAccessError> {
         self.require_ride(ride)?;
         let next = self.validate_path_placement(pos, height, slope)?;
-        Ok(self.insert_surface_object(
+        let id = self.insert_surface_object(
             SurfaceObject {
                 id: ObjectId(0),
                 pos,
@@ -166,7 +185,9 @@ impl Park {
                 clearance: slope.clearance(),
             },
             next,
-        ))
+        );
+        self.reconcile_ride_visits();
+        Ok(id)
     }
 
     pub fn validate_ride_entrance(
@@ -222,6 +243,7 @@ impl Park {
         );
         self.ride.as_mut().expect("validated ride").entrance =
             Some(RideEntrance { object, facing });
+        self.reconcile_ride_visits();
         Ok(object)
     }
 

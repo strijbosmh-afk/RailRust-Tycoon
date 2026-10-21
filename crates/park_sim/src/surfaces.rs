@@ -184,7 +184,9 @@ impl Park {
             return Err(PlacementError::EntranceRequiresRide);
         }
         let next_id = self.validate_object_placement(pos, kind, height, clearance)?;
-        Ok(self.insert_validated_object(pos, kind, axis, height, clearance, next_id))
+        let id = self.insert_validated_object(pos, kind, axis, height, clearance, next_id);
+        self.reconcile_ride_visits();
+        Ok(id)
     }
 
     /// Preview the exact player path placement without changing authoritative
@@ -229,6 +231,7 @@ impl Park {
             .last_mut()
             .expect("just inserted path")
             .path_slope = slope;
+        self.reconcile_ride_visits();
         Ok(id)
     }
 
@@ -349,6 +352,8 @@ impl Park {
         let removed = self.objects.remove(index);
         if removed.is_public_path() {
             self.path_cache.invalidate();
+        }
+        if removed.kind == ObjectKind::Path {
             self.reconcile_guests_after_removal(removed);
         }
         self.reconcile_train_after_removal(id);
@@ -360,6 +365,7 @@ impl Park {
         {
             ride.entrance = None;
         }
+        self.reconcile_ride_visits();
         Some(removed)
     }
 
@@ -564,6 +570,8 @@ mod tests {
             progress: 0,
             state: GuestState::Waiting,
             arrivals: 0,
+            ride_visit: None,
+            ride_cooldown: 0,
             route: Default::default(),
             wait_ticks: 0,
         });

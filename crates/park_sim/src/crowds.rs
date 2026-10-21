@@ -53,6 +53,9 @@ pub struct Guest {
     #[serde(deserialize_with = "crate::saves::string_enum")]
     pub state: GuestState,
     pub arrivals: u64,
+    #[serde(deserialize_with = "crate::saves::required_object_option")]
+    pub ride_visit: Option<crate::RideVisit>,
+    pub ride_cooldown: u16,
     #[serde(deserialize_with = "crate::saves::bounded_route")]
     pub(crate) route: VecDeque<ObjectId>,
     pub(crate) wait_ticks: u16,
@@ -80,9 +83,9 @@ impl Guest {
     ) -> GuestPosition {
         let anchor = self.anchor_path();
         let current = current
-            .filter(|path| path.is_public_path())
+            .filter(|path| self.can_walk_path(path))
             .unwrap_or(&anchor);
-        let next = next.filter(|path| path.is_public_path() && paths_connect(current, path));
+        let next = next.filter(|path| self.can_walk_path(path) && paths_connect(current, path));
         let from = current.path_center().expect("current or anchor is a path");
         let to = next.and_then(SurfaceObject::path_center).unwrap_or(from);
         let point = if let Some(next) = next {
@@ -122,14 +125,26 @@ impl Guest {
         }
     }
 
-    fn anchor_path(&self) -> SurfaceObject {
+    pub(crate) fn can_walk_path(&self, path: &SurfaceObject) -> bool {
+        path.is_public_path()
+            || (path.kind == ObjectKind::Path
+                && self.ride_visit.as_ref().is_some_and(|visit| {
+                    visit.ticket.is_some() && path.queue_owner == Some(visit.ride)
+                }))
+    }
+
+    pub(crate) fn anchor_path(&self) -> SurfaceObject {
         SurfaceObject {
             id: ObjectId(0),
             pos: self.anchor,
             kind: ObjectKind::Path,
             axis: self.anchor_slope.axis(),
             path_slope: self.anchor_slope,
-            queue_owner: None,
+            queue_owner: self
+                .ride_visit
+                .as_ref()
+                .filter(|visit| visit.ticket.is_some())
+                .map(|visit| visit.ride),
             height: self.height,
             clearance: self.anchor_slope.clearance(),
         }
@@ -166,6 +181,10 @@ pub(crate) struct PathCache {
 }
 
 impl PathCache {
+    pub(crate) fn shared_graph(&mut self, objects: &[SurfaceObject]) -> Arc<PathGraph> {
+        self.graph(objects);
+        Arc::clone(self.graph.as_ref().expect("graph built or retained"))
+    }
     pub(crate) fn invalidate(&mut self) {
         if self.graph.take().is_some() {
             self.stats.invalidations = self.stats.invalidations.saturating_add(1);
@@ -278,6 +297,8 @@ impl Park {
                     progress: 0,
                     state: GuestState::Waiting,
                     arrivals: 0,
+                    ride_visit: None,
+                    ride_cooldown: 0,
                     route: VecDeque::new(),
                     wait_ticks: index as u16 * 2,
                 });
@@ -347,10 +368,7 @@ impl Park {
         }
         // Object edits invalidate derived connectivity before another tick or
         // query can use it. Stable topology needs no allocation or graph rebuild.
-        let graph = self.path_cache.graph(&self.objects);
-        for guest in &mut self.guests {
-            graph.step_guest(guest, &mut self.crowd_rng);
-        }
+        self.step_admission_crowd();
     }
 }
 
@@ -453,7 +471,7 @@ impl PathGraph {
             .then(|| route_from_parents(&parents, start, destination))
     }
 
-    fn step_guest(&self, guest: &mut Guest, rng: &mut u64) {
+    pub(crate) fn step_guest(&self, guest: &mut Guest, rng: &mut u64) {
         if guest.current.is_none() {
             // The exact removed footprint wins over an incident path. A slope
             // retains both end heights: side neighbors and wrong levels cannot
@@ -611,6 +629,8 @@ mod tests {
             progress: 0,
             state: GuestState::Waiting,
             arrivals: 0,
+            ride_visit: None,
+            ride_cooldown: 0,
             route: VecDeque::new(),
             wait_ticks: 0,
         });

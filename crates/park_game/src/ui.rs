@@ -4,8 +4,9 @@ use super::{
 };
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{
-    ObjectKind, PathDirection, PathSlope, RideAccessStatus, Speed, SurfaceId, Terrain,
-    TerrainProfile, TrackKind, TrainPhase,
+    CrowdStats, ObjectKind, PathDirection, PathSlope, QUEUE_PATIENCE_TICKS, RideAccessStatus,
+    RideQueueStats, Speed, SurfaceId, TICKS_PER_SECOND, Terrain, TerrainProfile, TrackKind,
+    TrainPhase,
 };
 
 use crate::path_tools::PathTool;
@@ -388,7 +389,7 @@ pub(super) fn setup(mut commands: Commands) {
                 padding: UiRect::all(px(12)),
                 border: UiRect::all(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(6),
+                row_gap: px(4),
                 ..default()
             },
             GlobalZIndex(2),
@@ -399,7 +400,13 @@ pub(super) fn setup(mut commands: Commands) {
         .with_children(|p| {
             label(p, "Meadow Flyer", 18.0, INK);
             dynamic_label(p, "Waiting at station", 11.0, MUTED, Label::Train);
-            dynamic_label(p, "Queue: no entrance", 11.0, INK, Label::RideAccess);
+            dynamic_label(
+                p,
+                "Queue: no entrance\n0/0 queued / longest 0s",
+                11.0,
+                INK,
+                Label::RideAccess,
+            );
             p.spawn(Node {
                 flex_grow: 1.0,
                 ..default()
@@ -468,7 +475,10 @@ pub(super) fn setup(mut commands: Commands) {
                 label(p, "Make yourself at home", 23.0, INK);
                 label(
                     p,
-                    "Explore Meadow Lake with the mouse or keyboard.",
+                    &format!(
+                        "Queues empty after {}s; boarding comes later.",
+                        u64::from(QUEUE_PATIENCE_TICKS) / TICKS_PER_SECOND
+                    ),
                     12.0,
                     MUTED,
                 );
@@ -505,7 +515,7 @@ pub(super) fn setup(mut commands: Commands) {
                 }
                 label(
                     p,
-                    "Load replaces the current park and starts paused.\nSave keeps the previous valid park as a backup.",
+                    "Diamond: seeking / bars: queueing / chevron: returning.\nLoad replaces park, paused. Save keeps previous backup.",
                     12.0,
                     MUTED,
                 );
@@ -593,6 +603,7 @@ pub(super) fn refresh(
     };
     let directions = ["NE", "SE", "SW", "NW"];
     let access = sim.0.ride().map(|ride| sim.0.ride_access(ride.id));
+    let queue = sim.0.ride().map(|ride| sim.0.ride_queue_stats(ride.id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
             Label::ParkInfo => format!(
@@ -658,27 +669,42 @@ pub(super) fn refresh(
                                 .as_ref()
                                 .map_or("Ride unavailable", |access| access_reason(access.status));
                             return format!(
-                                "Tile {}, {} / Ride #{}\n{} / low {}\n{status}\nGuest admission comes later.",
+                                "Tile {}, {} / Ride #{}\n{} / low {}\n{status}\n{}",
                                 object.pos.x + 1,
                                 object.pos.y + 1,
                                 owner.0,
                                 crate::path_tools::shape_name(object.path_slope),
                                 object.height,
+                                queue
+                                    .as_ref()
+                                    .map_or_else(|| "Ride unavailable".into(), queue_details),
                             );
                         }
                         if object.kind == ObjectKind::RideEntrance {
-                            return sim.0.ride().and_then(|ride| {
-                                let entrance = ride.entrance.as_ref()?;
-                                (entrance.object == id).then(|| format!(
-                                    "Tile {}, {} / Ride #{}\nHeight: {} / faces {}\n{}\nGuest admission comes later.",
-                                    object.pos.x + 1,
-                                    object.pos.y + 1,
-                                    ride.id.0,
-                                    object.height,
-                                    direction_name(entrance.facing),
-                                    access.as_ref().map_or("Ride unavailable", |access| access_reason(access.status)),
-                                ))
-                            }).unwrap_or_else(|| "Entrance metadata unavailable".into());
+                            return sim
+                                .0
+                                .ride()
+                                .and_then(|ride| {
+                                    let entrance = ride.entrance.as_ref()?;
+                                    (entrance.object == id).then(|| {
+                                        format!(
+                                            "Tile {}, {} / Ride #{}\nHeight: {} / faces {}\n{}\n{}",
+                                            object.pos.x + 1,
+                                            object.pos.y + 1,
+                                            ride.id.0,
+                                            object.height,
+                                            direction_name(entrance.facing),
+                                            access.as_ref().map_or("Ride unavailable", |access| {
+                                                access_reason(access.status)
+                                            }),
+                                            queue.as_ref().map_or_else(
+                                                || "Ride unavailable".into(),
+                                                queue_details
+                                            ),
+                                        )
+                                    })
+                                })
+                                .unwrap_or_else(|| "Entrance metadata unavailable".into());
                         }
                         if let Some(piece) = sim.0.circuit().and_then(|circuit| {
                             circuit.pieces.iter().find(|piece| piece.object == id)
@@ -786,13 +812,7 @@ pub(super) fn refresh(
                 ViewMode::Underground => "Underground: on [U]",
             }
             .into(),
-            Label::Crowd => {
-                let stats = sim.0.crowd_stats();
-                format!(
-                    "{} guests / {} walking\n{} waiting / {} lost\nDestinations reached: {}",
-                    stats.total, stats.walking, stats.waiting, stats.lost, stats.arrivals
-                )
-            }
+            Label::Crowd => crowd_summary(sim.0.crowd_stats(), queue.as_ref()),
             Label::Train => sim
                 .0
                 .train()
@@ -823,13 +843,14 @@ pub(super) fn refresh(
                         train.laps
                     )
                 }),
-            Label::RideAccess => access.as_ref().map_or("Queue: no ride".into(), |access| {
-                if access.status == RideAccessStatus::Ready {
-                    format!("{} queue tiles linked / no boarding", access.queue_tiles)
-                } else {
-                    format!("Queue: {}", access_reason(access.status))
-                }
-            }),
+            Label::RideAccess => match (access.as_ref(), queue.as_ref()) {
+                (Some(access), Some(queue)) => format!(
+                    "{}\n{}",
+                    queue_status(access.status, queue),
+                    queue_details(queue)
+                ),
+                _ => "Queue: no ride\nNo boarding yet".into(),
+            },
             Label::TrainToggle => if sim.0.train().is_some_and(|train| train.open) {
                 "Close"
             } else {
@@ -941,9 +962,59 @@ fn direction_name(direction: PathDirection) -> &'static str {
     }
 }
 
+fn queue_status(access: RideAccessStatus, queue: &RideQueueStats) -> String {
+    if access != RideAccessStatus::Ready {
+        return format!("Queue: {}", access_reason(access));
+    }
+    if queue.draining {
+        return if queue.stranded > 0 {
+            "Returning / repair lost paths"
+        } else {
+            "Returning to public paths"
+        }
+        .into();
+    }
+    if queue.capacity > 0 && queue.queueing >= queue.capacity {
+        "Queue full / no boarding".into()
+    } else if queue.admitting {
+        "Queue open / no boarding".into()
+    } else {
+        "Queue closed / no boarding".into()
+    }
+}
+
+fn queue_details(queue: &RideQueueStats) -> String {
+    format!(
+        "{}/{} queued / longest {}s",
+        queue.queueing,
+        queue.capacity,
+        u64::from(queue.oldest_wait_ticks) / TICKS_PER_SECOND,
+    )
+}
+
+fn crowd_summary(crowd: CrowdStats, queue: Option<&RideQueueStats>) -> String {
+    let Some(queue) = queue else {
+        return format!(
+            "{} guests / {} lost\n{} walking / {} resting\nNo ride installed",
+            crowd.total, crowd.lost, crowd.walking, crowd.waiting
+        );
+    };
+    // Cumulative counts may grow indefinitely in a long-running save. Keep
+    // this line inside the unchanged sidebar rather than wrapping below it.
+    let cancelled = if queue.abandoned > 9999 {
+        "9999+".into()
+    } else {
+        queue.abandoned.to_string()
+    };
+    format!(
+        "{} guests / {} lost\n{} seeking / {} queued\nReturning {} / cancelled {}",
+        crowd.total, crowd.lost, queue.seeking, queue.queueing, queue.leaving, cancelled,
+    )
+}
+
 fn access_reason(status: RideAccessStatus) -> &'static str {
     match status {
-        RideAccessStatus::Ready => "Linked / no boarding yet",
+        RideAccessStatus::Ready => "Connected / no boarding yet",
         RideAccessStatus::RideUnavailable => "ride unavailable",
         RideAccessStatus::NoEntrance => "place an entrance",
         RideAccessStatus::StationDisconnected => "gate needs a station",
@@ -955,5 +1026,108 @@ fn access_reason(status: RideAccessStatus) -> &'static str {
         RideAccessStatus::MultiplePublicEntries => "multiple public entries",
         RideAccessStatus::PublicEntryNotAtEnd => "entry must be at the end",
         RideAccessStatus::ForeignQueue => "mixed ride owners",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn queue_stats() -> RideQueueStats {
+        RideQueueStats {
+            seeking: 2,
+            queueing: 3,
+            leaving: 0,
+            stranded: 0,
+            capacity: 4,
+            moving: 1,
+            waiting: 2,
+            oldest_wait_ticks: 1499,
+            draining: false,
+            admitting: true,
+            joined: 3,
+            turned_away: 0,
+            abandoned: 0,
+        }
+    }
+
+    #[test]
+    fn queue_feedback_distinguishes_admission_capacity_and_topology() {
+        let mut queue = queue_stats();
+        assert_eq!(
+            queue_status(RideAccessStatus::Ready, &queue),
+            "Queue open / no boarding"
+        );
+        assert_eq!(queue_details(&queue), "3/4 queued / longest 49s");
+        queue.queueing = 4;
+        assert_eq!(
+            queue_status(RideAccessStatus::Ready, &queue),
+            "Queue full / no boarding"
+        );
+        queue.admitting = false;
+        queue.queueing = 0;
+        assert_eq!(
+            queue_status(RideAccessStatus::Ready, &queue),
+            "Queue closed / no boarding"
+        );
+        assert_eq!(
+            queue_status(RideAccessStatus::NoPublicEntry, &queue),
+            "Queue: no public entry"
+        );
+    }
+
+    #[test]
+    fn draining_feedback_keeps_repair_reason_and_returning_counts_truthful() {
+        let mut queue = queue_stats();
+        queue.draining = true;
+        queue.admitting = false;
+        queue.queueing = 0;
+        queue.leaving = 3;
+        queue.abandoned = 3;
+        assert_eq!(
+            queue_status(RideAccessStatus::Ready, &queue),
+            "Returning to public paths"
+        );
+        queue.stranded = 1;
+        assert_eq!(
+            queue_status(RideAccessStatus::Ready, &queue),
+            "Returning / repair lost paths"
+        );
+        assert_eq!(
+            queue_status(RideAccessStatus::Disconnected, &queue),
+            "Queue: disconnected tiles"
+        );
+        let crowd = CrowdStats {
+            total: 12,
+            lost: 1,
+            ..default()
+        };
+        assert_eq!(
+            crowd_summary(crowd, Some(&queue)),
+            "12 guests / 1 lost\n2 seeking / 0 queued\nReturning 3 / cancelled 3"
+        );
+    }
+
+    #[test]
+    fn crowd_feedback_remains_three_short_lines_at_save_limits() {
+        let mut queue = queue_stats();
+        queue.seeking = 256;
+        queue.queueing = 256;
+        queue.capacity = 1024;
+        queue.leaving = 256;
+        queue.abandoned = u64::MAX;
+        queue.oldest_wait_ticks = QUEUE_PATIENCE_TICKS;
+        let text = crowd_summary(
+            CrowdStats {
+                total: 256,
+                lost: 256,
+                ..default()
+            },
+            Some(&queue),
+        );
+        assert_eq!(text.lines().count(), 3);
+        assert!(text.lines().all(|line| line.len() <= 35));
+        assert!(text.ends_with("cancelled 9999+"));
+        assert_eq!(queue_details(&queue), "256/1024 queued / longest 60s");
     }
 }

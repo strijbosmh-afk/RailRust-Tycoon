@@ -3,6 +3,7 @@
 //! Rendering, input, and wall-clock time belong to the application. Keeping those
 //! concerns outside this crate makes the simulation usable in headless tests.
 
+mod admission;
 mod crowds;
 pub mod diagnostics;
 mod path_geometry;
@@ -15,6 +16,9 @@ mod slope_tests;
 mod surfaces;
 mod trains;
 
+pub use admission::{
+    QUEUE_PATIENCE_TICKS, RIDE_COOLDOWN_TICKS, RideQueueStats, RideVisit, RideVisitPhase,
+};
 pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
 };
