@@ -36,7 +36,7 @@ const HEADER: f32 = 76.0;
 const FOOTER: f32 = 36.0;
 const CROWD_SEED: u64 = 20261020;
 const RIDE_PANEL_WIDTH: f32 = 236.0;
-const RIDE_PANEL_HEIGHT: f32 = 152.0;
+const RIDE_PANEL_HEIGHT: f32 = 184.0;
 const RIDE_PANEL_MARGIN: f32 = 12.0;
 
 #[derive(Resource)]
@@ -68,6 +68,8 @@ struct ViewState {
     path_tool: path_tools::ToolState,
     toggle_train_pending: bool,
     focus_train_pending: bool,
+    price_delta_pending: i32,
+    price_notice: Option<String>,
     save_pending: Option<SaveAction>,
     save_notice: String,
     diagnostic_case: Option<park_sim::diagnostics::DiagnosticCase>,
@@ -102,6 +104,8 @@ impl Default for ViewState {
             path_tool: default(),
             toggle_train_pending: false,
             focus_train_pending: false,
+            price_delta_pending: 0,
+            price_notice: None,
             save_pending: None,
             save_notice: "F5 save / F9 load\nShift+F9 loads backup".into(),
             diagnostic_case: None,
@@ -182,8 +186,15 @@ impl ViewState {
                 .is_some_and(|action| action != SaveAction::Save)
     }
 
+    fn request_price_change(&mut self, steps: i8) {
+        if !self.edits_blocked() {
+            self.price_delta_pending = self.price_delta_pending.saturating_add(i32::from(steps));
+        }
+    }
+
     fn set_path_tool(&mut self, mode: path_tools::PathTool) {
         if !self.edits_blocked() {
+            self.price_notice = None;
             self.path_tool.set_mode(mode);
             self.hovered = None;
         }
@@ -279,6 +290,7 @@ fn main() -> AppExit {
                 apply_terrain_profile,
                 apply_path_actions,
                 apply_train_actions,
+                apply_price_actions,
                 pointer_input,
                 persistence::apply_save_action,
                 apply_camera,
@@ -481,6 +493,12 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if keys.just_pressed(KeyCode::KeyF) {
         view.focus_train_pending = true;
     }
+    if keys.just_pressed(KeyCode::F6) {
+        view.request_price_change(-1);
+    }
+    if keys.just_pressed(KeyCode::F7) {
+        view.request_price_change(1);
+    }
     if keys.just_pressed(KeyCode::F5) {
         view.request_save(SaveAction::Save);
     }
@@ -613,6 +631,32 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
         view.focus_train_pending = false;
         focus_train(&sim.0, &mut view);
     }
+}
+
+fn apply_price_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    // Gather keyboard and button requests before mutating. A load, including a
+    // failed load, wins over every edit; Save runs after this system.
+    let steps = std::mem::take(&mut view.price_delta_pending);
+    if steps == 0 || view.edits_blocked() {
+        return;
+    }
+    let Some(ride) = sim.0.ride() else {
+        view.price_notice = Some("Build a ride before setting its ticket price.".into());
+        return;
+    };
+    let id = ride.id;
+    let old_price = ride.ticket_price_cents;
+    let requested = i64::from(old_price) + i64::from(steps) * i64::from(park_sim::PRICE_STEP_CENTS);
+    let price = requested.clamp(0, i64::from(park_sim::MAX_TICKET_PRICE_CENTS)) as u32;
+    view.price_notice = Some(match sim.0.set_ride_ticket_price(id, price) {
+        Ok(()) if price == old_price && price == 0 => "Tickets are already free.".into(),
+        Ok(()) if price == old_price => "Ticket limit: $100.00.".into(),
+        Ok(()) => format!(
+            "Ticket {} / later boarders, charged on departure",
+            ui::money(u64::from(price))
+        ),
+        Err(error) => format!("Ticket unchanged: {error}"),
+    });
 }
 
 /// This formula uses logical pixels, just like cursor_position and the UI.

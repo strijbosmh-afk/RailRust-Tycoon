@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-Updated 21 October 2026 for **0.16.0 complete ride journeys**, on `codex/ride-journeys` from completed 0.15.0 checkpoint `965e3267b2ea8350067a12761fe339051b711e8d`. This stage adds a separate exit, physical station transfers, six passenger seats, completed rides, protected occupied construction and exact passenger continuation. The bounded gameplay stage and its source, runtime, native, package and hosted checks are complete; section 10 and [the journey report](docs/RIDE_JOURNEY_REPORT.md) record current evidence. Historical [admission](docs/ADMISSION_REPORT.md) and [queue](docs/QUEUES_REPORT.md) reports retain their original evidence.
+Updated 22 October 2026 for **0.17.0 ticket pricing, guest wallets and ride revenue**, on `codex/ride-economy` from completed 0.16.0 checkpoint `20491b13d5e49a3b8b707f53fec789ddf97694cd`. This stage adds editable fares, locked boarding prices, payment on departure, guest spending, ride income and park cash. The implementation is pushed; section 10 records verification and the exact runtime identity. The historical [journey](docs/RIDE_JOURNEY_REPORT.md), [admission](docs/ADMISSION_REPORT.md) and [queue](docs/QUEUES_REPORT.md) reports retain their named-build results.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>. **Parkbound** is a temporary title for an original Rust theme park simulation inspired by classic RCT1/RCT2. The user chose Windows-only free distribution with all functionality included, developed in playable stages. It is not yet a complete management game. **No reference PC is selected; this development PC is explicitly excluded.** Its measurements remain local diagnostics, not hardware requirements or 60 FPS acceptance.
 
@@ -20,7 +20,7 @@ The previously used second-PC checkout is:
 C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon
 ```
 
-That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch, and commit before continuing. The current branch is `codex/ride-journeys` in [draft PR #14](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/14), stacked on `codex/guest-admission` / unmerged [draft PR #13](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/13). Exact runtime source is `25ed0a993f1c6b63dad2e659bc6b6c9dc93d5d38`; later documentation commits do not change that executable. Do not assume `main` contains the latest playable stage or that dependent PRs have merged.
+That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch, and commit before continuing. The current branch is `codex/ride-economy`, based on `codex/ride-journeys` / unmerged [draft PR #14](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/14). Exact runtime source `f9bfad2774989554cacb332163cc934063bcc84d` is pushed in [draft PR #15](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/15), targeting the unmerged predecessor. Later documentation commits retain this runtime identity. Do not assume `main` contains the latest playable stage or that dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -42,10 +42,10 @@ Set-Location -LiteralPath $projectDirectory
 git fetch origin
 git branch -a
 # Only after the current branch is listed on origin:
-git switch --track origin/codex/ride-journeys
+git switch --track origin/codex/ride-economy
 ```
 
-If the branch already exists locally, use `git switch codex/ride-journeys` instead. If it is absent from `origin`, finish/push the first PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/ride-economy` instead. If it is absent from `origin`, finish/push the first PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -59,12 +59,13 @@ Retain historical reports, raw benchmark data, evidence paths and notices. In pa
 
 ## 2. Read the project records
 
-Start with [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
+Start with [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
 
 Historical reports retain exact source, test, capture, native, CI, package, and checksum evidence without duplicating it all here:
 
 | Version | Retained report |
 | --- | --- |
+| 0.17 | [Ticket prices, wallets and ride revenue](docs/ECONOMY_REPORT.md) |
 | 0.16 | [Complete ride journeys](docs/RIDE_JOURNEY_REPORT.md) |
 | 0.15 | [Guest admission and ordered queues](docs/ADMISSION_REPORT.md) |
 | 0.14 | [Queue geometry and entrance connectivity](docs/QUEUES_REPORT.md) |
@@ -121,10 +122,11 @@ Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (
 | `park_sim/src/ride_access.rs` | Stable ride identity, entrance placement and derived owned-queue access. Public guest graph is separate. |
 | `park_sim/src/admission.rs` | Seeking, tickets, capacity, reserved queue movement, patience, physical return and local recovery. Motion remains in the shared fixed-point guest sampler. |
 | `park_sim/src/journeys.rs` | Exit connectivity, six stable seats, boarding/unloading transfers, physical passenger positions, completion counters and demolition protection. |
+| `park_sim/src/economy.rs` | Integer-cent wallets, fare validation/locking, departure payments, affordability and conserved revenue/cash. |
 | `park_game/src/main.rs`, `path_tools.rs`, `path_tools/entrance.rs`, `terrain_tools.rs` | Input ordering, tool state, immutable preview validation, commit/gating, pause/view and scene refresh. |
 | `park_game/src/world.rs`, `world/*` | Shared physical faces for painting/picking/selection, slope/gate/terrain ghosts, persistent guest rendering and sampled train geometry. |
 | `park_game/src/static_landscape.rs` | Persistent static chunk slots and conservative visibility. Complete emission groups preserve internal geometry order; small maps retain one mesh. |
-| `park_game/src/ui.rs` | Fixed control columns, inspector, train/access feedback, shared Build Tools panel and help. Minimum layout is 1024 × 680. |
+| `park_game/src/ui.rs`, `ui/economy.rs` | Fixed controls, cash/revenue/wallet and price/affordability displays, inspector, train/access feedback, shared Build Tools panel and help. Minimum layout is 1024 × 680. |
 | `persistence.rs`, `save_store.rs`, `save_check.rs`, `save_check/*` | Paused load/snapshot integration, bounded atomic file operations, isolated production continuation proofs. |
 | `capture.rs`, `capture/*`, `*_input_tests.rs` | Controlled scenes, native-independent input regression harness and retained visual proofs. |
 | `benchmark.rs`, `frame_probe.rs`, `gpu_probe.rs`, `render_scene.rs` | Opt-in diagnostics only; CPU time, main-loop intervals and actual GPU timestamp spans remain distinct. |
@@ -149,6 +151,7 @@ Public path appearance is retained. Owned queue paths use original blue procedur
 | F5 / F9 / Shift+F9 | Save / explicit primary Load / explicit Backup. Successful load pauses and clears transient tool/selection/camera state. |
 | Space / 1 / 2 / 3 | Pause / 1× / 2× / 4× simulation. |
 | O / F, ride buttons | Open/Close train and admission / find ride. Closing starts queue return; departed passengers finish the lap then unload. Paused commands never move guests. |
+| F6 / F7, Ticket −/+ | Lower/raise the current ride fare by $0.50, within $0.00–$100.00. Existing boarders keep their locked fare. |
 | Q/E, arrows/WASD, wheel or +/−, right/middle drag | Rotate, pan, zoom and drag camera; Home/Fit restores framing. |
 | G / T / U / R | Grid / Flat–Terraced preset / Surface–Underground / restore public demonstration paths. |
 
@@ -188,7 +191,7 @@ Keep the two graphs separate:
 
 Flat paths expose four edges and reserve two height steps. Slopes expose only the opposite low/high ends, rise one step and reserve three; low height is at most 29. Both queue and public shapes use the shared fixed-point sampler. Keep original vector order and stable-ID lookup semantics: valid saves can reorder object/guest arrays, so raw slot indices or binary search on unproven ordering are unsafe. Renderer caches must handle removal and same-tick loads that reuse IDs but change geometry.
 
-Station linkage is re-derived from the current usable circuit; it is not a stale stored station ID. Circuit faults retain ride identity and physical gate metadata. Repair can reconnect a gate. Removing a gate clears its reference; rebuilding allocates a new object ID while preserving the ride. Ready describes topology. Admission additionally requires an open usable ride, capacity and no ongoing queue return. Boarding separately requires a usable exit. Payments and ratings remain absent.
+Station linkage is re-derived from the current usable circuit; it is not a stale stored station ID. Circuit faults retain ride identity and physical gate metadata. Repair can reconnect a gate. Removing a gate clears its reference; rebuilding allocates a new object ID while preserving the ride. Ready describes topology. Admission additionally requires an open usable ride, capacity, sufficient money and no ongoing queue return. Boarding separately requires a usable exit and rechecks affordability. Ratings remain absent.
 
 ### Guest admission and return contract
 
@@ -206,6 +209,14 @@ The renderer uses the authoritative positions, clipped path shadows and cached b
 
 `object_removal_block_reason` protects occupied circuit pieces and active transfer paths/gates. `remove_object` preserves its Option signature and returns None without mutation when protected. While a passenger is seated on a departed train, the unused exit may be removed; they finish the lap and wait at the station until a valid local exit is restored. Transfers hold the train. Closing never teleports passengers, and paused saves retain exact seats and transfer progress. The standing guest mesh renders transfers; the train mesh renders seated riders from the same sampler, so `rendered_guests` counts standing emitted bodies only. No-exit diagnostic fixtures remain unchanged.
 
+### Ticket economy contract
+
+Money uses integer cents. Every guest starts with $20.00 and zero spending; the park starts with $1,000.00. New and migrated rides start free. The player chooses a ticket price from $0.00 to $100.00 with $0.50 UI steps. A guest must afford the current fare to seek/join the ride, and the front of the queue is checked again before boarding. A price increase can therefore stop a guest who has not yet boarded; safe queue return and cooldown rules still apply.
+
+Boarding locks the fare in the passenger state but does not transfer money. On the train's first actual departure, the locked amount moves once from the guest wallet to their spent total, the ride revenue and park cash. Price edits after boarding do not reprice existing passengers. Predeparture closure/cancellation costs nothing, so there is no refund transaction; a departed fare remains earned while the lap finishes or a missing exit is repaired. Free trips create no money. Save/load preserves the locked fare and paid flag and must never charge twice.
+
+The single-ride accounting invariants are `wallet + spent = initial guest wallet`, `sum(guest spent) = ride revenue`, and `park cash = initial park cash + ride revenue`. Tests and production proofs must check these through actual boarding, departure, cancellation, repairs and load continuation. Future shops, spending sources, guest arrival/departure, multiple rides or operating expenses must deliberately extend this model rather than bypassing its validation. No refunds, construction costs, loans, staff wages or full finance calendar are implemented in this stage.
+
 ## 7. Saves, migration and recovery
 
 Default user directory: `%LOCALAPPDATA%\Parkbound\saves`. Missing LOCALAPPDATA fails clearly; there is no silent working-directory/OneDrive fallback. `--save-dir` accepts an explicit absolute override for isolated tests. Normal startup neither loads nor saves automatically.
@@ -220,9 +231,9 @@ Save serializes and validates before touching the slots, uses same-directory uni
 
 After a crash, close all Parkbound instances before deciding that the exact lock is stale and removing that lock. Never delete a lock belonging to a running writer. If the UI says `Recovery: see save folder`, preserve `.parkbound-rollback-*.tmp` files before manual recovery. They contain previous backup bytes, which may themselves require validation. Do not sweep unrelated temporary files or replace a valid slot blindly; keep copies and validate with the codec/isolated application first.
 
-New saves are strict **schema 5/content 5**, with required exit/passenger/completion fields in addition to visit/cooldown, admission counters, ticket allocator and draining state. Queue ownership, gate metadata, movement anchors, routes and passenger seat/transfer state remain authoritative. The decoder validates role-specific access, unique tickets/seats/reservations, route/transfer geometry, timers and allocator/counter consistency. Unsupported pairs, unknown fields, invalid owners and ordinary guest references to queues or gates reject. Source bounds remain 8 MiB, 4,096 objects, 1,024 total paths including queues, 256 guests, 2,048 circuit pieces, and 65,536 total route IDs. The player app still accepts only 32 × 32 parks.
+New saves are strict **schema 6/content 6**, requiring park cash, guest wallet/spending, ride price/revenue/rejections and passenger locked-fare/payment fields. Existing exit/passenger/completion, visit/cooldown, admission counters, ticket allocator and draining state remain authoritative. The decoder validates currency conservation and rejects spending with no completed or active paid journey alongside role-specific access, unique tickets/seats/reservations, route/transfer geometry, timers and allocator/counter consistency. Unsupported pairs, unknown fields, invalid balances/paid flags and ordinary guest references to queues or gates reject. Source bounds remain 8 MiB, 4,096 objects, 1,024 total paths including queues, 256 guests, 2,048 circuit pieces, and 65,536 total route IDs. The player app still accepts only 32 × 32 parks.
 
-Explicit strict **1/1, 2/2, 3/3 and 4/4 migration** adds no exit or passengers and initializes completion counters to zero. Version 4 retains existing admission state, cooldowns, tickets and counters; versions 1–3 initialize no visits and zero cooldown. Versions 1/2 also supply earlier ownership/ride fields, and v1 supplies Flat shapes. Existing identities, movement, RNG, train state and allocators preserve their defined continuation. Strict old DTOs reject hybrid fields. Loading leaves the old file unchanged; Save writes 5/5. **0.15 intentionally rejects 5/5**, so keep closed-game copies before returning to older binaries. A migrated pre-0.15 connected queue adopts admission rules when resumed; v4 no-exit admission retains its behavior until the player builds an exit.
+Explicit strict **1/1 through 5/5 migration** gives every guest $20.00 and zero spending, the park $1,000.00, and the ride a free price with zero revenue/rejections. Existing v5 passengers get a zero locked fare and a paid flag matching their departure flag; historical trips are not retroactively charged. Version 5 preserves complete journeys/counters. Versions 1–4 retain their previously defined migrations: no added exit/passenger or completion history; v4 retains admission state, while v1–3 initialize no visits. Versions 1/2 supply earlier ownership/ride fields, and v1 supplies Flat shapes. Existing identities, movement, RNG, train state and allocators preserve their defined continuation. Strict old DTOs reject hybrid fields. Loading leaves the old file unchanged; Save writes 6/6. **0.16 intentionally rejects 6/6**, so keep closed-game copies before returning to older binaries. Free migration defaults prevent the new economy from changing the future of a legacy journey.
 
 ### Fresh-process continuation proof
 
@@ -230,18 +241,18 @@ Use the production executable, a new absolute directory with an existing parent,
 
 ```powershell
 $gameExecutable = (Resolve-Path '.\target\release\parkbound.exe').Path
-$journeyProof = Join-Path ([IO.Path]::GetTempPath()) ('Parkbound journey proof é ' + [guid]::NewGuid())
-foreach ($proofMode in @('write-journey', 'verify-journey')) {
-    $proofArguments = '--save-check {0} --save-dir "{1}"' -f $proofMode, $journeyProof
+$economyProof = Join-Path ([IO.Path]::GetTempPath()) ('Parkbound economy proof é ' + [guid]::NewGuid())
+foreach ($proofMode in @('write-economy', 'verify-economy')) {
+    $proofArguments = '--save-check {0} --save-dir "{1}"' -f $proofMode, $economyProof
     $proofProcess = Start-Process -FilePath $gameExecutable -ArgumentList $proofArguments -WindowStyle Hidden -Wait -PassThru
     if ($proofProcess.ExitCode -ne 0) { throw "Proof failed: $proofMode ($($proofProcess.ExitCode))" }
 }
-Get-Content -LiteralPath (Join-Path $journeyProof 'verification-journey.txt')
+Get-Content -LiteralPath (Join-Path $economyProof 'verification-economy.txt')
 ```
 
-The writer refuses an existing directory. The journey proof saves natural Boarding as backup and an occupied moving train as primary, then checks 7,200 ticks with closure, exit removal, station holding, fresh exit repair, protected walkway/track demolition, empty-circuit fault/repair and another completed ride. It validates exact state, positions, seats, identities, counters, paused loads and unchanged primary/backup bytes. The retained 3,600-tick admission proof still covers approach, occupied queues, Close/Open, queue/gate/public connection removal and repair.
+The writer refuses an existing directory. The economy proof saves a natural uncharged $3 boarding transfer as backup and an actually paid moving passenger as primary, preserving the locked $3 fare after a price change. Its 10,800-tick replay checks wallet/spending/revenue/cash conservation and exact per-guest payment deltas every tick, later fare changes, no-charge predeparture cancellation, insufficient funds, and renewed paid completion. It validates exact state, paused backup/load behavior and unchanged primary/backup bytes. The retained journey proof still covers closure, exit removal, station holding, fresh exit repair, protected demolition, empty-circuit repair and another completed ride; the admission proof covers approach, occupied queues and safe cancellation.
 
-Retain ordinary `write`/`verify`, `write-paths`/`verify-paths`, `write-terrain`/`verify-terrain`, `write-slopes`/`verify-slopes`, `write-queues`/`verify-queues` and `write-admission`/`verify-admission`, each in a fresh directory. Repeat the journey proof against the packaged executable. Migration checks use authentic 0.12 v1, 0.13 v2, 0.14 v3 and 0.15 v4 writers, plus old-reader rejection of 5/5 without file loss. Synthetic malformed-document tests and same-process roundtrips add coverage. Do not compare an old pre-admission queue's future against the intentional admission rules.
+Retain ordinary `write`/`verify`, `write-paths`/`verify-paths`, `write-terrain`/`verify-terrain`, `write-slopes`/`verify-slopes`, `write-queues`/`verify-queues`, `write-admission`/`verify-admission` and `write-journey`/`verify-journey`, each in a fresh directory. Repeat the economy proof against the packaged executable. Migration checks use authentic 0.12 v1, 0.13 v2, 0.14 v3, 0.15 v4 and 0.16 v5 writers, including actual v5 boarding/moving journey continuation, plus old-reader rejection of 6/6 without file loss. Synthetic malformed-document tests and same-process roundtrips add coverage. Do not compare an old pre-admission queue future against the intentional admission rules.
 
 ## 8. Runtime captures and diagnostics
 
@@ -261,6 +272,7 @@ Current production scene names:
 | Queues | `queue-entrance`, `queue-connected`, `queue-disconnected`, `queue-branch`, `queue-blocked`, `queue-rebuilt` |
 | Admission | `admission-approach`, `admission-moving`, `admission-full`, `admission-leaving`, `admission-cancelled`, `admission-recovered` |
 | Complete journeys | `journey-boarding`, `journey-riding`, `journey-unloading`, `journey-completed`, `journey-exit-blocked`, `journey-recovered` |
+| Ride economy | `economy-reserved`, `economy-price-change`, `economy-earned`, `economy-cancelled`, `economy-unaffordable`, `economy-free` |
 
 Example, from an existing output parent:
 
@@ -289,7 +301,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.16.0 outputs under `dist\Parkbound-0.16.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Exact executable identity, package payload/guide counts, notices and relocation results belong in the journey report and `artifacts/ride-journeys-0.16.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
+Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.17.0 outputs under `dist\Parkbound-0.17.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Exact executable identity, package payload/guide counts, notices and relocation results belong in the economy report and `artifacts/ride-economy-0.17.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
 
 The package includes the executable, required redistributable runtime, third-party and Rust standard-library notices, current README/resume/development plan/docs, measurement wrapper and payload manifest. Preserve notice sources, attribution and `.gitattributes` byte rules; newline normalization can invalidate recorded hashes. Do not drop dependency/license files because a local launch succeeds. There is no imported RCT art, sound or original game data. Source licensing and final naming/trademark review remain unresolved; free binary distribution does not itself grant an open-source license.
 
@@ -297,13 +309,27 @@ Verify a fresh extraction to a path containing spaces and a non-ASCII character,
 
 When documentation changes after runtime verification, retain the runtime source commit and binary identity, refresh package guides/manifest/ZIP, and reverify them. Do **not** place a mutable ZIP's own hash inside a bundled guide: that creates self-reference. The adjacent `.zip.sha256` is the canonical archive checksum.
 
-`.github/workflows/windows.yml` runs on `windows-2022` with Rust 1.93.1: formatting, strict all-target release Clippy, workspace tests, packaging, ordinary/path/terrain/slope/queue/admission/journey fresh-process continuation, CPU-reporting smoke and artifact uploads. Permissions are read-only contents; uploads currently retain 14 days. Read the exact run for the actual source/PR rather than inferring green from configuration or an older run. Preserve useful receipts before hosted artifacts expire. A stacked draft PR is not a public release or proof that the branch has merged.
+`.github/workflows/windows.yml` runs on `windows-2022` with Rust 1.93.1: formatting, strict all-target release Clippy, workspace tests, packaging, ordinary/path/terrain/slope/queue/admission/journey/economy fresh-process continuation, CPU-reporting smoke and artifact uploads. Permissions are read-only contents; uploads currently retain 14 days. Read the exact run for the actual source/PR rather than inferring green from configuration or an older run. Preserve useful receipts before hosted artifacts expire. A stacked draft PR is not a public release or proof that the branch has merged.
 
 Before ending a stage, confirm the source branch is pushed, the draft PR targets the correct predecessor, exact CI completion is recorded, local source/docs are current, and final package guides match those docs. Commit only intended source/docs/locked dependency changes; generated builds and local raw captures stay in ignored output directories unless a curated evidence record is deliberately tracked.
 
 ## 10. Current verification and remaining checks
 
-Current 0.16 runtime source `25ed0a993f1c6b63dad2e659bc6b6c9dc93d5d38` is pushed in draft PR #14. All **326 release tests (210 game / 116 simulation)**, formatting, strict all-target release Clippy and production build passed. The 46,813,184-byte executable has SHA-256 `6815f2df25c0eb8e1fd2de06cc66a1d7be973927df8ab96d7da2b547b746a9a7`. [Exact-source Windows CI 39621993525](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39621993525) passed formatting, strict lint, tests, Windows packaging, all continuation proofs, reporting smoke and uploads. See [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md) for the complete scope and reproduction commands.
+Current 0.17 runtime source **`f9bfad2774989554cacb332163cc934063bcc84d`** is pushed on `codex/ride-economy` in [draft PR #15](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/15), stacked on unmerged `codex/ride-journeys` / PR #14. All **345 release tests (219 game / 126 simulation)**, formatting, strict all-target release Clippy and the production build passed. The 46,949,888-byte executable has SHA-256 **`5dc66d55ad9e8a702eb4f508dff5041bd388da772b3d690e6009addf9ab6b38c`**. [Push Windows CI 39740526253](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39740526253) passed all 21 steps; [PR CI 39740538860](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39740538860) also passed for that exact source. Later documentation commits retain this runtime identity; do not attribute their CI status without reading their own runs.
+
+All **41 production process checks passed**: authentic schema 1–5 saves written by the retained 0.12–0.16 binaries migrate and continue; an authentic occupied v5 journey continues for 7,200 ticks; 0.16 rejects a v6 save without changing either slot; all retained path/terrain/slope/queue/admission/journey proofs pass; and the new economy proof matches 10,800 complete ticks with exact per-guest payment deltas, fare locking, paid completion, no-charge cancellation, unaffordable rejection, affordable recovery and an unpaid boarding backup. The speed-equivalence regression separately compares 14,400 complete ticks at all supported speeds. Its command schedule and the economy replay allow enough time for actual public returns after fare changes; completion assertions are retained.
+
+All **twelve current production captures were visually inspected**: eight economy variants plus the retained occupied journey, gate preview, help and overview. Four rotations, Flat/Terraced, Surface/Underground and normal/minimum windows are represented. Prices, wallet ranges, revenue, affordability and help remain legible; the Build Tools panel fits above the footer at 1024 × 680. Still images verify presentation, not native gestures or continuous motion.
+
+The portable 0.17 package verifies **32 payload hashes and 23 current Markdown guides**. Its 291 dependency entries, native manifest, third-party/Rust notices and bundled MSVC runtime are byte-identical to 0.16. A fresh spaces/é extraction launched from `C:\Windows` passed the 10,800-tick economy proof and produced a byte-identical minimum-window price-change capture. Final guide/manifest/ZIP checks are refreshed after documentation changes. The adjacent `.zip.sha256` identifies the current archive; it is intentionally not copied into a bundled guide.
+
+Native verification is narrower: the extracted executable launched with an isolated temporary save directory, and actual **F9** loaded the paid primary paused with Custom/Inspect, clock 01:11, six riders, a $5 ticket, $28 revenue, $1,028 cash and a $15–$20 wallet range. The attempted F6 check was interrupted by detected user input; subsequent observation showed user-controlled resume/zoom. Automated input stopped and the QA window was left open for the user. New native F6/F7, Ticket buttons, save/cancellation gestures and native payment deltas remain **unverified**. Source input tests and the process proofs passed independently; they are not substituted for those manual checks. The QA instance's exact executable and temporary save directory are in `artifacts/ride-economy-0.17.0/native-instance.json`; it does not use default player saves.
+
+Raw receipts are under `artifacts/ride-economy-0.17.0/`: `tests.txt`, `clippy.txt`, `build.txt`, `runtime-verification.txt`, `capture-inspection.txt`, `captures/`, `native-verification.txt`, `notices-comparison.txt`, `relocated-runtime-verification.txt`, `ci-jobs.json`, and package receipts. This folder is ignored by Git; another PC needs the shared folder or an explicit transfer for raw files. `final-handoff.txt` records runtime source, exact executable, final documentation HEAD, package verification and the remote branch matching local HEAD. No local performance batch was performed; this PC remains excluded from performance acceptance. Clean-PC/offline/standard-user compatibility and the broader release gates remain open.
+
+### Historical 0.16 evidence
+
+Historical 0.16 runtime source `25ed0a993f1c6b63dad2e659bc6b6c9dc93d5d38` is pushed in draft PR #14. All **326 release tests (210 game / 116 simulation)**, formatting, strict all-target release Clippy and production build passed. The 46,813,184-byte executable has SHA-256 `6815f2df25c0eb8e1fd2de06cc66a1d7be973927df8ab96d7da2b547b746a9a7`. [Exact-source Windows CI 39621993525](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39621993525) passed formatting, strict lint, tests, Windows packaging, all continuation proofs, reporting smoke and uploads. See [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md) for the complete scope and reproduction commands.
 
 All 37 final-executable process checks passed: authentic v1/v2/v3/v4 migration, an occupied v4 admission save continued for 3,600 ticks, v5 rejection by 0.15 without changing either slot, all retained construction/admission proofs, and the new 7,200-tick passenger journey proof. That proof covers closure, missing-exit station holds, fresh-ID exit repair, protected occupied demolition, empty-train fault/repair, a boarding backup and another completed trip. Twelve final production PNGs are byte-identical to the twelve visually inspected originals: eight journey scene variants plus admission, entrance preview, help and overview, across all four rotations, both terrain/view variants, and normal/minimum windows.
 
@@ -325,8 +351,8 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Next major gameplay milestone
 
-Build a cohesive **ride economy and operating controls** stage: guest wallets, an editable ride ticket price, payment at a precisely defined boarding transition, ride revenue and park cash. Give players a clear ride panel with price, passenger totals, income and operation state. Define insufficient funds, closure before departure, refunded/cancelled boarding and save/load semantics before adding finance counters. Keep deterministic integer currency and validate conservation/accounting through complete rides and interrupted transfers. This should turn the existing journey into the first meaningful management decision.
+Build guest preferences and satisfaction so ticket pricing becomes a meaningful demand decision: willingness to pay, queue and ride experience, clear guest thoughts, and ride ratings. Keep actual wallet affordability separate from perceived value. Define deterministic preference/experience changes and their saved continuation before adding more counters. Give players feedback explaining why a guest chooses, refuses or leaves a ride.
 
-Then add guest needs/satisfaction and ride ratings, multiple rides, a general track builder and park-management systems in further substantial stages. Do not conflate a single fixed circuit with a completed construction game. Keep map/save caps and original-art requirements until a scoped change deliberately revisits them.
+Then add guest needs/services, multiple rides, a general track builder and broader park management in further substantial stages. Multiple shops/rides, expenses or guest arrival/departure must explicitly extend the current currency invariants. Do not conflate one fixed circuit and ticket revenue with a completed management game. Keep map/save caps and original-art requirements until a scoped change deliberately revisits them.
 
-For the next coding session: read this guide and the journey report, verify branch/source identity and a clean handoff, inspect remaining acceptance IDs, and complete one cohesive gameplay milestone with matching tests/runtime evidence. Update source, guides and package together before the next PC handoff.
+For the next coding session: read this guide and the economy report, verify branch/source identity and a clean handoff, inspect remaining acceptance IDs, and complete one cohesive gameplay milestone with matching tests/runtime evidence. Update source, guides and package together before the next PC handoff.
