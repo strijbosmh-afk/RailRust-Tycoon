@@ -580,6 +580,8 @@ mod tests {
             state: GuestState::Waiting,
             arrivals: 0,
             rides_completed: 0,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: Default::default(),

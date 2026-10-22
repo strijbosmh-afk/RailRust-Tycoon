@@ -894,6 +894,8 @@ mod tests {
             "wait_ticks": 0,
             "ride_visit": null,
             "rides_completed": 0,
+            "wallet_cents": park_sim::INITIAL_GUEST_WALLET_CENTS,
+            "spent_cents": 0,
             "ride_cooldown": 0
         }]);
         encoded["park"]["next_guest_id"] = 2.into();

@@ -133,8 +133,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let json: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if json["schema_version"] != 5 || json["content_version"] != 5 {
-        return Err("admission proof requires strict schema/content 5/5".into());
+    if json["schema_version"] != 6 || json["content_version"] != 6 {
+        return Err("admission proof requires strict schema/content 6/6".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("admission state changed during save roundtrip".into());
@@ -387,7 +387,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("admission verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-admission.txt"), format!(
-        "Parkbound {}\nFresh-process occupied-ramp primary equality: PASS\nContinuation: PASS (3600 complete ticks + close/open and occupied queue/gate/public-path commands)\nTicket order, capacity reservations and role-aware path references: PASS\nCancellation, fresh-ID repair and renewed admission: PASS\nGuest and ride identities preserved: PASS\nExplicit approaching backup, paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 5/5: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process occupied-ramp primary equality: PASS\nContinuation: PASS (3600 complete ticks + close/open and occupied queue/gate/public-path commands)\nTicket order, capacity reservations and role-aware path references: PASS\nCancellation, fresh-ID repair and renewed admission: PASS\nGuest and ride identities preserved: PASS\nExplicit approaching backup, paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 6/6: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process guest admission continuation and backup verified.");
     Ok(())

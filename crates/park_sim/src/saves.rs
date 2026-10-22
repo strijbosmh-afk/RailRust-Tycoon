@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 5;
-const CONTENT_VERSION: u32 = 5;
+const SCHEMA_VERSION: u32 = 6;
+const CONTENT_VERSION: u32 = 6;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -101,6 +101,7 @@ struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     #[serde(deserialize_with = "required_object_option")]
     ride: Option<R>,
     next_ride_id: u64,
+    cash_cents: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -257,7 +258,7 @@ impl Park {
         if header.format != FORMAT {
             return Err(invalid("unrecognized save format"));
         }
-        if !matches!(header.schema_version, 1 | 2 | 3 | 4 | SCHEMA_VERSION) {
+        if !matches!(header.schema_version, 1 | 2 | 3 | 4 | 5 | SCHEMA_VERSION) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
         if header.content_version != header.schema_version {
@@ -272,12 +273,17 @@ impl Park {
                 parse_save(bytes)?;
             legacy.park.migrate().into_park()
         } else if header.schema_version == 3 {
-            let legacy: SaveEnvelope<ParkData<SurfaceObject, VersionTwoGuest, LegacyRide>> =
-                parse_save(bytes)?;
+            let legacy: SaveEnvelope<
+                VersionFiveParkData<SurfaceObject, VersionTwoGuest, LegacyRide>,
+            > = parse_save(bytes)?;
             legacy.park.migrate().into_park()
         } else if header.schema_version == 4 {
-            let legacy: SaveEnvelope<ParkData<SurfaceObject, VersionFourGuest, VersionFourRide>> =
-                parse_save(bytes)?;
+            let legacy: SaveEnvelope<
+                VersionFiveParkData<SurfaceObject, VersionFourGuest, VersionFourRide>,
+            > = parse_save(bytes)?;
+            legacy.park.migrate().into_park()
+        } else if header.schema_version == 5 {
+            let legacy: SaveEnvelope<VersionFiveParkData> = parse_save(bytes)?;
             legacy.park.migrate().into_park()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
@@ -432,6 +438,9 @@ impl From<VersionFourRide> for crate::Ride {
             boarded: 0,
             exited: 0,
             completed: 0,
+            ticket_price_cents: 0,
+            revenue_cents: 0,
+            unaffordable_rejections: 0,
         }
     }
 }
@@ -449,6 +458,8 @@ impl From<VersionFourGuest> for Guest {
             state: old.state,
             arrivals: old.arrivals,
             rides_completed: 0,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
             ride_visit: old.ride_visit.map(|visit| crate::RideVisit {
                 ride: visit.ride,
                 phase: match visit.phase {
@@ -481,6 +492,8 @@ impl From<VersionTwoGuest> for Guest {
             state: guest.state,
             arrivals: guest.arrivals,
             rides_completed: 0,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
             route: guest.route,
             wait_ticks: guest.wait_ticks,
             ride_visit: None,
@@ -497,7 +510,158 @@ impl From<LegacyRide> for crate::Ride {
     }
 }
 
-impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> ParkData<O, G, R> {
+/// Versions three through five have no cash field. Decode them separately so
+/// a missing v6 field, or an economy field disguised as v5, is never accepted.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
+struct VersionFiveParkData<O = SurfaceObject, G = VersionFiveGuest, R = VersionFiveRide> {
+    width: u32,
+    height: u32,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_TILES>")]
+    tiles: Vec<Tile>,
+    ticks: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_OBJECTS>")]
+    objects: Vec<O>,
+    next_object_id: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_GUESTS>")]
+    guests: Vec<G>,
+    next_guest_id: u64,
+    #[serde(deserialize_with = "required_option")]
+    crowd_seed: Option<u64>,
+    crowd_rng: u64,
+    #[serde(deserialize_with = "required_object_option")]
+    circuit: Option<CircuitData>,
+    #[serde(deserialize_with = "required_object_option")]
+    train: Option<Train>,
+    #[serde(deserialize_with = "required_object_option")]
+    ride: Option<R>,
+    next_ride_id: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFiveRide {
+    id: crate::RideId,
+    #[serde(deserialize_with = "required_object_option")]
+    entrance: Option<crate::RideEntrance>,
+    #[serde(deserialize_with = "required_object_option")]
+    exit: Option<crate::RideEntrance>,
+    draining: bool,
+    next_queue_ticket: u64,
+    joined: u64,
+    turned_away: u64,
+    abandoned: u64,
+    boarded: u64,
+    exited: u64,
+    completed: u64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFivePassenger {
+    seat: u8,
+    departed: bool,
+    completed_lap: bool,
+    #[serde(deserialize_with = "required_object_option")]
+    transfer: Option<crate::RideTransfer>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFiveVisit {
+    ride: crate::RideId,
+    #[serde(deserialize_with = "string_enum")]
+    phase: crate::RideVisitPhase,
+    #[serde(deserialize_with = "required_option")]
+    ticket: Option<u64>,
+    waited_ticks: u32,
+    #[serde(deserialize_with = "required_object_option")]
+    passenger: Option<VersionFivePassenger>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionFiveGuest {
+    id: crate::GuestId,
+    #[serde(deserialize_with = "required_option")]
+    current: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    next: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    destination: Option<ObjectId>,
+    #[serde(deserialize_with = "strict_object")]
+    anchor: crate::TilePos,
+    height: u8,
+    #[serde(deserialize_with = "string_enum")]
+    anchor_slope: crate::PathSlope,
+    progress: u16,
+    #[serde(deserialize_with = "string_enum")]
+    state: GuestState,
+    arrivals: u64,
+    rides_completed: u64,
+    #[serde(deserialize_with = "required_object_option")]
+    ride_visit: Option<VersionFiveVisit>,
+    ride_cooldown: u16,
+    #[serde(deserialize_with = "bounded_route")]
+    route: VecDeque<ObjectId>,
+    wait_ticks: u16,
+}
+impl From<VersionFiveRide> for crate::Ride {
+    fn from(old: VersionFiveRide) -> Self {
+        Self {
+            id: old.id,
+            entrance: old.entrance,
+            exit: old.exit,
+            draining: old.draining,
+            next_queue_ticket: old.next_queue_ticket,
+            joined: old.joined,
+            turned_away: old.turned_away,
+            abandoned: old.abandoned,
+            boarded: old.boarded,
+            exited: old.exited,
+            completed: old.completed,
+            ticket_price_cents: 0,
+            revenue_cents: 0,
+            unaffordable_rejections: 0,
+        }
+    }
+}
+impl From<VersionFiveGuest> for Guest {
+    fn from(old: VersionFiveGuest) -> Self {
+        Self {
+            id: old.id,
+            current: old.current,
+            next: old.next,
+            destination: old.destination,
+            anchor: old.anchor,
+            height: old.height,
+            anchor_slope: old.anchor_slope,
+            progress: old.progress,
+            state: old.state,
+            arrivals: old.arrivals,
+            rides_completed: old.rides_completed,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
+            ride_visit: old.ride_visit.map(|visit| crate::RideVisit {
+                ride: visit.ride,
+                phase: visit.phase,
+                ticket: visit.ticket,
+                waited_ticks: visit.waited_ticks,
+                passenger: visit.passenger.map(|passenger| crate::PassengerJourney {
+                    seat: passenger.seat,
+                    departed: passenger.departed,
+                    completed_lap: passenger.completed_lap,
+                    fare_cents: 0,
+                    fare_paid: passenger.departed,
+                    transfer: passenger.transfer,
+                }),
+            }),
+            ride_cooldown: old.ride_cooldown,
+            route: old.route,
+            wait_ticks: old.wait_ticks,
+        }
+    }
+}
+
+impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
             width: self.width,
@@ -514,6 +678,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> ParkData<O, G
             train: self.train,
             ride: self.ride.map(Into::into),
             next_ride_id: self.next_ride_id,
+            cash_cents: crate::INITIAL_PARK_CASH_CENTS,
         }
     }
 }
@@ -618,6 +783,8 @@ impl From<LegacyGuest> for Guest {
             state: guest.state,
             arrivals: guest.arrivals,
             rides_completed: 0,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: guest.route,
@@ -648,6 +815,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             train: self.train,
             ride,
             next_ride_id,
+            cash_cents: crate::INITIAL_PARK_CASH_CENTS,
         }
     }
 }
@@ -689,6 +857,7 @@ impl ParkData {
             train: park.train.clone(),
             ride: park.ride.clone(),
             next_ride_id: park.next_ride_id,
+            cash_cents: park.cash_cents,
         }
     }
 
@@ -722,6 +891,7 @@ impl ParkData {
             train: self.train,
             ride: self.ride,
             next_ride_id: self.next_ride_id,
+            cash_cents: self.cash_cents,
             // Derived navigation is built lazily after validated loading.
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
@@ -741,6 +911,7 @@ impl ParkData {
             .collect();
         crate::admission::validate_admission(&park, &objects).map_err(invalid)?;
         crate::journeys::validate_journeys(&park, &objects).map_err(invalid)?;
+        crate::economy::validate_economy(&park).map_err(invalid)?;
         Ok(park)
     }
 }
@@ -1144,7 +1315,7 @@ mod tests {
     }
 
     fn version_four_value(park: &Park) -> Value {
-        let mut data = value(park);
+        let mut data = version_five_value(park);
         data["schema_version"] = json!(4);
         data["content_version"] = json!(4);
         for guest in data["park"]["guests"].as_array_mut().unwrap() {
@@ -1158,6 +1329,41 @@ mod tests {
         if let Some(ride) = data["park"]["ride"].as_object_mut() {
             assert_eq!(ride["exit"], Value::Null);
             for field in ["exit", "boarded", "exited", "completed"] {
+                ride.remove(field);
+            }
+        }
+        data
+    }
+
+    fn version_five_value(park: &Park) -> Value {
+        let mut data = value(park);
+        data["schema_version"] = json!(5);
+        data["content_version"] = json!(5);
+        assert_eq!(
+            data["park"]["cash_cents"],
+            json!(crate::INITIAL_PARK_CASH_CENTS)
+        );
+        data["park"].as_object_mut().unwrap().remove("cash_cents");
+        for guest in data["park"]["guests"].as_array_mut().unwrap() {
+            assert_eq!(guest["spent_cents"], json!(0));
+            guest.as_object_mut().unwrap().remove("wallet_cents");
+            guest.as_object_mut().unwrap().remove("spent_cents");
+            if let Some(passenger) = guest
+                .pointer_mut("/ride_visit/passenger")
+                .and_then(Value::as_object_mut)
+            {
+                assert_eq!(passenger["fare_cents"], json!(0));
+                passenger.remove("fare_cents");
+                passenger.remove("fare_paid");
+            }
+        }
+        if let Some(ride) = data["park"]["ride"].as_object_mut() {
+            for field in [
+                "ticket_price_cents",
+                "revenue_cents",
+                "unaffordable_rejections",
+            ] {
+                assert_eq!(ride[field], json!(0));
                 ride.remove(field);
             }
         }
@@ -1217,8 +1423,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(5));
-            assert_eq!(modern["content_version"], json!(5));
+            assert_eq!(modern["schema_version"], json!(6));
+            assert_eq!(modern["content_version"], json!(6));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -1539,7 +1745,9 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (6, 6),
+            (7, 7),
+            (6, 5),
+            (5, 6),
             (1, 2),
             (2, 1),
             (2, 0),
@@ -1606,6 +1814,8 @@ mod tests {
             state: GuestState::Walking,
             arrivals: 0,
             rides_completed: 0,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: VecDeque::from([high]),
@@ -1750,8 +1960,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":5",
-            "\"schema_version\":5,\"schema_version\":5",
+            "\"schema_version\":6",
+            "\"schema_version\":6,\"schema_version\":6",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());

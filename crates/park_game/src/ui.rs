@@ -11,6 +11,9 @@ use park_sim::{
 
 use crate::path_tools::PathTool;
 
+mod economy;
+pub(super) use economy::money;
+
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_RIGHT: f32 = RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
@@ -39,6 +42,7 @@ pub(super) enum Action {
     RestorePaths,
     ToggleTrain,
     FocusTrain,
+    TicketPrice(i8),
     Save,
     Load,
     LoadBackup,
@@ -52,6 +56,8 @@ pub(super) enum Action {
 #[derive(Component)]
 pub(super) enum Label {
     Clock,
+    Economy,
+    TicketPrice,
     SelectionTitle,
     SelectionDetails,
     ViewInfo,
@@ -165,11 +171,12 @@ pub(super) fn setup(mut commands: Commands) {
             })
             .with_children(|p| {
                 label(p, "PARKBOUND", 25.0, PAPER);
-                label(
+                dynamic_label(
                     p,
-                    "A little land. Endless possibilities.",
+                    "Cash $1000.00 / Revenue $0.00 / Wallets $20.00",
                     11.0,
                     Color::srgb_u8(175, 199, 170),
+                    Label::Economy,
                 );
             });
             p.spawn(row()).with_children(|p| {
@@ -412,6 +419,25 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             });
             p.spawn(row()).with_children(|p| {
+                button(p, "- F6", Action::TicketPrice(-1), 47.0);
+                p.spawn(Node {
+                    width: px(100),
+                    flex_shrink: 0.0,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                })
+                .with_children(|p| {
+                    dynamic_label(
+                        p,
+                        "Ticket $0.00\n12/12 can pay",
+                        11.0,
+                        INK,
+                        Label::TicketPrice,
+                    );
+                });
+                button(p, "+ F7", Action::TicketPrice(1), 47.0);
+            });
+            p.spawn(row()).with_children(|p| {
                 button(p, "Close", Action::ToggleTrain, 47.0);
                 button(p, "Find", Action::FocusTrain, 47.0);
                 button(p, "Gate", Action::SetPathTool(PathTool::Entrance), 47.0);
@@ -489,17 +515,16 @@ pub(super) fn setup(mut commands: Commands) {
                     ("C / shape button", "Cycle slope / turn gate toward station"),
                     ("B / V", "Raise / lower dry land one step"),
                     ("PgUp / PgDn", "Raise / lower path build height"),
-                    ("Right / middle drag", "Pan around the park"),
-                    ("WASD / arrow keys", "Pan with the keyboard"),
+                    ("Drag / WASD / arrows", "Pan around the park"),
                     ("Mouse wheel / + / -", "Zoom in and out"),
-                    ("Q / E", "Rotate the view"),
-                    ("Home", "Fit the park in view"),
+                    ("Q / E / Home", "Rotate / fit the park in view"),
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
                     ("U", "Show / hide underground view"),
                     ("Delete", "Remove the selected path or gate"),
                     ("R", "Restore the demonstration paths"),
                     ("O / F", "Open or close ride / find circuit"),
+                    ("F6 / F7", "Ticket price - / + $0.50"),
                     ("F5 / F9", "Save / load park"),
                     ("Shift + F9", "Load the previous valid save"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
@@ -516,7 +541,7 @@ pub(super) fn setup(mut commands: Commands) {
                 }
                 label(
                     p,
-                    "Diamond: seeking / bars: queued / arrows: moving on or off.\nA separate exit must lead to public path before boarding.",
+                    "Diamond: seeking; bars: queued; arrows: boarding or exiting.\nFare locks at boarding; charged only on departure.\nNew prices affect later boarders. Close before departure: no charge.",
                     12.0,
                     MUTED,
                 );
@@ -550,6 +575,7 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
                     | Action::RemovePath
                     | Action::RestorePaths
                     | Action::ToggleTrain
+                    | Action::TicketPrice(_)
                     | Action::Save
                     | Action::Load
                     | Action::LoadBackup
@@ -578,6 +604,7 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             Action::RestorePaths => view.restore_paths_pending = true,
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
+            Action::TicketPrice(delta) => view.request_price_change(*delta),
             Action::Save => view.request_save(SaveAction::Save),
             Action::Load => view.request_save(SaveAction::Load),
             Action::LoadBackup => view.request_save(SaveAction::Backup),
@@ -606,8 +633,11 @@ pub(super) fn refresh(
     let access = sim.0.ride().map(|ride| sim.0.ride_access(ride.id));
     let queue = sim.0.ride().map(|ride| sim.0.ride_queue_stats(ride.id));
     let journey = sim.0.ride().map(|ride| sim.0.ride_journey_stats(ride.id));
+    let economy = sim.0.ride().map(|ride| sim.0.ride_economy_stats(ride.id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
+            Label::Economy => economy::header(&sim.0, economy.as_ref()),
+            Label::TicketPrice => economy::ticket(economy.as_ref()),
             Label::ParkInfo => format!(
                 "{} x {} tiles / {}",
                 sim.0.width(),
@@ -762,6 +792,7 @@ pub(super) fn refresh(
                 view.zoom * 100.0
             ),
             Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
+            Label::Status if view.price_notice.is_some() => view.price_notice.clone().unwrap(),
             Label::Status if view.path_tool.mode == PathTool::Build => format!(
                 "Path tool / height {} / click to place",
                 view.path_tool.height
@@ -940,7 +971,12 @@ pub(super) fn refresh(
             action,
             Action::SetPathTool(_) | Action::PathHeight(_) | Action::CyclePathShape
         ) && (view.capture_active || view.diagnostic_case.is_some());
-        let color = if tool_disabled {
+        let price_disabled = matches!(action, Action::TicketPrice(delta) if view.edits_blocked()
+        || economy.as_ref().is_none_or(|stats| {
+            (*delta < 0 && stats.ticket_price_cents == 0)
+                || (*delta > 0 && stats.ticket_price_cents == park_sim::MAX_TICKET_PRICE_CENTS)
+        }));
+        let color = if tool_disabled || price_disabled {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD

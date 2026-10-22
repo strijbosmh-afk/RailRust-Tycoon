@@ -23,6 +23,9 @@ pub struct PassengerJourney {
     pub seat: u8,
     pub departed: bool,
     pub completed_lap: bool,
+    /// Locked at boarding. No debit occurs until the first actual departure.
+    pub fare_cents: u32,
+    pub fare_paid: bool,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub transfer: Option<RideTransfer>,
 }
@@ -489,6 +492,11 @@ impl Park {
             })
             .min();
         if let Some((_, index)) = candidate {
+            let fare_cents = self.ride.as_ref().unwrap().ticket_price_cents;
+            if self.guests[index].wallet_cents < fare_cents {
+                self.drain_queue_for_funds(&access);
+                return;
+            }
             let portal = self.ride.as_ref().unwrap().entrance.unwrap().object;
             let guest = &mut self.guests[index];
             let visit = guest.ride_visit.as_mut().unwrap();
@@ -497,6 +505,8 @@ impl Park {
                 seat,
                 departed: false,
                 completed_lap: false,
+                fare_cents,
+                fare_paid: false,
                 transfer: Some(RideTransfer {
                     path: front,
                     portal,
@@ -513,6 +523,7 @@ impl Park {
         }
     }
     pub(crate) fn reconcile_passenger_laps(&mut self) {
+        self.settle_departure_fares();
         let Some(train) = &self.train else {
             return;
         };

@@ -54,6 +54,9 @@ pub struct Guest {
     pub state: GuestState,
     pub arrivals: u64,
     pub rides_completed: u64,
+    /// Cash still owned by this guest, including a fare reserved before departure.
+    pub wallet_cents: u32,
+    pub spent_cents: u64,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub ride_visit: Option<crate::RideVisit>,
     pub ride_cooldown: u16,
@@ -316,6 +319,8 @@ impl Park {
                     state: GuestState::Waiting,
                     arrivals: 0,
                     rides_completed: 0,
+                    wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+                    spent_cents: 0,
                     ride_visit: None,
                     ride_cooldown: 0,
                     route: VecDeque::new(),
@@ -649,6 +654,8 @@ mod tests {
             state: GuestState::Waiting,
             arrivals: 0,
             rides_completed: 0,
+            wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
+            spent_cents: 0,
             ride_visit: None,
             ride_cooldown: 0,
             route: VecDeque::new(),

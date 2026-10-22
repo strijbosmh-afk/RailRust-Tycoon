@@ -97,7 +97,7 @@ fn tool_place(park: &mut Park, view: &mut ViewState, pos: TilePos, mode: PathToo
     );
 }
 
-fn install(park: &mut Park, view: &mut ViewState) -> RideId {
+pub(super) fn install(park: &mut Park, view: &mut ViewState) -> RideId {
     let rotation = view.rotation;
     let mode = view.view_mode;
     // Fixture construction uses an explicit inspection view. The final image

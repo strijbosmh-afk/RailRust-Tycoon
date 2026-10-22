@@ -6,6 +6,7 @@
 mod admission;
 mod crowds;
 pub mod diagnostics;
+mod economy;
 mod journeys;
 mod path_geometry;
 mod ride_access;
@@ -22,6 +23,10 @@ pub use admission::{
 };
 pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
+};
+pub use economy::{
+    EconomyError, INITIAL_GUEST_WALLET_CENTS, INITIAL_PARK_CASH_CENTS, MAX_TICKET_PRICE_CENTS,
+    PRICE_STEP_CENTS, RideEconomyStats,
 };
 pub use journeys::{
     PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
@@ -153,6 +158,7 @@ pub struct Park {
     train: Option<Train>,
     ride: Option<Ride>,
     next_ride_id: u64,
+    cash_cents: u64,
     path_cache: crowds::PathCache,
 }
 
@@ -175,6 +181,7 @@ impl PartialEq for Park {
             && self.train == other.train
             && self.ride == other.ride
             && self.next_ride_id == other.next_ride_id
+            && self.cash_cents == other.cash_cents
     }
 }
 
@@ -218,6 +225,7 @@ impl Park {
             train: None,
             ride: None,
             next_ride_id: 1,
+            cash_cents: INITIAL_PARK_CASH_CENTS,
             path_cache: crowds::PathCache::default(),
         }
     }

@@ -158,6 +158,14 @@ impl Park {
         });
     }
 
+    pub(crate) fn drain_queue_for_funds(&mut self, access: &RideAccess) {
+        let ride = self.ride.as_mut().expect("queue belongs to a ride");
+        ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
+        // A front guest cannot pass the line behind them. Reuse the existing
+        // tail-first physical drain, without charging anyone or moving poses.
+        self.reconcile_admission(access, true);
+    }
+
     pub(crate) fn step_admission_crowd(&mut self) {
         let graph = self.path_cache.shared_graph(&self.objects);
         // Preserve old iteration and RNG behavior exactly when there is no ride.
@@ -363,6 +371,13 @@ impl Park {
                 && let (Some(current), Some(entry)) = (guest.current, access.public_entry)
                 && let Some(mut route) = graph.route(current, entry)
             {
+                let ride = self.ride.as_mut().unwrap();
+                if guest.wallet_cents < ride.ticket_price_cents {
+                    ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
+                    reject_applicant(guest, ride);
+                    graph.step_guest(guest, &mut self.crowd_rng);
+                    continue;
+                }
                 guest.ride_visit = Some(RideVisit {
                     ride: id,
                     phase: RideVisitPhase::Approaching,
@@ -404,7 +419,13 @@ impl Park {
         for index in applicants {
             let guest = &mut self.guests[index];
             let ride = self.ride.as_mut().unwrap();
-            if !eligible || occupied >= access.queue_tiles || ride.next_queue_ticket == u64::MAX {
+            if guest.wallet_cents < ride.ticket_price_cents {
+                ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
+                reject_applicant(guest, ride);
+            } else if !eligible
+                || occupied >= access.queue_tiles
+                || ride.next_queue_ticket == u64::MAX
+            {
                 reject_applicant(guest, ride);
             } else if let Some(&tail) = access.ordered_queue.last()
                 && !reserved.contains_key(&tail)
