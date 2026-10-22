@@ -298,16 +298,23 @@ fn price_feedback_refreshes_without_ticks_and_minimum_chrome_stays_reserved() {
     frame(&mut app);
     assert_eq!(
         app.world().get::<Text>(header).unwrap().0,
-        "Cash $1000.00 / Revenue $0.00 / Wallets $20.00"
+        "Cash $1000.00 / Revenue $0.00 / Wallets $20.00 / Can pay 12/12"
     );
     assert_eq!(
         app.world().get::<Text>(ticket).unwrap().0,
-        "Ticket $20.00\n12/12 can pay"
+        "Ticket $20.00\n0 interested"
     );
     persistence_key_frame(&mut app, &[KeyCode::F7]);
     assert_eq!(
         app.world().get::<Text>(ticket).unwrap().0,
-        "Ticket $20.50\n0/12 can pay"
+        "Ticket $20.50\n0 interested"
+    );
+    assert!(
+        app.world()
+            .get::<Text>(header)
+            .unwrap()
+            .0
+            .ends_with("Can pay 0/12")
     );
     for dpi in [1.0, 1.5, 2.0] {
         let window = test_window(1024, 680, dpi);

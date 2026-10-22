@@ -1,5 +1,5 @@
 //! Compact displays use integer game cents. The ticket itself is always exact.
-use park_sim::{Park, RideEconomyStats};
+use park_sim::{Park, RideEconomyStats, RideExperienceStats};
 
 pub(crate) fn money(cents: u64) -> String {
     format!("${}.{:02}", cents / 100, cents % 100)
@@ -34,21 +34,25 @@ pub(super) fn header(park: &Park, stats: Option<&RideEconomyStats>) -> String {
         ),
     };
     format!(
-        "Cash {} / Revenue {} / Wallets {wallets}",
+        "Cash {} / Revenue {} / Wallets {wallets} / Can pay {}/{}",
         compact_money(park.cash_cents()),
         compact_money(stats.map_or(0, |stats| stats.revenue_cents)),
+        super::compact_count(stats.map_or(0, |stats| stats.affordable_guests) as u64),
+        super::compact_count(park.guests().len() as u64),
     )
 }
 
-pub(super) fn ticket(stats: Option<&RideEconomyStats>) -> String {
+pub(super) fn ticket(
+    stats: Option<&RideEconomyStats>,
+    experience: Option<&RideExperienceStats>,
+) -> String {
     stats.map_or_else(
         || "No ride\nTicket unavailable".into(),
         |stats| {
             format!(
-                "Ticket {}\n{}/{} can pay",
+                "Ticket {}\n{} interested",
                 money(u64::from(stats.ticket_price_cents)),
-                super::compact_count(stats.affordable_guests as u64),
-                super::compact_count(stats.guest_count as u64),
+                super::compact_count(experience.map_or(0, |stats| stats.interested_guests) as u64),
             )
         },
     )

@@ -182,8 +182,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let envelope: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if envelope["schema_version"] != 6 || envelope["content_version"] != 6 {
-        return Err("economy proof requires strict schema/content 6/6".into());
+    if envelope["schema_version"] != 7 || envelope["content_version"] != 7 {
+        return Err("economy proof requires strict schema/content 7/7".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("economy roundtrip changed authoritative state".into());
@@ -505,7 +505,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("economy verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-economy.txt"), format!(
-        "Parkbound {}\nFresh-process paid moving primary equality: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks + price changes, paid completion, predeparture cancellation, unaffordable rejection and affordable recovery)\nLocked fares survive price changes and charge only at actual departure: PASS\nEvery-tick wallet plus spent, revenue and park cash conservation: PASS\nPredeparture cancellation and rejected attempts move no money: PASS\nExplicit reserved-transfer backup, paused/Inspect loading and uncharged cancellation: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 6/6: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process paid moving primary equality: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks + price changes, paid completion, predeparture cancellation, unaffordable rejection and affordable recovery)\nLocked fares survive price changes and charge only at actual departure: PASS\nEvery-tick wallet plus spent, revenue and park cash conservation: PASS\nPredeparture cancellation and rejected attempts move no money: PASS\nExplicit reserved-transfer backup, paused/Inspect loading and uncharged cancellation: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 7/7: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process economy and reserved-fare backup verified.");
     Ok(())

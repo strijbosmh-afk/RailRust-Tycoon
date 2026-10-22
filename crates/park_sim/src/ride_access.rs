@@ -32,6 +32,9 @@ pub struct Ride {
     pub ticket_price_cents: u32,
     pub revenue_cents: u64,
     pub unaffordable_rejections: u64,
+    pub value_rejections: u64,
+    pub rating_count: u64,
+    pub rating_total: u64,
 }
 
 impl Ride {
@@ -51,6 +54,9 @@ impl Ride {
             ticket_price_cents: 0,
             revenue_cents: 0,
             unaffordable_rejections: 0,
+            value_rejections: 0,
+            rating_count: 0,
+            rating_total: 0,
         }
     }
 }

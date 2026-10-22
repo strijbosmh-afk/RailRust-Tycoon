@@ -12,6 +12,7 @@ use park_sim::{
 use crate::path_tools::PathTool;
 
 mod economy;
+pub(super) mod guests;
 pub(super) use economy::money;
 
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
@@ -43,6 +44,10 @@ pub(super) enum Action {
     ToggleTrain,
     FocusTrain,
     TicketPrice(i8),
+    Guests,
+    CloseGuests,
+    SelectGuest(Option<park_sim::GuestId>),
+    GuestPage(i8),
     Save,
     Load,
     LoadBackup,
@@ -69,6 +74,7 @@ pub(super) enum Label {
     Crowd,
     Train,
     TrainToggle,
+    RideRating,
     RideAccess,
     SaveStatus,
     ParkInfo,
@@ -272,6 +278,8 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Restore demo", Action::RestorePaths, 102.0);
             });
             p.spawn((
+                Button,
+                Action::Guests,
                 Node {
                     padding: UiRect::all(px(8)),
                     flex_direction: FlexDirection::Column,
@@ -405,7 +413,10 @@ pub(super) fn setup(mut commands: Commands) {
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
-            label(p, "Meadow Flyer", 18.0, INK);
+            p.spawn(row()).with_children(|p| {
+                label(p, "Meadow Flyer", 18.0, INK);
+                dynamic_label(p, "Unrated", 11.0, MUTED, Label::RideRating);
+            });
             dynamic_label(p, "Waiting at station", 11.0, MUTED, Label::Train);
             dynamic_label(
                 p,
@@ -429,7 +440,7 @@ pub(super) fn setup(mut commands: Commands) {
                 .with_children(|p| {
                     dynamic_label(
                         p,
-                        "Ticket $0.00\n12/12 can pay",
+                        "Ticket $0.00\n12 interested",
                         11.0,
                         INK,
                         Label::TicketPrice,
@@ -465,7 +476,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "P/J: paths  I/K: gates  X: remove  B/V: land  H: help",
+                "P/J: paths  I/K: gates  X: remove  L: guests  H: help",
                 11.0,
                 MUTED,
             );
@@ -510,7 +521,7 @@ pub(super) fn setup(mut commands: Commands) {
                     MUTED,
                 );
                 for (keys, purpose) in [
-                    ("Left click", "Inspect / edit one tile"),
+                    ("Left click / L", "Inspect tile / inspect guests"),
                     ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
                     ("C / shape button", "Cycle slope / turn gate toward station"),
                     ("B / V", "Raise / lower dry land one step"),
@@ -548,16 +559,55 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Back to the park", Action::CloseHelp, 180.0);
             });
         });
+    guests::setup(&mut commands);
 }
 
 type ChangedButtons<'w, 's> =
     Query<'w, 's, (&'static Interaction, &'static Action), (Changed<Interaction>, With<Button>)>;
 
-pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: ResMut<ViewState>) {
+pub(super) fn button_actions(
+    interactions: ChangedButtons<'_, '_>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    mut view: ResMut<ViewState>,
+) {
     // A button may close an overlay before pointer_input runs this frame.
     // Consume that press so it cannot also select the landscape beneath it.
     view.ui_pointer_consumed = false;
+    view.modal_input_blocked = false;
     if view.capture_active {
+        return;
+    }
+    // Keyboard transitions run next in the update chain. Do not apply a UI
+    // command first when that same frame is about to open or close a modal.
+    if keys.as_ref().is_some_and(|keys| {
+        keys.just_pressed(KeyCode::KeyL)
+            || keys.just_pressed(KeyCode::KeyH)
+            || keys.just_pressed(KeyCode::F1)
+            || ((view.help || view.guests_open) && keys.just_pressed(KeyCode::Escape))
+    }) {
+        view.ui_pointer_consumed = true;
+        return;
+    }
+    // Resolve modal transitions before any other pressed button, regardless of
+    // entity iteration order. A single click cannot close a panel and edit below.
+    let transition = interactions
+        .iter()
+        .filter_map(|(interaction, action)| {
+            if *interaction != Interaction::Pressed {
+                return None;
+            }
+            match action {
+                Action::CloseHelp if view.help => Some((0, false, false)),
+                Action::CloseGuests if view.guests_open => Some((0, false, false)),
+                Action::Help if !view.guests_open => Some((1, !view.help, false)),
+                Action::Guests if !view.help && !view.guests_open => Some((2, false, true)),
+                _ => None,
+            }
+        })
+        .min_by_key(|transition| transition.0);
+    if let Some((_, help, guests)) = transition {
+        view.set_modal(help, guests);
+        view.modal_transition_pending = true;
         return;
     }
     for (interaction, action) in &interactions {
@@ -566,6 +616,14 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
         }
         view.ui_pointer_consumed = true;
         if view.help && !matches!(action, Action::CloseHelp | Action::Help) {
+            continue;
+        }
+        if view.guests_open
+            && !matches!(
+                action,
+                Action::Pause | Action::SelectGuest(_) | Action::GuestPage(_)
+            )
+        {
             continue;
         }
         if view.diagnostic_case.is_some()
@@ -605,6 +663,18 @@ pub(super) fn button_actions(interactions: ChangedButtons<'_, '_>, mut view: Res
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
             Action::TicketPrice(delta) => view.request_price_change(*delta),
+            Action::SelectGuest(id) if view.guests_open && id.is_some() => {
+                view.selected_guest = *id;
+                view.guest_browse_pending = 0;
+                view.guest_page_pending = 0;
+            }
+            Action::GuestPage(delta) if view.guests_open => {
+                view.guest_page_pending = view.guest_page_pending.saturating_add(i32::from(*delta));
+            }
+            Action::SelectGuest(_)
+            | Action::GuestPage(_)
+            | Action::Guests
+            | Action::CloseGuests => {}
             Action::Save => view.request_save(SaveAction::Save),
             Action::Load => view.request_save(SaveAction::Load),
             Action::LoadBackup => view.request_save(SaveAction::Backup),
@@ -634,10 +704,19 @@ pub(super) fn refresh(
     let queue = sim.0.ride().map(|ride| sim.0.ride_queue_stats(ride.id));
     let journey = sim.0.ride().map(|ride| sim.0.ride_journey_stats(ride.id));
     let economy = sim.0.ride().map(|ride| sim.0.ride_economy_stats(ride.id));
+    let experience = sim
+        .0
+        .ride()
+        .map(|ride| sim.0.ride_experience_stats(ride.id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
             Label::Economy => economy::header(&sim.0, economy.as_ref()),
-            Label::TicketPrice => economy::ticket(economy.as_ref()),
+            Label::TicketPrice => economy::ticket(economy.as_ref(), experience.as_ref()),
+            Label::RideRating => guests::rating_label(
+                experience
+                    .as_ref()
+                    .and_then(|stats| stats.average_rating_tenths),
+            ),
             Label::ParkInfo => format!(
                 "{} x {} tiles / {}",
                 sim.0.width(),
@@ -861,7 +940,15 @@ pub(super) fn refresh(
                 ViewMode::Underground => "Underground: on [U]",
             }
             .into(),
-            Label::Crowd => crowd_summary(sim.0.crowd_stats(), queue.as_ref(), journey.as_ref()),
+            Label::Crowd => {
+                let text = crowd_summary(sim.0.crowd_stats(), queue.as_ref(), journey.as_ref());
+                let (_, remainder) = text.split_once('\n').unwrap_or((&text, ""));
+                format!(
+                    "Guests [L]: {} / {} lost\n{remainder}",
+                    sim.0.guests().len(),
+                    sim.0.crowd_stats().lost
+                )
+            }
             Label::Train => sim
                 .0
                 .train()

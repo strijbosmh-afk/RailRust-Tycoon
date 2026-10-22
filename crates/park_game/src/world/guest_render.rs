@@ -896,6 +896,13 @@ mod tests {
             "rides_completed": 0,
             "wallet_cents": park_sim::INITIAL_GUEST_WALLET_CENTS,
             "spent_cents": 0,
+            "preferences": park_sim::GuestPreferences::for_guest(42, park_sim::GuestId(1)),
+            "satisfaction": 70,
+            "thought": park_sim::GuestThought::Exploring,
+            "thought_tick": 0,
+            "ratings_given": 0,
+            "rating_total": 0,
+            "last_rating": null,
             "ride_cooldown": 0
         }]);
         encoded["park"]["next_guest_id"] = 2.into();

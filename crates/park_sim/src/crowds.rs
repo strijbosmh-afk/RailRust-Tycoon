@@ -57,6 +57,16 @@ pub struct Guest {
     /// Cash still owned by this guest, including a fare reserved before departure.
     pub wallet_cents: u32,
     pub spent_cents: u64,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
+    pub preferences: crate::GuestPreferences,
+    pub satisfaction: u8,
+    #[serde(deserialize_with = "crate::saves::string_enum")]
+    pub thought: crate::GuestThought,
+    pub thought_tick: u64,
+    pub ratings_given: u64,
+    pub rating_total: u64,
+    #[serde(deserialize_with = "crate::saves::required_option")]
+    pub last_rating: Option<u8>,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub ride_visit: Option<crate::RideVisit>,
     pub ride_cooldown: u16,
@@ -321,6 +331,16 @@ impl Park {
                     rides_completed: 0,
                     wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
                     spent_cents: 0,
+                    preferences: crate::GuestPreferences::for_guest(
+                        seed,
+                        GuestId(candidate.next_guest_id),
+                    ),
+                    satisfaction: 70,
+                    thought: crate::GuestThought::Exploring,
+                    thought_tick: 0,
+                    ratings_given: 0,
+                    rating_total: 0,
+                    last_rating: None,
                     ride_visit: None,
                     ride_cooldown: 0,
                     route: VecDeque::new(),
@@ -656,6 +676,13 @@ mod tests {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
             ride_visit: None,
             ride_cooldown: 0,
             route: VecDeque::new(),

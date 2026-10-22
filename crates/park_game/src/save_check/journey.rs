@@ -29,6 +29,11 @@ pub(super) fn install(park: &mut Park) -> Result<RideId, String> {
     }
     park.place_ride_entrance(TilePos { x: 8, y: 11 }, 8, PathDirection::North, ride)
         .map_err(|error| error.to_string())?;
+    install_exit(park, ride)?;
+    Ok(ride)
+}
+
+pub(super) fn install_exit(park: &mut Park, ride: RideId) -> Result<(), String> {
     for x in 8..=13 {
         park.place_path(TilePos { x, y: 8 }, 8)
             .map_err(|error| error.to_string())?;
@@ -42,7 +47,7 @@ pub(super) fn install(park: &mut Park) -> Result<RideId, String> {
     if park.ride_exit_access(ride).status != park_sim::RideExitStatus::Ready {
         return Err("journey exit must reach the queue's public component".into());
     }
-    Ok(ride)
+    Ok(())
 }
 
 fn passenger_count(park: &Park) -> usize {
@@ -174,8 +179,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let json: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if json["schema_version"] != 6 || json["content_version"] != 6 {
-        return Err("journey proof requires strict schema/content 6/6".into());
+    if json["schema_version"] != 7 || json["content_version"] != 7 {
+        return Err("journey proof requires strict schema/content 7/7".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("journey save roundtrip changed authoritative state".into());
@@ -446,7 +451,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("journey verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-journey.txt"), format!(
-        "Parkbound {}\nFresh-process occupied moving primary equality: PASS\nContinuation: PASS (7200 complete ticks + close, missing exit, fresh-ID exit repair, empty fault/closed repair/reopen)\nNatural boarding, occupied lap, exit transfer and completed public returns: PASS\nSeat uniqueness, role/transfer reservations and guest/ride identity conservation: PASS\nOccupied circuit and active transfer demolition rejected atomically: PASS\nMissing-exit station hold, unloading recovery and another completed trip: PASS\nExplicit boarding backup and paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 6/6: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process occupied moving primary equality: PASS\nContinuation: PASS (7200 complete ticks + close, missing exit, fresh-ID exit repair, empty fault/closed repair/reopen)\nNatural boarding, occupied lap, exit transfer and completed public returns: PASS\nSeat uniqueness, role/transfer reservations and guest/ride identity conservation: PASS\nOccupied circuit and active transfer demolition rejected atomically: PASS\nMissing-exit station hold, unloading recovery and another completed trip: PASS\nExplicit boarding backup and paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 7/7: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process complete journey and boarding backup verified.");
     Ok(())

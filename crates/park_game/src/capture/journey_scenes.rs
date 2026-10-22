@@ -105,6 +105,17 @@ pub(super) fn install(park: &mut Park, view: &mut ViewState) -> RideId {
     view.rotation = 0;
     view.view_mode = ViewMode::Underground;
     queue_scenes::prepare(park, view, Scene::QueueConnected);
+    install_exit(park, view);
+    view.rotation = rotation;
+    view.view_mode = mode;
+    park.ride().unwrap().id
+}
+
+pub(super) fn install_exit(park: &mut Park, view: &mut ViewState) -> RideId {
+    let rotation = view.rotation;
+    let mode = view.view_mode;
+    view.rotation = 0;
+    view.view_mode = ViewMode::Underground;
     for x in 8..=13 {
         tool_place(park, view, TilePos { x, y: 8 }, PathTool::Build);
     }
