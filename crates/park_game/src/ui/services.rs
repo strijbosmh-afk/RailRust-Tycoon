@@ -99,7 +99,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     button(p, ">", Action::BrowseService(1), 45.0);
                 });
                 p.spawn(Node {
-                    height: px(62),
+                    height: px(110),
                     flex_shrink: 0.0,
                     ..default()
                 })
@@ -137,7 +137,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     .with_children(|p| text(p, "Open [O]", ServiceLabel::Open, 13.0));
                 });
                 p.spawn(Node {
-                    height: px(30),
+                    height: px(44),
                     flex_shrink: 0.0,
                     ..default()
                 })
@@ -199,14 +199,21 @@ pub(crate) fn refresh(
         let value=match kind {
             ServiceLabel::Selected=>facility.map_or_else(||"No facilities".into(),|service|format!("{} #{}",service.kind,service.id.0)),
             ServiceLabel::Details=>facility.zip(stats.as_ref()).map_or_else(
-                ||"Build food, drink or a toilet to meet guest needs.\nEach serves one guest at a time on its public path.".into(),
-                |(service,stats)|format!("{} / Faces {}\nSeeking {} / Waiting {} / Using {}\nServed {} / Revenue {}\nPrice refusals {}",
-                    stats.status,direction_name(service.facing),stats.approaching,stats.waiting,stats.using,
-                    compact_count(stats.served),money(stats.revenue_cents),compact_count(stats.unaffordable_rejections))),
+                ||"Build food, drink or a toilet to meet guest needs.\nEach serves one guest at a time on its public path.\nOpen facilities pay upkeep even when disconnected.\nClose a facility to stop future running costs.\nN opens park finances.".into(),
+                |(service,stats)| {
+                    let status=if stats.closed_for_funds {"Closed: park cannot cover costs".into()}else{stats.status.to_string()};
+                    let per_minute=u64::from(service.kind.upkeep_cost_cents()) * (60*TICKS_PER_SECOND/u64::from(park_sim::SERVICE_UPKEEP_TICKS));
+                    format!("{status} / Faces {}\nSeeking {} / Waiting {} / Using {}\nServed {} / Revenue +{}\nUpkeep -{} / Supplies -{} / Profit {}\nOpen upkeep {}/min / Supplies {}/completed use\nPrice refusals {} / N: park finances",
+                        direction_name(service.facing),stats.approaching,stats.waiting,stats.using,
+                        compact_count(stats.served),money(stats.revenue_cents),money(stats.upkeep_cents),money(stats.supplies_cents),finance::signed_money(stats.profit_cents),
+                        money(per_minute),money(u64::from(service.kind.supply_cost_cents())),compact_count(stats.unaffordable_rejections))
+                }),
             ServiceLabel::Price=>facility.map_or_else(||"Price unavailable".into(),|service|format!("Price {}",money(u64::from(service.price_cents)))),
             ServiceLabel::Open=>if facility.is_some_and(|service|service.open){"Close [O]"}else{"Open [O]"}.into(),
-            ServiceLabel::Notice=>view.service_notice.clone().unwrap_or_else(||
-                "Price locks when use starts; payment and relief occur only on completion.\nClosing or demolition cancels unfinished use without payment.".into()),
+            ServiceLabel::Notice=>if facility.is_some_and(|service|service.closed_for_funds) {
+                "Insufficient park cash stopped this facility. No debt was created.\nReopen to retry; it may close again if cash is still insufficient.".into()
+            }else{view.service_notice.clone().unwrap_or_else(||
+                "Open upkeep runs even without customers; closing stops it.\nSupplies are paid on completion. Price locks when use starts.\nClosing cancels unfinished use without charging the guest.".into())},
         };
         if text.0 != value {
             text.0 = value;

@@ -3,7 +3,7 @@ use super::*;
 use crate::save_check::services;
 use park_sim::{GuestId, GuestThought, PathDirection, PathSlope, ServiceId, ServiceVisitPhase};
 
-fn install(park: &mut Park, view: &mut ViewState) {
+pub(super) fn install(park: &mut Park, view: &mut ViewState) {
     let original = (view.rotation, view.view_mode);
     view.rotation = 0;
     view.view_mode = ViewMode::Underground;

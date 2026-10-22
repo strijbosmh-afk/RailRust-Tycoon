@@ -116,6 +116,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-services --save-dir $servicesDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process guest services continuation failed" }
           Get-Content -LiteralPath (Join-Path $servicesDirectory "verification-services.txt")
+      - name: Verify service finances across fresh processes
+        shell: pwsh
+        run: |
+          $financeDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound service finance proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-finance --save-dir $financeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Service finance writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-finance --save-dir $financeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process service finance continuation failed" }
+          Get-Content -LiteralPath (Join-Path $financeDirectory "verification-finance.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

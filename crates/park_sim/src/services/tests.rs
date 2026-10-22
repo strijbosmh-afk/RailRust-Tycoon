@@ -70,7 +70,8 @@ fn ledger(park: &Park) {
     );
 }
 
-pub(crate) fn strip_services(mut value: Value) -> Value {
+pub(crate) fn strip_services(value: Value) -> Value {
+    let mut value = crate::finances::tests::strip_finances(value);
     value["schema_version"] = json!(7);
     value["content_version"] = json!(7);
     assert!(value["park"]["services"].as_array().unwrap().is_empty());
@@ -94,6 +95,7 @@ pub(crate) fn strip_services(mut value: Value) -> Value {
 }
 pub(crate) fn reset_needs(park: &mut Park) {
     assert!(park.services.is_empty());
+    crate::finances::tests::reset_finances(park);
     for guest in &mut park.guests {
         guest.needs = GuestNeeds::for_guest(park.crowd_seed.unwrap_or(0), guest.id);
         guest.service_visit = None;
@@ -483,6 +485,7 @@ fn each_service_history_bounds_its_own_revenue_even_when_all_ledgers_balance() {
         park.services[index].revenue_cents = u64::from(crate::INITIAL_GUEST_WALLET_CENTS);
     }
     park.cash_cents += 2 * u64::from(crate::INITIAL_GUEST_WALLET_CENTS);
+    crate::finances::tests::reset_finances(&mut park);
     ledger(&park);
     roundtrip(&park);
 
@@ -652,7 +655,7 @@ fn malformed_service_references_quotes_histories_and_missing_fields_are_rejected
             assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
         }
     }
-    for (schema, content) in [(9, 9), (8, 7), (7, 8)] {
+    for (schema, content) in [(10, 10), (8, 7), (7, 8)] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(schema);
         forged["content_version"] = json!(content);
@@ -741,6 +744,7 @@ fn service_history_capacity_and_counter_exhaustion_reject_atomically() {
     let mut park = fixture();
     park.services[0].served = MAX_SERVICE_USES;
     park.guests[0].services_used = MAX_SERVICE_USES;
+    crate::finances::tests::reset_finances(&mut park);
     roundtrip(&park);
     for _ in 0..6000 {
         park.advance(Speed::Normal);
@@ -763,6 +767,7 @@ fn the_last_reserved_service_use_completes_then_blocks_further_use() {
         .unwrap();
     park.guests[index].services_used = MAX_SERVICE_USES - 1;
     park.services[service_index].served = MAX_SERVICE_USES - 1;
+    crate::finances::tests::reset_finances(&mut park);
     let mut loaded = roundtrip(&park);
     for _ in 0..SERVICE_USE_TICKS {
         park.advance(Speed::Normal);

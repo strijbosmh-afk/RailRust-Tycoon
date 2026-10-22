@@ -1,6 +1,6 @@
 # Asset provenance
 
-This register includes the current 0.19 original food/drink/toilet geometry, needs/service rules, facility UI and deterministic fixtures alongside all retained assets. [The guest services report](GUEST_SERVICES_REPORT.md) records current verification; earlier named-build evidence remains historical. Add an entry before importing graphics, fonts, sounds, music, maps or data.
+This register includes the current 0.20 original finance rules, ledger interface and deterministic proof fixtures alongside retained procedural buildings and all earlier assets. [The service finance report](SERVICE_FINANCE_REPORT.md) records current verification; earlier named-build evidence remains historical. No dependency, external asset, font, audio or original game data is added. Add an entry before importing graphics, fonts, sounds, music, maps or data.
 
 | Asset | Source | Rights and distribution treatment |
 | --- | --- | --- |

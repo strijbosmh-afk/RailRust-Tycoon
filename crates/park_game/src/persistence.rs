@@ -70,6 +70,7 @@ pub(super) fn apply_save_action(
     if view.help
         || view.guests_open
         || view.services_open
+        || view.finance_open
         || view.modal_input_blocked
         || view.capture_active
     {
@@ -217,6 +218,9 @@ mod tests {
             rotation: 3,
             zoom: 3.5,
             dragging: true,
+            finance_open: true,
+            finance_page: 7,
+            finance_page_pending: 1,
             ..default()
         };
         assert!(perform_action(
@@ -231,6 +235,9 @@ mod tests {
         assert_eq!(view.selected, None);
         assert_eq!(view.rotation, 0);
         assert_eq!(view.zoom, 1.0);
+        assert!(!view.finance_open);
+        assert_eq!(view.finance_page, 0);
+        assert_eq!(view.finance_page_pending, 0);
         assert!(view.scene_dirty && view.ui_pointer_consumed);
         assert!(!view.remove_path_pending && !view.toggle_train_pending);
         assert!(!view.terrain_change_pending && !view.dragging && !view.terrain_custom);
@@ -324,7 +331,7 @@ mod tests {
             view.request_save(action);
         }
         assert_eq!(view.save_pending, Some(SaveAction::Backup));
-        for blocked in [false, true] {
+        for blocked in 0..6 {
             let session = session();
             let path = session.store.as_ref().unwrap().save_path();
             let mut app = App::new();
@@ -332,8 +339,12 @@ mod tests {
                 .insert_resource(Simulation(fixture()))
                 .insert_resource(ViewState {
                     save_pending: Some(SaveAction::Save),
-                    help: blocked,
-                    capture_active: !blocked,
+                    help: blocked == 0,
+                    guests_open: blocked == 1,
+                    services_open: blocked == 2,
+                    finance_open: blocked == 3,
+                    modal_input_blocked: blocked == 4,
+                    capture_active: blocked == 5,
                     ..default()
                 })
                 .add_systems(Update, apply_save_action);

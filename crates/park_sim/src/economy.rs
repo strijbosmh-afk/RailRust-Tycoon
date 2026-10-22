@@ -123,7 +123,7 @@ impl Park {
                 .as_mut()
                 .expect("passengers belong to a ride")
                 .revenue_cents += earned;
-            self.cash_cents += earned;
+            self.record_cash(crate::FinanceKind::RideRevenue, None, earned);
         }
     }
 }
@@ -183,7 +183,15 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         .is_some_and(|ride| ride.ticket_price_cents > MAX_TICKET_PRICE_CENTS)
         || service_spent != service_revenue
         || revenue.checked_add(service_revenue) != Some(spent)
-        || INITIAL_PARK_CASH_CENTS.checked_add(spent) != Some(park.cash_cents)
+        || INITIAL_PARK_CASH_CENTS
+            .checked_add(spent)
+            .and_then(|funds| {
+                park.services.iter().try_fold(funds, |cash, service| {
+                    cash.checked_sub(service.upkeep_cents)?
+                        .checked_sub(service.supplies_cents)
+                })
+            })
+            != Some(park.cash_cents)
     {
         return Err("ride price, revenue, and park cash do not conserve funds".into());
     }

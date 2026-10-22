@@ -56,6 +56,9 @@ struct ViewState {
     help: bool,
     guests_open: bool,
     services_open: bool,
+    finance_open: bool,
+    finance_page: usize,
+    finance_page_pending: i32,
     selected_service: Option<park_sim::ServiceId>,
     service_browse_pending: i32,
     service_commands: Vec<ui::services::ServiceCommand>,
@@ -104,6 +107,9 @@ impl Default for ViewState {
             help: false,
             guests_open: false,
             services_open: false,
+            finance_open: false,
+            finance_page: 0,
+            finance_page_pending: 0,
             selected_service: None,
             service_browse_pending: 0,
             service_commands: Vec::new(),
@@ -205,6 +211,7 @@ impl ViewState {
         self.help
             || self.guests_open
             || self.services_open
+            || self.finance_open
             || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -213,10 +220,11 @@ impl ViewState {
                 .is_some_and(|action| action != SaveAction::Save)
     }
 
-    fn set_modal(&mut self, help: bool, guests: bool, services: bool) {
+    fn set_modal(&mut self, help: bool, guests: bool, services: bool, finance: bool) {
         self.help = help;
         self.guests_open = guests;
         self.services_open = services;
+        self.finance_open = finance;
         self.modal_input_blocked = true;
         self.ui_pointer_consumed = true;
         self.dragging = false;
@@ -226,6 +234,9 @@ impl ViewState {
 
     fn choose_service(&mut self, kind: park_sim::ServiceKind) {
         if !self.services_open
+            || self.help
+            || self.guests_open
+            || self.finance_open
             || self.capture_active
             || self.diagnostic_case.is_some()
             || self
@@ -234,7 +245,7 @@ impl ViewState {
         {
             return;
         }
-        self.set_modal(false, false, false);
+        self.set_modal(false, false, false, false);
         self.modal_transition_pending = true;
         self.path_tool.set_mode(path_tools::PathTool::Service(kind));
         self.service_notice = None;
@@ -354,6 +365,7 @@ fn main() -> AppExit {
                 ui::refresh,
                 ui::guests::refresh,
                 ui::services::refresh,
+                ui::finance::refresh,
             )
                 .chain(),
         );
@@ -475,18 +487,20 @@ fn keyboard_input(
     if view.modal_input_blocked {
         return;
     }
-    if keys.just_pressed(KeyCode::Escape) && (view.help || view.guests_open || view.services_open) {
-        view.set_modal(false, false, false);
+    if keys.just_pressed(KeyCode::Escape)
+        && (view.help || view.guests_open || view.services_open || view.finance_open)
+    {
+        view.set_modal(false, false, false, false);
         return;
     }
     if keys.just_pressed(KeyCode::F1) || keys.just_pressed(KeyCode::KeyH) {
         let open = !view.help;
-        view.set_modal(open, false, false);
+        view.set_modal(open, false, false, false);
         return;
     }
     if keys.just_pressed(KeyCode::KeyL) {
         let open = !view.guests_open;
-        view.set_modal(false, open, false);
+        view.set_modal(false, open, false, false);
         return;
     }
     if keys.just_pressed(KeyCode::KeyM) {
@@ -494,7 +508,25 @@ fn keyboard_input(
         view.selected_service = None;
         view.service_browse_pending = 0;
         view.service_notice = None;
-        view.set_modal(false, false, open);
+        view.set_modal(false, false, open, false);
+        return;
+    }
+    if keys.just_pressed(KeyCode::KeyN) {
+        let open = !view.finance_open;
+        view.finance_page = 0;
+        view.finance_page_pending = 0;
+        view.set_modal(false, false, false, open);
+        return;
+    }
+    if view.finance_open {
+        if keys.just_pressed(KeyCode::Space) {
+            view.pause();
+        }
+        for (key, delta) in [(KeyCode::PageUp, -1), (KeyCode::PageDown, 1)] {
+            if keys.just_pressed(key) {
+                view.finance_page_pending = view.finance_page_pending.saturating_add(delta);
+            }
+        }
         return;
     }
     if view.services_open {
@@ -757,7 +789,12 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
     }
     if view.focus_train_pending {
         view.focus_train_pending = false;
-        if !view.help && !view.guests_open && !view.services_open && !view.modal_input_blocked {
+        if !view.help
+            && !view.guests_open
+            && !view.services_open
+            && !view.finance_open
+            && !view.modal_input_blocked
+        {
             focus_train(&sim.0, &mut view);
         }
     }
@@ -794,6 +831,7 @@ fn apply_service_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
     let commands = std::mem::take(&mut view.service_commands);
     if view.help
         || view.guests_open
+        || view.finance_open
         || !view.services_open
         || view.modal_input_blocked
         || view.capture_active
@@ -923,6 +961,7 @@ fn pointer_input(
         view.help
             || view.guests_open
             || view.services_open
+            || view.finance_open
             || view.modal_input_blocked
             || view.ui_pointer_consumed,
     );
@@ -934,6 +973,7 @@ fn pointer_input(
     if view.help
         || view.guests_open
         || view.services_open
+        || view.finance_open
         || view.modal_input_blocked
         || (!buttons.pressed(MouseButton::Right) && !buttons.pressed(MouseButton::Middle))
     {
@@ -983,6 +1023,7 @@ fn pointer_input(
             && !view.help
             && !view.guests_open
             && !view.services_open
+            && !view.finance_open
             && !view.modal_input_blocked
             && buttons.just_pressed(MouseButton::Left)
         {
