@@ -1077,7 +1077,8 @@ pub(super) fn refresh(
                                 .unwrap_or_else(|| "Gate metadata unavailable".into());
                         }
                         if object.kind==ObjectKind::Carousel && let Some(owner)=sim.0.object_ride(id) {
-                            return format!("Ride #{} / 3 x 3 footprint\nHeight {} / six seats\nY selects a ride; J/I/K build its access.\nX or Delete removes the empty ride.",owner.0,object.height);
+                            let refund=sim.0.carousel_demolition_quote(owner).map_or_else(|_|"Removal blocked: passengers aboard".into(),|amount|format!("Demolition refund {}",money(amount)));
+                            return format!("Ride #{} / height {} / six seats\n{refund}\nX / Delete: remove body and gates.\nOwned queue stays in place.",owner.0,object.height);
                         }
                         if let Some(piece) = sim.0.circuit().and_then(|circuit| {
                             circuit.pieces.iter().find(|piece| piece.object == id)
@@ -1140,7 +1141,7 @@ pub(super) fn refresh(
             Label::Status if matches!(view.path_tool.mode,PathTool::Service(_)) => {
                 "Facility / C turns serving side / M opens settings".into()
             }
-            Label::Status if view.path_tool.mode==PathTool::Carousel=>"Build carousel / clear 3 x 3 footprint / height in Build Tools".into(),
+            Label::Status if view.path_tool.mode==PathTool::Carousel=>format!("Build carousel / {} / clear 3 x 3 footprint",money(park_sim::CAROUSEL_BUILD_COST_CENTS)),
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
                 "Raise terrain / click dry land / +1 step".into()
             }

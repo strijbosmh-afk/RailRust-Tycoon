@@ -1,6 +1,6 @@
 //! Selected ride ownership, modal transitions and deliberate construction.
 use super::*;
-use park_sim::{PathDirection, PathSlope, RideId};
+use park_sim::{CAROUSEL_BUILD_COST_CENTS, FinanceKind, PathDirection, PathSlope, RideId};
 
 fn two_rides() -> (Park, RideId) {
     let mut park = train_park();
@@ -178,6 +178,13 @@ fn carousel_build_button_closes_modal_without_clicking_through_and_builds_while_
         world::path_build_center(TilePos { x: 19, y: 22 }, &park, 0, 8, PathSlope::Flat).unwrap();
     let mut view = app.world_mut().remove_resource::<ViewState>().unwrap();
     let mut sim = app.world_mut().resource_mut::<Simulation>();
+    path_tools::point_at(&mut sim.0, &mut view, point, false);
+    assert_eq!(sim.0, park, "a price preview never spends cash");
+    assert!(
+        view.path_tool
+            .hint
+            .contains("Build $300.00 / Cash $1000.00")
+    );
     path_tools::point_at(&mut sim.0, &mut view, point, true);
     assert_eq!(sim.0.carousels().len(), 1);
     let carousel = &sim.0.carousels()[0];
@@ -186,6 +193,27 @@ fn carousel_build_button_closes_modal_without_clicking_through_and_builds_while_
     assert_eq!(view.selected_ride, Some(carousel.ride.id));
     assert_eq!(view.speed, Speed::Paused);
     assert_eq!(sim.0.ticks(), 0);
+    assert_eq!(
+        sim.0.cash_cents(),
+        park.cash_cents() - CAROUSEL_BUILD_COST_CENTS
+    );
+    assert_eq!(carousel.construction_cost_cents, CAROUSEL_BUILD_COST_CENTS);
+    let entry = sim.0.finance_ledger().entries.last().unwrap();
+    assert_eq!(entry.kind, FinanceKind::RideConstruction);
+    assert_eq!(entry.ride, Some(carousel.ride.id));
+    assert_eq!(entry.amount_cents, CAROUSEL_BUILD_COST_CENTS);
+    assert!(
+        view.path_notice
+            .as_deref()
+            .unwrap()
+            .contains("Built for $300.00")
+    );
+    assert!(
+        view.path_notice
+            .as_deref()
+            .unwrap()
+            .contains("Cash $700.00")
+    );
 }
 
 #[test]
@@ -219,6 +247,12 @@ fn footprint_rejection_is_atomic_and_world_inspection_selects_body_gate_and_queu
         assert_eq!(view.selected_ride, Some(carousel));
     }
     let body = park.carousel(carousel).unwrap().objects[0];
+    view.path_tool.set_mode(path_tools::PathTool::Demolish);
+    view.hovered = Some(SurfaceId::Object(body));
+    let before = park.clone();
+    path_tools::point_at(&mut park, &mut view, Vec2::ZERO, false);
+    assert_eq!(park, before);
+    assert!(view.path_tool.hint.contains("Refund $150.00 / whole ride"));
     view.selected = Some(SurfaceId::Object(body));
     path_tools::remove_selected(&mut park, &mut view);
     assert!(park.carousel(carousel).unwrap().objects.is_empty());
@@ -231,4 +265,135 @@ fn footprint_rejection_is_atomic_and_world_inspection_selects_body_gate_and_queu
         park.object(queue).is_some(),
         "owned queue remains for a safe drain"
     );
+    assert_eq!(
+        park.cash_cents(),
+        original.cash_cents() - CAROUSEL_BUILD_COST_CENTS / 2
+    );
+    let entry = park.finance_ledger().entries.last().unwrap();
+    assert_eq!(entry.kind, FinanceKind::RideDemolitionRefund);
+    assert_eq!(entry.ride, Some(carousel));
+    assert_eq!(entry.amount_cents, CAROUSEL_BUILD_COST_CENTS / 2);
+    assert!(
+        view.path_notice
+            .as_deref()
+            .unwrap()
+            .contains("refund $150.00")
+    );
+    let removed = park.clone();
+    view.selected = Some(SurfaceId::Object(body));
+    path_tools::remove_selected(&mut park, &mut view);
+    assert_eq!(park, removed, "a stale selection never refunds twice");
+}
+
+#[test]
+fn unaffordable_carousel_preview_and_click_preserve_all_state() {
+    let mut park = train_park();
+    let origin = TilePos { x: 19, y: 22 };
+    for _ in 0..5 {
+        let id = park.place_carousel(origin, 8).unwrap();
+        park.remove_carousel(id).unwrap();
+    }
+    assert_eq!(park.cash_cents(), 25_000);
+    let original = park.clone();
+    let mut view = ViewState {
+        speed: Speed::Paused,
+        path_tool: path_tools::ToolState {
+            mode: path_tools::PathTool::Carousel,
+            ..default()
+        },
+        ..default()
+    };
+    let point = world::path_build_center(origin, &park, 0, 8, PathSlope::Flat).unwrap();
+    for click in [false, true] {
+        path_tools::point_at(&mut park, &mut view, point, click);
+        assert_eq!(park, original);
+        assert!(view.path_tool.carousel_preview.is_some_and(|p| !p.valid));
+        assert!(view.path_tool.hint.contains("Build $300.00 / Cash $250.00"));
+        assert!(view.path_tool.hint.contains("Need $50.00 more"));
+        assert!(!view.scene_dirty);
+    }
+    assert!(
+        view.path_notice
+            .as_deref()
+            .unwrap()
+            .contains("Need $50.00 more")
+    );
+}
+
+#[test]
+fn carousel_mouse_build_debits_once_even_when_button_stays_held() {
+    let original = Park::new(MAP_SIZE, MAP_SIZE);
+    let origin = TilePos { x: 14, y: 17 };
+    let view = ViewState {
+        speed: Speed::Paused,
+        zoom: 1.4,
+        path_tool: path_tools::ToolState {
+            mode: path_tools::PathTool::Carousel,
+            ..default()
+        },
+        ..default()
+    };
+    let (mut app, window) = input_app(original.clone(), view, 1.0);
+    let point = world::path_build_center(origin, &original, 0, 8, PathSlope::Flat).unwrap();
+    let cursor = cursor_for_world(&app, window, point);
+    set_cursor(&mut app, window, Some(cursor));
+    frame(&mut app);
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .path_tool
+            .hint
+            .contains("Build $300.00")
+    );
+    app.world_mut()
+        .resource_mut::<ButtonInput<MouseButton>>()
+        .press(MouseButton::Left);
+    frame(&mut app);
+    let built = app.world().resource::<Simulation>().0.clone();
+    assert_eq!(built.cash_cents(), 70_000);
+    assert_eq!(built.finance_ledger().entries.len(), 1);
+    assert_eq!(built.carousels()[0].origin, origin);
+    frame(&mut app);
+    assert_eq!(app.world().resource::<Simulation>().0, built);
+}
+
+#[test]
+fn occupied_carousel_demolition_shows_no_current_refund_and_cannot_change_cash_or_passengers() {
+    let mut park = train_park();
+    let id = crate::save_check::ride_choice::install_carousel(&mut park).unwrap();
+    for _ in 0..12_000 {
+        if crate::save_check::ride_choice::paid_running(&park, id) {
+            break;
+        }
+        park.advance(Speed::Normal);
+    }
+    assert!(crate::save_check::ride_choice::paid_running(&park, id));
+    let body = park.carousel(id).unwrap().objects[0];
+    let original = park.clone();
+    let mut view = ViewState {
+        speed: Speed::Paused,
+        hovered: Some(SurfaceId::Object(body)),
+        selected: Some(SurfaceId::Object(body)),
+        path_tool: path_tools::ToolState {
+            mode: path_tools::PathTool::Demolish,
+            ..default()
+        },
+        ..default()
+    };
+    for click in [false, true] {
+        path_tools::point_at(&mut park, &mut view, Vec2::ZERO, click);
+        assert_eq!(park, original);
+        assert!(
+            view.path_tool
+                .carousel_preview
+                .is_some_and(|p| p.demolish && !p.valid)
+        );
+        assert!(view.path_tool.hint.contains("no refund now"));
+        assert!(!view.scene_dirty);
+    }
+    assert!(
+        ui::rides::construction_details(&park, id).contains("Demolition blocked while occupied")
+    );
+    assert!(view.path_notice.as_deref().unwrap().contains("not removed"));
 }

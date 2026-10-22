@@ -350,3 +350,77 @@ fn finance_empty_and_loaded_history_reset_without_saving_transient_state() {
     );
     assert_eq!(app.world().resource::<Simulation>().0, empty);
 }
+
+#[test]
+fn finance_shows_construction_and_refunds_separately_from_guest_sales_and_keeps_archives() {
+    let directory = InputSaveDirectory::new();
+    let mut park = Park::new(32, 32);
+    let id = park.place_carousel(TilePos { x: 12, y: 12 }, 0).unwrap();
+    park.remove_carousel(id).unwrap();
+    let (mut app, _) = finance_app(
+        &directory,
+        park.clone(),
+        ViewState {
+            finance_open: true,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    assert_eq!(
+        label(&mut app, |kind| matches!(
+            kind,
+            ui::finance::FinanceLabel::Row(0)
+        )),
+        "00:00 / Demolition refund / ride #1 / +$150.00 / Cash $850.00"
+    );
+    assert_eq!(
+        label(&mut app, |kind| matches!(
+            kind,
+            ui::finance::FinanceLabel::Row(1)
+        )),
+        "00:00 / Ride construction / ride #1 / -$300.00 / Cash $700.00"
+    );
+    let summary = label(&mut app, |kind| {
+        matches!(kind, ui::finance::FinanceLabel::Summary)
+    });
+    assert!(
+        summary.contains("Sales +$0.00 / Costs -$300.00 / Net cash -$150.00"),
+        "{summary}"
+    );
+    assert!(summary.contains("Refunds +$150.00"));
+    let categories = label(&mut app, |kind| {
+        matches!(kind, ui::finance::FinanceLabel::Categories)
+    });
+    assert!(categories.contains("Ride construction -$300.00 / Demolition refunds +$150.00"));
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+
+    park.place_service(
+        TilePos { x: 4, y: 5 },
+        0,
+        PathDirection::North,
+        ServiceKind::Toilet,
+    )
+    .unwrap();
+    for _ in 0..FINANCE_LEDGER_CAPACITY * usize::from(SERVICE_UPKEEP_TICKS) {
+        park.advance(Speed::Normal);
+    }
+    assert_eq!(park.finance_ledger().archived_entries, 2);
+    app.world_mut().resource_mut::<Simulation>().0 = park.clone();
+    frame(&mut app);
+    let history = label(&mut app, |kind| {
+        matches!(kind, ui::finance::FinanceLabel::History)
+    });
+    assert!(
+        history.contains("Older 2 transactions: income +$0.00 / costs -$300.00 / refunds +$150.00"),
+        "{history}"
+    );
+    let summary = label(&mut app, |kind| {
+        matches!(kind, ui::finance::FinanceLabel::Summary)
+    });
+    assert!(
+        summary.contains("Cash $837.20 / Sales +$0.00 / Costs -$312.80 / Net cash -$162.80"),
+        "{summary}"
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+}

@@ -44,6 +44,7 @@ fn require_old_fields(old: &Value, current: &Value, location: &str) -> Result<()
 }
 
 fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
+    let version = old["schema_version"].as_u64().unwrap();
     let seed = old["park"]["crowd_seed"].as_u64().unwrap_or(0);
     for guest in park.guests() {
         if old["schema_version"].as_u64().unwrap() <= 6
@@ -74,10 +75,10 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
     if old["schema_version"].as_u64().unwrap() <= 7 && !park.services().is_empty() {
         return Err("migration invented service facilities/history".into());
     }
-    if !park.carousels().is_empty() {
+    if version <= 9 && !park.carousels().is_empty() {
         return Err("migration invented a second ride".into());
     }
-    for guest in park.guests() {
+    for guest in park.guests().iter().filter(|_| version <= 9) {
         let ride_spent = guest.spent_cents - guest.service_spent_cents;
         if park.ride().is_some() {
             let history = guest
@@ -133,7 +134,7 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
             }
         }
     }
-    for entry in &ledger.entries {
+    for entry in ledger.entries.iter().filter(|_| version <= 9) {
         let owner = if entry.kind == park_sim::FinanceKind::RideRevenue {
             park.ride().map(|r| r.id)
         } else {
@@ -142,6 +143,30 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
         if entry.ride != owner {
             return Err("legacy transaction attributed to the wrong ride".into());
         }
+    }
+    if park
+        .carousels()
+        .iter()
+        .any(|ride| ride.construction_cost_cents != 0 || ride.demolition_refund_cents != 0)
+        || ledger.archived.construction_cents != 0
+        || ledger.archived.demolition_refunds_cents != 0
+        || ledger
+            .opening_rides
+            .iter()
+            .chain(&ledger.archived_rides)
+            .any(|r| r.construction_cents != 0 || r.demolition_refunds_cents != 0)
+        || ledger.entries.iter().any(|e| {
+            matches!(
+                e.kind,
+                park_sim::FinanceKind::RideConstruction
+                    | park_sim::FinanceKind::RideDemolitionRefund
+            )
+        })
+    {
+        return Err(
+            "migration invented construction charges or a refund basis for free legacy rides"
+                .into(),
+        );
     }
     super::finance::check(park)?;
     if old["schema_version"].as_u64().unwrap() <= 6
@@ -181,7 +206,10 @@ fn continue_current_rules(mut uninterrupted: Park) -> Result<(), String> {
             if tick == 600 {
                 park.set_train_open(true);
             }
-            if park.ride().is_some() {
+            if !park.carousels().is_empty() {
+                park.advance(Speed::Normal);
+                super::ride_choice::check(park)?;
+            } else if park.ride().is_some() {
                 super::services::advance_checked(park)?;
             } else {
                 park.advance(Speed::Normal);
@@ -207,6 +235,48 @@ fn continue_current_rules(mut uninterrupted: Park) -> Result<(), String> {
     Ok(())
 }
 
+fn check_free_legacy_demolition(source: &Park) -> Result<(), String> {
+    let mut park = source.clone();
+    for id in source
+        .carousels()
+        .iter()
+        .filter(|c| !c.objects.is_empty())
+        .map(|c| c.ride.id)
+    {
+        park.set_ride_open(id, false).map_err(|e| e.to_string())?;
+        for _ in 0..48_000 {
+            if !park
+                .guests()
+                .iter()
+                .any(|g| g.ride_visit.as_ref().is_some_and(|v| v.ride == id))
+            {
+                break;
+            }
+            park.advance(Speed::Normal);
+        }
+        let before = park.clone();
+        if park
+            .carousel_demolition_quote(id)
+            .map_err(|e| e.to_string())?
+            != 0
+        {
+            return Err("free legacy body acquired a positive refund".into());
+        }
+        park.remove_carousel(id).map_err(|e| e.to_string())?;
+        if park.cash_cents() != before.cash_cents()
+            || park.finance_ledger() != before.finance_ledger()
+            || park.carousel(id).unwrap().demolition_refund_cents != 0
+            || park.guests() != before.guests()
+        {
+            return Err(
+                "legacy free-body removal created money, a transaction or changed guests".into(),
+            );
+        }
+        super::ride_choice::bytes(&park)?;
+    }
+    Ok(())
+}
+
 pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     let store = session.store.as_ref().ok_or("invalid --save-dir")?;
     let source = [
@@ -221,12 +291,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=9).contains(&schema)
+        if !(1..=10).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version1..9 source slot".into(),
+                "verify-legacy requires an authentic strict version1..10 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -250,12 +320,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let modern_bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
         let modern: Value =
             serde_json::from_slice(&modern_bytes).map_err(|error| error.to_string())?;
-        if modern["schema_version"] != 10
-            || modern["content_version"] != 10
+        if modern["schema_version"] != 11
+            || modern["content_version"] != 11
             || (schema <= 7 && modern["park"]["next_service_id"] != 1)
         {
             return Err(
-                "migration did not produce strict10 state with correct service allocation".into(),
+                "migration did not produce strict11 state with correct service allocation".into(),
             );
         }
         require_old_fields(&old["park"], &modern["park"], "/park")?;
@@ -263,6 +333,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != park {
             return Err("repeated legacy loading changed deterministic defaults".into());
         }
+        check_free_legacy_demolition(&park)?;
         continue_current_rules(park)?;
         versions.push(schema);
         originals.push((path, bytes));
@@ -272,7 +343,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy opening baselines preserved; v9 transactions, archives and expenses preserved with original-coaster attribution: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v10 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v10 continues under current needs/service/cost/ride-choice rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel basis and actual demolition refund stay zero: PASS\nLegacy opening baselines preserved; v9/v10 transactions, archives, expenses and ride attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v11 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v11 continues under current needs/service/cost/ride-choice rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

@@ -25,7 +25,10 @@ fn supply_cost(kind: ServiceKind) -> u64 {
     }
 }
 fn income(kind: FinanceKind) -> bool {
-    matches!(kind, FinanceKind::RideRevenue | FinanceKind::ServiceRevenue)
+    matches!(
+        kind,
+        FinanceKind::RideRevenue | FinanceKind::ServiceRevenue | FinanceKind::RideDemolitionRefund
+    )
 }
 fn total(entries: &[FinanceEntry], kind: FinanceKind, service: Option<ServiceId>) -> u64 {
     entries
@@ -42,14 +45,29 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let revenue: u64 = park.services().iter().map(|s| s.revenue_cents).sum();
     let upkeep: u64 = park.services().iter().map(|s| s.upkeep_cents).sum();
     let supplies: u64 = park.services().iter().map(|s| s.supplies_cents).sum();
+    let construction: u64 = park
+        .carousels()
+        .iter()
+        .map(|r| r.construction_cost_cents)
+        .sum();
+    let refunds: u64 = park
+        .carousels()
+        .iter()
+        .map(|r| r.demolition_refund_cents)
+        .sum();
     if stats.cash_cents != park.cash_cents()
         || stats.ride_revenue_cents != ride
         || stats.service_revenue_cents != revenue
         || stats.upkeep_cents != upkeep
         || stats.supplies_cents != supplies
-        || stats.total_costs_cents != upkeep + supplies
+        || stats.construction_cents != construction
+        || stats.demolition_refunds_cents != refunds
+        || stats.total_costs_cents != upkeep + supplies + construction
         || i128::from(stats.net_profit_cents)
-            != i128::from(ride) + i128::from(revenue) - i128::from(upkeep) - i128::from(supplies)
+            != i128::from(ride) + i128::from(revenue) + i128::from(refunds)
+                - i128::from(upkeep)
+                - i128::from(supplies)
+                - i128::from(construction)
         || stats.retained_entries != ledger.entries.len()
         || stats.archived_entries != ledger.archived_entries
         || ledger.entries.len() > FINANCE_LEDGER_CAPACITY
@@ -70,6 +88,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let mut balance = i128::from(ledger.opening_cash_cents)
         + i128::from(archived.ride_revenue_cents)
         + i128::from(archived.service_revenue_cents)
+        + i128::from(archived.demolition_refunds_cents)
+        - i128::from(archived.construction_cents)
         - i128::from(archived.upkeep_cents)
         - i128::from(archived.supplies_cents);
     let mut tick = ledger.opening_tick.max(ledger.archived_through_tick);
@@ -78,7 +98,14 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             || entry.amount_cents == 0
             || entry.tick < tick
             || entry.tick > park.ticks()
-            || (entry.kind == FinanceKind::RideRevenue) != entry.service.is_none()
+            || matches!(
+                entry.kind,
+                FinanceKind::RideRevenue
+                    | FinanceKind::RideConstruction
+                    | FinanceKind::RideDemolitionRefund
+            ) != entry.service.is_none()
+            || entry.service.is_none() != entry.ride.is_some()
+            || entry.ride.is_some_and(|id| park.ride_by_id(id).is_none())
             || entry.service.is_some_and(|id| park.service(id).is_none())
         {
             return Err(
@@ -106,11 +133,47 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             != upkeep
         || archived.supplies_cents + total(&ledger.entries, FinanceKind::ServiceSupplies, None)
             != supplies
+        || archived.construction_cents + total(&ledger.entries, FinanceKind::RideConstruction, None)
+            != construction
+        || archived.demolition_refunds_cents
+            + total(&ledger.entries, FinanceKind::RideDemolitionRefund, None)
+            != refunds
     {
         return Err(
             "ledger opening/archive/retained amounts do not reconstruct current cash and totals"
                 .into(),
         );
+    }
+    for carousel in park.carousels() {
+        let archived = ledger
+            .archived_rides
+            .iter()
+            .find(|r| r.ride == carousel.ride.id);
+        for (kind, archived_amount, expected) in [
+            (
+                FinanceKind::RideConstruction,
+                archived.map_or(0, |r| r.construction_cents),
+                carousel.construction_cost_cents,
+            ),
+            (
+                FinanceKind::RideDemolitionRefund,
+                archived.map_or(0, |r| r.demolition_refunds_cents),
+                carousel.demolition_refund_cents,
+            ),
+        ] {
+            let recent: u64 = ledger
+                .entries
+                .iter()
+                .filter(|e| e.kind == kind && e.ride == Some(carousel.ride.id))
+                .map(|e| e.amount_cents)
+                .sum();
+            if archived_amount + recent != expected {
+                return Err(
+                    "ride construction/refund totals disagree with owner-attributed ledger history"
+                        .into(),
+                );
+            }
+        }
     }
     for service in park.services() {
         let opening = ledger
@@ -310,6 +373,12 @@ pub(crate) fn check_tick(
         || ledger.archived.supplies_cents
             != old_ledger.archived.supplies_cents
                 + total(removed, FinanceKind::ServiceSupplies, None)
+        || ledger.archived.construction_cents
+            != old_ledger.archived.construction_cents
+                + total(removed, FinanceKind::RideConstruction, None)
+        || ledger.archived.demolition_refunds_cents
+            != old_ledger.archived.demolition_refunds_cents
+                + total(removed, FinanceKind::RideDemolitionRefund, None)
         || ledger.opening_tick != old_ledger.opening_tick
         || ledger.opening_cash_cents != old_ledger.opening_cash_cents
         || ledger.opening_ride_revenue_cents != old_ledger.opening_ride_revenue_cents
@@ -556,7 +625,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("finance verification changed original slots".into());
     }
-    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict10 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict11 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

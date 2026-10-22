@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod admission;
+pub(super) mod construction;
 pub(super) mod economy;
 pub(super) mod feedback;
 pub(super) mod finance;
@@ -39,7 +40,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -144,6 +145,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-finance" => finance::verify(&session)?,
             "write-rides" => ride_choice::write(&session)?,
             "verify-rides" => ride_choice::verify(&session)?,
+            "write-construction" => construction::write(&session)?,
+            "verify-construction" => construction::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

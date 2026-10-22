@@ -1,6 +1,6 @@
 //! Stable ride selection and the build entry point; no extra permanent panels.
 use super::*;
-use park_sim::{Park, RideId, RideKind};
+use park_sim::{CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, Park, RideId, RideKind};
 
 pub(crate) const PANEL_WIDTH: f32 = 560.0;
 pub(crate) const PANEL_HEIGHT: f32 = 430.0;
@@ -33,6 +33,23 @@ pub(crate) fn name(park: &Park, id: RideId) -> &'static str {
     }
 }
 
+pub(crate) fn construction_details(park: &Park, id: RideId) -> String {
+    park.carousel(id).map_or_else(
+        || "Demo coaster / fixed circuit / no demolition".into(),
+        |carousel| match park.carousel_demolition_quote(id) {
+            Ok(refund) => format!(
+                "Paid {} / Demolition refund {}",
+                money(carousel.construction_cost_cents),
+                money(refund)
+            ),
+            Err(_) => format!(
+                "Paid {} / Demolition blocked while occupied",
+                money(carousel.construction_cost_cents)
+            ),
+        },
+    )
+}
+
 #[derive(Component)]
 pub(crate) struct RidesPanel;
 #[derive(Component)]
@@ -63,8 +80,8 @@ pub(super) fn setup(commands: &mut Commands) {
         p.spawn(Node{height:px(125),flex_shrink:0.0,..default()}).with_children(|p| {
             p.spawn((Text::new(""),TextFont{font_size:13.0,..default()},TextColor(INK),RideLabel::Details));
         });
-        button(p,"Build carousel / 3 x 3 tiles",Action::BuildCarousel,310.0);
-        label(p,"Six seats. Place its queue, entrance and exit separately.\nChoose a height in Build Tools; click a clear 3 x 3 footprint.\nOne carousel can operate in the park at a time.",12.0,MUTED);
+        button(p,&format!("Build carousel / {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,310.0);
+        label(p,&format!("Six seats; 3 x 3 tiles. Queue and gates placed separately.\nDemolition returns {}% of the amount paid for this ride.\nOne carousel at a time. Choose height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
         label(p,"Selected ride: O open/close / F find / F6-F7 ticket price\nJ queue / I entrance / K exit / Space pause",12.0,MUTED);
     }); });
 }
@@ -110,7 +127,7 @@ pub(crate) fn refresh(
         let value = match kind {
             RideLabel::Selected => format!("{} / #{}", name(&sim.0, id), id.0),
             RideLabel::Details => format!(
-                "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)",
+                "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)\n{}",
                 if sim.0.ride_is_open(id) {
                     "Open"
                 } else {
@@ -124,7 +141,8 @@ pub(crate) fn refresh(
                 compact_count(journey.completed),
                 money(economy.revenue_cents),
                 guests::rating_label(experience.average_rating_tenths),
-                compact_count(experience.rating_count)
+                compact_count(experience.rating_count),
+                construction_details(&sim.0, id)
             ),
         };
         if text.0 != value {

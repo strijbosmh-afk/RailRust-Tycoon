@@ -212,11 +212,11 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     check(park)?;
     let bytes = park.to_save_bytes().map_err(|e| e.to_string())?;
     let json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if json["schema_version"] != 10
-        || json["content_version"] != 10
+    if json["schema_version"] != 11
+        || json["content_version"] != 11
         || Park::from_save_bytes(&bytes).map_err(|e| e.to_string())? != *park
     {
-        return Err("service strict10 roundtrip changed authoritative state".into());
+        return Err("service strict11 roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }

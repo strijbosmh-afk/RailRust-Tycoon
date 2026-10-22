@@ -4,6 +4,9 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 
+mod construction;
+use construction::{LegacyFinanceKind, VersionTenFinanceTotals, VersionTenParkData};
+
 use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::{
@@ -20,8 +23,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 10;
-const CONTENT_VERSION: u32 = 10;
+const SCHEMA_VERSION: u32 = 11;
+const CONTENT_VERSION: u32 = 11;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -177,7 +180,7 @@ struct VersionNineFinanceEntry {
     id: u64,
     tick: u64,
     #[serde(deserialize_with = "string_enum")]
-    kind: crate::FinanceKind,
+    kind: LegacyFinanceKind,
     #[serde(deserialize_with = "required_option")]
     service: Option<crate::ServiceId>,
     amount_cents: u64,
@@ -194,7 +197,7 @@ struct VersionNineFinanceLedger {
     archived_entries: u64,
     archived_through_tick: u64,
     #[serde(deserialize_with = "strict_object")]
-    archived: crate::FinanceTotals,
+    archived: VersionTenFinanceTotals,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
     archived_services: Vec<crate::ServiceFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::FINANCE_LEDGER_CAPACITY }>")]
@@ -211,6 +214,8 @@ impl VersionNineFinanceLedger {
                 .map(|ride| crate::RideFinanceTotals {
                     ride,
                     revenue_cents: self.opening_ride_revenue_cents,
+                    construction_cents: 0,
+                    demolition_refunds_cents: 0,
                 })
                 .into_iter()
                 .collect(),
@@ -222,10 +227,12 @@ impl VersionNineFinanceLedger {
                 .map(|ride| crate::RideFinanceTotals {
                     ride,
                     revenue_cents: self.archived.ride_revenue_cents,
+                    construction_cents: 0,
+                    demolition_refunds_cents: 0,
                 })
                 .into_iter()
                 .collect(),
-            archived: self.archived,
+            archived: self.archived.into(),
             archived_services: self.archived_services,
             entries: self
                 .entries
@@ -233,8 +240,8 @@ impl VersionNineFinanceLedger {
                 .map(|entry| crate::FinanceEntry {
                     id: entry.id,
                     tick: entry.tick,
-                    kind: entry.kind,
-                    ride: (entry.kind == crate::FinanceKind::RideRevenue)
+                    kind: entry.kind.into(),
+                    ride: (matches!(entry.kind, LegacyFinanceKind::RideRevenue))
                         .then_some(ride)
                         .flatten(),
                     service: entry.service,
@@ -609,7 +616,7 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | SCHEMA_VERSION
+            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
@@ -651,6 +658,9 @@ impl Park {
         } else if header.schema_version == 9 {
             let legacy: SaveEnvelope<VersionNineParkData> = parse_save(bytes)?;
             legacy.park.migrate()
+        } else if header.schema_version == 10 {
+            let legacy: SaveEnvelope<VersionTenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park
@@ -658,7 +668,7 @@ impl Park {
         if header.schema_version <= 8 {
             data.initialize_finances();
         }
-        if header.schema_version < SCHEMA_VERSION {
+        if header.schema_version <= 9 {
             data.initialize_ride_history()?;
         }
         data.into_park()
@@ -1588,6 +1598,8 @@ impl ParkData {
                 .map(|ride| crate::RideFinanceTotals {
                     ride: ride.id,
                     revenue_cents: ride.revenue_cents,
+                    construction_cents: 0,
+                    demolition_refunds_cents: 0,
                 })
                 .into_iter()
                 .collect(),
@@ -2312,8 +2324,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(10));
-            assert_eq!(modern["content_version"], json!(10));
+            assert_eq!(modern["schema_version"], json!(11));
+            assert_eq!(modern["content_version"], json!(11));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -2637,7 +2649,7 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (11, 11),
+            (12, 12),
             (10, 9),
             (9, 10),
             (7, 6),
@@ -2869,8 +2881,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":10",
-            "\"schema_version\":10,\"schema_version\":10",
+            "\"schema_version\":11",
+            "\"schema_version\":11,\"schema_version\":11",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());

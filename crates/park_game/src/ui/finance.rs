@@ -40,7 +40,7 @@ pub(super) fn setup(commands: &mut Commands) {
     .with_children(|p| {
         p.spawn((Node {
             width: px(PANEL_WIDTH), height: px(PANEL_HEIGHT), padding: UiRect::all(px(20)),
-            flex_direction: FlexDirection::Column, row_gap: px(7), ..default()
+            flex_direction: FlexDirection::Column, row_gap: px(5), ..default()
         }, BackgroundColor(PAPER), BorderRadius::all(px(10))))
         .with_children(|p| {
             p.spawn(Node { justify_content: JustifyContent::SpaceBetween, ..row() }).with_children(|p| {
@@ -48,7 +48,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 button(p, "Close [N/Esc]", Action::CloseFinance, 140.0);
             });
             text(p, "Cash / Income / Costs / Net", 14.0, FinanceLabel::Summary);
-            text(p, "Ride tickets / Service sales / Upkeep / Supplies", 11.0, FinanceLabel::Categories);
+            text(p, "Ride tickets / Service sales / Upkeep / Supplies / Construction / Refunds", 11.0, FinanceLabel::Categories);
             p.spawn(Node { height: px(52), flex_shrink: 0.0, ..default() }).with_children(|p| {
                 text(p, "", 11.0, FinanceLabel::History);
             });
@@ -90,6 +90,8 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::ServiceRevenue => ("Service sales", "+"),
         FinanceKind::ServiceUpkeep => ("Service upkeep", "-"),
         FinanceKind::ServiceSupplies => ("Service supplies", "-"),
+        FinanceKind::RideConstruction => ("Ride construction", "-"),
+        FinanceKind::RideDemolitionRefund => ("Demolition refund", "+"),
     };
     let service = entry.ride.map_or_else(
         || {
@@ -143,7 +145,7 @@ pub(crate) fn refresh(
     for (label, mut text) in &mut labels {
         let value = match label {
             FinanceLabel::Summary => format!(
-                "Cash {} / Income +{} / Costs -{} / Net {}\nOpen facilities: {} per simulation minute",
+                "Cash {} / Sales +{} / Costs -{} / Net cash {}\nRefunds +{} / Open facilities: {} per simulation minute",
                 money(stats.cash_cents),
                 money(
                     stats
@@ -152,17 +154,20 @@ pub(crate) fn refresh(
                 ),
                 money(stats.total_costs_cents),
                 signed_money(stats.net_profit_cents),
+                money(stats.demolition_refunds_cents),
                 money(stats.open_upkeep_per_minute_cents)
             ),
             FinanceLabel::Categories => format!(
-                "Ride tickets +{} / Service sales +{} / Upkeep -{} / Supplies -{}",
+                "Ride tickets +{} / Service sales +{} / Upkeep -{} / Supplies -{}\nRide construction -{} / Demolition refunds +{}",
                 money(stats.ride_revenue_cents),
                 money(stats.service_revenue_cents),
                 money(stats.upkeep_cents),
-                money(stats.supplies_cents)
+                money(stats.supplies_cents),
+                money(stats.construction_cents),
+                money(stats.demolition_refunds_cents)
             ),
             FinanceLabel::History => format!(
-                "History starts at {} with cash {}. Lifetime totals above include earlier earnings.\nOlder {} transactions: income +{} / costs -{}.\nShowing the latest {} transactions; older amounts remain included in all totals.",
+                "History starts at {} with cash {}. Lifetime totals above include earlier activity.\nOlder {} transactions: income +{} / costs -{} / refunds +{}.\nShowing the latest {} transactions; older amounts remain included in all totals.",
                 clock(ledger.opening_tick),
                 money(ledger.opening_cash_cents),
                 compact_count(ledger.archived_entries),
@@ -177,7 +182,9 @@ pub(crate) fn refresh(
                         .archived
                         .upkeep_cents
                         .saturating_add(ledger.archived.supplies_cents)
+                        .saturating_add(ledger.archived.construction_cents)
                 ),
+                money(ledger.archived.demolition_refunds_cents),
                 ledger.entries.len()
             ),
             FinanceLabel::Row(index) => ledger
@@ -232,18 +239,24 @@ mod tests {
         assert_eq!(signed_money(-123), "-$1.23");
         assert_eq!(signed_money(0), "+$0.00");
         assert_eq!(signed_money(i64::MIN), "-$92233720368547758.08");
-        let entry = FinanceEntry {
-            id: 1,
-            tick: 30,
-            kind: FinanceKind::RideRevenue,
-            ride: Some(park_sim::RideId(2)),
-            service: None,
-            amount_cents: 150,
-            balance_cents: 100150,
-        };
-        assert_eq!(
-            row_text(&entry),
-            "00:01 / Ride tickets / ride #2 / +$1.50 / Cash $1001.50"
-        );
+        for (kind, label, sign) in [
+            (FinanceKind::RideRevenue, "Ride tickets", "+"),
+            (FinanceKind::RideConstruction, "Ride construction", "-"),
+            (FinanceKind::RideDemolitionRefund, "Demolition refund", "+"),
+        ] {
+            let entry = FinanceEntry {
+                id: 1,
+                tick: 30,
+                kind,
+                ride: Some(park_sim::RideId(2)),
+                service: None,
+                amount_cents: 150,
+                balance_cents: 100150,
+            };
+            assert_eq!(
+                row_text(&entry),
+                format!("00:01 / {label} / ride #2 / {sign}$1.50 / Cash $1001.50")
+            );
+        }
     }
 }

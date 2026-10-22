@@ -169,6 +169,13 @@ impl ToolState {
             }
         }
         .into();
+        if self.mode == PathTool::Carousel {
+            self.hint = format!(
+                "Carousel: {} / 3 x 3.\n{}% paid cost back on demolition.",
+                crate::ui::money(park_sim::CAROUSEL_BUILD_COST_CENTS),
+                park_sim::CAROUSEL_REFUND_PERCENT
+            );
+        }
     }
 }
 
@@ -380,7 +387,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                         view.path_tool.carousel_preview = Some(CarouselPreview {
                             origin: c.origin,
                             height: c.height,
-                            valid: park.object_removal_block_reason(object.id).is_none(),
+                            valid: park.carousel_demolition_quote(c.ride.id).is_ok(),
                             demolish: true,
                         });
                     }
@@ -419,6 +426,20 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                     },
                     str::to_string,
                 );
+                if object.kind == ObjectKind::Carousel
+                    && let Some(owner) = park.object_ride(object.id)
+                {
+                    view.path_tool.hint = match park.carousel_demolition_quote(owner) {
+                        Ok(refund) => format!(
+                            "Refund {} / whole ride\nClick removes body and gates.\nOwned queue stays in place.",
+                            crate::ui::money(refund)
+                        ),
+                        Err(_) => {
+                            "Removal blocked / no refund now.\nLet all passengers leave first."
+                                .into()
+                        }
+                    };
+                }
                 if click {
                     remove_path(park, view, object.id);
                 }
@@ -482,22 +503,46 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
         view.path_notice = Some(format!("{name} not removed: {reason}"));
         return;
     }
+    let refund = if object.kind == ObjectKind::Carousel {
+        let Some(owner) = park.object_ride(id) else {
+            view.path_notice = Some("Carousel unavailable; nothing refunded.".into());
+            return;
+        };
+        match park.carousel_demolition_quote(owner) {
+            Ok(amount) => Some(amount),
+            Err(error) => {
+                view.path_notice = Some(format!("Carousel not removed: {error}"));
+                return;
+            }
+        }
+    } else {
+        None
+    };
     if park.remove_object(id).is_none() {
         view.path_notice = Some(format!(
             "{name} not removed: it is unavailable or occupied."
         ));
         return;
     }
-    if view.selected == Some(SurfaceId::Object(id)) {
+    if view.selected.is_some_and(
+        |surface| matches!(surface, SurfaceId::Object(selected) if park.object(selected).is_none()),
+    ) {
         view.selected = None;
     }
     view.hovered = None;
     view.path_tool.clear_pointer();
     view.scene_dirty = true;
-    view.path_notice = Some(format!(
-        "{name} #{} removed. Connections will be recalculated.",
-        id.0
-    ));
+    view.path_notice = Some(match refund {
+        Some(amount) => format!(
+            "Removed / refund {}.\nCash {} / queue kept.",
+            crate::ui::money(amount),
+            crate::ui::money(park.cash_cents())
+        ),
+        None => format!(
+            "{name} #{} removed. Connections will be recalculated.",
+            id.0
+        ),
+    });
 }
 
 fn gate_facing(park: &Park, id: ObjectId) -> Option<PathDirection> {

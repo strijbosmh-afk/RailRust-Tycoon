@@ -179,8 +179,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let json: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if json["schema_version"] != 10 || json["content_version"] != 10 {
-        return Err("journey proof requires strict schema/content 10/10".into());
+    if json["schema_version"] != 11 || json["content_version"] != 11 {
+        return Err("journey proof requires strict schema/content 11/11".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("journey save roundtrip changed authoritative state".into());
@@ -451,7 +451,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("journey verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-journey.txt"), format!(
-        "Parkbound {}\nFresh-process occupied moving primary equality: PASS\nContinuation: PASS (7200 complete ticks + close, missing exit, fresh-ID exit repair, empty fault/closed repair/reopen)\nNatural boarding, occupied lap, exit transfer and completed public returns: PASS\nSeat uniqueness, role/transfer reservations and guest/ride identity conservation: PASS\nOccupied circuit and active transfer demolition rejected atomically: PASS\nMissing-exit station hold, unloading recovery and another completed trip: PASS\nExplicit boarding backup and paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 10/10: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process occupied moving primary equality: PASS\nContinuation: PASS (7200 complete ticks + close, missing exit, fresh-ID exit repair, empty fault/closed repair/reopen)\nNatural boarding, occupied lap, exit transfer and completed public returns: PASS\nSeat uniqueness, role/transfer reservations and guest/ride identity conservation: PASS\nOccupied circuit and active transfer demolition rejected atomically: PASS\nMissing-exit station hold, unloading recovery and another completed trip: PASS\nExplicit boarding backup and paused/Inspect loading: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 11/11: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process complete journey and boarding backup verified.");
     Ok(())
