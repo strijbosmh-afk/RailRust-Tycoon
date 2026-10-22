@@ -20,6 +20,13 @@ pub enum PathDirection {
 impl PathDirection {
     pub const ALL: [Self; 4] = [Self::North, Self::East, Self::South, Self::West];
 
+    pub const fn axis(self) -> Axis {
+        match self {
+            Self::North | Self::South => Axis::Y,
+            Self::East | Self::West => Axis::X,
+        }
+    }
+
     pub const fn opposite(self) -> Self {
         match self {
             Self::North => Self::South,

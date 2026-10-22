@@ -14,6 +14,7 @@ mod ride_access;
 #[cfg(test)]
 mod ride_access_tests;
 mod saves;
+mod services;
 #[cfg(test)]
 mod slope_tests;
 mod surfaces;
@@ -40,6 +41,12 @@ pub use path_geometry::{
 };
 pub use ride_access::{Ride, RideAccess, RideAccessError, RideAccessStatus, RideEntrance, RideId};
 pub use saves::{MAX_SAVE_BYTES, SaveError};
+pub use services::{
+    GuestNeeds, GuestNeedsSummary, MAX_SERVICE_PRICE_CENTS, MAX_SERVICES, NEED_CRITICAL_THRESHOLD,
+    NEED_SEEK_THRESHOLD, SERVICE_COOLDOWN_TICKS, SERVICE_PRICE_STEP_CENTS, SERVICE_USE_TICKS,
+    SERVICE_WAIT_TICKS, Service, ServiceAccess, ServiceAccessStatus, ServiceError, ServiceId,
+    ServiceKind, ServiceStats, ServiceVisit, ServiceVisitPhase,
+};
 pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,
     SurfaceObject,
@@ -161,6 +168,8 @@ pub struct Park {
     ride: Option<Ride>,
     next_ride_id: u64,
     cash_cents: u64,
+    services: Vec<Service>,
+    next_service_id: u64,
     path_cache: crowds::PathCache,
 }
 
@@ -184,6 +193,8 @@ impl PartialEq for Park {
             && self.ride == other.ride
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
+            && self.services == other.services
+            && self.next_service_id == other.next_service_id
     }
 }
 
@@ -228,6 +239,8 @@ impl Park {
             ride: None,
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
+            services: Vec::new(),
+            next_service_id: 1,
             path_cache: crowds::PathCache::default(),
         }
     }
@@ -358,6 +371,7 @@ impl Park {
                 break;
             }
             self.ticks += 1;
+            self.step_needs();
             self.step_crowd();
             self.step_ride_journeys();
             self.step_train();

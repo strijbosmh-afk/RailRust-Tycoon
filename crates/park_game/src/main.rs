@@ -55,6 +55,11 @@ struct ViewState {
     view_mode: world::ViewMode,
     help: bool,
     guests_open: bool,
+    services_open: bool,
+    selected_service: Option<park_sim::ServiceId>,
+    service_browse_pending: i32,
+    service_commands: Vec<ui::services::ServiceCommand>,
+    service_notice: Option<String>,
     selected_guest: Option<park_sim::GuestId>,
     guest_page: usize,
     guest_browse_pending: i32,
@@ -98,6 +103,11 @@ impl Default for ViewState {
             view_mode: world::ViewMode::Surface,
             help: false,
             guests_open: false,
+            services_open: false,
+            selected_service: None,
+            service_browse_pending: 0,
+            service_commands: Vec::new(),
+            service_notice: None,
             selected_guest: None,
             guest_page: 0,
             guest_browse_pending: 0,
@@ -194,6 +204,7 @@ impl ViewState {
     fn edits_blocked(&self) -> bool {
         self.help
             || self.guests_open
+            || self.services_open
             || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -202,14 +213,31 @@ impl ViewState {
                 .is_some_and(|action| action != SaveAction::Save)
     }
 
-    fn set_modal(&mut self, help: bool, guests: bool) {
+    fn set_modal(&mut self, help: bool, guests: bool, services: bool) {
         self.help = help;
         self.guests_open = guests;
+        self.services_open = services;
         self.modal_input_blocked = true;
         self.ui_pointer_consumed = true;
         self.dragging = false;
         self.hovered = None;
         self.path_tool.clear_pointer();
+    }
+
+    fn choose_service(&mut self, kind: park_sim::ServiceKind) {
+        if !self.services_open
+            || self.capture_active
+            || self.diagnostic_case.is_some()
+            || self
+                .save_pending
+                .is_some_and(|action| action != SaveAction::Save)
+        {
+            return;
+        }
+        self.set_modal(false, false, false);
+        self.modal_transition_pending = true;
+        self.path_tool.set_mode(path_tools::PathTool::Service(kind));
+        self.service_notice = None;
     }
 
     fn request_price_change(&mut self, steps: i8) {
@@ -317,6 +345,7 @@ fn main() -> AppExit {
                 apply_path_actions,
                 apply_train_actions,
                 apply_price_actions,
+                apply_service_actions,
                 pointer_input,
                 persistence::apply_save_action,
                 apply_camera,
@@ -324,6 +353,7 @@ fn main() -> AppExit {
                 static_landscape::update_visibility,
                 ui::refresh,
                 ui::guests::refresh,
+                ui::services::refresh,
             )
                 .chain(),
         );
@@ -430,7 +460,12 @@ fn tick_simulation(
     }
 }
 
-fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: ResMut<ViewState>) {
+fn keyboard_input(
+    keys: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    mut view: ResMut<ViewState>,
+    sim: Option<Res<Simulation>>,
+) {
     // UI transitions are gathered first; neither their closing click nor a
     // simultaneous keyboard command may reach controls under the modal.
     view.modal_input_blocked = std::mem::take(&mut view.modal_transition_pending);
@@ -440,18 +475,56 @@ fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: Re
     if view.modal_input_blocked {
         return;
     }
-    if keys.just_pressed(KeyCode::Escape) && (view.help || view.guests_open) {
-        view.set_modal(false, false);
+    if keys.just_pressed(KeyCode::Escape) && (view.help || view.guests_open || view.services_open) {
+        view.set_modal(false, false, false);
         return;
     }
     if keys.just_pressed(KeyCode::F1) || keys.just_pressed(KeyCode::KeyH) {
         let open = !view.help;
-        view.set_modal(open, false);
+        view.set_modal(open, false, false);
         return;
     }
     if keys.just_pressed(KeyCode::KeyL) {
         let open = !view.guests_open;
-        view.set_modal(false, open);
+        view.set_modal(false, open, false);
+        return;
+    }
+    if keys.just_pressed(KeyCode::KeyM) {
+        let open = !view.services_open;
+        view.selected_service = None;
+        view.service_browse_pending = 0;
+        view.service_notice = None;
+        view.set_modal(false, false, open);
+        return;
+    }
+    if view.services_open {
+        if keys.just_pressed(KeyCode::Space) {
+            view.pause();
+        }
+        for (key, delta) in [(KeyCode::ArrowUp, -1), (KeyCode::ArrowDown, 1)] {
+            if keys.just_pressed(key) {
+                view.service_browse_pending = view.service_browse_pending.saturating_add(delta);
+            }
+        }
+        if view.diagnostic_case.is_none()
+            && let Some(service) = view.selected_service
+        {
+            for (key, steps) in [(KeyCode::F6, -1), (KeyCode::F7, 1)] {
+                if keys.just_pressed(key) {
+                    view.service_commands
+                        .push(ui::services::ServiceCommand::PriceSteps { service, steps });
+                }
+            }
+            if keys.just_pressed(KeyCode::KeyO)
+                && let Some(facility) = sim.as_ref().and_then(|sim| sim.0.service(service))
+            {
+                view.service_commands
+                    .push(ui::services::ServiceCommand::SetOpen {
+                        service,
+                        open: !facility.open,
+                    });
+            }
+        }
         return;
     }
     if view.guests_open {
@@ -684,7 +757,7 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
     }
     if view.focus_train_pending {
         view.focus_train_pending = false;
-        if !view.help && !view.guests_open && !view.modal_input_blocked {
+        if !view.help && !view.guests_open && !view.services_open && !view.modal_input_blocked {
             focus_train(&sim.0, &mut view);
         }
     }
@@ -714,6 +787,58 @@ fn apply_price_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
         ),
         Err(error) => format!("Ticket unchanged: {error}"),
     });
+}
+
+fn apply_service_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    use ui::services::ServiceCommand;
+    let commands = std::mem::take(&mut view.service_commands);
+    if view.help
+        || view.guests_open
+        || !view.services_open
+        || view.modal_input_blocked
+        || view.capture_active
+        || view.diagnostic_case.is_some()
+        || view
+            .save_pending
+            .is_some_and(|action| action != SaveAction::Save)
+    {
+        return;
+    }
+    // Aggregate opposite price inputs before clamping, including at $0/$100.
+    let mut prices: Vec<(park_sim::ServiceId, i64)> = Vec::new();
+    for command in &commands {
+        if let ServiceCommand::PriceSteps { service, steps } = *command {
+            if let Some((_, total)) = prices.iter_mut().find(|(id, _)| *id == service) {
+                *total = total.saturating_add(i64::from(steps));
+            } else {
+                prices.push((service, i64::from(steps)));
+            }
+        }
+    }
+    for (id, steps) in prices {
+        let Some(service) = sim.0.service(id) else {
+            continue;
+        };
+        let price = (i64::from(service.price_cents)
+            + steps.saturating_mul(i64::from(park_sim::SERVICE_PRICE_STEP_CENTS)))
+        .clamp(0, i64::from(park_sim::MAX_SERVICE_PRICE_CENTS)) as u32;
+        view.service_notice = Some(match sim.0.set_service_price(id, price) {
+            Ok(()) => format!(
+                "Price {} / current users keep their price",
+                ui::money(u64::from(price))
+            ),
+            Err(error) => format!("Price unchanged: {error}"),
+        });
+    }
+    for command in commands {
+        if let ServiceCommand::SetOpen { service, open } = command {
+            view.service_notice = Some(match sim.0.set_service_open(service, open) {
+                Ok(()) if open => "Service opened. Guests need a connected public path.".into(),
+                Ok(()) => "Service closed. Unfinished visits cancelled without payment.".into(),
+                Err(error) => format!("Service unchanged: {error}"),
+            });
+        }
+    }
 }
 
 /// This formula uses logical pixels, just like cursor_position and the UI.
@@ -795,7 +920,11 @@ fn pointer_input(
     let over_map = is_map_position(
         cursor,
         window,
-        view.help || view.guests_open || view.modal_input_blocked || view.ui_pointer_consumed,
+        view.help
+            || view.guests_open
+            || view.services_open
+            || view.modal_input_blocked
+            || view.ui_pointer_consumed,
     );
     let starting_drag = over_map
         && (buttons.just_pressed(MouseButton::Right) || buttons.just_pressed(MouseButton::Middle));
@@ -804,6 +933,7 @@ fn pointer_input(
     }
     if view.help
         || view.guests_open
+        || view.services_open
         || view.modal_input_blocked
         || (!buttons.pressed(MouseButton::Right) && !buttons.pressed(MouseButton::Middle))
     {
@@ -852,6 +982,7 @@ fn pointer_input(
             && view.diagnostic_case.is_some()
             && !view.help
             && !view.guests_open
+            && !view.services_open
             && !view.modal_input_blocked
             && buttons.just_pressed(MouseButton::Left)
         {
@@ -887,6 +1018,7 @@ type SelectionSnapshot = (
     world::ViewMode,
     Option<path_tools::PathPreview>,
     Option<terrain_tools::TerrainPreview>,
+    Option<path_tools::ServicePreview>,
 );
 
 #[derive(bevy::ecs::system::SystemParam)]
@@ -934,6 +1066,7 @@ fn update_scene(
         view.view_mode,
         view.path_tool.preview,
         view.path_tool.terrain_preview,
+        view.path_tool.service_preview,
     );
     if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
@@ -946,7 +1079,9 @@ fn update_scene(
             );
         }
         if let Some(mesh) = meshes.get_mut(&scene.path_preview) {
-            *mesh = if view.path_tool.terrain_preview.is_some() {
+            *mesh = if view.path_tool.service_preview.is_some() {
+                world::service_preview_mesh(view.path_tool.service_preview, &sim.0, view.rotation)
+            } else if view.path_tool.terrain_preview.is_some() {
                 world::terrain_preview_mesh(view.path_tool.terrain_preview, &sim.0, view.rotation)
             } else {
                 world::path_preview_mesh(view.path_tool.preview, &sim.0, view.rotation)

@@ -3,13 +3,15 @@
 use bevy::prelude::*;
 use park_sim::{
     MAX_PATH_HEIGHT, MAX_SLOPED_PATH_HEIGHT, ObjectId, ObjectKind, Park, PathDirection, PathSlope,
-    PlacementError, RideAccessError, RideId, SurfaceId, TilePos,
+    PlacementError, RideAccessError, RideId, ServiceKind, SurfaceId, TilePos,
 };
 
 use crate::terrain_tools::{self, TerrainPreview};
 use crate::{ViewState, world};
 
 mod entrance;
+mod service;
+pub(super) use service::ServicePreview;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) enum PathTool {
@@ -19,6 +21,7 @@ pub(super) enum PathTool {
     BuildQueue,
     Entrance,
     Exit,
+    Service(ServiceKind),
     Demolish,
     RaiseTerrain,
     LowerTerrain,
@@ -43,8 +46,10 @@ pub(super) struct ToolState {
     pub slope: PathSlope,
     pub entrance_facing: PathDirection,
     pub exit_facing: PathDirection,
+    pub service_facing: PathDirection,
     pub preview: Option<PathPreview>,
     pub terrain_preview: Option<TerrainPreview>,
+    pub service_preview: Option<ServicePreview>,
     pub hint: String,
 }
 
@@ -56,9 +61,11 @@ impl Default for ToolState {
             slope: PathSlope::Flat,
             entrance_facing: PathDirection::North,
             exit_facing: PathDirection::South,
+            service_facing: PathDirection::North,
             preview: None,
             terrain_preview: None,
-            hint: "Choose a build tool.\nRemove paths, entrances or exits.".into(),
+            service_preview: None,
+            hint: "Choose a build tool.\nM opens facility settings.".into(),
         }
     }
 }
@@ -77,6 +84,9 @@ impl ToolState {
     }
 
     pub fn max_height(&self) -> u8 {
+        if matches!(self.mode, PathTool::Service(_)) {
+            return MAX_PATH_HEIGHT - 1;
+        }
         if matches!(self.mode, PathTool::Entrance | PathTool::Exit) || self.slope == PathSlope::Flat
         {
             MAX_PATH_HEIGHT
@@ -86,8 +96,13 @@ impl ToolState {
     }
 
     pub fn cycle_shape(&mut self) {
-        if matches!(self.mode, PathTool::Entrance | PathTool::Exit) {
-            let facing = if self.mode == PathTool::Exit {
+        if matches!(
+            self.mode,
+            PathTool::Entrance | PathTool::Exit | PathTool::Service(_)
+        ) {
+            let facing = if matches!(self.mode, PathTool::Service(_)) {
+                &mut self.service_facing
+            } else if self.mode == PathTool::Exit {
                 &mut self.exit_facing
             } else {
                 &mut self.entrance_facing
@@ -119,15 +134,19 @@ impl ToolState {
     pub fn clear_pointer(&mut self) {
         self.preview = None;
         self.terrain_preview = None;
+        self.service_preview = None;
         self.hint = match self.mode {
-            PathTool::Inspect => "Choose a build tool.\nRemove paths, entrances or exits.",
+            PathTool::Inspect => "Choose a build tool.\nM opens facility settings.",
             PathTool::Build => "Point at the height plane.\nClick once per path tile.",
             PathTool::BuildQueue => {
                 "Build a queue for Meadow Flyer.\nJoin one public path to its gate."
             }
             PathTool::Entrance => "Place beside the station.\nC turns the gate toward it.",
             PathTool::Exit => "Place beside the station.\nConnect its outer edge to public path.",
-            PathTool::Demolish => "Point to a path, entrance or exit.\nClick once to remove it.",
+            PathTool::Service(_) => {
+                "Place beside a public path.\nC turns its serving side toward it."
+            }
+            PathTool::Demolish => "Point to a path, gate or facility.\nClick once to remove it.",
             PathTool::RaiseTerrain => {
                 "Point to visible grass or sand.\nClick once to raise one step."
             }
@@ -171,6 +190,7 @@ pub(super) fn placement_message(error: PlacementError) -> String {
         PlacementError::EmptyClearance => "A path needs two height steps of clearance.".into(),
         PlacementError::FixtureMapSize { .. } => "Demo paths require a 32 x 32 park.".into(),
         PlacementError::EntranceRequiresRide => "Choose the ride Entrance tool.".into(),
+        PlacementError::ServiceRequiresDefinition => "Choose a facility from Services [M].".into(),
     }
 }
 
@@ -191,6 +211,7 @@ fn ride_placement_message(error: RideAccessError, slope: PathSlope) -> String {
 pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     view.path_tool.preview = None;
     view.path_tool.terrain_preview = None;
+    view.path_tool.service_preview = None;
     match view.path_tool.mode {
         PathTool::RaiseTerrain | PathTool::LowerTerrain => {
             terrain_tools::point_at(park, view, click)
@@ -201,6 +222,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             }
         }
         PathTool::Entrance | PathTool::Exit => entrance::point_at(park, view, point, click),
+        PathTool::Service(kind) => service::point_at(park, view, point, click, kind),
         PathTool::Build | PathTool::BuildQueue => {
             let queue = view.path_tool.mode == PathTool::BuildQueue;
             let owner = queue.then(|| park.ride().map(|ride| ride.id)).flatten();
@@ -316,22 +338,38 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 Some(SurfaceId::Object(id)) => park.object(id).copied().filter(|object| {
                     matches!(
                         object.kind,
-                        ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+                        ObjectKind::Path
+                            | ObjectKind::RideEntrance
+                            | ObjectKind::RideExit
+                            | ObjectKind::Service
                     )
                 }),
                 _ => None,
             };
             if let Some(object) = target {
-                view.path_tool.preview = Some(PathPreview {
-                    pos: object.pos,
-                    height: object.height,
-                    slope: object.path_slope,
-                    queue_owner: object.queue_owner,
-                    entrance_facing: gate_facing(park, object.id),
-                    exit_gate: object.kind == ObjectKind::RideExit,
-                    valid: park.object_removal_block_reason(object.id).is_none(),
-                    demolish: true,
-                });
+                if object.kind == ObjectKind::Service {
+                    if let Some(facility) = park.service_by_object(object.id) {
+                        view.path_tool.service_preview = Some(ServicePreview {
+                            pos: object.pos,
+                            height: object.height,
+                            kind: facility.kind,
+                            facing: facility.facing,
+                            valid: park.object_removal_block_reason(object.id).is_none(),
+                            demolish: true,
+                        });
+                    }
+                } else {
+                    view.path_tool.preview = Some(PathPreview {
+                        pos: object.pos,
+                        height: object.height,
+                        slope: object.path_slope,
+                        queue_owner: object.queue_owner,
+                        entrance_facing: gate_facing(park, object.id),
+                        exit_gate: object.kind == ObjectKind::RideExit,
+                        valid: park.object_removal_block_reason(object.id).is_none(),
+                        demolish: true,
+                    });
+                }
                 let name = object_tool_name(object.kind);
                 view.path_tool.hint = park.object_removal_block_reason(object.id).map_or_else(
                     || {
@@ -349,9 +387,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 }
             } else {
                 view.path_tool.hint =
-                    "Point to a path, entrance or exit.\nTrack and land stay in place.".into();
+                    "Point to a path, gate or facility.\nTrack and land stay in place.".into();
                 if click {
-                    view.path_notice = Some("No path removed: point to a visible path.".into());
+                    view.path_notice =
+                        Some("Nothing removed: select a visible path, gate or facility.".into());
                 }
             }
         }
@@ -364,7 +403,10 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
             if park.object(id).is_some_and(|o| {
                 matches!(
                     o.kind,
-                    ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+                    ObjectKind::Path
+                        | ObjectKind::RideEntrance
+                        | ObjectKind::RideExit
+                        | ObjectKind::Service
                 )
             }) =>
         {
@@ -380,7 +422,7 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
     if let Some(id) = target {
         remove_path(park, view, id);
     } else {
-        view.path_notice = Some("Select a visible path or gate to remove it.".into());
+        view.path_notice = Some("Select a visible path, gate or facility.".into());
     }
 }
 
@@ -388,7 +430,10 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
     let Some(object) = park.object(id).copied().filter(|object| {
         matches!(
             object.kind,
-            ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit
+            ObjectKind::Path
+                | ObjectKind::RideEntrance
+                | ObjectKind::RideExit
+                | ObjectKind::Service
         )
     }) else {
         return;
@@ -429,6 +474,7 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
     match kind {
         ObjectKind::RideEntrance => "Entrance",
         ObjectKind::RideExit => "Exit",
+        ObjectKind::Service => "Facility",
         _ => "Path",
     }
 }

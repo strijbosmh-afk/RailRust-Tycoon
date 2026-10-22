@@ -44,6 +44,18 @@ pub enum GuestThought {
     RideCancelled,
     EnjoyedRide,
     DisappointedByRide,
+    Hungry,
+    Thirsty,
+    NeedsToilet,
+    SeekingService,
+    WaitingForService,
+    UsingService,
+    ServiceUnavailable,
+    CannotAffordService,
+    ServiceCancelled,
+    AteFood,
+    HadDrink,
+    UsedToilet,
 }
 impl std::fmt::Display for GuestThought {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -59,6 +71,18 @@ impl std::fmt::Display for GuestThought {
             Self::RideCancelled => "My ride visit was cancelled",
             Self::EnjoyedRide => "I enjoyed that ride",
             Self::DisappointedByRide => "That ride was disappointing",
+            Self::Hungry => "I am hungry",
+            Self::Thirsty => "I am thirsty",
+            Self::NeedsToilet => "I need a toilet",
+            Self::SeekingService => "Heading to a service",
+            Self::WaitingForService => "Waiting at the counter",
+            Self::UsingService => "Using a service",
+            Self::ServiceUnavailable => "I cannot find a service I need",
+            Self::CannotAffordService => "I cannot afford a service I need",
+            Self::ServiceCancelled => "That service is no longer available",
+            Self::AteFood => "That food helped",
+            Self::HadDrink => "That drink helped",
+            Self::UsedToilet => "I feel better after using the toilet",
         })
     }
 }

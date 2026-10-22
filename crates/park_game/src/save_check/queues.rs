@@ -47,8 +47,8 @@ fn save_bytes(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let envelope: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if envelope["schema_version"] != 7 || envelope["content_version"] != 7 {
-        return Err("queue proof requires strict schema/content 7/7".into());
+    if envelope["schema_version"] != 8 || envelope["content_version"] != 8 {
+        return Err("queue proof requires strict schema/content 8/8".into());
     }
     Ok(bytes)
 }
@@ -252,7 +252,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     write_new(
         &store.directory().join("verification-queues.txt"),
         format!(
-            "Parkbound {}\nFresh-process incomplete queue primary equality: PASS\nQueue/gate/public-connection demolition and fresh-ID repair: PASS\nContinuation: PASS (3600 complete ticks + topology and train commands)\nStable ride identity and role-aware public/owned-queue guest references: PASS\nExplicit connected backup and paused loading: PASS\nPrimary and backup files unchanged by verification: PASS\nStrict schema/content 7/7: PASS\n",
+            "Parkbound {}\nFresh-process incomplete queue primary equality: PASS\nQueue/gate/public-connection demolition and fresh-ID repair: PASS\nContinuation: PASS (3600 complete ticks + topology and train commands)\nStable ride identity and role-aware public/owned-queue guest references: PASS\nExplicit connected backup and paused loading: PASS\nPrimary and backup files unchanged by verification: PASS\nStrict schema/content 8/8: PASS\n",
             env!("CARGO_PKG_VERSION")
         )
         .as_bytes(),

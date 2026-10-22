@@ -903,6 +903,11 @@ mod tests {
             "ratings_given": 0,
             "rating_total": 0,
             "last_rating": null,
+            "needs": park_sim::GuestNeeds::for_guest(42, park_sim::GuestId(1)),
+            "service_visit": null,
+            "service_cooldown": 0,
+            "service_spent_cents": 0,
+            "services_used": 0,
             "ride_cooldown": 0
         }]);
         encoded["park"]["next_guest_id"] = 2.into();

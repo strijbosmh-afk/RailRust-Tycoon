@@ -339,6 +339,8 @@ impl Park {
             || self.gate_connects(b, a, true)
             || self.exit_connects(a, b)
             || self.exit_connects(b, a)
+            || self.service_connects(a, b)
+            || self.service_connects(b, a)
     }
 
     pub fn geometric_path_neighbors(&self, id: ObjectId) -> Vec<ObjectId> {
