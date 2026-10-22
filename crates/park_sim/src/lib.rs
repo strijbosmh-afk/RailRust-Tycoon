@@ -27,8 +27,8 @@ pub use admission::{
     QUEUE_PATIENCE_TICKS, RIDE_COOLDOWN_TICKS, RideQueueStats, RideVisit, RideVisitPhase,
 };
 pub use carousel::{
-    CAROUSEL_RUN_TICKS, CAROUSEL_SEATS, CarouselError, CarouselPhase, CarouselRide,
-    MAX_CAROUSEL_RECORDS, MAX_RIDE_RECORDS, RideKind,
+    CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, CAROUSEL_RUN_TICKS, CAROUSEL_SEATS,
+    CarouselError, CarouselPhase, CarouselRide, MAX_CAROUSEL_RECORDS, MAX_RIDE_RECORDS, RideKind,
 };
 pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestRideHistory, GuestState, PathCacheStats,

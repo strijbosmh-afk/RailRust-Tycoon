@@ -330,6 +330,11 @@ fn lifetime_capacity_and_malformed_footprints_are_strict() {
     let mut park = Park::new(32, 32);
     for _ in 0..MAX_CAROUSEL_RECORDS {
         let id = park.place_carousel(TilePos { x: 19, y: 22 }, 8).unwrap();
+        // Exercise the full lifetime cap with legacy zero-basis bodies: fresh
+        // starter cash deliberately cannot fund eight paid replacements.
+        park.carousels.last_mut().unwrap().construction_cost_cents = 0;
+        park.cash_cents = crate::INITIAL_PARK_CASH_CENTS;
+        park.finances = crate::FinanceLedger::default();
         park.remove_carousel(id).unwrap();
     }
     let before = park.clone();

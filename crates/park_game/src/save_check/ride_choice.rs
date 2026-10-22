@@ -134,7 +134,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         let recent = ledger
             .entries
             .iter()
-            .filter(|e| e.ride == Some(ride.id))
+            .filter(|e| e.ride == Some(ride.id) && e.kind == FinanceKind::RideRevenue)
             .map(|e| e.amount_cents)
             .sum::<u64>();
         if opening + archived + recent != ride.revenue_cents {
@@ -142,7 +142,12 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         }
     }
     for entry in &ledger.entries {
-        if (entry.kind == FinanceKind::RideRevenue) != entry.ride.is_some()
+        if matches!(
+            entry.kind,
+            FinanceKind::RideRevenue
+                | FinanceKind::RideConstruction
+                | FinanceKind::RideDemolitionRefund
+        ) != entry.ride.is_some()
             || entry.ride.is_some_and(|id| park.ride_by_id(id).is_none())
         {
             return Err("ledger transaction has incorrect ride ownership".into());
@@ -157,11 +162,11 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     check(park)?;
     let bytes = park.to_save_bytes().map_err(|e| e.to_string())?;
     let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if value["schema_version"] != 10
-        || value["content_version"] != 10
+    if value["schema_version"] != 11
+        || value["content_version"] != 11
         || Park::from_save_bytes(&bytes).map_err(|e| e.to_string())? != *park
     {
-        return Err("dual-ride strict10 roundtrip changed authoritative state".into());
+        return Err("dual-ride strict11 roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }
@@ -611,7 +616,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("paused verification changed park or save files".into());
     }
-    write_new(&store.directory().join("verification-rides.txt"), format!("Parkbound {}\nExact dual occupied primary and carousel boarding backup: PASS\nContinuation: PASS ({REPLAY_TICKS} ticks, two independent runtimes)\nOwner-specific actual departure fares, locked quotes, reviews and ledger attribution: PASS\nReachable guest choice changes with price/availability: PASS\nClose/reopen and occupied demolition isolation: PASS\nIdle demolition retains history; rebuilt carousel uses fresh IDs and earns new income: PASS\nPaused load, ride selection reset, strict10 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-rides.txt"), format!("Parkbound {}\nExact dual occupied primary and carousel boarding backup: PASS\nContinuation: PASS ({REPLAY_TICKS} ticks, two independent runtimes)\nOwner-specific actual departure fares, locked quotes, reviews and ledger attribution: PASS\nReachable guest choice changes with price/availability: PASS\nClose/reopen and occupied demolition isolation: PASS\nIdle demolition retains history; rebuilt carousel uses fresh IDs and earns new income: PASS\nPaused load, ride selection reset, strict11 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

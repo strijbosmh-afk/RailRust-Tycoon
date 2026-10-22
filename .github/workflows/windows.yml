@@ -134,6 +134,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-rides --save-dir $ridesDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process dual ride continuation failed" }
           Get-Content -LiteralPath (Join-Path $ridesDirectory "verification-rides.txt")
+      - name: Verify ride construction and refunds across fresh processes
+        shell: pwsh
+        run: |
+          $constructionDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound construction proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-construction --save-dir $constructionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Ride construction writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-construction --save-dir $constructionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride construction continuation failed" }
+          Get-Content -LiteralPath (Join-Path $constructionDirectory "verification-construction.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

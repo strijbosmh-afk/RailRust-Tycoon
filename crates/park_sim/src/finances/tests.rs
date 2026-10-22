@@ -72,6 +72,7 @@ pub(crate) fn strip_finances(mut value: Value) -> Value {
     value
 }
 pub(crate) fn strip_carousel_fields(value: &mut Value) {
+    strip_construction_fields(value);
     value["park"].as_object_mut().unwrap().remove("carousels");
     for guest in value["park"]["guests"].as_array_mut().unwrap() {
         guest.as_object_mut().unwrap().remove("ride_history");
@@ -81,6 +82,28 @@ pub(crate) fn strip_carousel_fields(value: &mut Value) {
         ledger.remove("archived_rides");
         for entry in ledger["entries"].as_array_mut().unwrap() {
             entry.as_object_mut().unwrap().remove("ride");
+        }
+    }
+}
+pub(crate) fn strip_construction_fields(value: &mut Value) {
+    for carousel in value["park"]["carousels"].as_array_mut().unwrap() {
+        carousel
+            .as_object_mut()
+            .unwrap()
+            .remove("construction_cost_cents");
+        carousel
+            .as_object_mut()
+            .unwrap()
+            .remove("demolition_refund_cents");
+    }
+    if let Some(ledger) = value["park"]["finances"].as_object_mut() {
+        for key in ["construction_cents", "demolition_refunds_cents"] {
+            ledger["archived"].as_object_mut().unwrap().remove(key);
+            for group in ["opening_rides", "archived_rides"] {
+                for ride in ledger[group].as_array_mut().unwrap() {
+                    ride.as_object_mut().unwrap().remove(key);
+                }
+            }
         }
     }
 }
@@ -476,7 +499,7 @@ fn strict_finance_metadata_rejects_forged_chronology_balances_sources_and_costs(
         .unwrap()
         .remove("service");
     assert!(Park::from_save_bytes(&serde_json::to_vec(&missing_source).unwrap()).is_err());
-    for (schema, content) in [(11, 11), (10, 9), (9, 10), (9, 8), (8, 9)] {
+    for (schema, content) in [(12, 12), (10, 9), (9, 10), (9, 8), (8, 9)] {
         let mut bad = base.clone();
         bad["schema_version"] = json!(schema);
         bad["content_version"] = json!(content);

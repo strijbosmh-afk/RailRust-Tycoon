@@ -9,6 +9,8 @@ pub const MAX_CAROUSEL_RECORDS: usize = 8;
 pub const MAX_RIDE_RECORDS: usize = MAX_CAROUSEL_RECORDS + 1;
 pub const CAROUSEL_SEATS: usize = 6;
 pub const CAROUSEL_RUN_TICKS: u16 = 720;
+pub const CAROUSEL_BUILD_COST_CENTS: u64 = 30_000;
+pub const CAROUSEL_REFUND_PERCENT: u8 = 50;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum RideKind {
@@ -54,6 +56,10 @@ pub struct CarouselRide {
     pub progress: u16,
     pub dwell_ticks: u16,
     pub cycles: u64,
+    /// Actual body construction charge; legacy free rides retain a zero basis.
+    pub construction_cost_cents: u64,
+    /// Paid exactly once on body removal, retained with the ride tombstone.
+    pub demolition_refund_cents: u64,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CarouselError {
@@ -63,6 +69,10 @@ pub enum CarouselError {
     UnknownRide(RideId),
     Removed,
     Occupied,
+    InsufficientFunds {
+        required_cents: u64,
+        available_cents: u64,
+    },
 }
 impl From<PlacementError> for CarouselError {
     fn from(value: PlacementError) -> Self {
@@ -82,6 +92,17 @@ impl std::fmt::Display for CarouselError {
             Self::UnknownRide(id) => write!(f, "Ride #{} is not a carousel", id.0),
             Self::Removed => f.write_str("This carousel has been removed"),
             Self::Occupied => f.write_str("Let all passengers leave before removing the carousel"),
+            Self::InsufficientFunds {
+                required_cents,
+                available_cents,
+            } => write!(
+                f,
+                "Carousel costs ${}.{:02}; park cash is ${}.{:02}",
+                required_cents / 100,
+                required_cents % 100,
+                available_cents / 100,
+                available_cents % 100
+            ),
         }
     }
 }
@@ -224,6 +245,10 @@ impl Park {
         }
     }
     pub fn validate_carousel(&self, origin: TilePos, height: u8) -> Result<(), CarouselError> {
+        self.carousel_build_quote(origin, height).map(|_| ())
+    }
+    /// A read-only quote using the same validation as the placement command.
+    pub fn carousel_build_quote(&self, origin: TilePos, height: u8) -> Result<u64, CarouselError> {
         if self.carousels.iter().any(|c| !c.objects.is_empty()) {
             return Err(CarouselError::ActiveCarouselExists);
         }
@@ -258,10 +283,16 @@ impl Park {
                 self.validate_object_placement(pos, ObjectKind::Carousel, height, 3)?;
             }
         }
-        Ok(())
+        if self.cash_cents < CAROUSEL_BUILD_COST_CENTS {
+            return Err(CarouselError::InsufficientFunds {
+                required_cents: CAROUSEL_BUILD_COST_CENTS,
+                available_cents: self.cash_cents,
+            });
+        }
+        Ok(CAROUSEL_BUILD_COST_CENTS)
     }
     pub fn place_carousel(&mut self, origin: TilePos, height: u8) -> Result<RideId, CarouselError> {
-        self.validate_carousel(origin, height)?;
+        let cost = self.carousel_build_quote(origin, height)?;
         let id = RideId(self.next_ride_id);
         self.next_ride_id += 1;
         let mut objects = Vec::with_capacity(9);
@@ -295,10 +326,15 @@ impl Park {
             progress: 0,
             dwell_ticks: 0,
             cycles: 0,
+            construction_cost_cents: cost,
+            demolition_refund_cents: 0,
         });
+        self.record_ride_transaction(crate::FinanceKind::RideConstruction, id, cost);
         Ok(id)
     }
-    pub fn remove_carousel(&mut self, id: RideId) -> Result<(), CarouselError> {
+    /// Refund only an actually paid body; no refund is generated for free
+    /// imported bodies, gates, queues or the fixed demonstration coaster.
+    pub fn carousel_demolition_quote(&self, id: RideId) -> Result<u64, CarouselError> {
         let c = self.carousel(id).ok_or(CarouselError::UnknownRide(id))?;
         if c.objects.is_empty() {
             return Err(CarouselError::Removed);
@@ -310,6 +346,10 @@ impl Park {
         }) {
             return Err(CarouselError::Occupied);
         }
+        Ok(c.construction_cost_cents * u64::from(CAROUSEL_REFUND_PERCENT) / 100)
+    }
+    pub fn remove_carousel(&mut self, id: RideId) -> Result<(), CarouselError> {
+        let refund = self.carousel_demolition_quote(id)?;
         let c = self.carousels.iter_mut().find(|c| c.ride.id == id).unwrap();
         let mut footprint = std::mem::take(&mut c.objects);
         if let Some(gate) = c.ride.entrance.take() {
@@ -322,8 +362,10 @@ impl Park {
         c.phase = CarouselPhase::Closed;
         c.progress = 0;
         c.dwell_ticks = 0;
+        c.demolition_refund_cents = refund;
         self.objects.retain(|o| !footprint.contains(&o.id));
         self.reconcile_ride_visits();
+        self.record_ride_transaction(crate::FinanceKind::RideDemolitionRefund, id, refund);
         Ok(())
     }
     pub fn carousel_seat_positions(&self, id: RideId) -> Vec<PathPoint> {
@@ -425,6 +467,16 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
         }
     }
     for c in &park.carousels {
+        if !matches!(c.construction_cost_cents, 0 | CAROUSEL_BUILD_COST_CENTS)
+            || c.demolition_refund_cents
+                != if c.objects.is_empty() {
+                    c.construction_cost_cents * u64::from(CAROUSEL_REFUND_PERCENT) / 100
+                } else {
+                    0
+                }
+        {
+            return Err("carousel construction basis or demolition refund is invalid".into());
+        }
         if c.origin.x.checked_add(2).is_none_or(|x| x >= park.width)
             || c.origin.y.checked_add(2).is_none_or(|y| y >= park.height)
             || c.height > crate::MAX_TERRAIN_HEIGHT - 3
@@ -495,3 +547,6 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod construction_tests;

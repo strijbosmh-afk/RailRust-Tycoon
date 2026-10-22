@@ -134,7 +134,10 @@ fn departure_settlement_is_once_per_owner_and_preserves_another_reserved_fare() 
     assert_eq!(park.guests[0].wallet_cents, 1700);
     assert_eq!(park.guests[1].wallet_cents, 1800);
     assert_eq!(park.guests[2].wallet_cents, 2000);
-    assert_eq!(park.cash_cents(), INITIAL_PARK_CASH_CENTS + 500);
+    assert_eq!(
+        park.cash_cents(),
+        INITIAL_PARK_CASH_CENTS - crate::CAROUSEL_BUILD_COST_CENTS + 500
+    );
     assert_eq!(park.ride_economy_stats(coaster).revenue_cents, 300);
     assert_eq!(park.ride_economy_stats(carousel).revenue_cents, 200);
     assert_eq!(park.ride_economy_stats(coaster).reserved_fares_cents, 400);
@@ -142,9 +145,17 @@ fn departure_settlement_is_once_per_owner_and_preserves_another_reserved_fare() 
         park.finance_ledger()
             .entries
             .iter()
-            .map(|e| (e.ride, e.amount_cents))
+            .map(|e| (e.kind, e.ride, e.amount_cents))
             .collect::<Vec<_>>(),
-        vec![(Some(coaster), 300), (Some(carousel), 200)]
+        vec![
+            (
+                crate::FinanceKind::RideConstruction,
+                Some(carousel),
+                crate::CAROUSEL_BUILD_COST_CENTS
+            ),
+            (crate::FinanceKind::RideRevenue, Some(coaster), 300),
+            (crate::FinanceKind::RideRevenue, Some(carousel), 200),
+        ]
     );
     validate_economy(&park).unwrap();
     crate::finances::validate_finances(&park).unwrap();
@@ -155,7 +166,7 @@ fn departure_settlement_is_once_per_owner_and_preserves_another_reserved_fare() 
     forged.guests[0].ride_history[0].ride = carousel;
     assert!(validate_economy(&forged).is_err());
     let mut forged = park.clone();
-    forged.finances.entries[0].ride = Some(carousel);
+    forged.finances.entries[1].ride = Some(carousel);
     assert_eq!(
         crate::finances::validate_finances(&forged),
         Err("ride income disagrees with attributed cash history".into())
@@ -673,7 +684,7 @@ fn malformed_money_and_missing_v6_fields_are_rejected_without_mutation() {
             "accepted absent {field}"
         );
     }
-    for (schema, content) in [(11, 11), (8, 7), (7, 8), (7, 6), (6, 7), (6, 5), (5, 6)] {
+    for (schema, content) in [(12, 12), (8, 7), (7, 8), (7, 6), (6, 7), (6, 5), (5, 6)] {
         let mut invalid = base.clone();
         invalid["schema_version"] = json!(schema);
         invalid["content_version"] = json!(content);

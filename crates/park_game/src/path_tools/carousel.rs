@@ -1,5 +1,19 @@
 //! Deliberate placement validates the complete three-by-three footprint.
 use super::*;
+use park_sim::{CAROUSEL_BUILD_COST_CENTS, CarouselError};
+
+fn build_error(error: CarouselError) -> String {
+    match error {
+        CarouselError::InsufficientFunds {
+            required_cents,
+            available_cents,
+        } => format!(
+            "Need {} more to build.",
+            crate::ui::money(required_cents - available_cents)
+        ),
+        error => error.to_string(),
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CarouselPreview {
@@ -14,7 +28,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
     let Some(origin) =
         world::pick_sloped_path_plane(point, park, view.rotation, height, PathSlope::Flat)
     else {
-        view.path_tool.hint = "Outside the park at this height.".into();
+        view.path_tool.hint = format!(
+            "Build {}\nOutside the park at this height.",
+            crate::ui::money(CAROUSEL_BUILD_COST_CENTS)
+        );
         if click {
             view.path_notice = Some("Carousel not placed: outside the park.".into());
         }
@@ -29,9 +46,9 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         view.view_mode,
     );
     let reason = park
-        .validate_carousel(origin, height)
+        .carousel_build_quote(origin, height)
         .err()
-        .map(|error| error.to_string())
+        .map(build_error)
         .or_else(|| {
             occluded.then(|| "Surface hidden here. Rotate or use underground view.".into())
         });
@@ -43,9 +60,15 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             demolish: false,
         });
     }
-    view.path_tool.hint = reason
-        .clone()
-        .unwrap_or_else(|| format!("3 x 3 / height {height}\nClick to build a closed carousel."));
+    view.path_tool.hint = format!(
+        "Build {} / Cash {}\n{}",
+        crate::ui::money(CAROUSEL_BUILD_COST_CENTS),
+        crate::ui::money(park.cash_cents()),
+        reason
+            .as_deref()
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("3 x 3 / height {height} / click to build."))
+    );
     if !click {
         return;
     }
@@ -61,8 +84,11 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             view.hovered = view.selected;
             view.scene_dirty = true;
             view.path_tool.set_mode(PathTool::Inspect);
-            view.path_notice =
-                Some("Carousel built. Add its queue [J], entrance [I] and exit [K].".into());
+            view.path_notice = Some(format!(
+                "Built for {}.\nCash {} / add J/I/K access.",
+                crate::ui::money(CAROUSEL_BUILD_COST_CENTS),
+                crate::ui::money(park.cash_cents())
+            ));
         }
         Err(error) => view.path_notice = Some(format!("Carousel not placed: {error}")),
     }

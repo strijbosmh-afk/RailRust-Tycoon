@@ -28,6 +28,7 @@ const WARMUP_TIME: Duration = Duration::from_secs(2);
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
 mod admission_scenes;
+mod construction_scenes;
 mod economy_scenes;
 mod feedback_scenes;
 mod finance_scenes;
@@ -130,9 +131,24 @@ enum Scene {
     RideClosed,
     RideFinance,
     CarouselRebuilt,
+    ConstructionPrice,
+    ConstructionRefund,
+    ConstructionUnaffordable,
+    ConstructionFinance,
+    ConstructionRemoved,
 }
 
 impl Scene {
+    fn is_construction(self) -> bool {
+        matches!(
+            self,
+            Self::ConstructionPrice
+                | Self::ConstructionRefund
+                | Self::ConstructionUnaffordable
+                | Self::ConstructionFinance
+                | Self::ConstructionRemoved
+        )
+    }
     fn is_ride_choice(self) -> bool {
         matches!(
             self,
@@ -416,6 +432,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("ride-closed") => Scene::RideClosed,
                 Some("ride-finance") => Scene::RideFinance,
                 Some("carousel-rebuilt") => Scene::CarouselRebuilt,
+                Some("construction-price") => Scene::ConstructionPrice,
+                Some("construction-refund") => Scene::ConstructionRefund,
+                Some("construction-unaffordable") => Scene::ConstructionUnaffordable,
+                Some("construction-finance") => Scene::ConstructionFinance,
+                Some("construction-removed") => Scene::ConstructionRemoved,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -655,6 +676,9 @@ fn apply_preset(
     }
     if capture.scene.is_ride_choice() {
         ride_choice_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_construction() {
+        construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);
