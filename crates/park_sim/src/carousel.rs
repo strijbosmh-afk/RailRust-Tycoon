@@ -472,7 +472,12 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
             || (c.phase != CarouselPhase::Running && c.progress != 0)
             || (c.phase == CarouselPhase::Closed && (c.open || c.dwell_ticks != 0))
             || (c.phase == CarouselPhase::Station && (!c.open || c.dwell_ticks == 0))
-            || u128::from(c.cycles) * u128::from(CAROUSEL_RUN_TICKS) + u128::from(c.progress)
+            || u128::from(c.cycles) * u128::from(CAROUSEL_RUN_TICKS + crate::STATION_DWELL_TICKS)
+                + if c.phase == CarouselPhase::Running {
+                    u128::from(crate::STATION_DWELL_TICKS) + u128::from(c.progress)
+                } else {
+                    0
+                }
                 > u128::from(park.ticks)
         {
             return Err("carousel operation counters or phase are invalid".into());

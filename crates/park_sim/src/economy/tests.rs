@@ -593,10 +593,19 @@ fn balanced_spending_without_journey_history_is_rejected() {
         forged["park"]["ride"]["revenue_cents"] =
             json!(park.ride().unwrap().revenue_cents + u64::from(extra));
         forged["park"]["cash_cents"] = json!(park.cash_cents() + u64::from(extra));
+        // Preserve the new owner totals as well, so the rejection specifically
+        // proves the absence of a real completed/active paid trip.
+        forged["park"]["guests"][index]["ride_history"] = json!([{
+            "ride": park.ride().unwrap().id,
+            "spent_cents": guest.spent_cents + u64::from(extra),
+            "completed": 0,
+            "rating_count": 0,
+            "rating_total": 0
+        }]);
         assert_eq!(
             Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()),
             Err(crate::SaveError::InvalidState(
-                "guest spending has no completed or active paid journey".into()
+                "attributed spending has no completed or active paid ride".into()
             ))
         );
         assert_eq!(park.to_save_bytes().unwrap(), bytes);

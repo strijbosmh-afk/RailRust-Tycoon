@@ -2637,7 +2637,9 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (10, 10),
+            (11, 11),
+            (10, 9),
+            (9, 10),
             (7, 6),
             (6, 7),
             (6, 5),
