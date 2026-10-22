@@ -20,7 +20,7 @@ The previously used second-PC checkout is:
 C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon
 ```
 
-That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch and commit before continuing. The current branch is `codex/second-ride-choice`, based on `codex/service-finances` / [PR #18](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/18), which was open and unmerged at stage start. Current runtime/PR identities are in section 10. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch and commit before continuing. The current branch is `codex/second-ride-choice`, based on `codex/service-finances` / [PR #18](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/18), which was open and unmerged at stage start. Current draft is [PR #19](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/19); exact runtime/verification identities are in section 10. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -149,10 +149,10 @@ Public path appearance is retained. Owned queue paths use original blue procedur
 | P / Path | Public path tool. |
 | Y / Rides | Select an active ride, inspect it, or start building the carousel. Up/Down browses. |
 | J / Queue | Blue queue tool owned by the selected ride (initially Meadow Flyer). |
-| I / Gate | Entrance tool, facing toward the station. |
-| K / Exit | Teal exit tool, facing toward the station; default South, independent of entrance facing. |
+| I / Gate | Entrance tool for the selected ride, facing toward its station or carousel edge. |
+| K / Exit | Teal exit tool for the selected ride, facing toward its station or carousel edge; default South, independent of entrance facing. |
 | C / shape or facing button | Queue: cycle Flat/North/East/South/West while staying Queue. Entrance/Exit/Service: cycle that building's facing. Other modes: enter public Path and cycle shape. |
-| Page Up/Down / height buttons | Flat/gate height 0–30; service base 0–29; ramp low end 0–29, high end low+1. Default 8. |
+| Page Up/Down / height buttons | Flat/gate height 0–30; service/carousel base 0–29; ramp low end 0–29, high end low+1. Default 8. |
 | Left click | One placement/removal; holding does not paint. Hidden or invalid targets reject without partial edits. |
 | X / Demolish | Remove visible public/queue paths, entrance/exit/service or an empty carousel (whole body and gates). Delete acts on a currently visible selected path/gate/service. Active transfer walkways reject demolition. Track editing is absent. |
 | B / V | Raise/lower one visible dry terrain column by one within 0–32; Water and Underground reject. |
@@ -367,7 +367,23 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 ## 10. Current verification and remaining checks
 
-0.21 verification is in progress. See [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md) for current results as they are completed. Raw evidence belongs in ignored `artifacts/second-ride-choice-0.21.0/`. Prior passes below remain historical until repeated against the new executable.
+Runtime source **`b70edd79e3ab25ed4aa8f705d5a63f0dfcc438a5`** is pushed in [draft PR #19](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/19), stacked on #18. All **436 release tests (263 game / 173 simulation)**, formatting, strict all-target release Clippy and production build pass. Tests cover atomic full-footprint placement, independent queues/seats/transfers, real departures and reviews, closure/exit repair, removal/rebuilding, deterministic choice, pause/speed equivalence, owner-aware input/rendering and strict save corruption/migration. Runtime validation accounts for both running time and each cycle's initial dwell.
+
+[Exact-source Windows push CI 39777803850](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39777803850) and [PR CI 39777812491](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/39777812491) passed all **25 steps**, including packaging and the new fresh-process proof. The CI reporting smoke is not hardware acceptance. Later guide commits retain this runtime identity and have their own CI status.
+
+The executable is **47,982,080 bytes**, SHA-256 **`9ae2649d227cc7fc6c13560825c1cdfb6da079c3e60aad9821e6488399d103ab`**. The portable package verifies **36 payload hashes and 27 current Markdown guides**. All **291 dependency entries** and five dependency/native/notices/runtime files are byte-identical to 0.20. A fresh spaces/é extraction launched from `C:\Windows` passed the 24,000-tick rides proof. Final guide/manifest/ZIP refreshes preserve this executable; the adjacent ZIP sidecar identifies the archive without self-referential hashes in bundled guides. Same-PC relocation does not establish clean-machine compatibility.
+
+All **72 local production processes** passed: **54 save/proof processes** plus **18 inspected captures**. Authentic schema1–9 files were written by retained 0.12–0.20 executables. Occupied journey/economy/feedback/service/finance cases and an authentic v9 archived ride/service ledger preserve every original field and continue deterministically. Version0.20 rejects schema10 without altering either slot. All eleven retained/new continuation pairs pass. The new 24,000-tick oracle independently checks each owner's actual departure, locked fare, public-return review formula, history deltas and ledger source/balance; it also verifies price-sensitive alternative choices, closure and fresh-ID rebuilding.
+
+All eighteen PNGs were visually inspected: fourteen second-ride variants across four rotations, both terrain/visibility modes and normal/minimum windows, plus retained Services, oldest Finance page, Help and overview. Rides, owner-aware Guests and Finance fit 1024×680 without clipping. The relocated package produced a byte-identical minimum-window Rides capture. Still images establish presentation separately from native gestures and continuous motion.
+
+Native checks used the exact extracted executable and isolated copied slots. **F9** loaded both occupied rides paused at tick **1,977 / 01:05**, with **$1,009 cash**, four coaster passengers and five carousel passengers. **Y** opened Rides; the **next-ride button** selected Carousel #2; **Escape** returned to the park; **F7** changed only its fare from $1.00 to $1.50; **O** closed that carousel while retaining its paid cycle; **F5** saved. Comparing saved data proved unchanged time, coaster/train state, finances, geometry, RNG/allocators, all guest wallets/spending/history/reviews, and ten unaffected passenger/other-ride guest records. Backup bytes exactly match the original primary. **Alt+F4** closed the isolated instance; default player saves were untouched.
+
+The **Down arrow in Rides was inconclusive** (no visible selection change); the button passed separately. F7 while the selector was open correctly left the fare unchanged: close with Use ride/Y/Escape before operating the selected ride. Native construction/demolition, remaining price gestures, direct continuous carousel motion and earlier unverified native controls remain open. Source tests and production proofs retain their distinct scope.
+
+No local performance batch was run. This PC remains excluded from performance acceptance. Clean-PC/offline/standard-user compatibility, signing, source licensing, final naming and representative-hardware acceptance remain separate release gates. `final-handoff.txt` records the final documentation HEAD, archive identity and clean remote/local equality after push; the adjacent ZIP sidecar identifies the final archive.
+
+Full contract and evidence are in [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md). Raw receipts are in ignored `artifacts/second-ride-choice-0.21.0/`. Both PC paths above remain authoritative handoff references; transfer raw artifacts/dist through OneDrive or deliberately, since Git carries source and guides. Prior named passes below remain historical.
 
 ### Historical 0.20 evidence
 

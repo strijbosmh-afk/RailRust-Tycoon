@@ -4,7 +4,7 @@ This register includes the current 0.21 original carousel, moving seats/passenge
 
 | Asset | Source | Rights and distribution treatment |
 | --- | --- | --- |
-| Carousel body, seats, passengers and Rides controls | Original procedural geometry in `world/carousel_render.rs`, shared ride/guest rendering, `path_tools/carousel.rs` and `ui/rides.rs` | Project-authored open platform, mast, horse-like benches, passengers, text and colors; no external ride model, texture or icon. Current source/runtime/native/package validation is pending. |
+| Carousel body, seats, passengers and Rides controls | Original procedural geometry in `world/carousel_render.rs`, shared ride/guest rendering, `path_tools/carousel.rs` and `ui/rides.rs` | Project-authored open platform, mast, horse-like benches, passengers, text and colors; no external ride model, texture or icon. Current source/runtime/render/package checks pass; native gestures retain the scoped report limitations. |
 | Landscape tiles, lake and shore | Original geometry and colors in `crates/park_game/src/world.rs` | Project-authored procedural art; no external source files |
 | Terraced hill profile, exposed cliffs and contour details | Original integer preset in `crates/park_sim/src/lib.rs` and geometry in `crates/park_game/src/world.rs` | Project-authored data and procedural art; no imported maps or textures |
 | Elevated-path and underground-track fixtures | Original 21-object fixture in `crates/park_sim/src/surfaces.rs` and procedural geometry in `crates/park_game/src/world.rs` | Project-authored proof data and art; no imported track models or ride definitions |
