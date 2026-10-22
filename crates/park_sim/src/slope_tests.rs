@@ -38,6 +38,7 @@ fn start_walk(park: &mut Park, sequence: &[ObjectId]) {
         state: GuestState::Walking,
         arrivals: 0,
         rides_completed: 0,
+        ride_history: Vec::new(),
         wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
         spent_cents: 0,
         service_spent_cents: 0,

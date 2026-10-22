@@ -33,6 +33,7 @@ mod feedback_scenes;
 mod finance_scenes;
 mod journey_scenes;
 mod queue_scenes;
+mod ride_choice_scenes;
 mod service_scenes;
 mod slope_scenes;
 mod terrain_scenes;
@@ -119,9 +120,34 @@ enum Scene {
     FinanceReopened,
     FinanceRemoved,
     FinanceHistory,
+    CarouselValid,
+    CarouselBlocked,
+    CarouselBuilt,
+    DualBoarding,
+    DualRiding,
+    RideChoice,
+    Rides,
+    RideClosed,
+    RideFinance,
+    CarouselRebuilt,
 }
 
 impl Scene {
+    fn is_ride_choice(self) -> bool {
+        matches!(
+            self,
+            Self::CarouselValid
+                | Self::CarouselBlocked
+                | Self::CarouselBuilt
+                | Self::DualBoarding
+                | Self::DualRiding
+                | Self::RideChoice
+                | Self::Rides
+                | Self::RideClosed
+                | Self::RideFinance
+                | Self::CarouselRebuilt
+        )
+    }
     fn is_finance(self) -> bool {
         matches!(
             self,
@@ -380,6 +406,16 @@ pub(super) fn configure(app: &mut App) {
                 Some("finance-reopened") => Scene::FinanceReopened,
                 Some("finance-removed") => Scene::FinanceRemoved,
                 Some("finance-history") => Scene::FinanceHistory,
+                Some("carousel-valid") => Scene::CarouselValid,
+                Some("carousel-blocked") => Scene::CarouselBlocked,
+                Some("carousel-built") => Scene::CarouselBuilt,
+                Some("dual-boarding") => Scene::DualBoarding,
+                Some("dual-riding") => Scene::DualRiding,
+                Some("ride-choice") => Scene::RideChoice,
+                Some("rides") => Scene::Rides,
+                Some("ride-closed") => Scene::RideClosed,
+                Some("ride-finance") => Scene::RideFinance,
+                Some("carousel-rebuilt") => Scene::CarouselRebuilt,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -616,6 +652,9 @@ fn apply_preset(
     }
     if capture.scene.is_finance() {
         finance_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_ride_choice() {
+        ride_choice_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

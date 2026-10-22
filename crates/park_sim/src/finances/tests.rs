@@ -45,6 +45,7 @@ fn using_fixture() -> (Park, usize, ServiceId) {
 
 /// Test-only projection of a current park into the preceding strict DTO.
 pub(crate) fn strip_finances(mut value: Value) -> Value {
+    strip_carousel_fields(&mut value);
     let costs = value["park"]["services"]
         .as_array()
         .unwrap()
@@ -70,6 +71,19 @@ pub(crate) fn strip_finances(mut value: Value) -> Value {
     value["content_version"] = json!(8);
     value
 }
+pub(crate) fn strip_carousel_fields(value: &mut Value) {
+    value["park"].as_object_mut().unwrap().remove("carousels");
+    for guest in value["park"]["guests"].as_array_mut().unwrap() {
+        guest.as_object_mut().unwrap().remove("ride_history");
+    }
+    if let Some(ledger) = value["park"]["finances"].as_object_mut() {
+        ledger.remove("opening_rides");
+        ledger.remove("archived_rides");
+        for entry in ledger["entries"].as_array_mut().unwrap() {
+            entry.as_object_mut().unwrap().remove("ride");
+        }
+    }
+}
 pub(crate) fn reset_finances(park: &mut Park) {
     park.cash_cents = INITIAL_PARK_CASH_CENTS
         + park
@@ -84,6 +98,17 @@ pub(crate) fn reset_finances(park: &mut Park) {
         service.closed_for_funds = false;
     }
     park.finances = FinanceLedger::opening(park);
+    if let Some(ride) = &park.ride {
+        for guest in &mut park.guests {
+            guest.ride_history = vec![crate::GuestRideHistory {
+                ride: ride.id,
+                spent_cents: guest.spent_cents - guest.service_spent_cents,
+                completed: guest.rides_completed,
+                rating_count: guest.ratings_given,
+                rating_total: guest.rating_total,
+            }];
+        }
+    }
 }
 
 #[test]
@@ -451,7 +476,7 @@ fn strict_finance_metadata_rejects_forged_chronology_balances_sources_and_costs(
         .unwrap()
         .remove("service");
     assert!(Park::from_save_bytes(&serde_json::to_vec(&missing_source).unwrap()).is_err());
-    for (schema, content) in [(10, 10), (9, 8), (8, 9)] {
+    for (schema, content) in [(11, 11), (10, 9), (9, 10), (9, 8), (8, 9)] {
         let mut bad = base.clone();
         bad["schema_version"] = json!(schema);
         bad["content_version"] = json!(content);

@@ -376,6 +376,10 @@ pub(crate) fn reset_feedback(park: &mut Park) {
         guest.ratings_given = 0;
         guest.rating_total = 0;
         guest.last_rating = None;
+        for history in &mut guest.ride_history {
+            history.rating_count = 0;
+            history.rating_total = 0;
+        }
     }
     if let Some(ride) = &mut park.ride {
         ride.value_rejections = 0;
@@ -476,7 +480,7 @@ fn invalid_preferences_feedback_and_rating_aggregates_are_rejected() {
             .remove(field);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
     }
-    for pair in [(10, 10), (8, 7), (7, 8), (7, 6), (6, 7)] {
+    for pair in [(11, 11), (8, 7), (7, 8), (7, 6), (6, 7)] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(pair.0);
         forged["content_version"] = json!(pair.1);
@@ -491,6 +495,10 @@ fn invalid_preferences_feedback_and_rating_aggregates_are_rejected() {
         guest.rides_completed = count;
         guest.rating_total = total;
         guest.last_rating = Some(valid_last);
+        let history = guest.ride_history_mut(park.ride().unwrap().id);
+        history.completed = count;
+        history.rating_count = count;
+        history.rating_total = total;
         let ride = control.ride.as_mut().unwrap();
         ride.rating_count = control.guests.iter().map(|guest| guest.ratings_given).sum();
         ride.rating_total = control.guests.iter().map(|guest| guest.rating_total).sum();
@@ -517,6 +525,25 @@ fn invalid_preferences_feedback_and_rating_aggregates_are_rejected() {
 #[test]
 fn full_rating_counter_prevents_new_reservations_without_overflow() {
     let mut park = fixture(true, 0);
+    let owner = park.ride().unwrap().id;
+    // Exercise the owner-bound capacity predicate with the same applicant in
+    // both controls; a guest with no visit would be rejected for another reason.
+    let with_applicants = |park: &Park| {
+        let mut applicants = park.clone();
+        for guest in &mut applicants.guests[..2] {
+            guest.ride_visit = Some(crate::RideVisit {
+                ride: owner,
+                phase: crate::RideVisitPhase::Approaching,
+                ticket: None,
+                waited_ticks: 0,
+                passenger: None,
+            });
+        }
+        applicants
+    };
+    let available = with_applicants(&park);
+    assert!(available.can_reserve_rating(0));
+    assert!(available.can_reserve_rating(1));
     park.guests[0].rides_completed = MAX_RATINGS;
     park.guests[0].ratings_given = MAX_RATINGS;
     park.guests[0].rating_total = MAX_RATINGS * 5;
@@ -529,8 +556,14 @@ fn full_rating_counter_prevents_new_reservations_without_overflow() {
     ride.next_queue_ticket = MAX_RATINGS + 1;
     ride.rating_count = MAX_RATINGS;
     ride.rating_total = MAX_RATINGS * 5;
-    assert!(!park.can_reserve_rating(0));
-    assert!(!park.can_reserve_rating(1));
+    let id = ride.id;
+    let history = park.guests[0].ride_history_mut(id);
+    history.completed = MAX_RATINGS;
+    history.rating_count = MAX_RATINGS;
+    history.rating_total = MAX_RATINGS * 5;
+    let full = with_applicants(&park);
+    assert!(!full.can_reserve_rating(0));
+    assert!(!full.can_reserve_rating(1));
     roundtrip(&park);
     for _ in 0..6000 {
         park.advance(Speed::Normal);
@@ -575,4 +608,28 @@ fn rating_formula_covers_price_boundaries_legacy_fares_and_queue_penalties() {
             }
         );
     }
+}
+
+#[test]
+fn completed_reviews_are_attributed_to_the_owner_and_survive_idle_removal() {
+    let mut park = fixture(true, 0);
+    let coaster = park.ride().unwrap().id;
+    let carousel = park.place_carousel(TilePos { x: 2, y: 24 }, 8).unwrap();
+    for (owner, index, waited) in [(coaster, 0, 0), (carousel, 1, 1800)] {
+        let (ride, guests) = park.ride_and_guests_mut(owner).unwrap();
+        let guest = &mut guests[index];
+        guest.rides_completed += 1;
+        ride.completed += 1;
+        guest.rate_completed_trip(ride, 0, waited, 0);
+    }
+    validate_experience(&park).unwrap();
+    assert_eq!(park.ride_experience_stats(coaster).rating_total, 5);
+    assert_eq!(park.ride_experience_stats(carousel).rating_count, 1);
+    let historical = park.ride_experience_stats(carousel);
+    park.remove_carousel(carousel).unwrap();
+    assert_eq!(park.ride_experience_stats(carousel), historical);
+    validate_experience(&park).unwrap();
+    let mut forged = park.clone();
+    forged.guests[0].ride_history[0].ride = carousel;
+    assert!(validate_experience(&forged).is_err());
 }

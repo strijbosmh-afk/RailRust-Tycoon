@@ -908,6 +908,7 @@ mod tests {
             "service_cooldown": 0,
             "service_spent_cents": 0,
             "services_used": 0,
+            "ride_history": [],
             "ride_cooldown": 0
         }]);
         encoded["park"]["next_guest_id"] = 2.into();

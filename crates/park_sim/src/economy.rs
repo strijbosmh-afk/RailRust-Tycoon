@@ -1,5 +1,6 @@
 //! Integer-cent fares. Reservations remain guest-owned until actual departure.
-use crate::{Park, RideId, RideVisitPhase};
+use crate::{Guest, GuestRideHistory, Park, RideId, RideVisitPhase};
+use std::collections::BTreeMap;
 
 pub const INITIAL_GUEST_WALLET_CENTS: u32 = 2_000;
 pub const INITIAL_PARK_CASH_CENTS: u64 = 100_000;
@@ -38,6 +39,29 @@ pub struct RideEconomyStats {
     pub reserved_fares_cents: u64,
 }
 
+impl Guest {
+    pub(crate) fn ride_history_mut(&mut self, ride: RideId) -> &mut GuestRideHistory {
+        let index = self
+            .ride_history
+            .binary_search_by_key(&ride, |entry| entry.ride)
+            .unwrap_or_else(|index| {
+                assert!(self.ride_history.len() < crate::MAX_RIDE_RECORDS);
+                self.ride_history.insert(
+                    index,
+                    GuestRideHistory {
+                        ride,
+                        spent_cents: 0,
+                        completed: 0,
+                        rating_count: 0,
+                        rating_total: 0,
+                    },
+                );
+                index
+            });
+        &mut self.ride_history[index]
+    }
+}
+
 impl Park {
     pub fn cash_cents(&self) -> u64 {
         self.cash_cents
@@ -47,9 +71,7 @@ impl Park {
     /// unchanged; the next admission and boarding checks use the new price.
     pub fn set_ride_ticket_price(&mut self, id: RideId, cents: u32) -> Result<(), EconomyError> {
         let ride = self
-            .ride
-            .as_mut()
-            .filter(|ride| ride.id == id)
+            .ride_by_id_mut(id)
             .ok_or(EconomyError::UnknownRide(id))?;
         if cents > MAX_TICKET_PRICE_CENTS {
             return Err(EconomyError::PriceTooHigh {
@@ -62,7 +84,7 @@ impl Park {
     }
 
     pub fn ride_economy_stats(&self, id: RideId) -> RideEconomyStats {
-        let Some(ride) = self.ride.as_ref().filter(|ride| ride.id == id) else {
+        let Some(ride) = self.ride_by_id(id) else {
             return RideEconomyStats::default();
         };
         RideEconomyStats {
@@ -88,10 +110,7 @@ impl Park {
     }
 
     pub(crate) fn settle_departure_fares(&mut self) {
-        if self.train.as_ref().is_none_or(|train| !train.departed) {
-            return;
-        }
-        let mut earned = 0_u64;
+        let mut earned = BTreeMap::<RideId, u64>::new();
         for guest in &mut self.guests {
             let Some(visit) = guest
                 .ride_visit
@@ -103,7 +122,7 @@ impl Park {
             let Some(passenger) = visit
                 .passenger
                 .as_mut()
-                .filter(|passenger| !passenger.fare_paid)
+                .filter(|passenger| passenger.departed && !passenger.fare_paid)
             else {
                 continue;
             };
@@ -115,15 +134,17 @@ impl Park {
                 .checked_sub(passenger.fare_cents)
                 .expect("validated reserved fare must remain affordable");
             guest.spent_cents += u64::from(passenger.fare_cents);
-            earned += u64::from(passenger.fare_cents);
+            let fare = u64::from(passenger.fare_cents);
+            let ride = visit.ride;
+            *earned.entry(ride).or_default() += fare;
             passenger.fare_paid = true;
+            guest.ride_history_mut(ride).spent_cents += fare;
         }
-        if earned != 0 {
-            self.ride
-                .as_mut()
+        for (id, amount) in earned {
+            self.ride_by_id_mut(id)
                 .expect("passengers belong to a ride")
-                .revenue_cents += earned;
-            self.record_cash(crate::FinanceKind::RideRevenue, None, earned);
+                .revenue_cents += amount;
+            self.record_ride_cash(id, amount);
         }
     }
 }
@@ -131,6 +152,7 @@ impl Park {
 pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
     let mut spent = 0_u64;
     let mut service_spent = 0_u64;
+    let mut histories = BTreeMap::<RideId, (u64, u64)>::new();
     for guest in &park.guests {
         if guest.wallet_cents > INITIAL_GUEST_WALLET_CENTS
             || guest.spent_cents > u64::from(INITIAL_GUEST_WALLET_CENTS)
@@ -149,6 +171,47 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             .checked_add(guest.service_spent_cents)
             .ok_or("service spending overflows")?;
         let ride_spent = guest.spent_cents - guest.service_spent_cents;
+        if guest.ride_history.len() > crate::MAX_RIDE_RECORDS {
+            return Err("guest ride history exceeds its bound".into());
+        }
+        let mut previous = None;
+        let mut history_spent = 0_u64;
+        let mut history_completed = 0_u64;
+        for entry in &guest.ride_history {
+            if park.ride_by_id(entry.ride).is_none() || previous.is_some_and(|id| id >= entry.ride)
+            {
+                return Err("guest ride history owner or order is invalid".into());
+            }
+            previous = Some(entry.ride);
+            history_spent = history_spent
+                .checked_add(entry.spent_cents)
+                .ok_or("guest ride spending overflows")?;
+            history_completed = history_completed
+                .checked_add(entry.completed)
+                .ok_or("guest ride completions overflow")?;
+            let active = guest
+                .ride_visit
+                .as_ref()
+                .filter(|v| v.ride == entry.ride)
+                .and_then(|v| v.passenger.as_ref())
+                .filter(|p| p.fare_paid)
+                .map_or(0, |p| u64::from(p.fare_cents));
+            if entry.completed == 0 && entry.spent_cents != active {
+                return Err("attributed spending has no completed or active paid ride".into());
+            }
+            let total = histories.entry(entry.ride).or_default();
+            total.0 = total
+                .0
+                .checked_add(entry.spent_cents)
+                .ok_or("ride spending sum overflows")?;
+            total.1 = total
+                .1
+                .checked_add(entry.completed)
+                .ok_or("ride completion sum overflows")?;
+        }
+        if history_spent != ride_spent || history_completed != guest.rides_completed {
+            return Err("guest ride histories disagree with lifetime totals".into());
+        }
         let passenger = guest
             .ride_visit
             .as_ref()
@@ -161,6 +224,17 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         {
             return Err("passenger fare disagrees with wallet or departure".into());
         }
+        if let Some(visit) = &guest.ride_visit
+            && let Some(passenger) = &visit.passenger
+            && passenger.fare_paid
+            && guest
+                .ride_history
+                .iter()
+                .find(|h| h.ride == visit.ride)
+                .is_none_or(|h| h.spent_cents < u64::from(passenger.fare_cents))
+        {
+            return Err("paid passenger lacks attributed ride history".into());
+        }
         // A paid trip either still occupies its protected seat or has reached
         // the public exit and incremented rides_completed. Before the first
         // completed return, no other historical spending can legitimately exist.
@@ -171,17 +245,24 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             return Err("guest spending has no completed or active paid journey".into());
         }
     }
-    let revenue = park.ride.as_ref().map_or(0, |ride| ride.revenue_cents);
+    let mut revenue = 0_u64;
+    for ride in park.all_rides() {
+        if ride.ticket_price_cents > MAX_TICKET_PRICE_CENTS
+            || histories.get(&ride.id).copied().unwrap_or_default()
+                != (ride.revenue_cents, ride.completed)
+        {
+            return Err("ride revenue or completions disagree with guest histories".into());
+        }
+        revenue = revenue
+            .checked_add(ride.revenue_cents)
+            .ok_or("ride revenue overflows")?;
+    }
     let service_revenue = park
         .services
         .iter()
         .try_fold(0_u64, |sum, service| sum.checked_add(service.revenue_cents))
         .ok_or("service revenue overflows")?;
-    if park
-        .ride
-        .as_ref()
-        .is_some_and(|ride| ride.ticket_price_cents > MAX_TICKET_PRICE_CENTS)
-        || service_spent != service_revenue
+    if service_spent != service_revenue
         || revenue.checked_add(service_revenue) != Some(spent)
         || INITIAL_PARK_CASH_CENTS
             .checked_add(spent)

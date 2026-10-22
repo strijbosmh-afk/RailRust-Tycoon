@@ -4,13 +4,13 @@ A free Windows theme park simulation in Rust, inspired by the classic isometric 
 
 Source repository: [strijbosmh-afk/RailRust-Tycoon](https://github.com/strijbosmh-afk/RailRust-Tycoon). **Continuing on another PC? Start with [RESUME_DEVELOPMENT.md](RESUME_DEVELOPMENT.md)** for setup, build commands, architecture, current status, and the next implementation steps.
 
-Version 0.20.0 adds service running costs, supplies expenses and the Finance ledger. Open facilities cost money over simulation time; completed uses consume supplies, including free services. Insufficient cash closes the facility without charging an unfinished customer. N/Finance shows income, expenses, net result and recent transactions. Strict 9/9 saves migrate versions 1–8 without inventing historical costs. Work is on `codex/service-finances`, stacked on `codex/guest-services` / PR #17. See [the service finance report](docs/SERVICE_FINANCE_REPORT.md) for rules and current verification. Earlier named reports retain historical evidence.
+Version 0.21.0 adds a buildable six-seat carousel beside the existing coaster and deterministic guest ride choice. Rides [Y] selects which ride the existing price, open/close, find, queue and gate controls target. The original carousel uses a 3 × 3 footprint, separately placed entrance/exit and owned queue, and visible moving passengers. Strict 10/10 saves migrate versions 1–9 while retaining historical money and trips. Work is on `codex/second-ride-choice`, stacked on `codex/service-finances` / open PR #18. Source, runtime, native and package validation are pending for this milestone; see [the second ride report](docs/SECOND_RIDE_REPORT.md). Earlier named reports retain their own evidence.
 
 PRF-05 remains in progress. **No reference PC is selected:** the user rejected this poorly performing development PC as a reference. Its [historical 0.7.0 measurements](docs/PERFORMANCE_REPORT.md) are local diagnostics only. Hardware requirements and 60 FPS acceptance wait for an agreed representative PC. The full 5,000-guest/50-ride target remains unproven: diagnostics currently use one circuit, and normal play retains its 32 × 32 map. The [save report](docs/SAVE_REPORT.md) preserves accepted 0.6.0 continuation evidence. Native F5/F9, Save/Backup buttons, shape controls, and height buttons passed in 0.13.0. The separate Load button passed in 0.14.0, restoring a connected queue park paused with Inspect reset. Version 0.16.0 verifies both Shift+F9 chords without latching, K/C exit-tool selection/facing, O open/close, speed/pause, saves and six completed passenger returns. Actual native exit placement/demolition, live repair, J/I queue/gate construction, physical Page Up/Down/Delete, terrain tools, F/Find and pan/drag/DPI checks remain open. The bounded guest value-preference/review implementation is complete. Native 0.19 checks passed Services/next buttons, F7 service pricing, O cancellation, paused F9/F5 load/save, Escape, L/Guests and row selection, with unchanged money/needs verified after cancellation. M/Down attempts were inconclusive; placement, guest paging and remaining price gestures still need direct verification. Historical 0.18 native checks had been interrupted before a pass. The current needs/service slice is described below; track editing and broader finance systems remain later milestones.
 
 ## Play the Windows build
 
-The current Windows archive target is `dist\Parkbound-0.20.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. Binaries stay in ignored `dist`; the adjacent `.zip.sha256` identifies the final archive after guide refreshes. Current package verification is recorded in [the service finance report](docs/SERVICE_FINANCE_REPORT.md). Clean-machine compatibility remains open.
+The current Windows archive target is `dist\Parkbound-0.21.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. Binaries stay in ignored `dist`; the adjacent `.zip.sha256` identifies the final archive after guide refreshes. Current package verification is recorded in [the second ride report](docs/SECOND_RIDE_REPORT.md). Clean-machine compatibility remains open.
 
 The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Each milestone report records its own named-build evidence.
 
@@ -20,14 +20,14 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | --- | --- |
 | Left click | Inspect, build/demolish one public path/queue/entrance/exit/service, or raise/lower one terrain column according to the tool |
 | P / Path button | Enter public-path placement mode |
-| J / Queue button | Build a queue owned by the existing ride |
-| I / Gate button | Place the ride entrance beside its station |
-| K / Exit button | Place a dedicated exit beside the station; default facing South |
-| C / shape or facing button | In Queue, cycle Flat → N → E → S → W and remain Queue; in Gate, Exit or Service, rotate that building's independent facing; otherwise select public Path and cycle its shape |
-| X / Demolish button | Remove a visible public path, queue path, entrance, exit or service when not protected by an active transfer |
+| J / Queue button | Build a queue owned by the selected ride |
+| I / Gate button | Place the selected ride entrance beside its station or carousel edge |
+| K / Exit button | Place the selected ride exit beside its station or carousel edge; default facing South |
+| C / shape or facing button | In Queue, cycle Flat → N → E → S → W and remain Queue; in Gate, Exit or Service, rotate that building's independent facing; in Carousel, the round body has no facing; otherwise select public Path and cycle its shape |
+| X / Demolish button | Remove a visible path, gate, service or empty carousel; carousel removal is atomic and includes its gates, while owned queues remain |
 | B / Raise button | Raise the visible Grass/Sand terrain column by one step |
 | V / Lower button | Lower the visible Grass/Sand terrain column by one step |
-| Page Up / Page Down / height buttons | Set Flat/entrance/exit height 0–30, ramp low height 0–29 or service base height 0–29, default 8; independent of terrain height |
+| Page Up / Page Down / height buttons | Set Flat/entrance/exit height 0–30, ramp low height 0–29 or service/carousel base height 0–29, default 8; independent of terrain height |
 | Right or middle mouse drag | Pan the camera |
 | WASD or arrow keys | Pan with the keyboard |
 | Mouse wheel, + or - | Zoom |
@@ -38,19 +38,20 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | U / visibility button | Switch between Surface and Underground views |
 | Delete / Remove button | Remove the visible selected public path, queue path, entrance, exit or service unless protected by an active ride transfer; service visits cancel without payment |
 | R / Restore paths button | Restore missing public demonstration paths without replacing player pieces or resetting time/guests |
-| O / Open or Close button | Open the ride for queue admission, or stop admission and return queued guests while the train finishes its current lap |
-| F / Find button | Center the train circuit at 150% zoom |
+| O / Open or Close button | Open the selected ride, or stop admission and return queued guests while passengers finish their cycle |
+| F / Find button | Center the selected ride: coaster at 150%, carousel at 350% zoom |
 | F6 / F7 / Ticket −/+ buttons | Lower / raise the ticket price by $0.50 within $0–$100; existing locked fares do not change |
 | F5 / Save button | Save the current simulation to the single slot |
 | F9 / Load button | Load the primary slot and pause |
 | Shift+F9 / Backup button | Explicitly load the previous valid backup and pause |
 | Space | Pause or resume the previous simulation speed |
 | 1 / 2 / 3 | Set simulation speed to 1x / 2x / 4x |
+| Y / Rides button | Select a ride with Up/Down; Build carousel closes the panel and starts placement; Escape closes |
 | N / Finance button | Open or close the ledger; Page Up/Down changes transaction page; Escape closes |
 | M / Services button | Build food/drink/toilet facilities and manage prices/open state; Up/Down browses, F6/F7 changes service price, O toggles selected service |
 | L / Guests button | Open or close guest inspection; click or Up/Down selects a guest, Page Up/Down changes page |
 | H / F1 | Open or close help |
-| Escape | Close Help, Guests, Services or Finance first; otherwise return to Inspect and clear selection |
+| Escape | Close Help, Guests, Services, Finance or Rides first; otherwise return to Inspect and clear selection |
 | Inspect button | Return to Inspect when no overlay is open; use the overlay's Close button to dismiss it |
 | Window close button / Alt+F4 | Exit |
 
@@ -58,7 +59,7 @@ Tile coordinates in the inspector start at 1. Terrain heights are simulation ste
 
 Flat terrain exposes the same track that Terraced terrain buries. Switching presets preserves elapsed time, materials, object identities, and object heights. Underground view removes terrain from rendering and picking; its reference floor is decorative and cannot be selected. Hidden selections retain their identity but do not show through occluding surfaces.
 
-P selects public-path construction; J selects a queue for Meadow Flyer. C cycles Flat and the four world directions of rise, retaining Queue mode when active. Slopes use low height 0–29 and conservative clearance 3; Flat uses height 0–30/clearance 2. Matching opposing endpoints connect; ramps have no side entry. I/Gate places a Flat entrance at station height facing a lateral station side, and C rotates its facing. Preview/commit share validation. X removes visible paths or gates one piece per deliberate click. R restores public fixture paths without replacing player pieces. The ride panel requires one unbranched, acyclic owned queue from the gate to exactly one public edge. Ready means connected topology. With the ride open, guests approach on public paths and join only at the public queue end. Capacity is one admitted guest per queue tile; approaching guests reserve no place. Guests walk in ticket order without overtaking, including on slopes. K/Exit adds a station-side exit with a public landing connected to the queue-entry component. This enables passenger journeys; construction costs/refunds remain absent.
+P selects public-path construction; J selects a queue for the ride chosen in Rides [Y]. C cycles Flat and the four world directions of rise, retaining Queue mode when active. Slopes use low height 0–29 and conservative clearance 3; Flat uses height 0–30/clearance 2. Matching opposing endpoints connect; ramps have no side entry. I/Gate places a Flat entrance at ride height facing a lateral coaster station side or an outer carousel body tile, and C rotates its facing. Preview/commit share validation. X removes visible paths or gates one piece per deliberate click. R restores public fixture paths without replacing player pieces. The ride panel requires one unbranched, acyclic owned queue from the gate to exactly one public edge. Ready means connected topology. With the ride open, guests approach on public paths and join only at the public queue end. Capacity is one admitted guest per queue tile; approaching guests reserve no place. Guests walk in ticket order without overtaking, including on slopes. K/Exit adds a station-side exit with a public landing connected to the queue-entry component. This enables passenger journeys; construction costs/refunds remain absent.
 
 B/Raise and V/Lower target the picked terrain column, including a visible cliff face. Each click changes height by one step within 0–32 while preserving Grass/Sand material. Water and Underground terrain editing are blocked. Green plus/blue minus indicators show the direction; red X indicates rejection. Paths, rails, and guests stay in place, and invalid clearance leaves the park unchanged. Successful edits display Custom; T is an explicit preset reset. No terrain brushes, water editing, terrain slopes, costs, or refunds are included.
 
@@ -73,11 +74,15 @@ Guests differ in price comfort ($4/$6/$8/$10) and queue comfort (15/25/35/45 sec
 M/Services adds original food stalls, drink stalls and toilets. Place a one-tile building at height 0–29, facing outward toward a matching public-path edge. Guests seek reachable, open, affordable facilities for needs of 60 or more, physically walk there, wait for a single customer slot and use it for 90 ticks. Starting use locks the price; completion alone charges once, resets the relevant need to 20 and adds five satisfaction points. Closing, demolition or lost access cancels unfinished visits without charge or relief. Demolished facility records retain earned income. Defaults are food $2, drink $1 and toilet free, editable within $0–$100. Needs grow on simulation ticks, and crossing critical 85 costs five satisfaction points once per crossing. Service visitors finish before seeking a ride; unmet needs do not stop ordinary walking/rides. See [the guest services report](docs/GUEST_SERVICES_REPORT.md) for timing, accounting and a reproducible build layout. Stock, merchandise, energy and nausea remain later work.
 N/Finance displays cash, ride/service income, running/supplies costs, net result and paged transactions. Open Food/Drinks/Toilets cost $6/$4/$2 per simulation minute, charged $0.30/$0.20/$0.10 every 90 open ticks; completed uses cost $0.60/$0.25/$0.10 in supplies. Open disconnected facilities still cost money. Closing preserves the partial cost interval and stops its clock; pausing stops all simulation costs. A sale can cover its own supplies. Insufficient park funds closes the facility without customer charge or relief; reopen manually after funds become available. Removed facilities keep their income/expense history. The [finance report](docs/SERVICE_FINANCE_REPORT.md) explains the ledger and retained history.
 
+Y/Rides selects the active ride or starts Build carousel. The 3 × 3 footprint reserves three height steps and starts closed; six seats run a 720-tick cycle, with a 90-tick station wait and 60-tick transfers. Add its own queue [J], entrance [I] and public-connected exit [K], then open it. The round body needs no orientation; gate facing still uses C. Only one carousel is active at a time, with eight lifetime records retained for history. Occupied rides reject demolition. Empty carousel removal removes its body and gates together but preserves owned queue paths and financial/trip history. Building and removal are currently free.
+
+Guests choose reachable open rides using wallet/value acceptance, route length, queue length, fare, a deterministic coaster/carousel preference and prior completions; stable RideId breaks ties. Existing visitors keep their owned ride through queueing, transfer and the physical cycle. Ride reviews remain guest feedback and do not yet influence this choice score. The Guests panel identifies current activity and the selected ride's fare; the header shows total park income, and Finance identifies the earning ride.
+
 ## Save and continue
 
 Saves live in `%LOCALAPPDATA%\Parkbound\saves`, separate from the executable and shared OneDrive source folder. `park.park.json` is the primary slot; `park.park.json.bak` is the previous valid backup. Saving replaces the one slot, including player-built/removed paths and custom terrain heights. Backup loading is explicit, and a corrupt primary is never rotated into the backup. A successful load resets camera/selection/view and tool mode, pauses simulation, and resumes at 1x when requested; authoritative train and guest state is retained. Camera, tool height/ghost, UI settings, and pause/speed preference are not saved. A same-update Save includes the world click; Load/Backup takes precedence over pending edits even when loading fails.
 
-Version 0.20.0 writes strict schema 9/content 9 and explicitly migrates versions 1/1 through 8/8. The ledger, service cost progress, expenses and funds-closure state are required alongside existing needs, visits, feedback and money. Migration preserves all original state and starts accounting at the saved cash/tick with zero expenses; it invents no past transactions or costs. Current rules intentionally affect future choices. Loading alone does not rewrite files; 0.19 readers intentionally reject v9. Keep closed-game legacy copies for rollback. Normal play remains 32 × 32 with existing save caps and no autosave/save browser. Use `--save-dir <absolute-path>` for isolated QA. See [the service finance report](docs/SERVICE_FINANCE_REPORT.md) for migration evidence.
+Version 0.21.0 writes strict schema 10/content 10 and explicitly migrates versions 1/1 through 9/9. Stable ride identities, carousel state, per-ride guest history and ledger ownership are validated alongside previous money, needs and services. Migration retains old state and attributes existing coaster trips/income to that original ride; it creates no carousel, new revenue or backdated costs. Current choice rules intentionally affect future behavior. Loading alone does not rewrite files; 0.20 readers reject v10. Keep closed-game legacy copies for rollback. Normal play remains 32 × 32 with existing save caps and no autosave/save browser. Use `--save-dir <absolute-path>` for isolated QA. Current migration verification is in [the second ride report](docs/SECOND_RIDE_REPORT.md).
 
 ## Develop
 
@@ -125,6 +130,7 @@ Add `--profile-gpu` to a `--profile-frames <absolute-new.json>` run to request a
 
 ## Project documents
 
+- [Second ride report](docs/SECOND_RIDE_REPORT.md): current buildable-carousel, multi-ride choice and validation scope.
 - [Service finance report](docs/SERVICE_FINANCE_REPORT.md): current costs, ledger and verification.
 - [Resume development](RESUME_DEVELOPMENT.md): complete handoff and setup on another Windows PC.
 - [Development plan](DEVELOPMENT_PLAN.md): milestones and completion gates.

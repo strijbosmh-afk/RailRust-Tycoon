@@ -125,6 +125,7 @@ pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixtur
                 state: GuestState::Waiting,
                 arrivals: 0,
                 rides_completed: 0,
+                ride_history: Vec::new(),
                 wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
                 spent_cents: 0,
                 service_spent_cents: 0,

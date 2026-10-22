@@ -4,6 +4,7 @@
 //! concerns outside this crate makes the simulation usable in headless tests.
 
 mod admission;
+mod carousel;
 mod crowds;
 pub mod diagnostics;
 mod economy;
@@ -14,6 +15,7 @@ mod path_geometry;
 mod ride_access;
 #[cfg(test)]
 mod ride_access_tests;
+mod ride_choice;
 mod saves;
 mod services;
 #[cfg(test)]
@@ -24,8 +26,13 @@ mod trains;
 pub use admission::{
     QUEUE_PATIENCE_TICKS, RIDE_COOLDOWN_TICKS, RideQueueStats, RideVisit, RideVisitPhase,
 };
+pub use carousel::{
+    CAROUSEL_RUN_TICKS, CAROUSEL_SEATS, CarouselError, CarouselPhase, CarouselRide,
+    MAX_CAROUSEL_RECORDS, MAX_RIDE_RECORDS, RideKind,
+};
 pub use crowds::{
-    CrowdStats, Guest, GuestId, GuestPosition, GuestState, PathCacheStats, WALK_TICKS,
+    CrowdStats, Guest, GuestId, GuestPosition, GuestRideHistory, GuestState, PathCacheStats,
+    WALK_TICKS,
 };
 pub use economy::{
     EconomyError, INITIAL_GUEST_WALLET_CENTS, INITIAL_PARK_CASH_CENTS, MAX_TICKET_PRICE_CENTS,
@@ -34,7 +41,7 @@ pub use economy::{
 pub use experience::{GuestExperienceSummary, GuestPreferences, GuestThought, RideExperienceStats};
 pub use finances::{
     FINANCE_LEDGER_CAPACITY, FinanceEntry, FinanceKind, FinanceLedger, FinanceStats, FinanceTotals,
-    SERVICE_UPKEEP_TICKS, ServiceFinanceOpening, ServiceFinanceTotals,
+    RideFinanceTotals, SERVICE_UPKEEP_TICKS, ServiceFinanceOpening, ServiceFinanceTotals,
 };
 pub use journeys::{
     PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
@@ -171,6 +178,7 @@ pub struct Park {
     circuit: Option<TrainCircuit>,
     train: Option<Train>,
     ride: Option<Ride>,
+    carousels: Vec<CarouselRide>,
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
@@ -197,6 +205,7 @@ impl PartialEq for Park {
             && self.circuit == other.circuit
             && self.train == other.train
             && self.ride == other.ride
+            && self.carousels == other.carousels
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
@@ -244,6 +253,7 @@ impl Park {
             circuit: None,
             train: None,
             ride: None,
+            carousels: Vec::new(),
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),
@@ -384,6 +394,7 @@ impl Park {
             self.step_crowd();
             self.step_ride_journeys();
             self.step_train();
+            self.step_carousels();
             self.reconcile_passenger_laps();
         }
     }

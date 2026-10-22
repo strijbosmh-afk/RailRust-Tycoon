@@ -19,7 +19,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         }
         return;
     };
-    let owner = park.ride().map(|ride| ride.id);
+    let owner = crate::ui::rides::selected_id(park, view);
     let validation = owner
         .ok_or_else(|| "A gate needs an existing ride.".to_string())
         .and_then(|ride| {

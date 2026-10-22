@@ -71,6 +71,7 @@ pub(super) fn apply_save_action(
         || view.guests_open
         || view.services_open
         || view.finance_open
+        || view.rides_open
         || view.modal_input_blocked
         || view.capture_active
     {
@@ -221,6 +222,9 @@ mod tests {
             finance_open: true,
             finance_page: 7,
             finance_page_pending: 1,
+            rides_open: true,
+            selected_ride: Some(park_sim::RideId(999)),
+            ride_browse_pending: 1,
             ..default()
         };
         assert!(perform_action(
@@ -238,6 +242,9 @@ mod tests {
         assert!(!view.finance_open);
         assert_eq!(view.finance_page, 0);
         assert_eq!(view.finance_page_pending, 0);
+        assert!(!view.rides_open);
+        assert!(view.selected_ride.is_none());
+        assert_eq!(view.ride_browse_pending, 0);
         assert!(view.scene_dirty && view.ui_pointer_consumed);
         assert!(!view.remove_path_pending && !view.toggle_train_pending);
         assert!(!view.terrain_change_pending && !view.dragging && !view.terrain_custom);
@@ -331,7 +338,7 @@ mod tests {
             view.request_save(action);
         }
         assert_eq!(view.save_pending, Some(SaveAction::Backup));
-        for blocked in 0..6 {
+        for blocked in 0..7 {
             let session = session();
             let path = session.store.as_ref().unwrap().save_path();
             let mut app = App::new();
@@ -345,6 +352,7 @@ mod tests {
                     finance_open: blocked == 3,
                     modal_input_blocked: blocked == 4,
                     capture_active: blocked == 5,
+                    rides_open: blocked == 6,
                     ..default()
                 })
                 .add_systems(Update, apply_save_action);

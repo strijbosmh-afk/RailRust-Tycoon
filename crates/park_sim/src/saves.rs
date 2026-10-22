@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 9;
-const CONTENT_VERSION: u32 = 9;
+const SCHEMA_VERSION: u32 = 10;
+const CONTENT_VERSION: u32 = 10;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -135,6 +135,229 @@ struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     next_service_id: u64,
     #[serde(deserialize_with = "strict_object")]
     finances: crate::FinanceLedger,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_CAROUSEL_RECORDS }>")]
+    carousels: Vec<crate::CarouselRide>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionNineParkData {
+    width: u32,
+    height: u32,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_TILES>")]
+    tiles: Vec<Tile>,
+    ticks: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_OBJECTS>")]
+    objects: Vec<SurfaceObject>,
+    next_object_id: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_GUESTS>")]
+    guests: Vec<VersionNineGuest>,
+    next_guest_id: u64,
+    #[serde(deserialize_with = "required_option")]
+    crowd_seed: Option<u64>,
+    crowd_rng: u64,
+    #[serde(deserialize_with = "required_object_option")]
+    circuit: Option<CircuitData>,
+    #[serde(deserialize_with = "required_object_option")]
+    train: Option<Train>,
+    #[serde(deserialize_with = "required_object_option")]
+    ride: Option<crate::Ride>,
+    next_ride_id: u64,
+    cash_cents: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
+    services: Vec<crate::Service>,
+    next_service_id: u64,
+    #[serde(deserialize_with = "strict_object")]
+    finances: VersionNineFinanceLedger,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionNineFinanceEntry {
+    id: u64,
+    tick: u64,
+    #[serde(deserialize_with = "string_enum")]
+    kind: crate::FinanceKind,
+    #[serde(deserialize_with = "required_option")]
+    service: Option<crate::ServiceId>,
+    amount_cents: u64,
+    balance_cents: u64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionNineFinanceLedger {
+    opening_tick: u64,
+    opening_cash_cents: u64,
+    opening_ride_revenue_cents: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
+    opening_services: Vec<crate::ServiceFinanceOpening>,
+    archived_entries: u64,
+    archived_through_tick: u64,
+    #[serde(deserialize_with = "strict_object")]
+    archived: crate::FinanceTotals,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
+    archived_services: Vec<crate::ServiceFinanceTotals>,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::FINANCE_LEDGER_CAPACITY }>")]
+    entries: Vec<VersionNineFinanceEntry>,
+    next_entry_id: u64,
+}
+impl VersionNineFinanceLedger {
+    fn migrate(self, ride: Option<crate::RideId>) -> crate::FinanceLedger {
+        crate::FinanceLedger {
+            opening_tick: self.opening_tick,
+            opening_cash_cents: self.opening_cash_cents,
+            opening_ride_revenue_cents: self.opening_ride_revenue_cents,
+            opening_rides: ride
+                .map(|ride| crate::RideFinanceTotals {
+                    ride,
+                    revenue_cents: self.opening_ride_revenue_cents,
+                })
+                .into_iter()
+                .collect(),
+            opening_services: self.opening_services,
+            archived_entries: self.archived_entries,
+            archived_through_tick: self.archived_through_tick,
+            archived_rides: ride
+                .filter(|_| self.archived.ride_revenue_cents != 0)
+                .map(|ride| crate::RideFinanceTotals {
+                    ride,
+                    revenue_cents: self.archived.ride_revenue_cents,
+                })
+                .into_iter()
+                .collect(),
+            archived: self.archived,
+            archived_services: self.archived_services,
+            entries: self
+                .entries
+                .into_iter()
+                .map(|entry| crate::FinanceEntry {
+                    id: entry.id,
+                    tick: entry.tick,
+                    kind: entry.kind,
+                    ride: (entry.kind == crate::FinanceKind::RideRevenue)
+                        .then_some(ride)
+                        .flatten(),
+                    service: entry.service,
+                    amount_cents: entry.amount_cents,
+                    balance_cents: entry.balance_cents,
+                })
+                .collect(),
+            next_entry_id: self.next_entry_id,
+        }
+    }
+}
+impl VersionNineParkData {
+    fn migrate(self) -> ParkData {
+        let finances = self
+            .finances
+            .migrate(self.ride.as_ref().map(|ride| ride.id));
+        ParkData {
+            width: self.width,
+            height: self.height,
+            tiles: self.tiles,
+            ticks: self.ticks,
+            objects: self.objects,
+            next_object_id: self.next_object_id,
+            guests: self.guests.into_iter().map(Into::into).collect(),
+            next_guest_id: self.next_guest_id,
+            crowd_seed: self.crowd_seed,
+            crowd_rng: self.crowd_rng,
+            circuit: self.circuit,
+            train: self.train,
+            ride: self.ride,
+            next_ride_id: self.next_ride_id,
+            cash_cents: self.cash_cents,
+            services: self.services,
+            next_service_id: self.next_service_id,
+            finances,
+            carousels: Vec::new(),
+        }
+    }
+}
+
+/// Strict pre-carousel guest shape. New owner histories may not be smuggled
+/// into a document declaring an earlier schema.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionNineGuest {
+    id: crate::GuestId,
+    #[serde(deserialize_with = "required_option")]
+    current: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    next: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    destination: Option<ObjectId>,
+    #[serde(deserialize_with = "strict_object")]
+    anchor: crate::TilePos,
+    height: u8,
+    #[serde(deserialize_with = "string_enum")]
+    anchor_slope: crate::PathSlope,
+    progress: u16,
+    #[serde(deserialize_with = "string_enum")]
+    state: GuestState,
+    arrivals: u64,
+    rides_completed: u64,
+    wallet_cents: u32,
+    spent_cents: u64,
+    service_spent_cents: u64,
+    services_used: u64,
+    #[serde(deserialize_with = "strict_object")]
+    needs: crate::GuestNeeds,
+    #[serde(deserialize_with = "required_object_option")]
+    service_visit: Option<crate::ServiceVisit>,
+    service_cooldown: u16,
+    #[serde(deserialize_with = "strict_object")]
+    preferences: crate::GuestPreferences,
+    satisfaction: u8,
+    #[serde(deserialize_with = "string_enum")]
+    thought: crate::GuestThought,
+    thought_tick: u64,
+    ratings_given: u64,
+    rating_total: u64,
+    #[serde(deserialize_with = "required_option")]
+    last_rating: Option<u8>,
+    #[serde(deserialize_with = "required_object_option")]
+    ride_visit: Option<crate::RideVisit>,
+    ride_cooldown: u16,
+    #[serde(deserialize_with = "bounded_route")]
+    route: VecDeque<ObjectId>,
+    wait_ticks: u16,
+}
+impl From<VersionNineGuest> for Guest {
+    fn from(old: VersionNineGuest) -> Self {
+        Self {
+            id: old.id,
+            current: old.current,
+            next: old.next,
+            destination: old.destination,
+            anchor: old.anchor,
+            height: old.height,
+            anchor_slope: old.anchor_slope,
+            progress: old.progress,
+            state: old.state,
+            arrivals: old.arrivals,
+            rides_completed: old.rides_completed,
+            wallet_cents: old.wallet_cents,
+            spent_cents: old.spent_cents,
+            service_spent_cents: old.service_spent_cents,
+            services_used: old.services_used,
+            needs: old.needs,
+            service_visit: old.service_visit,
+            service_cooldown: old.service_cooldown,
+            preferences: old.preferences,
+            satisfaction: old.satisfaction,
+            thought: old.thought,
+            thought_tick: old.thought_tick,
+            ratings_given: old.ratings_given,
+            rating_total: old.rating_total,
+            last_rating: old.last_rating,
+            ride_visit: old.ride_visit,
+            ride_cooldown: old.ride_cooldown,
+            route: old.route,
+            wait_ticks: old.wait_ticks,
+            ride_history: Vec::new(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -149,7 +372,7 @@ struct VersionEightParkData {
     objects: Vec<SurfaceObject>,
     next_object_id: u64,
     #[serde(deserialize_with = "bounded_objects::<_, _, MAX_GUESTS>")]
-    guests: Vec<Guest>,
+    guests: Vec<VersionNineGuest>,
     next_guest_id: u64,
     #[serde(deserialize_with = "required_option")]
     crowd_seed: Option<u64>,
@@ -191,7 +414,7 @@ impl VersionEightParkData {
             ticks: self.ticks,
             objects: self.objects,
             next_object_id: self.next_object_id,
-            guests: self.guests,
+            guests: self.guests.into_iter().map(Into::into).collect(),
             next_guest_id: self.next_guest_id,
             crowd_seed: self.crowd_seed,
             crowd_rng: self.crowd_rng,
@@ -221,6 +444,7 @@ impl VersionEightParkData {
                 })
                 .collect(),
             finances: crate::FinanceLedger::default(),
+            carousels: Vec::new(),
         }
     }
 }
@@ -307,7 +531,9 @@ where
     Option::<T>::deserialize(deserializer)
 }
 
-fn bounded_vec<'de, D, T, const LIMIT: usize>(deserializer: D) -> Result<Vec<T>, D::Error>
+pub(crate) fn bounded_vec<'de, D, T, const LIMIT: usize>(
+    deserializer: D,
+) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -383,7 +609,7 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | SCHEMA_VERSION
+            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
@@ -422,12 +648,18 @@ impl Park {
         } else if header.schema_version == 8 {
             let legacy: SaveEnvelope<VersionEightParkData> = parse_save(bytes)?;
             legacy.park.migrate()
+        } else if header.schema_version == 9 {
+            let legacy: SaveEnvelope<VersionNineParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park
         };
-        if header.schema_version < SCHEMA_VERSION {
+        if header.schema_version <= 8 {
             data.initialize_finances();
+        }
+        if header.schema_version < SCHEMA_VERSION {
+            data.initialize_ride_history()?;
         }
         data.into_park()
     }
@@ -606,6 +838,7 @@ impl From<VersionFourGuest> for Guest {
             spent_cents: 0,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
             needs: crate::GuestNeeds::default(),
             service_visit: None,
             service_cooldown: 0,
@@ -652,6 +885,7 @@ impl From<VersionTwoGuest> for Guest {
             spent_cents: 0,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
             needs: crate::GuestNeeds::default(),
             service_visit: None,
             service_cooldown: 0,
@@ -813,6 +1047,7 @@ impl From<VersionFiveGuest> for Guest {
             spent_cents: 0,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
             needs: crate::GuestNeeds::default(),
             service_visit: None,
             service_cooldown: 0,
@@ -961,6 +1196,7 @@ impl From<VersionSevenGuest> for Guest {
             service_cooldown: 0,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
         }
     }
 }
@@ -1034,6 +1270,7 @@ impl From<VersionSixGuest> for Guest {
             spent_cents: old.spent_cents,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
             needs: crate::GuestNeeds::default(),
             service_visit: None,
             service_cooldown: 0,
@@ -1094,6 +1331,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             services: Vec::new(),
             next_service_id: 1,
             finances: crate::FinanceLedger::default(),
+            carousels: Vec::new(),
         }
     }
     fn migrate_experience(self) -> ParkData {
@@ -1116,6 +1354,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             services: Vec::new(),
             next_service_id: 1,
             finances: crate::FinanceLedger::default(),
+            carousels: Vec::new(),
         }
     }
 }
@@ -1141,6 +1380,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
             services: Vec::new(),
             next_service_id: 1,
             finances: crate::FinanceLedger::default(),
+            carousels: Vec::new(),
         }
     }
 }
@@ -1249,6 +1489,7 @@ impl From<LegacyGuest> for Guest {
             spent_cents: 0,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
             needs: crate::GuestNeeds::default(),
             service_visit: None,
             service_cooldown: 0,
@@ -1293,6 +1534,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             services: Vec::new(),
             next_service_id: 1,
             finances: crate::FinanceLedger::default(),
+            carousels: Vec::new(),
         }
     }
 }
@@ -1308,6 +1550,23 @@ fn check_bytes(actual: usize) -> Result<(), SaveError> {
 }
 
 impl ParkData {
+    fn initialize_ride_history(&mut self) -> Result<(), SaveError> {
+        if let Some(ride) = &self.ride {
+            for guest in &mut self.guests {
+                guest.ride_history = vec![crate::GuestRideHistory {
+                    ride: ride.id,
+                    spent_cents: guest
+                        .spent_cents
+                        .checked_sub(guest.service_spent_cents)
+                        .ok_or_else(|| invalid("legacy service spending exceeds total spending"))?,
+                    completed: guest.rides_completed,
+                    rating_count: guest.ratings_given,
+                    rating_total: guest.rating_total,
+                }];
+            }
+        }
+        Ok(())
+    }
     fn initialize_finances(&mut self) {
         let mut opening_services: Vec<_> = self
             .services
@@ -1323,6 +1582,15 @@ impl ParkData {
             opening_tick: self.ticks,
             opening_cash_cents: self.cash_cents,
             opening_ride_revenue_cents: self.ride.as_ref().map_or(0, |ride| ride.revenue_cents),
+            opening_rides: self
+                .ride
+                .as_ref()
+                .map(|ride| crate::RideFinanceTotals {
+                    ride: ride.id,
+                    revenue_cents: ride.revenue_cents,
+                })
+                .into_iter()
+                .collect(),
             opening_services,
             archived_through_tick: self.ticks,
             ..Default::default()
@@ -1358,6 +1626,7 @@ impl ParkData {
             services: park.services.clone(),
             next_service_id: park.next_service_id,
             finances: park.finances.clone(),
+            carousels: park.carousels.clone(),
         }
     }
 
@@ -1396,6 +1665,7 @@ impl ParkData {
             services: self.services,
             next_service_id: self.next_service_id,
             finances: self.finances,
+            carousels: self.carousels,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
         };
@@ -1406,6 +1676,7 @@ impl ParkData {
             .map(|data| rebuild_circuit(&park, &objects, data))
             .transpose()?;
         validate_train(&park)?;
+        crate::carousel::validate_carousels(&park).map_err(invalid)?;
         crate::ride_access::validate_ride_state(&park).map_err(invalid)?;
         let objects = park
             .objects
@@ -1767,6 +2038,117 @@ mod tests {
         Park::from_save_bytes(&serde_json::to_vec(value).unwrap())
     }
 
+    #[test]
+    fn v9_migration_attributes_paid_passengers_and_archived_cash_without_rewriting_history() {
+        let mut source = crate::experience::tests::fixture(true, 200);
+        for (x, kind) in [
+            (2, crate::ServiceKind::Food),
+            (3, crate::ServiceKind::Drink),
+        ] {
+            source
+                .place_service(TilePos { x, y: 24 }, 8, crate::PathDirection::North, kind)
+                .unwrap();
+        }
+        let paid = |park: &Park| {
+            park.guests.iter().any(|guest| {
+                guest
+                    .ride_visit
+                    .as_ref()
+                    .and_then(|visit| visit.passenger.as_ref())
+                    .is_some_and(|p| p.fare_paid && !p.completed_lap)
+            })
+        };
+        for _ in 0..24_000 {
+            if source.finances.archived_entries > 0 && paid(&source) {
+                break;
+            }
+            source.advance(Speed::Normal);
+        }
+        assert!(source.finances.archived_entries > 0 && paid(&source));
+        let mut old = value(&source);
+        crate::finances::tests::strip_carousel_fields(&mut old);
+        old["schema_version"] = json!(9);
+        old["content_version"] = json!(9);
+        let bytes = serde_json::to_vec(&old).unwrap();
+        let migrated = Park::from_save_bytes(&bytes).unwrap();
+        let mut projection = value(&migrated);
+        crate::finances::tests::strip_carousel_fields(&mut projection);
+        projection["schema_version"] = json!(9);
+        projection["content_version"] = json!(9);
+        assert_eq!(projection, old);
+        assert!(migrated.carousels.is_empty());
+        let id = migrated.ride().unwrap().id;
+        for (old, guest) in source.guests.iter().zip(&migrated.guests) {
+            assert_eq!(
+                guest.ride_history,
+                vec![crate::GuestRideHistory {
+                    ride: id,
+                    spent_cents: old.spent_cents - old.service_spent_cents,
+                    completed: old.rides_completed,
+                    rating_count: old.ratings_given,
+                    rating_total: old.rating_total,
+                }]
+            );
+        }
+        for entry in &migrated.finances.entries {
+            assert_eq!(
+                entry.ride,
+                (entry.kind == crate::FinanceKind::RideRevenue).then_some(id)
+            );
+        }
+        assert_continuation(migrated, 800);
+        for (path, key, added) in [
+            ("/park", "carousels", json!([])),
+            ("/park/guests/0", "ride_history", json!([])),
+            ("/park/finances", "opening_rides", json!([])),
+            ("/park/finances/entries/0", "ride", Value::Null),
+        ] {
+            let mut forged = old.clone();
+            forged.pointer_mut(path).unwrap()[key] = added;
+            assert!(
+                decode(&forged).is_err(),
+                "legacy accepted new field {path}/{key}"
+            );
+        }
+        assert_eq!(serde_json::to_vec(&old).unwrap(), bytes);
+    }
+
+    #[test]
+    fn current_carousel_and_owner_fields_are_required_bounded_and_strict() {
+        let mut park = fixture();
+        let id = park.place_carousel(TilePos { x: 2, y: 24 }, 8).unwrap();
+        assert_continuation(park.clone(), 100);
+        park.remove_carousel(id).unwrap();
+        assert_continuation(park.clone(), 100);
+        let base = value(&park);
+        let mut missing_carousels = base.clone();
+        missing_carousels["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("carousels");
+        assert!(decode(&missing_carousels).is_err());
+        for field in ["opening_rides", "archived_rides"] {
+            let mut forged = base.clone();
+            forged["park"]["finances"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(decode(&forged).is_err());
+        }
+        let mut missing = base.clone();
+        missing["park"]["guests"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("ride_history");
+        assert!(decode(&missing).is_err());
+        let mut too_many = base.clone();
+        too_many["park"]["carousels"] = json!(vec![base["park"]["carousels"][0].clone(); 9]);
+        assert!(decode(&too_many).is_err());
+        let mut mixed = base;
+        mixed["schema_version"] = json!(9);
+        assert!(decode(&mixed).is_err());
+    }
+
     fn legacy_value(park: &Park) -> Value {
         let mut data = version_two_value(park);
         data["schema_version"] = json!(1);
@@ -1930,8 +2312,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(9));
-            assert_eq!(modern["content_version"], json!(9));
+            assert_eq!(modern["schema_version"], json!(10));
+            assert_eq!(modern["content_version"], json!(10));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -2330,6 +2712,7 @@ mod tests {
             spent_cents: 0,
             service_spent_cents: 0,
             services_used: 0,
+            ride_history: Vec::new(),
             needs: crate::GuestNeeds::default(),
             service_visit: None,
             service_cooldown: 0,
@@ -2484,8 +2867,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":9",
-            "\"schema_version\":9,\"schema_version\":9",
+            "\"schema_version\":10",
+            "\"schema_version\":10,\"schema_version\":10",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());

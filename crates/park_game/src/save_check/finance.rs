@@ -38,7 +38,7 @@ fn total(entries: &[FinanceEntry], kind: FinanceKind, service: Option<ServiceId>
 pub(crate) fn check(park: &Park) -> Result<(), String> {
     let ledger = park.finance_ledger();
     let stats = park.finance_stats();
-    let ride = park.ride().map_or(0, |r| r.revenue_cents);
+    let ride = park.all_rides().map(|r| r.revenue_cents).sum::<u64>();
     let revenue: u64 = park.services().iter().map(|s| s.revenue_cents).sum();
     let upkeep: u64 = park.services().iter().map(|s| s.upkeep_cents).sum();
     let supplies: u64 = park.services().iter().map(|s| s.supplies_cents).sum();
@@ -193,6 +193,11 @@ pub(crate) fn check_tick(
             tick: park.ticks(),
             kind,
             service,
+            ride: if kind == FinanceKind::RideRevenue {
+                park.ride().map(|r| r.id)
+            } else {
+                None
+            },
             amount_cents: amount,
             balance_cents: *cash,
         });
@@ -551,7 +556,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("finance verification changed original slots".into());
     }
-    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict9 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict10 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

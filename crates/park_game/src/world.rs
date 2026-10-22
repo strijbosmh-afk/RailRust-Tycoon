@@ -9,6 +9,7 @@ use park_sim::{
     Terrain, TilePos,
 };
 
+mod carousel_render;
 mod entrance_render;
 mod guest_render;
 mod layout;
@@ -18,6 +19,7 @@ mod static_chunks;
 mod terrain_preview;
 mod train_render;
 
+pub use carousel_render::{carousel_preview_mesh, ride_focus};
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};
 pub use path_preview::{
@@ -76,6 +78,15 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
         SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
         SurfaceId::Object(id) => {
             let object = park.object(id)?;
+            if object.kind == ObjectKind::Carousel {
+                let c = carousel_render::owner(park, id)?;
+                return Some(carousel_render::center(
+                    c.origin,
+                    c.height,
+                    park.width(),
+                    rotation,
+                ));
+            }
             if object.kind == ObjectKind::Service {
                 let service = park.service_by_object(id)?;
                 return Some(service_render::center(
@@ -421,7 +432,7 @@ fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     let across = match object.kind {
         ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit => 0.34,
         ObjectKind::Track => 0.31,
-        ObjectKind::Service => 0.5,
+        ObjectKind::Service | ObjectKind::Carousel => 0.5,
     };
     let (half_x, half_y) = match object_axis(object) {
         Axis::X => (0.5, across),
@@ -535,7 +546,12 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
 }
 
 fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> Vec<Surface> {
-    if object.kind == ObjectKind::Service {
+    if object.kind == ObjectKind::Carousel {
+        carousel_render::object_faces(park, object.id, rotation)
+            .into_iter()
+            .map(|face| face.surface)
+            .collect()
+    } else if object.kind == ObjectKind::Service {
         park.service_by_object(object.id)
             .map(|service| {
                 service_render::faces(object, service.kind, service.facing, park.width(), rotation)
@@ -574,6 +590,13 @@ pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
 fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) {
     for object in park.objects() {
         if !object_visible(park, object, mode) {
+            continue;
+        }
+        if object.kind == ObjectKind::Carousel {
+            for face in carousel_render::object_faces(park, object.id, rotation) {
+                mesh.surface(face.surface, face.ink);
+            }
+            mesh.end_group(PaintLayer::Object);
             continue;
         }
         if object.kind == ObjectKind::Service {
@@ -626,7 +649,13 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 (ObjectKind::Track, SurfaceKind::Top) => rgb(65, 79, 84),
                 (ObjectKind::Track, SurfaceKind::LeftCliff) => rgb(48, 60, 65),
                 (ObjectKind::Track, SurfaceKind::RightCliff) => rgb(37, 48, 54),
-                (ObjectKind::RideEntrance | ObjectKind::RideExit | ObjectKind::Service, _) => {
+                (
+                    ObjectKind::RideEntrance
+                    | ObjectKind::RideExit
+                    | ObjectKind::Service
+                    | ObjectKind::Carousel,
+                    _,
+                ) => {
                     unreachable!("entrance faces are handled above")
                 }
             };
@@ -701,7 +730,10 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                     }
                 }
             }
-            ObjectKind::RideEntrance | ObjectKind::RideExit | ObjectKind::Service => {
+            ObjectKind::RideEntrance
+            | ObjectKind::RideExit
+            | ObjectKind::Service
+            | ObjectKind::Carousel => {
                 unreachable!("entrance faces are handled above")
             }
             ObjectKind::Track => {

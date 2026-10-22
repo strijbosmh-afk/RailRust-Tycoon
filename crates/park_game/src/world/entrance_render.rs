@@ -10,7 +10,7 @@ pub(super) struct Face {
 }
 
 pub(super) fn facing(park: &Park, object: ObjectId) -> Option<PathDirection> {
-    let ride = park.ride()?;
+    let ride = park.ride_by_id(park.object_ride(object)?)?;
     ride.entrance
         .iter()
         .chain(ride.exit.iter())

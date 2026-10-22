@@ -91,9 +91,14 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::ServiceUpkeep => ("Service upkeep", "-"),
         FinanceKind::ServiceSupplies => ("Service supplies", "-"),
     };
-    let service = entry
-        .service
-        .map_or(String::new(), |id| format!(" #{}", id.0));
+    let service = entry.ride.map_or_else(
+        || {
+            entry
+                .service
+                .map_or(String::new(), |id| format!(" #{}", id.0))
+        },
+        |id| format!(" / ride #{}", id.0),
+    );
     format!(
         "{} / {label}{service} / {sign}{} / Cash {}",
         clock(entry.tick),
@@ -211,6 +216,7 @@ mod tests {
             (FinanceKind::ServiceSupplies, "-"),
         ] {
             let entry = FinanceEntry {
+                ride: None,
                 id: 3,
                 tick: 90,
                 kind,
@@ -226,5 +232,18 @@ mod tests {
         assert_eq!(signed_money(-123), "-$1.23");
         assert_eq!(signed_money(0), "+$0.00");
         assert_eq!(signed_money(i64::MIN), "-$92233720368547758.08");
+        let entry = FinanceEntry {
+            id: 1,
+            tick: 30,
+            kind: FinanceKind::RideRevenue,
+            ride: Some(park_sim::RideId(2)),
+            service: None,
+            amount_cents: 150,
+            balance_cents: 100150,
+        };
+        assert_eq!(
+            row_text(&entry),
+            "00:01 / Ride tickets / ride #2 / +$1.50 / Cash $1001.50"
+        );
     }
 }
