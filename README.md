@@ -126,12 +126,11 @@ Add `--profile-gpu` to a `--profile-frames <absolute-new.json>` run to request a
 ## Project documents
 
 - [Service finance report](docs/SERVICE_FINANCE_REPORT.md): current costs, ledger and verification.
-
 - [Resume development](RESUME_DEVELOPMENT.md): complete handoff and setup on another Windows PC.
 - [Development plan](DEVELOPMENT_PLAN.md): milestones and completion gates.
 - [Gameplay checklist](docs/GAMEPLAY_CHECKLIST.md): feature inventory and acceptance criteria.
 - [Product decisions](docs/PRODUCT_DECISIONS.md): confirmed choices, working defaults, and open decisions.
-- [Guest services report](docs/GUEST_SERVICES_REPORT.md): current 0.19.0 needs, facilities, purchases, relief and verification.
+- [Guest services report](docs/GUEST_SERVICES_REPORT.md): historical 0.19.0 needs, facilities, purchases, relief and verification.
 - [Guest experience report](docs/GUEST_EXPERIENCE_REPORT.md): historical 0.18.0 preferences, satisfaction, completed-trip reviews, guest inspection and verification scope.
 - [Economy report](docs/ECONOMY_REPORT.md): completed bounded 0.17.0 ticket/wallet/payment contract, reproduction, evidence and remaining gaps.
 - [Ride journey report](docs/RIDE_JOURNEY_REPORT.md): historical completed bounded 0.16.0 exit/boarding/passenger/return contract, reproduction, verification and remaining gaps.
