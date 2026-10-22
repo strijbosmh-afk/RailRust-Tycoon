@@ -19,6 +19,7 @@ pub(super) mod feedback;
 mod journey;
 mod legacy;
 mod queues;
+pub(super) mod services;
 mod slopes;
 
 pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
@@ -36,7 +37,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -135,6 +136,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "write-feedback" => feedback::write(&session)?,
             "verify-feedback" => feedback::verify(&session)?,
             "verify-legacy" => legacy::verify(&session)?,
+            "write-services" => services::write(&session)?,
+            "verify-services" => services::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

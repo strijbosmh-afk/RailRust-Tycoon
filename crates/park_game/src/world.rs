@@ -13,6 +13,7 @@ mod entrance_render;
 mod guest_render;
 mod layout;
 mod path_preview;
+mod service_render;
 mod static_chunks;
 mod terrain_preview;
 mod train_render;
@@ -22,6 +23,7 @@ pub use layout::{path_focus, scene_bounds};
 pub use path_preview::{
     path_build_center, path_preview_mesh, pick_sloped_path_plane, sloped_path_plane_occluded,
 };
+pub use service_render::service_preview_mesh;
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
 
@@ -74,6 +76,15 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
         SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
         SurfaceId::Object(id) => {
             let object = park.object(id)?;
+            if object.kind == ObjectKind::Service {
+                let service = park.service_by_object(id)?;
+                return Some(service_render::center(
+                    object,
+                    service.facing,
+                    park.width(),
+                    rotation,
+                ));
+            }
             if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
                 let facing = entrance_render::facing(park, id)?;
                 return Some(entrance_render::center(
@@ -410,6 +421,7 @@ fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     let across = match object.kind {
         ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit => 0.34,
         ObjectKind::Track => 0.31,
+        ObjectKind::Service => 0.5,
     };
     let (half_x, half_y) = match object_axis(object) {
         Axis::X => (0.5, across),
@@ -523,7 +535,16 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
 }
 
 fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> Vec<Surface> {
-    if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
+    if object.kind == ObjectKind::Service {
+        park.service_by_object(object.id)
+            .map(|service| {
+                service_render::faces(object, service.kind, service.facing, park.width(), rotation)
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .map(|face| face.surface)
+            .collect()
+    } else if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
         entrance_render::facing(park, object.id)
             .map(|facing| entrance_render::faces(object, facing, park.width(), rotation))
             .unwrap_or_default()
@@ -553,6 +574,21 @@ pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
 fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) {
     for object in park.objects() {
         if !object_visible(park, object, mode) {
+            continue;
+        }
+        if object.kind == ObjectKind::Service {
+            if let Some(service) = park.service_by_object(object.id) {
+                for face in service_render::faces(
+                    object,
+                    service.kind,
+                    service.facing,
+                    park.width(),
+                    rotation,
+                ) {
+                    mesh.surface(face.surface, face.ink);
+                }
+                mesh.end_group(PaintLayer::Object);
+            }
             continue;
         }
         if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
@@ -590,7 +626,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 (ObjectKind::Track, SurfaceKind::Top) => rgb(65, 79, 84),
                 (ObjectKind::Track, SurfaceKind::LeftCliff) => rgb(48, 60, 65),
                 (ObjectKind::Track, SurfaceKind::RightCliff) => rgb(37, 48, 54),
-                (ObjectKind::RideEntrance | ObjectKind::RideExit, _) => {
+                (ObjectKind::RideEntrance | ObjectKind::RideExit | ObjectKind::Service, _) => {
                     unreachable!("entrance faces are handled above")
                 }
             };
@@ -665,7 +701,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                     }
                 }
             }
-            ObjectKind::RideEntrance | ObjectKind::RideExit => {
+            ObjectKind::RideEntrance | ObjectKind::RideExit | ObjectKind::Service => {
                 unreachable!("entrance faces are handled above")
             }
             ObjectKind::Track => {

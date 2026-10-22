@@ -2,7 +2,7 @@
 use super::*;
 use park_sim::{
     GuestId, INITIAL_GUEST_WALLET_CENTS, INITIAL_PARK_CASH_CENTS, MAX_TICKET_PRICE_CENTS,
-    RIDE_TRANSFER_TICKS, RideId, RideVisitPhase,
+    RIDE_TRANSFER_TICKS, RideId, RideVisitPhase, SERVICE_USE_TICKS, ServiceVisitPhase,
 };
 
 const REPLAY_TICKS: u64 = 10_800;
@@ -39,6 +39,8 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
     let ride = ride_id(park)?;
     let stats = park.ride_economy_stats(ride);
     let mut spent = 0u64;
+    let mut service_spent = 0u64;
+    let mut services_used = 0u128;
     let mut reserved = 0u64;
     for guest in park.guests() {
         if u64::from(guest.wallet_cents) + guest.spent_cents
@@ -47,6 +49,11 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
             return Err("guest wallet and lifetime spending do not conserve initial funds".into());
         }
         spent += guest.spent_cents;
+        if guest.service_spent_cents > guest.spent_cents {
+            return Err("service spending exceeds total guest spending".into());
+        }
+        service_spent += guest.service_spent_cents;
+        services_used += u128::from(guest.services_used);
         if let Some(passenger) = guest
             .ride_visit
             .as_ref()
@@ -73,9 +80,21 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
         .iter()
         .filter(|guest| guest.wallet_cents >= actual.ticket_price_cents)
         .count();
-    if spent != actual.revenue_cents
+    let service_revenue: u64 = park
+        .services()
+        .iter()
+        .map(|service| service.revenue_cents)
+        .sum();
+    let service_count: u128 = park
+        .services()
+        .iter()
+        .map(|service| u128::from(service.served))
+        .sum();
+    if spent - service_spent != actual.revenue_cents
+        || service_spent != service_revenue
+        || services_used != service_count
         || park.cash_cents() != INITIAL_PARK_CASH_CENTS + spent
-        || stats.revenue_cents != spent
+        || stats.revenue_cents != spent - service_spent
         || stats.ticket_price_cents != actual.ticket_price_cents
         || stats.unaffordable_rejections != actual.unaffordable_rejections
         || stats.reserved_fares_cents != reserved
@@ -93,6 +112,7 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
 /// permitted payment from the same reserved ticket and an actual train departure.
 pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
     let before = park.guests().to_vec();
+    let services = park.services().to_vec();
     let revenue = park.ride().unwrap().revenue_cents;
     let cash = park.cash_cents();
     let was_stopped = park.train().is_some_and(|train| train.speed == 0);
@@ -102,6 +122,7 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
         return Err("economy tick changed the guest population".into());
     }
     let mut earned = 0u64;
+    let mut service_earned = std::collections::BTreeMap::new();
     for (old, guest) in before.iter().zip(park.guests()) {
         if old.id != guest.id {
             return Err("economy tick changed guest identity/order".into());
@@ -145,14 +166,72 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
             }
             _ => 0,
         };
-        if old.wallet_cents.checked_sub(charge) != Some(guest.wallet_cents)
-            || guest.spent_cents != old.spent_cents + u64::from(charge)
+        let completed_service = old.service_visit.as_ref().filter(|visit| {
+            visit.phase == ServiceVisitPhase::Using
+                && visit.progress + 1 == SERVICE_USE_TICKS
+                && guest.service_visit.is_none()
+                && old.services_used.checked_add(1) == Some(guest.services_used)
+        });
+        let service_charge = if let Some(visit) = completed_service {
+            if old.current != Some(visit.access)
+                || guest.current != Some(visit.access)
+                || old.next.is_some()
+                || old.ride_visit.is_some()
+                || guest.ride_visit.is_some()
+                || !services.iter().any(|service| {
+                    service.id == visit.service && service.object.is_some() && service.open
+                })
+            {
+                return Err(
+                    "service payment did not follow stationary use at its actual access path"
+                        .into(),
+                );
+            }
+            let earned = service_earned.entry(visit.service).or_insert((0u64, 0u64));
+            earned.0 += 1;
+            earned.1 += u64::from(visit.price_cents);
+            visit.price_cents
+        } else {
+            if guest.services_used != old.services_used {
+                return Err("service use counter changed without a full completed use".into());
+            }
+            0
+        };
+        if let (Some(old), Some(new)) = (&old.service_visit, &guest.service_visit)
+            && old.service == new.service
+            && old.phase == ServiceVisitPhase::Using
+            && new.phase == ServiceVisitPhase::Using
+            && old.price_cents != new.price_cents
         {
-            return Err("guest payment delta differs from its first-departure locked fare".into());
+            return Err("active service changed its locked quote".into());
+        }
+        let total_charge = charge + service_charge;
+        if old.wallet_cents.checked_sub(total_charge) != Some(guest.wallet_cents)
+            || guest.spent_cents != old.spent_cents + u64::from(total_charge)
+            || guest.service_spent_cents != old.service_spent_cents + u64::from(service_charge)
+        {
+            return Err(
+                "guest payment delta differs from actual ride departure/service completion".into(),
+            );
         }
         earned += u64::from(charge);
     }
-    if park.cash_cents() != cash + earned || park.ride().unwrap().revenue_cents != revenue + earned
+    let mut service_total = 0;
+    if services.len() != park.services().len() {
+        return Err("simulation tick changed service records".into());
+    }
+    for (old, new) in services.iter().zip(park.services()) {
+        let (count, money) = service_earned.get(&old.id).copied().unwrap_or_default();
+        if old.id != new.id
+            || new.served != old.served + count
+            || new.revenue_cents != old.revenue_cents + money
+        {
+            return Err("service revenue/count delta differs from actual completed uses".into());
+        }
+        service_total += money;
+    }
+    if park.cash_cents() != cash + earned + service_total
+        || park.ride().unwrap().revenue_cents != revenue + earned
     {
         return Err("cash/revenue delta differs from actual per-guest departure payments".into());
     }
@@ -182,8 +261,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let envelope: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if envelope["schema_version"] != 7 || envelope["content_version"] != 7 {
-        return Err("economy proof requires strict schema/content 7/7".into());
+    if envelope["schema_version"] != 8 || envelope["content_version"] != 8 {
+        return Err("economy proof requires strict schema/content 8/8".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("economy roundtrip changed authoritative state".into());
@@ -505,7 +584,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("economy verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-economy.txt"), format!(
-        "Parkbound {}\nFresh-process paid moving primary equality: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks + price changes, paid completion, predeparture cancellation, unaffordable rejection and affordable recovery)\nLocked fares survive price changes and charge only at actual departure: PASS\nEvery-tick wallet plus spent, revenue and park cash conservation: PASS\nPredeparture cancellation and rejected attempts move no money: PASS\nExplicit reserved-transfer backup, paused/Inspect loading and uncharged cancellation: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 7/7: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process paid moving primary equality: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks + price changes, paid completion, predeparture cancellation, unaffordable rejection and affordable recovery)\nLocked fares survive price changes and charge only at actual departure: PASS\nEvery-tick wallet plus spent, revenue and park cash conservation: PASS\nPredeparture cancellation and rejected attempts move no money: PASS\nExplicit reserved-transfer backup, paused/Inspect loading and uncharged cancellation: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 8/8: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process economy and reserved-fare backup verified.");
     Ok(())

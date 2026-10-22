@@ -19,6 +19,8 @@ mod journey_input_tests;
 mod path_input_tests;
 #[path = "queue_input_tests.rs"]
 mod queue_input_tests;
+#[path = "service_input_tests.rs"]
+mod service_input_tests;
 #[path = "slope_input_tests.rs"]
 mod slope_input_tests;
 #[path = "terrain_input_tests.rs"]

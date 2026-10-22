@@ -32,6 +32,7 @@ mod economy_scenes;
 mod feedback_scenes;
 mod journey_scenes;
 mod queue_scenes;
+mod service_scenes;
 mod slope_scenes;
 mod terrain_scenes;
 
@@ -104,9 +105,26 @@ enum Scene {
     FeedbackCancelled,
     FeedbackRecovered,
     FeedbackGuests,
+    ServiceNeeds,
+    ServiceApproaching,
+    ServiceUsing,
+    ServiceServed,
+    ServiceBlocked,
+    ServiceRecovered,
 }
 
 impl Scene {
+    fn is_service(self) -> bool {
+        matches!(
+            self,
+            Self::ServiceNeeds
+                | Self::ServiceApproaching
+                | Self::ServiceUsing
+                | Self::ServiceServed
+                | Self::ServiceBlocked
+                | Self::ServiceRecovered
+        )
+    }
     fn is_feedback(self) -> bool {
         matches!(
             self,
@@ -329,6 +347,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("feedback-cancelled") => Scene::FeedbackCancelled,
                 Some("feedback-recovered") => Scene::FeedbackRecovered,
                 Some("feedback-guests") => Scene::FeedbackGuests,
+                Some("service-needs") => Scene::ServiceNeeds,
+                Some("service-approaching") => Scene::ServiceApproaching,
+                Some("service-using") => Scene::ServiceUsing,
+                Some("service-served") => Scene::ServiceServed,
+                Some("service-blocked") => Scene::ServiceBlocked,
+                Some("service-recovered") => Scene::ServiceRecovered,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -559,6 +583,9 @@ fn apply_preset(
     }
     if capture.scene.is_feedback() {
         feedback_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_service() {
+        service_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

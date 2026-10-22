@@ -107,6 +107,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-feedback --save-dir $feedbackDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process guest feedback continuation failed" }
           Get-Content -LiteralPath (Join-Path $feedbackDirectory "verification-feedback.txt")
+      - name: Verify guest services across fresh processes
+        shell: pwsh
+        run: |
+          $servicesDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound guest services proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-services --save-dir $servicesDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Guest services writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-services --save-dir $servicesDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process guest services continuation failed" }
+          Get-Content -LiteralPath (Join-Path $servicesDirectory "verification-services.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

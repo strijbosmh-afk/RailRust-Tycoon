@@ -25,6 +25,7 @@ pub enum ObjectKind {
     Track,
     RideEntrance,
     RideExit,
+    Service,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -64,6 +65,7 @@ pub enum PlacementError {
     CapacityExceeded { resource: &'static str, max: usize },
     FixtureMapSize { width: u32, height: u32 },
     EntranceRequiresRide,
+    ServiceRequiresDefinition,
 }
 
 impl std::fmt::Display for PlacementError {
@@ -75,6 +77,10 @@ impl std::fmt::Display for PlacementError {
                 pos.x, pos.y
             ),
             Self::EmptyClearance => write!(formatter, "object clearance must be positive"),
+            Self::ServiceRequiresDefinition => write!(
+                formatter,
+                "a service needs a kind and an outward-facing counter"
+            ),
             Self::EntranceRequiresRide => write!(
                 formatter,
                 "an entrance needs a ride and a station-facing direction"
@@ -181,6 +187,9 @@ impl Park {
         height: u8,
         clearance: u8,
     ) -> Result<ObjectId, PlacementError> {
+        if kind == ObjectKind::Service {
+            return Err(PlacementError::ServiceRequiresDefinition);
+        }
         if matches!(kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
             return Err(PlacementError::EntranceRequiresRide);
         }
@@ -375,6 +384,13 @@ impl Park {
             ride.exit = None;
         }
         self.reconcile_ride_visits();
+        for service in &mut self.services {
+            if service.object == Some(id) {
+                service.object = None;
+                service.open = false;
+            }
+        }
+        self.reconcile_service_visits();
         Some(removed)
     }
 
@@ -582,6 +598,11 @@ mod tests {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            service_spent_cents: 0,
+            services_used: 0,
+            needs: crate::GuestNeeds::default(),
+            service_visit: None,
+            service_cooldown: 0,
             preferences: crate::GuestPreferences::default(),
             satisfaction: 70,
             thought: crate::GuestThought::Exploring,

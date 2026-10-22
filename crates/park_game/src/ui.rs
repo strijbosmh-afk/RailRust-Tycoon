@@ -13,6 +13,7 @@ use crate::path_tools::PathTool;
 
 mod economy;
 pub(super) mod guests;
+pub(crate) mod services;
 pub(super) use economy::money;
 
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
@@ -48,6 +49,12 @@ pub(super) enum Action {
     CloseGuests,
     SelectGuest(Option<park_sim::GuestId>),
     GuestPage(i8),
+    Services,
+    CloseServices,
+    BuildService(park_sim::ServiceKind),
+    BrowseService(i8),
+    ServicePrice(i8),
+    ToggleService,
     Save,
     Load,
     LoadBackup,
@@ -336,7 +343,29 @@ pub(super) fn setup(mut commands: Commands) {
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
-            label(p, "BUILD TOOLS", 16.0, INK);
+            p.spawn(Node {
+                justify_content: JustifyContent::SpaceBetween,
+                ..row()
+            })
+            .with_children(|p| {
+                label(p, "BUILD", 16.0, INK);
+                p.spawn((
+                    Button,
+                    Action::Services,
+                    Node {
+                        width: px(126),
+                        height: px(22),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::all(px(1)),
+                        ..default()
+                    },
+                    BackgroundColor(BUTTON),
+                    BorderColor::all(BORDER),
+                    BorderRadius::all(px(5)),
+                ))
+                .with_children(|p| label(p, "Services [M]", 12.0, INK));
+            });
             p.spawn(row()).with_children(|p| {
                 button(p, "Inspect", Action::SetPathTool(PathTool::Inspect), 100.0);
                 button(p, "Path [P]", Action::SetPathTool(PathTool::Build), 100.0);
@@ -521,21 +550,21 @@ pub(super) fn setup(mut commands: Commands) {
                     MUTED,
                 );
                 for (keys, purpose) in [
-                    ("Left click / L", "Inspect tile / inspect guests"),
+                    ("Click / L / M", "Inspect tile / guests / services"),
                     ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
-                    ("C / shape button", "Cycle slope / turn gate toward station"),
+                    ("C / shape button", "Cycle slope / turn gate or service"),
                     ("B / V", "Raise / lower dry land one step"),
-                    ("PgUp / PgDn", "Raise / lower path build height"),
+                    ("PgUp / PgDn", "Raise / lower path or service height"),
                     ("Drag / WASD / arrows", "Pan around the park"),
                     ("Mouse wheel / + / -", "Zoom in and out"),
                     ("Q / E / Home", "Rotate / fit the park in view"),
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
                     ("U", "Show / hide underground view"),
-                    ("Delete", "Remove the selected path or gate"),
+                    ("Delete", "Remove selected path or building"),
                     ("R", "Restore the demonstration paths"),
-                    ("O / F", "Open or close ride / find circuit"),
-                    ("F6 / F7", "Ticket price - / + $0.50"),
+                    ("O / F", "Open/close ride or service / find ride"),
+                    ("F6 / F7", "Ticket / service price - / + $0.50"),
                     ("F5 / F9", "Save / load park"),
                     ("Shift + F9", "Load the previous valid save"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
@@ -560,6 +589,7 @@ pub(super) fn setup(mut commands: Commands) {
             });
         });
     guests::setup(&mut commands);
+    services::setup(&mut commands);
 }
 
 type ChangedButtons<'w, 's> =
@@ -568,6 +598,7 @@ type ChangedButtons<'w, 's> =
 pub(super) fn button_actions(
     interactions: ChangedButtons<'_, '_>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
+    sim: Option<Res<Simulation>>,
     mut view: ResMut<ViewState>,
 ) {
     // A button may close an overlay before pointer_input runs this frame.
@@ -581,9 +612,11 @@ pub(super) fn button_actions(
     // command first when that same frame is about to open or close a modal.
     if keys.as_ref().is_some_and(|keys| {
         keys.just_pressed(KeyCode::KeyL)
+            || keys.just_pressed(KeyCode::KeyM)
             || keys.just_pressed(KeyCode::KeyH)
             || keys.just_pressed(KeyCode::F1)
-            || ((view.help || view.guests_open) && keys.just_pressed(KeyCode::Escape))
+            || ((view.help || view.guests_open || view.services_open)
+                && keys.just_pressed(KeyCode::Escape))
     }) {
         view.ui_pointer_consumed = true;
         return;
@@ -597,16 +630,43 @@ pub(super) fn button_actions(
                 return None;
             }
             match action {
-                Action::CloseHelp if view.help => Some((0, false, false)),
-                Action::CloseGuests if view.guests_open => Some((0, false, false)),
-                Action::Help if !view.guests_open => Some((1, !view.help, false)),
-                Action::Guests if !view.help && !view.guests_open => Some((2, false, true)),
+                Action::CloseHelp if view.help => Some((0, false, false, false, None)),
+                Action::CloseGuests if view.guests_open => Some((0, false, false, false, None)),
+                Action::CloseServices if view.services_open => Some((0, false, false, false, None)),
+                Action::BuildService(kind)
+                    if view.services_open
+                        && !view.capture_active
+                        && view.diagnostic_case.is_none()
+                        && view
+                            .save_pending
+                            .is_none_or(|pending| pending == SaveAction::Save) =>
+                {
+                    Some((1, false, false, false, Some(*kind)))
+                }
+                Action::Help if !view.guests_open && !view.services_open => {
+                    Some((2, !view.help, false, false, None))
+                }
+                Action::Guests if !view.help && !view.guests_open && !view.services_open => {
+                    Some((3, false, true, false, None))
+                }
+                Action::Services if !view.help && !view.guests_open && !view.services_open => {
+                    Some((4, false, false, true, None))
+                }
                 _ => None,
             }
         })
         .min_by_key(|transition| transition.0);
-    if let Some((_, help, guests)) = transition {
-        view.set_modal(help, guests);
+    if let Some((_, help, guests, facilities, build)) = transition {
+        if let Some(kind) = build {
+            view.choose_service(kind);
+        } else {
+            if facilities {
+                view.selected_service = None;
+                view.service_browse_pending = 0;
+                view.service_notice = None;
+            }
+            view.set_modal(help, guests, facilities);
+        }
         view.modal_transition_pending = true;
         return;
     }
@@ -626,6 +686,17 @@ pub(super) fn button_actions(
         {
             continue;
         }
+        if view.services_open
+            && !matches!(
+                action,
+                Action::Pause
+                    | Action::BrowseService(_)
+                    | Action::ServicePrice(_)
+                    | Action::ToggleService
+            )
+        {
+            continue;
+        }
         if view.diagnostic_case.is_some()
             && matches!(
                 action,
@@ -640,6 +711,9 @@ pub(super) fn button_actions(
                     | Action::SetPathTool(_)
                     | Action::PathHeight(_)
                     | Action::CyclePathShape
+                    | Action::BuildService(_)
+                    | Action::ServicePrice(_)
+                    | Action::ToggleService
             )
         {
             continue;
@@ -671,10 +745,42 @@ pub(super) fn button_actions(
             Action::GuestPage(delta) if view.guests_open => {
                 view.guest_page_pending = view.guest_page_pending.saturating_add(i32::from(*delta));
             }
+            Action::BrowseService(delta) if view.services_open => {
+                view.service_browse_pending = view
+                    .service_browse_pending
+                    .saturating_add(i32::from(*delta));
+            }
+            Action::ServicePrice(delta) if view.services_open => {
+                if let Some(service) = view.selected_service {
+                    view.service_commands
+                        .push(services::ServiceCommand::PriceSteps {
+                            service,
+                            steps: i32::from(*delta),
+                        });
+                }
+            }
+            Action::ToggleService if view.services_open => {
+                if let Some(service) = view
+                    .selected_service
+                    .and_then(|id| sim.as_ref().and_then(|sim| sim.0.service(id)))
+                {
+                    view.service_commands
+                        .push(services::ServiceCommand::SetOpen {
+                            service: service.id,
+                            open: !service.open,
+                        });
+                }
+            }
             Action::SelectGuest(_)
             | Action::GuestPage(_)
             | Action::Guests
-            | Action::CloseGuests => {}
+            | Action::CloseGuests
+            | Action::Services
+            | Action::CloseServices
+            | Action::BuildService(_)
+            | Action::BrowseService(_)
+            | Action::ServicePrice(_)
+            | Action::ToggleService => {}
             Action::Save => view.request_save(SaveAction::Save),
             Action::Load => view.request_save(SaveAction::Load),
             Action::LoadBackup => view.request_save(SaveAction::Backup),
@@ -742,6 +848,9 @@ pub(super) fn refresh(
                 }
                 Some(SurfaceId::Object(id)) => {
                     sim.0.object(id).map_or("Pick a surface".into(), |object| {
+                        if let Some(service)=sim.0.service_by_object(id) {
+                            return format!("{} #{}",service.kind,service.id.0);
+                        }
                         let name = if object.queue_owner.is_some() {
                             "Queue path"
                         } else {
@@ -767,6 +876,11 @@ pub(super) fn refresh(
                 }),
                 Some(SurfaceId::Object(id)) => {
                     sim.0.object(id).map_or(String::new(), |object| {
+                        if let Some(service)=sim.0.service_by_object(id) {
+                            let stats=sim.0.service_stats(service.id);
+                            return format!("{} / {}\nFaces {} / height {}\nServing {} / Served {}\nM opens service settings",stats.status,money(u64::from(service.price_cents)),
+                                direction_name(service.facing),object.height,stats.using,compact_count(stats.served));
+                        }
                         let buried = sim.0.is_underground(id);
                         let state = if buried && view.view_mode == ViewMode::Surface {
                             "Buried / U to reveal"
@@ -886,7 +1000,10 @@ pub(super) fn refresh(
                 "Place an exit facing the station. Link to public path.".into()
             }
             Label::Status if view.path_tool.mode == PathTool::Demolish => {
-                "Demolish tool / click a visible path or gate".into()
+                "Demolish / click a visible path, gate or facility".into()
+            }
+            Label::Status if matches!(view.path_tool.mode,PathTool::Service(_)) => {
+                "Facility / C turns serving side / M opens settings".into()
             }
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
                 "Raise terrain / click dry land / +1 step".into()
@@ -998,11 +1115,13 @@ pub(super) fn refresh(
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
             Label::PathShape
-                if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit) =>
+                if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit | PathTool::Service(_)) =>
             {
                 format!(
                     "Face {} [C]",
-                    direction_name(if view.path_tool.mode == PathTool::Exit {
+                    direction_name(if matches!(view.path_tool.mode,PathTool::Service(_)) {
+                        view.path_tool.service_facing
+                    } else if view.path_tool.mode == PathTool::Exit {
                         view.path_tool.exit_facing
                     } else {
                         view.path_tool.entrance_facing
@@ -1014,7 +1133,9 @@ pub(super) fn refresh(
                 crate::path_tools::shape_name(view.path_tool.slope)
             ),
             Label::PathHeight => {
-                if view.path_tool.mode == PathTool::Exit {
+                if matches!(view.path_tool.mode,PathTool::Service(_)) {
+                    format!("Facility height: {}",view.path_tool.height)
+                } else if view.path_tool.mode == PathTool::Exit {
                     format!("Exit height: {}", view.path_tool.height)
                 } else if view.path_tool.mode == PathTool::Entrance {
                     format!("Entrance height: {}", view.path_tool.height)
@@ -1051,6 +1172,7 @@ pub(super) fn refresh(
             Action::Terrain => view.terrain_profile == TerrainProfile::Terraced,
             Action::Underground => view.view_mode == ViewMode::Underground,
             Action::ToggleTrain => sim.0.train().is_some_and(|train| !train.open),
+            Action::Services => view.services_open,
             Action::SetPathTool(mode) => view.path_tool.mode == *mode,
             _ => false,
         };
@@ -1063,7 +1185,13 @@ pub(super) fn refresh(
             (*delta < 0 && stats.ticket_price_cents == 0)
                 || (*delta > 0 && stats.ticket_price_cents == park_sim::MAX_TICKET_PRICE_CENTS)
         }));
-        let color = if tool_disabled || price_disabled {
+        let service_disabled=matches!(action,Action::BuildService(_) | Action::ServicePrice(_) | Action::ToggleService)
+            && (view.capture_active || view.diagnostic_case.is_some()
+                || (!matches!(action,Action::BuildService(_)) && view.selected_service.and_then(|id|sim.0.service(id)).is_none_or(|service| {
+                    service.object.is_none() || matches!(action,Action::ServicePrice(delta) if (*delta<0 && service.price_cents==0)
+                        || (*delta>0 && service.price_cents==park_sim::MAX_SERVICE_PRICE_CENTS))
+                })));
+        let color = if tool_disabled || price_disabled || service_disabled {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD
@@ -1105,6 +1233,7 @@ fn object_name(kind: ObjectKind) -> &'static str {
         ObjectKind::Track => "Track",
         ObjectKind::RideEntrance => "Ride entrance",
         ObjectKind::RideExit => "Ride exit",
+        ObjectKind::Service => "Facility",
     }
 }
 

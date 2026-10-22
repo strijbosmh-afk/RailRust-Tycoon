@@ -1,6 +1,6 @@
 //! Read-only guest inspection. List slots never serve as authoritative identities.
 use super::*;
-use park_sim::{Guest, GuestState, Park, RideVisitPhase};
+use park_sim::{Guest, GuestState, Park, RideVisitPhase, ServiceVisitPhase};
 
 pub(crate) const PAGE_SIZE: usize = 8;
 pub(crate) const PANEL_WIDTH: f32 = 760.0;
@@ -160,6 +160,13 @@ fn activity(guest: &Guest) -> &'static str {
     if guest.state == GuestState::Lost {
         return "Lost / needs a path";
     }
+    if let Some(visit) = &guest.service_visit {
+        return match visit.phase {
+            ServiceVisitPhase::Approaching => "Seeking a service",
+            ServiceVisitPhase::Waiting => "Waiting for a service",
+            ServiceVisitPhase::Using => "Using a service",
+        };
+    }
     match guest.ride_visit.as_ref().map(|visit| visit.phase) {
         Some(RideVisitPhase::Approaching) => "Heading to ride",
         Some(RideVisitPhase::Queueing) => "In the queue",
@@ -176,8 +183,26 @@ fn details(guest: &Guest) -> String {
     let review = guest
         .last_rating
         .map_or_else(|| "No review yet".into(), |rating| format!("{rating}/5"));
+    let service = guest
+        .service_visit
+        .as_ref()
+        .map_or_else(String::new, |visit| match visit.phase {
+            ServiceVisitPhase::Using => format!(
+                "\nService #{}: {}s left / Locked {}",
+                visit.service.0,
+                u64::from(park_sim::SERVICE_USE_TICKS.saturating_sub(visit.progress))
+                    .div_ceil(TICKS_PER_SECOND),
+                money(u64::from(visit.price_cents))
+            ),
+            ServiceVisitPhase::Waiting => format!(
+                "\nService #{}: waiting {}s",
+                visit.service.0,
+                u64::from(visit.waited_ticks) / TICKS_PER_SECOND
+            ),
+            ServiceVisitPhase::Approaching => format!("\nHeading to service #{}", visit.service.0),
+        });
     format!(
-        "Wallet {} / Spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100\nActivity: {}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
+        "Wallet {} / Total spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100\nNeed urgency /100: hunger {} / thirst {} / toilet {}\nActivity: {}\nServices used: {} / Service spend {}{service}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
         money(u64::from(guest.wallet_cents)),
         money(guest.spent_cents),
         money(u64::from(guest.preferences.max_ticket_price_cents)),
@@ -189,7 +214,12 @@ fn details(guest: &Guest) -> String {
                 .map_or(0, |visit| visit.waited_ticks)
         ) / TICKS_PER_SECOND,
         guest.satisfaction,
+        guest.needs.hunger,
+        guest.needs.thirst,
+        guest.needs.toilet,
         activity(guest),
+        super::compact_count(guest.services_used),
+        money(guest.service_spent_cents),
         super::compact_count(guest.rides_completed),
         super::compact_count(guest.ratings_given),
     )

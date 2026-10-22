@@ -187,11 +187,13 @@ impl Park {
         }
     }
 
-    pub(crate) fn step_admission_crowd(&mut self) {
-        let graph = self.path_cache.shared_graph(&self.objects);
+    pub(crate) fn step_admission_crowd(&mut self, graph: &crate::crowds::PathGraph) {
         // Preserve old iteration and RNG behavior exactly when there is no ride.
         let Some(id) = self.ride.as_ref().map(|ride| ride.id) else {
             for guest in &mut self.guests {
+                if guest.service_visit.is_some() {
+                    continue;
+                }
                 graph.step_guest(guest, &mut self.crowd_rng);
             }
             return;
@@ -222,6 +224,9 @@ impl Park {
             && self.ride.as_ref().unwrap().next_queue_ticket < u64::MAX;
         if !eligible && self.guests.iter().all(|guest| guest.ride_visit.is_none()) {
             for guest in &mut self.guests {
+                if guest.service_visit.is_some() {
+                    continue;
+                }
                 graph.step_guest(guest, &mut self.crowd_rng);
             }
             return;
@@ -358,6 +363,9 @@ impl Park {
         }
         let mut applicants = Vec::new();
         for (index, guest) in self.guests.iter_mut().enumerate() {
+            if guest.service_visit.is_some() {
+                continue;
+            }
             if guest
                 .ride_visit
                 .as_ref()

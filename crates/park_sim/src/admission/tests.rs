@@ -341,14 +341,16 @@ fn public_walks_keep_legacy_rng_when_no_ride_can_admit() {
     ride.abandoned = u64::MAX - 1;
     for mut park in [no_ride, no_gate, closed, disconnected, exhausted] {
         let graph = PathGraph::new(&park.objects);
-        let mut guests = park.guests.clone();
+        let mut reference = park.clone();
         let mut rng = park.crowd_rng;
         for _ in 0..600 {
-            for guest in &mut guests {
+            reference.ticks += 1;
+            reference.step_needs();
+            for guest in &mut reference.guests {
                 graph.step_guest(guest, &mut rng);
             }
             park.advance(Speed::Normal);
-            assert_eq!(park.guests, guests);
+            assert_eq!(park.guests, reference.guests);
             assert_eq!(park.crowd_rng, rng);
         }
     }

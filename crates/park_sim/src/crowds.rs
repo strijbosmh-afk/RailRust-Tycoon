@@ -57,6 +57,13 @@ pub struct Guest {
     /// Cash still owned by this guest, including a fare reserved before departure.
     pub wallet_cents: u32,
     pub spent_cents: u64,
+    pub service_spent_cents: u64,
+    pub services_used: u64,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
+    pub needs: crate::GuestNeeds,
+    #[serde(deserialize_with = "crate::saves::required_object_option")]
+    pub service_visit: Option<crate::ServiceVisit>,
+    pub service_cooldown: u16,
     #[serde(deserialize_with = "crate::saves::strict_object")]
     pub preferences: crate::GuestPreferences,
     pub satisfaction: u8,
@@ -331,6 +338,11 @@ impl Park {
                     rides_completed: 0,
                     wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
                     spent_cents: 0,
+                    service_spent_cents: 0,
+                    services_used: 0,
+                    needs: crate::GuestNeeds::for_guest(seed, GuestId(candidate.next_guest_id)),
+                    service_visit: None,
+                    service_cooldown: 0,
                     preferences: crate::GuestPreferences::for_guest(
                         seed,
                         GuestId(candidate.next_guest_id),
@@ -412,7 +424,9 @@ impl Park {
         }
         // Object edits invalidate derived connectivity before another tick or
         // query can use it. Stable topology needs no allocation or graph rebuild.
-        self.step_admission_crowd();
+        let graph = self.path_cache.shared_graph(&self.objects);
+        self.step_services(&graph);
+        self.step_admission_crowd(&graph);
     }
 }
 
@@ -676,6 +690,11 @@ mod tests {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            service_spent_cents: 0,
+            services_used: 0,
+            needs: crate::GuestNeeds::default(),
+            service_visit: None,
+            service_cooldown: 0,
             preferences: crate::GuestPreferences::default(),
             satisfaction: 70,
             thought: crate::GuestThought::Exploring,

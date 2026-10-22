@@ -67,7 +67,12 @@ pub(super) fn apply_save_action(
     let Some(action) = view.save_pending.take() else {
         return;
     };
-    if view.help || view.guests_open || view.modal_input_blocked || view.capture_active {
+    if view.help
+        || view.guests_open
+        || view.services_open
+        || view.modal_input_blocked
+        || view.capture_active
+    {
         return;
     }
     perform_action(&session, &mut sim.0, &mut view, action);

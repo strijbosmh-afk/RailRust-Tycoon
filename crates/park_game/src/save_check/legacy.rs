@@ -1,6 +1,6 @@
 //! Migration preserves old state at load; future decisions use the current rules.
 use super::*;
-use park_sim::{GuestPreferences, GuestThought, MAX_SAVE_BYTES};
+use park_sim::{GuestNeeds, GuestPreferences, GuestThought, MAX_SAVE_BYTES};
 use serde_json::Value;
 use std::io::Read;
 
@@ -46,20 +46,36 @@ fn require_old_fields(old: &Value, current: &Value, location: &str) -> Result<()
 fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
     let seed = old["park"]["crowd_seed"].as_u64().unwrap_or(0);
     for guest in park.guests() {
-        if guest.preferences != GuestPreferences::for_guest(seed, guest.id)
-            || guest.satisfaction != 70
-            || guest.thought != GuestThought::Exploring
-            || guest.thought_tick != 0
-            || guest.ratings_given != 0
-            || guest.rating_total != 0
-            || guest.last_rating.is_some()
+        if old["schema_version"].as_u64().unwrap() <= 6
+            && (guest.preferences != GuestPreferences::for_guest(seed, guest.id)
+                || guest.satisfaction != 70
+                || guest.thought != GuestThought::Exploring
+                || guest.thought_tick != 0
+                || guest.ratings_given != 0
+                || guest.rating_total != 0
+                || guest.last_rating.is_some())
         {
             return Err(
                 "legacy feedback defaults changed history or drew inconsistent traits".into(),
             );
         }
+        if guest.needs != GuestNeeds::for_guest(seed, guest.id)
+            || guest.service_visit.is_some()
+            || guest.service_cooldown != 0
+            || guest.service_spent_cents != 0
+            || guest.services_used != 0
+        {
+            return Err(
+                "legacy service defaults invented usage, money or inconsistent needs".into(),
+            );
+        }
     }
-    if let Some(ride) = park.ride() {
+    if !park.services().is_empty() {
+        return Err("migration invented service facilities/history".into());
+    }
+    if old["schema_version"].as_u64().unwrap() <= 6
+        && let Some(ride) = park.ride()
+    {
         let stats = park.ride_experience_stats(ride.id);
         if stats.rating_count != 0
             || stats.rating_total != 0
@@ -95,7 +111,7 @@ fn continue_current_rules(mut uninterrupted: Park) -> Result<(), String> {
                 park.set_train_open(true);
             }
             if park.ride().is_some() {
-                super::feedback::advance_checked(park)?;
+                super::services::advance_checked(park)?;
             } else {
                 park.advance(Speed::Normal);
             }
@@ -134,12 +150,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=6).contains(&schema)
+        if !(1..=7).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version1..6 source slot".into(),
+                "verify-legacy requires an authentic strict version1..7 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -163,8 +179,13 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let modern_bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
         let modern: Value =
             serde_json::from_slice(&modern_bytes).map_err(|error| error.to_string())?;
-        if modern["schema_version"] != 7 || modern["content_version"] != 7 {
-            return Err("migration did not produce strict7 state".into());
+        if modern["schema_version"] != 8
+            || modern["content_version"] != 8
+            || modern["park"]["next_service_id"] != 1
+        {
+            return Err(
+                "migration did not produce strict8 state with a fresh service allocator".into(),
+            );
         }
         require_old_fields(&old["park"], &modern["park"], "/park")?;
         require_defaults(&park, &old)?;
@@ -180,7 +201,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money and active journeys): PASS\nNew traits/default feedback without retroactive ratings: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v7 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v7 guest decisions intentionally use new rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money and active journeys): PASS\nOnly newly added traits/needs/history initialized; original feedback preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v8 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v8 guest decisions intentionally use new needs/service rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
@@ -188,6 +209,24 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+    fn strip_services(value: &mut Value) {
+        value["park"].as_object_mut().unwrap().remove("services");
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("next_service_id");
+        for guest in value["park"]["guests"].as_array_mut().unwrap() {
+            for field in [
+                "needs",
+                "service_visit",
+                "service_cooldown",
+                "service_spent_cents",
+                "services_used",
+            ] {
+                guest.as_object_mut().unwrap().remove(field);
+            }
+        }
+    }
     #[test]
     fn legacy_projection_rejects_dropped_mutated_or_reordered_old_fields() {
         let old = json!({"rng":99,"money":7,"guests":[{"id":2},{"id":1}],"visit":null});
@@ -214,6 +253,7 @@ mod tests {
         fs::create_dir(&directory).unwrap();
         let park = demonstration_park();
         let mut value: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        strip_services(&mut value);
         value["schema_version"] = json!(6);
         value["content_version"] = json!(6);
         for guest in value["park"]["guests"].as_array_mut().unwrap() {
@@ -232,6 +272,76 @@ mod tests {
         if let Some(ride) = value["park"]["ride"].as_object_mut() {
             for key in ["value_rejections", "rating_count", "rating_total"] {
                 ride.remove(key);
+            }
+        }
+        let bytes = serde_json::to_vec(&value).unwrap();
+        fs::write(directory.join("park.park.json"), &bytes).unwrap();
+        fs::write(directory.join("park.park.json.bak"), &bytes).unwrap();
+        let args = vec![
+            OsString::from("--save-check"),
+            OsString::from("verify-legacy"),
+            OsString::from("--save-dir"),
+            directory.clone().into_os_string(),
+        ];
+        assert_eq!(run(args), Some(AppExit::Success));
+        assert_eq!(fs::read(directory.join("park.park.json")).unwrap(), bytes);
+        assert!(directory.join("verification-legacy.txt").is_file());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn legacy_v7_preserves_earned_feedback_and_occupied_journey_before_current_needs_rules() {
+        let directory = std::env::temp_dir().join(format!(
+            "Parkbound legacy feedback é {} {}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let mut park = demonstration_park();
+        super::super::journey::install(&mut park).unwrap();
+        super::super::feedback::seek(
+            &mut park,
+            |p| p.ride().unwrap().rating_count > 0,
+            "earned legacy feedback",
+        )
+        .unwrap();
+        super::super::feedback::seek(
+            &mut park,
+            |p| {
+                p.guests()
+                    .iter()
+                    .any(|g| g.ride_visit.as_ref().is_some_and(|v| v.passenger.is_some()))
+            },
+            "occupied legacy reviewed park",
+        )
+        .unwrap();
+        // v7 has no services and supports every old thought, but never the new
+        // service thoughts produced by needs while constructing this source.
+        let mut value: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        strip_services(&mut value);
+        value["schema_version"] = json!(7);
+        value["content_version"] = json!(7);
+        for guest in value["park"]["guests"].as_array_mut().unwrap() {
+            if [
+                "Hungry",
+                "Thirsty",
+                "NeedsToilet",
+                "SeekingService",
+                "WaitingForService",
+                "UsingService",
+                "ServiceUnavailable",
+                "CannotAffordService",
+                "ServiceCancelled",
+                "AteFood",
+                "HadDrink",
+                "UsedToilet",
+            ]
+            .contains(&guest["thought"].as_str().unwrap())
+            {
+                guest["thought"] = json!("Exploring");
             }
         }
         let bytes = serde_json::to_vec(&value).unwrap();

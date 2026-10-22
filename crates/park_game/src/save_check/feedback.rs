@@ -123,11 +123,14 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
             } else {
                 GuestThought::DisappointedByRide
             };
+            let (_, satisfaction_after_needs) =
+                super::services::needs_after_tick(old, park.ticks());
             if new.ratings_given != old.ratings_given + 1
                 || new.rating_total != old.rating_total + u64::from(rating)
                 || new.last_rating != Some(rating)
                 || new.satisfaction
-                    != ((3 * u16::from(old.satisfaction) + 20 * u16::from(rating)) / 4) as u8
+                    != ((3 * u16::from(satisfaction_after_needs) + 20 * u16::from(rating)) / 4)
+                        as u8
                 || new.thought != thought
                 || new.thought_tick != park.ticks()
             {
@@ -217,11 +220,11 @@ fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let value: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if value["schema_version"] != 7
-        || value["content_version"] != 7
+    if value["schema_version"] != 8
+        || value["content_version"] != 8
         || Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park
     {
-        return Err("feedback strict v7 roundtrip changed authoritative state".into());
+        return Err("feedback strict v8 roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }
@@ -454,7 +457,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("feedback verification rewrote primary or backup".into());
     }
-    write_new(&store.directory().join("verification-feedback.txt"), format!("Parkbound {}\nExact reviewed primary and active-wait backup: PASS\nCurrent-version continuation: PASS ({REPLAY_TICKS} ticks + cancellation, value refusal, price recovery and completed reviews)\nIndependent locked-fare, frozen-wait review and satisfaction deltas: PASS\nStable preferences, event thoughts, money conservation and strict7 roundtrips: PASS\nPaused load and guest-overlay reset: PASS\nCancelled queue produces no review: PASS\nBoth source slots unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-feedback.txt"), format!("Parkbound {}\nExact reviewed primary and active-wait backup: PASS\nCurrent-version continuation: PASS ({REPLAY_TICKS} ticks + cancellation, value refusal, price recovery and completed reviews)\nIndependent locked-fare, frozen-wait review and satisfaction deltas: PASS\nStable preferences, event thoughts, money conservation and strict8 roundtrips: PASS\nPaused load and guest-overlay reset: PASS\nCancelled queue produces no review: PASS\nBoth source slots unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

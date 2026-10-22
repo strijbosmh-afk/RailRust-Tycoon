@@ -2,7 +2,7 @@ use super::*;
 use crate::{PathDirection, PathSlope, RideVisitPhase, Speed, TilePos};
 use serde_json::{Value, json};
 
-fn fixture(exit: bool, price: u32) -> Park {
+pub(crate) fn fixture(exit: bool, price: u32) -> Park {
     let mut park = Park::new(32, 32);
     park.install_crowd_fixture(42).unwrap();
     park.install_train_fixture().unwrap();
@@ -203,6 +203,18 @@ fn completed_public_return_produces_one_rating_from_locked_fare_and_wait() {
     .max(1) as u8;
     let count = park.ride().unwrap().rating_count;
     let cash = park.cash_cents();
+    let mut rating_satisfaction = prior.satisfaction;
+    let mut levels = [prior.needs.hunger, prior.needs.thirst, prior.needs.toilet];
+    for offset in 1..=u64::from(crate::RIDE_TRANSFER_TICKS) {
+        for (value, cadence) in levels.iter_mut().zip([90, 60, 120]) {
+            if (park.ticks() + offset).is_multiple_of(cadence) {
+                if *value == 84 {
+                    rating_satisfaction = rating_satisfaction.saturating_sub(5);
+                }
+                *value = value.saturating_add(1).min(100);
+            }
+        }
+    }
     for _ in 1..crate::RIDE_TRANSFER_TICKS {
         park.advance(Speed::Normal);
         assert_eq!(park.ride().unwrap().rating_count, count);
@@ -215,7 +227,7 @@ fn completed_public_return_produces_one_rating_from_locked_fare_and_wait() {
     assert_eq!(returned.rating_total, prior.rating_total + u64::from(score));
     assert_eq!(
         returned.satisfaction,
-        ((3 * u16::from(prior.satisfaction) + 20 * u16::from(score)) / 4) as u8
+        ((3 * u16::from(rating_satisfaction) + 20 * u16::from(score)) / 4) as u8
     );
     assert_eq!(returned.thought_tick, park.ticks());
     assert_eq!(
@@ -329,7 +341,8 @@ fn full_schedules_save_resume_and_speed_grouping_preserve_feedback_exactly() {
     roundtrip(&normal);
 }
 
-pub(crate) fn strip_feedback(mut value: Value) -> Value {
+pub(crate) fn strip_feedback(value: Value) -> Value {
+    let mut value = crate::services::tests::strip_services(value);
     value["schema_version"] = json!(6);
     value["content_version"] = json!(6);
     for guest in value["park"]["guests"].as_array_mut().unwrap() {
@@ -354,6 +367,7 @@ pub(crate) fn strip_feedback(mut value: Value) -> Value {
 }
 
 pub(crate) fn reset_feedback(park: &mut Park) {
+    crate::services::tests::reset_needs(park);
     for guest in &mut park.guests {
         guest.preferences = GuestPreferences::for_guest(park.crowd_seed.unwrap_or(0), guest.id);
         guest.satisfaction = 70;
@@ -462,7 +476,7 @@ fn invalid_preferences_feedback_and_rating_aggregates_are_rejected() {
             .remove(field);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
     }
-    for pair in [(8, 8), (7, 6), (6, 7)] {
+    for pair in [(9, 9), (8, 7), (7, 8), (7, 6), (6, 7)] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(pair.0);
         forged["content_version"] = json!(pair.1);

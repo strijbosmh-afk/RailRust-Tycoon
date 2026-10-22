@@ -108,7 +108,8 @@ impl Park {
                 continue;
             };
             // Loaded states and every boarding operation validate this reserved
-            // amount. Guests have one journey and no other wallet expenditure.
+            // amount. Ride and service visits are mutually exclusive, so a
+            // service purchase cannot spend a reserved train fare.
             guest.wallet_cents = guest
                 .wallet_cents
                 .checked_sub(passenger.fare_cents)
@@ -129,6 +130,7 @@ impl Park {
 
 pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
     let mut spent = 0_u64;
+    let mut service_spent = 0_u64;
     for guest in &park.guests {
         if guest.wallet_cents > INITIAL_GUEST_WALLET_CENTS
             || guest.spent_cents > u64::from(INITIAL_GUEST_WALLET_CENTS)
@@ -140,6 +142,13 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         spent = spent
             .checked_add(guest.spent_cents)
             .ok_or("total guest spending overflows")?;
+        if guest.service_spent_cents > guest.spent_cents {
+            return Err("guest service spending exceeds total spending".into());
+        }
+        service_spent = service_spent
+            .checked_add(guest.service_spent_cents)
+            .ok_or("service spending overflows")?;
+        let ride_spent = guest.spent_cents - guest.service_spent_cents;
         let passenger = guest
             .ride_visit
             .as_ref()
@@ -148,7 +157,7 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             && (passenger.fare_cents > MAX_TICKET_PRICE_CENTS
                 || passenger.fare_paid != passenger.departed
                 || (!passenger.fare_paid && passenger.fare_cents > guest.wallet_cents)
-                || (passenger.fare_paid && u64::from(passenger.fare_cents) > guest.spent_cents))
+                || (passenger.fare_paid && u64::from(passenger.fare_cents) > ride_spent))
         {
             return Err("passenger fare disagrees with wallet or departure".into());
         }
@@ -158,17 +167,23 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         let active_paid_fare = passenger
             .filter(|passenger| passenger.fare_paid)
             .map_or(0, |passenger| u64::from(passenger.fare_cents));
-        if guest.rides_completed == 0 && guest.spent_cents != active_paid_fare {
+        if guest.rides_completed == 0 && ride_spent != active_paid_fare {
             return Err("guest spending has no completed or active paid journey".into());
         }
     }
     let revenue = park.ride.as_ref().map_or(0, |ride| ride.revenue_cents);
+    let service_revenue = park
+        .services
+        .iter()
+        .try_fold(0_u64, |sum, service| sum.checked_add(service.revenue_cents))
+        .ok_or("service revenue overflows")?;
     if park
         .ride
         .as_ref()
         .is_some_and(|ride| ride.ticket_price_cents > MAX_TICKET_PRICE_CENTS)
-        || spent != revenue
-        || INITIAL_PARK_CASH_CENTS.checked_add(revenue) != Some(park.cash_cents)
+        || service_spent != service_revenue
+        || revenue.checked_add(service_revenue) != Some(spent)
+        || INITIAL_PARK_CASH_CENTS.checked_add(spent) != Some(park.cash_cents)
     {
         return Err("ride price, revenue, and park cash do not conserve funds".into());
     }
