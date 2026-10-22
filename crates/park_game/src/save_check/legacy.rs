@@ -74,38 +74,73 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
     if old["schema_version"].as_u64().unwrap() <= 7 && !park.services().is_empty() {
         return Err("migration invented service facilities/history".into());
     }
-    let ledger = park.finance_ledger();
-    if ledger.opening_tick != park.ticks()
-        || ledger.opening_cash_cents != park.cash_cents()
-        || ledger.opening_ride_revenue_cents != park.ride().map_or(0, |r| r.revenue_cents)
-        || !ledger.entries.is_empty()
-        || ledger.next_entry_id != 1
-        || ledger.archived_entries != 0
-        || ledger.archived_through_tick != park.ticks()
-        || !ledger.archived_services.is_empty()
-        || ledger.archived != park_sim::FinanceTotals::default()
-        || ledger.opening_services.len() != park.services().len()
-    {
-        return Err(
-            "legacy migration invented ledger transactions or changed opening balances".into(),
-        );
+    if !park.carousels().is_empty() {
+        return Err("migration invented a second ride".into());
     }
-    for service in park.services() {
-        let opening = ledger
-            .opening_services
-            .iter()
-            .find(|s| s.service == service.id)
-            .ok_or("legacy service lacks opening baseline")?;
-        if opening.revenue_cents != service.revenue_cents
-            || opening.served != service.served
-            || service.upkeep_progress != 0
-            || service.upkeep_cents != 0
-            || service.supplies_cents != 0
-            || service.closed_for_funds
+    for guest in park.guests() {
+        let ride_spent = guest.spent_cents - guest.service_spent_cents;
+        if park.ride().is_some() {
+            let history = guest
+                .ride_history
+                .first()
+                .ok_or("missing legacy ride history")?;
+            if guest.ride_history.len() != 1
+                || Some(history.ride) != park.ride().map(|r| r.id)
+                || history.spent_cents != ride_spent
+                || history.completed != guest.rides_completed
+                || history.rating_count != guest.ratings_given
+                || history.rating_total != guest.rating_total
+            {
+                return Err("legacy guest history changed owner, receipts or reviews".into());
+            }
+        } else if !guest.ride_history.is_empty() {
+            return Err("legacy migration invented guest ride history".into());
+        }
+    }
+    let ledger = park.finance_ledger();
+    if old["schema_version"].as_u64().unwrap() <= 8 {
+        if ledger.opening_tick != park.ticks()
+            || ledger.opening_cash_cents != park.cash_cents()
+            || ledger.opening_ride_revenue_cents != park.ride().map_or(0, |r| r.revenue_cents)
+            || !ledger.entries.is_empty()
+            || ledger.next_entry_id != 1
+            || ledger.archived_entries != 0
+            || ledger.archived_through_tick != park.ticks()
+            || !ledger.archived_services.is_empty()
+            || ledger.archived != park_sim::FinanceTotals::default()
+            || ledger.opening_services.len() != park.services().len()
         {
             return Err(
-                "legacy service finance defaults changed history or invented expenses".into(),
+                "legacy migration invented ledger transactions or changed opening balances".into(),
             );
+        }
+        for service in park.services() {
+            let opening = ledger
+                .opening_services
+                .iter()
+                .find(|s| s.service == service.id)
+                .ok_or("legacy service lacks opening baseline")?;
+            if opening.revenue_cents != service.revenue_cents
+                || opening.served != service.served
+                || service.upkeep_progress != 0
+                || service.upkeep_cents != 0
+                || service.supplies_cents != 0
+                || service.closed_for_funds
+            {
+                return Err(
+                    "legacy service finance defaults changed history or invented expenses".into(),
+                );
+            }
+        }
+    }
+    for entry in &ledger.entries {
+        let owner = if entry.kind == park_sim::FinanceKind::RideRevenue {
+            park.ride().map(|r| r.id)
+        } else {
+            None
+        };
+        if entry.ride != owner {
+            return Err("legacy transaction attributed to the wrong ride".into());
         }
     }
     super::finance::check(park)?;
@@ -186,12 +221,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=8).contains(&schema)
+        if !(1..=9).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version1..8 source slot".into(),
+                "verify-legacy requires an authentic strict version1..9 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -215,12 +250,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let modern_bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
         let modern: Value =
             serde_json::from_slice(&modern_bytes).map_err(|error| error.to_string())?;
-        if modern["schema_version"] != 9
-            || modern["content_version"] != 9
+        if modern["schema_version"] != 10
+            || modern["content_version"] != 10
             || (schema <= 7 && modern["park"]["next_service_id"] != 1)
         {
             return Err(
-                "migration did not produce strict9 state with correct service allocation".into(),
+                "migration did not produce strict10 state with correct service allocation".into(),
             );
         }
         require_old_fields(&old["park"], &modern["park"], "/park")?;
@@ -237,7 +272,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nFinance opening balances preserve old receipts without invented transactions/expenses: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v9 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v9 continues under current needs/service/cost rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy opening baselines preserved; v9 transactions, archives and expenses preserved with original-coaster attribution: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v10 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v10 continues under current needs/service/cost/ride-choice rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
@@ -245,7 +280,21 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+    fn strip_ride_choices(value: &mut Value) {
+        value["park"].as_object_mut().unwrap().remove("carousels");
+        for guest in value["park"]["guests"].as_array_mut().unwrap() {
+            guest.as_object_mut().unwrap().remove("ride_history");
+        }
+        if let Some(ledger) = value["park"]["finances"].as_object_mut() {
+            ledger.remove("opening_rides");
+            ledger.remove("archived_rides");
+            for entry in ledger["entries"].as_array_mut().unwrap() {
+                entry.as_object_mut().unwrap().remove("ride");
+            }
+        }
+    }
     fn strip_finances(value: &mut Value) {
+        strip_ride_choices(value);
         value["park"].as_object_mut().unwrap().remove("finances");
         let mut costs = 0;
         for service in value["park"]["services"].as_array_mut().unwrap() {

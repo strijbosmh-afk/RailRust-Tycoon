@@ -519,6 +519,7 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     if park.width() != park.height() {
         return painter.finish();
     }
+    super::carousel_render::paint_dynamic(&mut painter, park, rotation, mode);
     let Some(circuit) = park.circuit() else {
         return painter.finish();
     };
@@ -555,7 +556,9 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         }
     }
     for passenger in park.ride_guest_positions() {
-        if passenger.phase != RideVisitPhase::Riding {
+        if passenger.phase != RideVisitPhase::Riding
+            || park.ride().is_none_or(|ride| ride.id != passenger.ride)
+        {
             continue;
         }
         let car = usize::from(passenger.seat) / 2;
@@ -925,6 +928,7 @@ mod tests {
                 },
             };
             let passenger = park_sim::RideGuestPosition {
+                ride: park_sim::RideId(1),
                 guest: park_sim::GuestId(2),
                 seat: 0,
                 phase: RideVisitPhase::Riding,

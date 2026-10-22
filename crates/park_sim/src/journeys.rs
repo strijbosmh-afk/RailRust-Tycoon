@@ -33,6 +33,7 @@ pub struct PassengerJourney {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RideGuestPosition {
     pub guest: GuestId,
+    pub ride: RideId,
     pub seat: u8,
     pub phase: RideVisitPhase,
     pub point: PathPoint,
@@ -97,7 +98,7 @@ impl Park {
             }
             .into());
         }
-        self.entrance_station(pos, height, facing)?;
+        self.entrance_station(ride, pos, height, facing)?;
         Ok(())
     }
     pub fn place_ride_exit(
@@ -121,7 +122,7 @@ impl Park {
             },
             self.next_object_id + 1,
         );
-        self.ride.as_mut().unwrap().exit = Some(RideEntrance { object, facing });
+        self.ride_by_id_mut(ride).unwrap().exit = Some(RideEntrance { object, facing });
         Ok(object)
     }
     pub fn ride_exit_access(&self, id: RideId) -> RideExitAccess {
@@ -130,10 +131,10 @@ impl Park {
             public_exit: None,
             station: None,
         };
-        let Some(ride) = self.ride.as_ref().filter(|ride| ride.id == id) else {
+        let Some(ride) = self.ride_by_id(id) else {
             return access;
         };
-        if self.circuit.is_none() {
+        if !self.ride_available(id) {
             return access;
         }
         let Some(exit) = ride.exit else {
@@ -144,7 +145,7 @@ impl Park {
             access.status = RideExitStatus::NoExit;
             return access;
         };
-        let Ok(station) = self.entrance_station(gate.pos, gate.height, exit.facing) else {
+        let Ok(station) = self.entrance_station(id, gate.pos, gate.height, exit.facing) else {
             access.status = RideExitStatus::StationDisconnected;
             return access;
         };
@@ -175,10 +176,9 @@ impl Park {
             return false;
         }
         let Some(exit) = self
-            .ride
-            .as_ref()
-            .and_then(|ride| ride.exit)
-            .filter(|exit| exit.object == gate.id)
+            .all_rides()
+            .filter_map(|ride| ride.exit)
+            .find(|exit| exit.object == gate.id)
         else {
             return false;
         };
@@ -186,28 +186,25 @@ impl Park {
             && path.path_edge_height(exit.facing) == Some(gate.height)
     }
     pub fn object_removal_block_reason(&self, id: ObjectId) -> Option<&'static str> {
-        let mut occupied = false;
-        for passenger in self
-            .guests
-            .iter()
-            .filter_map(|guest| guest.ride_visit.as_ref()?.passenger.as_ref())
-        {
-            occupied = true;
+        let owner = self.object_ride(id);
+        for visit in self.guests.iter().filter_map(|g| g.ride_visit.as_ref()) {
+            let Some(passenger) = &visit.passenger else {
+                continue;
+            };
             if passenger
                 .transfer
                 .as_ref()
-                .is_some_and(|transfer| transfer.path == id || transfer.portal == id)
+                .is_some_and(|t| t.path == id || t.portal == id)
             {
                 return Some("Guests are using this boarding or exit walkway");
             }
-        }
-        if occupied
-            && self
-                .circuit
-                .as_ref()
-                .is_some_and(|circuit| circuit.pieces.iter().any(|piece| piece.object == id))
-        {
-            return Some("Let all passengers leave before removing ride track");
+            if owner == Some(visit.ride)
+                && self
+                    .object(id)
+                    .is_some_and(|o| matches!(o.kind, ObjectKind::Track | ObjectKind::Carousel))
+            {
+                return Some("Let all passengers leave before removing this ride");
+            }
         }
         None
     }
@@ -224,15 +221,20 @@ impl Park {
             held: false,
             exit_status: access.status,
         };
-        let Some(ride) = self.ride.as_ref().filter(|ride| ride.id == id) else {
+        let Some(ride) = self.ride_by_id(id) else {
             return stats;
         };
         stats.boarded = ride.boarded;
         stats.exited = ride.exited;
         stats.completed = ride.completed;
-        stats.held = self.ride_holds_train();
+        stats.held = self.ride_holds(id);
         for guest in &self.guests {
-            match guest.ride_visit.as_ref().map(|visit| visit.phase) {
+            match guest
+                .ride_visit
+                .as_ref()
+                .filter(|v| v.ride == id)
+                .map(|visit| visit.phase)
+            {
                 Some(RideVisitPhase::Boarding) => stats.boarding += 1,
                 Some(RideVisitPhase::Riding) => stats.riding += 1,
                 Some(RideVisitPhase::Exiting) => stats.exiting += 1,
@@ -249,6 +251,7 @@ impl Park {
                 let passenger = visit.passenger.as_ref()?;
                 Some(RideGuestPosition {
                     guest: guest.id,
+                    ride: visit.ride,
                     seat: passenger.seat,
                     phase: visit.phase,
                     point: self.ride_guest_point(guest)?,
@@ -259,7 +262,7 @@ impl Park {
     pub(crate) fn ride_guest_point(&self, guest: &Guest) -> Option<PathPoint> {
         let visit = guest.ride_visit.as_ref()?;
         let passenger = visit.passenger.as_ref()?;
-        let seat = self.seat_point(passenger.seat)?;
+        let seat = self.seat_point(visit.ride, passenger.seat)?;
         let Some(transfer) = &passenger.transfer else {
             return Some(seat);
         };
@@ -295,9 +298,15 @@ impl Park {
             path_to_gate(RIDE_TRANSFER_TICKS - transfer.progress)
         })
     }
-    fn seat_point(&self, seat: u8) -> Option<PathPoint> {
+    fn seat_point(&self, id: RideId, seat: u8) -> Option<PathPoint> {
         if usize::from(seat) >= TRAIN_SEATS {
             return None;
+        }
+        if self.carousel(id).is_some() {
+            return self
+                .carousel_seat_positions(id)
+                .get(usize::from(seat))
+                .copied();
         }
         let pose = *self.train_cars().get(usize::from(seat) / 2)?;
         let dx = i64::from(pose.front.x - pose.rear.x);
@@ -313,53 +322,52 @@ impl Park {
         })
     }
     pub(crate) fn ride_holds_train(&self) -> bool {
+        self.ride.as_ref().is_some_and(|r| self.ride_holds(r.id))
+    }
+    pub(crate) fn ride_holds(&self, id: RideId) -> bool {
         let mut occupied = false;
         let mut completed = false;
-        for passenger in self
-            .guests
-            .iter()
-            .filter_map(|guest| guest.ride_visit.as_ref()?.passenger.as_ref())
-        {
+        for passenger in self.guests.iter().filter_map(|g| {
+            g.ride_visit
+                .as_ref()
+                .filter(|v| v.ride == id)?
+                .passenger
+                .as_ref()
+        }) {
             occupied = true;
             completed |= passenger.completed_lap;
             if passenger.transfer.is_some() {
                 return true;
             }
         }
-        if !occupied {
-            return false;
-        }
-        let Some(train) = &self.train else {
-            return true;
-        };
-        if train.departed {
-            return false;
-        }
-        completed
-            || self
-                .ride
-                .as_ref()
-                .is_none_or(|ride| self.ride_exit_access(ride.id).status != RideExitStatus::Ready)
+        occupied
+            && !self.ride_is_running(id)
+            && (completed || self.ride_exit_access(id).status != RideExitStatus::Ready)
     }
     pub(crate) fn step_ride_journeys(&mut self) {
-        let Some(ride) = &self.ride else {
-            return;
-        };
-        if ride.exit.is_none()
-            && self.guests.iter().all(|guest| {
-                guest
-                    .ride_visit
+        let mut ids: Vec<_> = self.all_rides().map(|r| r.id).collect();
+        ids.sort_unstable();
+        for id in ids {
+            self.step_owner_journeys(id);
+        }
+    }
+    fn step_owner_journeys(&mut self, ride_id: RideId) {
+        if self.ride_by_id(ride_id).unwrap().exit.is_none()
+            && self.guests.iter().all(|g| {
+                g.ride_visit
                     .as_ref()
-                    .is_none_or(|visit| visit.passenger.is_none())
+                    .is_none_or(|v| v.ride != ride_id || v.passenger.is_none())
             })
         {
             return;
-        }
-        let ride_id = ride.id;
-        // At most one guest uses a station walkway at a time. A completed
+        } // At most one guest uses a station walkway at a time. A completed
         // transfer keeps its exact endpoint when switching between render roles.
         for index in 0..self.guests.len() {
-            let Some(visit) = &mut self.guests[index].ride_visit else {
+            let Some(visit) = self.guests[index]
+                .ride_visit
+                .as_mut()
+                .filter(|v| v.ride == ride_id)
+            else {
                 continue;
             };
             let Some(passenger) = &mut visit.passenger else {
@@ -376,19 +384,17 @@ impl Park {
                 visit.phase = RideVisitPhase::Riding;
                 passenger.transfer = None;
                 self.guests[index].state = GuestState::Waiting;
-                self.ride.as_mut().unwrap().boarded += 1;
-                if let Some(train) = &mut self.train
-                    && train.open
-                {
-                    train.dwell_ticks = crate::STATION_DWELL_TICKS;
-                }
+                self.ride_by_id_mut(ride_id).unwrap().boarded += 1;
+                self.reset_ride_dwell(ride_id);
             } else {
                 let path_id = transfer.path;
                 let completed = passenger.completed_lap;
                 let fare = passenger.fare_cents;
                 let waited = visit.waited_ticks;
                 let path = *self.object(path_id).expect("protected transfer landing");
-                let guest = &mut self.guests[index];
+                let tick = self.ticks;
+                let (ride, guests) = self.ride_and_guests_mut(ride_id).unwrap();
+                let guest = &mut guests[index];
                 guest.current = Some(path.id);
                 guest.anchor = path.pos;
                 guest.height = path.height;
@@ -399,27 +405,22 @@ impl Park {
                 // Prevent ordinary movement from choosing a new route on the
                 // same tick that a later system observes the public endpoint.
                 guest.wait_ticks = 1;
-                let ride = self.ride.as_mut().unwrap();
                 ride.exited += 1;
                 if completed {
                     ride.completed += 1;
                     guest.rides_completed = guest.rides_completed.saturating_add(1);
-                    guest.rate_completed_trip(ride, fare, waited, self.ticks);
+                    guest.rate_completed_trip(ride, fare, waited, tick);
                 }
             }
         }
-        let Some(train) = &self.train else {
-            return;
-        };
-        if train.departed
-            || train.speed != 0
-            || self.circuit.is_none()
+        if !self.ride_stationary(ride_id)
             || self.guests.iter().any(|guest| {
                 guest.ride_visit.as_ref().is_some_and(|visit| {
-                    visit
-                        .passenger
-                        .as_ref()
-                        .is_some_and(|passenger| passenger.transfer.is_some())
+                    visit.ride == ride_id
+                        && visit
+                            .passenger
+                            .as_ref()
+                            .is_some_and(|passenger| passenger.transfer.is_some())
                 })
             })
         {
@@ -431,17 +432,18 @@ impl Park {
             .iter()
             .enumerate()
             .filter_map(|(index, guest)| {
-                let visit = guest.ride_visit.as_ref()?;
+                let visit = guest.ride_visit.as_ref().filter(|v| v.ride == ride_id)?;
                 let passenger = visit.passenger.as_ref()?;
-                (visit.phase == RideVisitPhase::Riding && (passenger.completed_lap || !train.open))
-                    .then_some((passenger.seat, index))
+                (visit.phase == RideVisitPhase::Riding
+                    && (passenger.completed_lap || !self.ride_is_open(ride_id)))
+                .then_some((passenger.seat, index))
             })
             .min();
         if let Some((_, index)) = unload {
             if let (Some(path), Some(_), Some(portal)) = (
                 exit.public_exit,
                 exit.station,
-                self.ride.as_ref().unwrap().exit,
+                self.ride_by_id(ride_id).unwrap().exit,
             ) {
                 let visit = self.guests[index].ride_visit.as_mut().unwrap();
                 visit.phase = RideVisitPhase::Exiting;
@@ -465,9 +467,9 @@ impl Park {
             }
             return;
         }
-        if !train.open
+        if !self.ride_is_open(ride_id)
             || exit.status != RideExitStatus::Ready
-            || self.ride.as_ref().unwrap().draining
+            || self.ride_by_id(ride_id).unwrap().draining
         {
             return;
         }
@@ -477,7 +479,8 @@ impl Park {
             .filter_map(|guest| {
                 guest
                     .ride_visit
-                    .as_ref()?
+                    .as_ref()
+                    .filter(|v| v.ride == ride_id)?
                     .passenger
                     .as_ref()
                     .map(|passenger| passenger.seat)
@@ -498,7 +501,7 @@ impl Park {
             .iter()
             .enumerate()
             .filter_map(|(index, guest)| {
-                let visit = guest.ride_visit.as_ref()?;
+                let visit = guest.ride_visit.as_ref().filter(|v| v.ride == ride_id)?;
                 (visit.phase == RideVisitPhase::Queueing
                     && guest.current == Some(front)
                     && guest.next.is_none())
@@ -506,7 +509,7 @@ impl Park {
             })
             .min();
         if let Some((_, index)) = candidate {
-            let fare_cents = self.ride.as_ref().unwrap().ticket_price_cents;
+            let fare_cents = self.ride_by_id(ride_id).unwrap().ticket_price_cents;
             if self.guests[index].wallet_cents < fare_cents {
                 self.drain_queue_for_funds(&access, self.guests[index].id);
                 return;
@@ -518,7 +521,7 @@ impl Park {
             if !self.can_reserve_rating(index) {
                 return;
             }
-            let portal = self.ride.as_ref().unwrap().entrance.unwrap().object;
+            let portal = self.ride_by_id(ride_id).unwrap().entrance.unwrap().object;
             let guest = &mut self.guests[index];
             let visit = guest.ride_visit.as_mut().unwrap();
             visit.phase = RideVisitPhase::Boarding;
@@ -544,22 +547,23 @@ impl Park {
         }
     }
     pub(crate) fn reconcile_passenger_laps(&mut self) {
-        self.settle_departure_fares();
-        let Some(train) = &self.train else {
-            return;
-        };
+        let running: BTreeMap<_, _> = self
+            .all_rides()
+            .map(|r| (r.id, self.ride_is_running(r.id)))
+            .collect();
         for guest in &mut self.guests {
             if let Some(visit) = &mut guest.ride_visit
                 && visit.phase == RideVisitPhase::Riding
                 && let Some(passenger) = &mut visit.passenger
             {
-                if train.departed {
+                if running.get(&visit.ride) == Some(&true) {
                     passenger.departed = true;
                 } else if passenger.departed {
                     passenger.completed_lap = true;
                 }
             }
         }
+        self.settle_departure_fares();
     }
 }
 
@@ -582,13 +586,23 @@ pub(crate) fn validate_journeys(
     park: &Park,
     objects: &BTreeMap<ObjectId, &SurfaceObject>,
 ) -> Result<(), String> {
-    let Some(ride) = &park.ride else {
-        return if park.guests.iter().any(|guest| guest.rides_completed != 0) {
-            Err("completion history has no ride".into())
-        } else {
-            Ok(())
-        };
-    };
+    if park.guests.iter().any(|g| {
+        g.ride_visit
+            .as_ref()
+            .is_some_and(|v| park.ride_by_id(v.ride).is_none())
+    }) {
+        return Err("guest visit has no ride".into());
+    }
+    for ride in park.all_rides() {
+        validate_owner_journeys(park, objects, ride)?;
+    }
+    Ok(())
+}
+fn validate_owner_journeys(
+    park: &Park,
+    objects: &BTreeMap<ObjectId, &SurfaceObject>,
+    ride: &crate::Ride,
+) -> Result<(), String> {
     if ride.boarded > ride.joined.saturating_sub(ride.abandoned)
         || ride.exited > ride.boarded
         || ride.completed > ride.exited
@@ -601,9 +615,15 @@ pub(crate) fn validate_journeys(
     let mut completed_total = 0_u64;
     for guest in &park.guests {
         completed_total = completed_total
-            .checked_add(guest.rides_completed)
+            .checked_add(
+                guest
+                    .ride_history
+                    .iter()
+                    .find(|h| h.ride == ride.id)
+                    .map_or(0, |h| h.completed),
+            )
             .ok_or("guest completion counters overflow")?;
-        let Some(visit) = &guest.ride_visit else {
+        let Some(visit) = guest.ride_visit.as_ref().filter(|v| v.ride == ride.id) else {
             continue;
         };
         if !passenger_phase(visit.phase) {
@@ -616,8 +636,8 @@ pub(crate) fn validate_journeys(
             .passenger
             .as_ref()
             .ok_or("passenger phase lacks seat state")?;
-        let train = park.train.as_ref().ok_or("passenger has no train")?;
-        if park.circuit.is_none()
+        let running = park.ride_is_running(ride.id);
+        if !park.ride_available(ride.id)
             || usize::from(passenger.seat) >= TRAIN_SEATS
             || !seats.insert(passenger.seat)
             || guest.current.is_some()
@@ -637,15 +657,15 @@ pub(crate) fn validate_journeys(
                 riding += 1;
                 if guest.state != GuestState::Waiting
                     || passenger.transfer.is_some()
-                    || (train.departed && (!passenger.departed || passenger.completed_lap))
-                    || (!train.departed && passenger.departed != passenger.completed_lap)
+                    || (running && (!passenger.departed || passenger.completed_lap))
+                    || (!running && passenger.departed != passenger.completed_lap)
                 {
                     return Err("seated passenger disagrees with train journey".into());
                 }
             }
             RideVisitPhase::Boarding | RideVisitPhase::Exiting => {
                 transfers += 1;
-                if train.departed || train.speed != 0 || guest.state != GuestState::Walking {
+                if !park.ride_stationary(ride.id) || guest.state != GuestState::Walking {
                     return Err("transfer requires a stopped train".into());
                 }
                 let transfer = passenger
@@ -669,7 +689,7 @@ pub(crate) fn validate_journeys(
                 .ok_or("transfer portal metadata is missing")?;
                 if portal.object != gate.id
                     || park
-                        .entrance_station(gate.pos, gate.height, portal.facing)
+                        .entrance_station(ride.id, gate.pos, gate.height, portal.facing)
                         .is_err()
                 {
                     return Err("transfer portal is not attached to station".into());

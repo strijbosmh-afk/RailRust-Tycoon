@@ -29,6 +29,16 @@ pub enum GuestState {
     Lost,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GuestRideHistory {
+    pub ride: crate::RideId,
+    pub spent_cents: u64,
+    pub completed: u64,
+    pub rating_count: u64,
+    pub rating_total: u64,
+}
+
 /// A guest's identities and integer movement state are authoritative.
 ///
 /// `current` is the starting path during movement; `next` is its adjacent
@@ -54,6 +64,8 @@ pub struct Guest {
     pub state: GuestState,
     pub arrivals: u64,
     pub rides_completed: u64,
+    #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,9>")]
+    pub ride_history: Vec<GuestRideHistory>,
     /// Cash still owned by this guest, including a fare reserved before departure.
     pub wallet_cents: u32,
     pub spent_cents: u64,
@@ -336,6 +348,7 @@ impl Park {
                     state: GuestState::Waiting,
                     arrivals: 0,
                     rides_completed: 0,
+                    ride_history: Vec::new(),
                     wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
                     spent_cents: 0,
                     service_spent_cents: 0,
@@ -688,6 +701,7 @@ mod tests {
             state: GuestState::Waiting,
             arrivals: 0,
             rides_completed: 0,
+            ride_history: Vec::new(),
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
             service_spent_cents: 0,

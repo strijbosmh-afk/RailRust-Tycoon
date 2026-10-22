@@ -125,6 +125,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-finance --save-dir $financeDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process service finance continuation failed" }
           Get-Content -LiteralPath (Join-Path $financeDirectory "verification-finance.txt")
+      - name: Verify independent rides and guest choice across fresh processes
+        shell: pwsh
+        run: |
+          $ridesDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound dual rides proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-rides --save-dir $ridesDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Dual rides writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-rides --save-dir $ridesDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process dual ride continuation failed" }
+          Get-Content -LiteralPath (Join-Path $ridesDirectory "verification-rides.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

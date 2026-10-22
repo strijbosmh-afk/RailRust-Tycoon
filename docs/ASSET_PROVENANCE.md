@@ -1,9 +1,10 @@
 # Asset provenance
 
-This register includes the current 0.20 original finance rules, ledger interface and deterministic proof fixtures alongside retained procedural buildings and all earlier assets. [The service finance report](SERVICE_FINANCE_REPORT.md) records current verification; earlier named-build evidence remains historical. No dependency, external asset, font, audio or original game data is added. Add an entry before importing graphics, fonts, sounds, music, maps or data.
+This register includes the current 0.21 original carousel, moving seats/passengers, Rides interface and deterministic ride-choice/proof data alongside all earlier assets. [The second ride report](SECOND_RIDE_REPORT.md) records current validation; earlier named-build evidence remains historical. No dependency, external model, texture, font, audio or original game data is added. Add an entry before importing assets.
 
 | Asset | Source | Rights and distribution treatment |
 | --- | --- | --- |
+| Carousel body, seats, passengers and Rides controls | Original procedural geometry in `world/carousel_render.rs`, shared ride/guest rendering, `path_tools/carousel.rs` and `ui/rides.rs` | Project-authored open platform, mast, horse-like benches, passengers, text and colors; no external ride model, texture or icon. Current source/runtime/render/package checks pass; native gestures retain the scoped report limitations. |
 | Landscape tiles, lake and shore | Original geometry and colors in `crates/park_game/src/world.rs` | Project-authored procedural art; no external source files |
 | Terraced hill profile, exposed cliffs and contour details | Original integer preset in `crates/park_sim/src/lib.rs` and geometry in `crates/park_game/src/world.rs` | Project-authored data and procedural art; no imported maps or textures |
 | Elevated-path and underground-track fixtures | Original 21-object fixture in `crates/park_sim/src/surfaces.rs` and procedural geometry in `crates/park_game/src/world.rs` | Project-authored proof data and art; no imported track models or ride definitions |

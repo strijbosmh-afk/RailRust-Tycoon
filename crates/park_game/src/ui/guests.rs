@@ -171,15 +171,15 @@ fn activity(guest: &Guest) -> &'static str {
         Some(RideVisitPhase::Approaching) => "Heading to ride",
         Some(RideVisitPhase::Queueing) => "In the queue",
         Some(RideVisitPhase::Leaving) => "Returning to paths",
-        Some(RideVisitPhase::Boarding) => "Boarding the train",
-        Some(RideVisitPhase::Riding) => "On the train",
-        Some(RideVisitPhase::Exiting) => "Leaving the train",
+        Some(RideVisitPhase::Boarding) => "Boarding the ride",
+        Some(RideVisitPhase::Riding) => "On the ride",
+        Some(RideVisitPhase::Exiting) => "Leaving the ride",
         None if guest.state == GuestState::Walking => "Walking in the park",
         None => "Waiting on a path",
     }
 }
 
-fn details(guest: &Guest) -> String {
+fn details(guest: &Guest, park: &Park) -> String {
     let review = guest
         .last_rating
         .map_or_else(|| "No review yet".into(), |rating| format!("{rating}/5"));
@@ -202,7 +202,7 @@ fn details(guest: &Guest) -> String {
             ServiceVisitPhase::Approaching => format!("\nHeading to service #{}", visit.service.0),
         });
     format!(
-        "Wallet {} / Total spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100\nNeed urgency /100: hunger {} / thirst {} / toilet {}\nActivity: {}\nServices used: {} / Service spend {}{service}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
+        "Wallet {} / Total spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100 / Prefers {}\nNeed urgency /100: hunger {} / thirst {} / toilet {}\nActivity: {}\nServices used: {} / Service spend {}{service}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
         money(u64::from(guest.wallet_cents)),
         money(guest.spent_cents),
         money(u64::from(guest.preferences.max_ticket_price_cents)),
@@ -214,6 +214,8 @@ fn details(guest: &Guest) -> String {
                 .map_or(0, |visit| visit.waited_ticks)
         ) / TICKS_PER_SECOND,
         guest.satisfaction,
+        park.guest_preferred_ride_kind(guest.id)
+            .map_or_else(|| "unknown".into(), |kind| kind.to_string()),
         guest.needs.hunger,
         guest.needs.thirst,
         guest.needs.toilet,
@@ -225,19 +227,27 @@ fn details(guest: &Guest) -> String {
     )
 }
 
-fn demand(guest: &Guest, park: &Park) -> String {
-    let Some(ride) = park.ride() else {
+fn demand(guest: &Guest, park: &Park, selected: Option<park_sim::RideId>) -> String {
+    let Some(ride) = selected.and_then(|id| park.ride_by_id(id)) else {
         return "No ride is available to consider.".into();
     };
     let affordable = guest.wallet_cents >= ride.ticket_price_cents;
     let willing = guest.willing_to_pay(ride.ticket_price_cents);
     let yes_no = |value| if value { "yes" } else { "no" };
     format!(
-        "Current ticket: {}\nCan pay: {} / Willing to pay: {}\nInterested now: {} (wallet + preference)\nRide access and seats are checked separately.",
+        "{}: {}\nCan pay: {} / Willing to pay: {}\nInterested now: {} (wallet + preference)\nTrips here: {} / access and seats checked separately.",
+        super::rides::name(park, ride.id),
         money(u64::from(ride.ticket_price_cents)),
         yes_no(affordable),
         yes_no(willing),
         yes_no(affordable && willing),
+        super::compact_count(
+            guest
+                .ride_history
+                .iter()
+                .find(|history| history.ride == ride.id)
+                .map_or(0, |history| history.completed)
+        ),
     )
 }
 
@@ -316,19 +326,18 @@ pub(crate) fn refresh(
         };
     }
     let summary = sim.0.guest_experience_summary();
-    let experience = sim
-        .0
-        .ride()
-        .map(|ride| sim.0.ride_experience_stats(ride.id));
+    let ride_id = super::rides::selected_id(&sim.0, &view);
+    let experience = ride_id.map(|id| sim.0.ride_experience_stats(id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
             GuestLabel::Summary => format!(
-                "{} guests / Average satisfaction {} / {} unhappy\nRide reviews: {} from {} opinions",
+                "{} guests / Average satisfaction {} / {} unhappy\n{} reviews: {} from {} opinions",
                 guests.len(),
                 summary
                     .average_satisfaction
                     .map_or_else(|| "none".into(), |value| format!("{value}/100")),
                 summary.unhappy_guests,
+                ride_id.map_or("Selected ride", |id| super::rides::name(&sim.0, id)),
                 rating_label(
                     experience
                         .as_ref()
@@ -349,7 +358,15 @@ pub(crate) fn refresh(
                 || "No guests in this park".into(),
                 |guest| format!("Guest #{}", guest.id.0),
             ),
-            GuestLabel::Details => selected.map_or_else(String::new, details),
+            GuestLabel::Details => selected.map_or_else(String::new, |guest| {
+                let text = details(guest, &sim.0);
+                guest.ride_visit.as_ref().map_or(text.clone(), |visit| {
+                    text.replace(
+                        &format!("Activity: {}", activity(guest)),
+                        &format!("Activity: {} / ride #{}", activity(guest), visit.ride.0),
+                    )
+                })
+            }),
             GuestLabel::Thought => selected.map_or_else(String::new, |guest| {
                 format!(
                     "Latest thought ({}s ago)\n{}",
@@ -357,7 +374,9 @@ pub(crate) fn refresh(
                     guest.thought
                 )
             }),
-            GuestLabel::Demand => selected.map_or_else(String::new, |guest| demand(guest, &sim.0)),
+            GuestLabel::Demand => {
+                selected.map_or_else(String::new, |guest| demand(guest, &sim.0, ride_id))
+            }
         };
         if text.0 != value {
             text.0 = value;

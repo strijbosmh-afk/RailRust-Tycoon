@@ -37,8 +37,8 @@ pub(super) fn header(park: &Park, stats: Option<&RideEconomyStats>) -> String {
         "Cash {} / Revenue {} / Wallets {wallets} / Can pay {}/{}",
         compact_money(park.cash_cents()),
         compact_money(
-            stats
-                .map_or(0, |stats| stats.revenue_cents)
+            park.finance_stats()
+                .ride_revenue_cents
                 .saturating_add(park.guest_needs_summary().service_revenue_cents)
         ),
         super::compact_count(stats.map_or(0, |stats| stats.affordable_guests) as u64),

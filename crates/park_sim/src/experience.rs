@@ -138,6 +138,10 @@ impl Guest {
         self.last_rating = Some(score);
         ride.rating_count += 1;
         ride.rating_total += u64::from(score);
+        let history = self.ride_history_mut(ride.id);
+        history.completed += 1;
+        history.rating_count += 1;
+        history.rating_total += u64::from(score);
         self.satisfaction = ((3 * u16::from(self.satisfaction) + u16::from(score) * 20) / 4) as u8;
         self.think(
             if score >= 3 {
@@ -151,7 +155,7 @@ impl Guest {
 }
 impl Park {
     pub fn ride_experience_stats(&self, id: RideId) -> RideExperienceStats {
-        let Some(ride) = self.ride.as_ref().filter(|ride| ride.id == id) else {
+        let Some(ride) = self.ride_by_id(id) else {
             return RideExperienceStats::default();
         };
         RideExperienceStats {
@@ -196,7 +200,24 @@ impl Park {
         }
     }
     pub(crate) fn can_reserve_rating(&self, index: usize) -> bool {
+        let Some(id) = self.guests[index]
+            .ride_visit
+            .as_ref()
+            .map(|visit| visit.ride)
+        else {
+            return false;
+        };
         let active = self
+            .guests
+            .iter()
+            .filter(|guest| {
+                guest
+                    .ride_visit
+                    .as_ref()
+                    .is_some_and(|visit| visit.ride == id && visit.passenger.is_some())
+            })
+            .count() as u64;
+        let all_active = self
             .guests
             .iter()
             .filter(|guest| {
@@ -205,11 +226,16 @@ impl Park {
                     .as_ref()
                     .is_some_and(|visit| visit.passenger.is_some())
             })
-            .count() as u64;
+            .count() as u128;
+        let all_ratings: u128 = self
+            .all_rides()
+            .map(|ride| u128::from(ride.rating_count))
+            .sum();
         self.guests[index].ratings_given < MAX_RATINGS
+            && self.guests[index].rides_completed < u64::MAX
+            && all_ratings + all_active < u128::from(MAX_RATINGS)
             && self
-                .ride
-                .as_ref()
+                .ride_by_id(id)
                 .is_some_and(|ride| ride.rating_count < MAX_RATINGS - active)
     }
 }
@@ -217,7 +243,8 @@ impl Park {
 pub(crate) fn validate_experience(park: &Park) -> Result<(), String> {
     let mut count = 0_u64;
     let mut total = 0_u64;
-    let mut active = 0_u64;
+    let mut owners = std::collections::BTreeMap::<RideId, (u64, u64)>::new();
+    let mut active = std::collections::BTreeMap::<RideId, u64>::new();
     for guest in &park.guests {
         let passenger = guest
             .ride_visit
@@ -258,21 +285,64 @@ pub(crate) fn validate_experience(park: &Park) -> Result<(), String> {
         total = total
             .checked_add(guest.rating_total)
             .ok_or("rating totals overflow")?;
-        active += u64::from(passenger);
+        if passenger {
+            *active
+                .entry(guest.ride_visit.as_ref().unwrap().ride)
+                .or_default() += 1;
+        }
+        let mut guest_count = 0_u64;
+        let mut guest_total = 0_u64;
+        for history in &guest.ride_history {
+            if park.ride_by_id(history.ride).is_none()
+                || history.rating_count > history.completed
+                || history.rating_count > MAX_RATINGS
+                || history.rating_total < history.rating_count
+                || history.rating_total > history.rating_count * 5
+            {
+                return Err("attributed guest feedback history is invalid".into());
+            }
+            guest_count = guest_count
+                .checked_add(history.rating_count)
+                .ok_or("guest attributed rating count overflows")?;
+            guest_total = guest_total
+                .checked_add(history.rating_total)
+                .ok_or("guest attributed rating total overflows")?;
+            let entry = owners.entry(history.ride).or_default();
+            entry.0 = entry
+                .0
+                .checked_add(history.rating_count)
+                .ok_or("attributed rating count overflows")?;
+            entry.1 = entry
+                .1
+                .checked_add(history.rating_total)
+                .ok_or("attributed rating total overflows")?;
+        }
+        if guest_count != guest.ratings_given || guest_total != guest.rating_total {
+            return Err("guest attributed ratings disagree with lifetime history".into());
+        }
     }
-    let (ride_count, ride_total) = park
-        .ride
-        .as_ref()
-        .map_or((0, 0), |ride| (ride.rating_count, ride.rating_total));
-    if count != ride_count
-        || total != ride_total
-        || ride_count > MAX_RATINGS - active
-        || park
-            .ride
-            .as_ref()
-            .is_some_and(|ride| ride.rating_count > ride.completed)
+    let mut ride_count = 0_u64;
+    let mut ride_total = 0_u64;
+    for ride in park.all_rides() {
+        let reserved = active.get(&ride.id).copied().unwrap_or(0);
+        if owners.get(&ride.id).copied().unwrap_or_default()
+            != (ride.rating_count, ride.rating_total)
+            || ride.rating_count > MAX_RATINGS - reserved
+            || ride.rating_count > ride.completed
+        {
+            return Err("ride ratings disagree with guest feedback or reserved capacity".into());
+        }
+        ride_count = ride_count
+            .checked_add(ride.rating_count)
+            .ok_or("total ride rating counts overflow")?;
+        ride_total = ride_total
+            .checked_add(ride.rating_total)
+            .ok_or("total ride rating totals overflow")?;
+    }
+    if (count, total) != (ride_count, ride_total)
+        || count > MAX_RATINGS - active.values().sum::<u64>()
     {
-        return Err("ride ratings disagree with guest feedback or reserved capacity".into());
+        return Err("ride rating totals disagree with guest feedback".into());
     }
     Ok(())
 }

@@ -169,10 +169,7 @@ impl Park {
     }
 
     pub(crate) fn require_ride(&self, id: RideId) -> Result<&Ride, RideAccessError> {
-        self.ride
-            .as_ref()
-            .filter(|ride| ride.id == id)
-            .ok_or(RideAccessError::UnknownRide(id))
+        self.ride_by_id(id).ok_or(RideAccessError::UnknownRide(id))
     }
 
     pub fn validate_queue_path(
@@ -237,7 +234,7 @@ impl Park {
             }
             .into());
         }
-        self.entrance_station(pos, height, facing)?;
+        self.entrance_station(ride, pos, height, facing)?;
         Ok(())
     }
 
@@ -264,7 +261,7 @@ impl Park {
             },
             next,
         );
-        self.ride.as_mut().expect("validated ride").entrance =
+        self.ride_by_id_mut(ride).expect("validated ride").entrance =
             Some(RideEntrance { object, facing });
         self.reconcile_ride_visits();
         Ok(object)
@@ -272,10 +269,37 @@ impl Park {
 
     pub(crate) fn entrance_station(
         &self,
+        owner: RideId,
         pos: TilePos,
         height: u8,
         facing: PathDirection,
     ) -> Result<ObjectId, RideAccessError> {
+        if let Some(carousel) = self.carousel(owner) {
+            if carousel.objects.is_empty() {
+                return Err(RideAccessError::CircuitUnavailable);
+            }
+            let target = facing
+                .neighbor(pos)
+                .ok_or(RideAccessError::NotBesideStation)?;
+            let inside = |p: TilePos| {
+                p.x >= carousel.origin.x
+                    && p.x < carousel.origin.x + 3
+                    && p.y >= carousel.origin.y
+                    && p.y < carousel.origin.y + 3
+            };
+            if inside(pos) || !inside(target) {
+                return Err(RideAccessError::NotBesideStation);
+            }
+            if height != carousel.height {
+                return Err(RideAccessError::WrongStationHeight {
+                    expected: carousel.height,
+                    actual: height,
+                });
+            }
+            return Ok(carousel.objects
+                [((target.y - carousel.origin.y) * 3 + target.x - carousel.origin.x) as usize]);
+        }
+        self.require_ride(owner)?;
         let circuit = self
             .circuit
             .as_ref()
@@ -313,7 +337,10 @@ impl Park {
         path: &SurfaceObject,
         require_owner: bool,
     ) -> bool {
-        let Some(ride) = &self.ride else {
+        let Some(ride) = self.all_rides().find(|ride| {
+            ride.entrance
+                .is_some_and(|entrance| entrance.object == gate.id)
+        }) else {
             return false;
         };
         let Some(entrance) = &ride.entrance else {
@@ -374,10 +401,10 @@ impl Park {
             public_entry: None,
             station: None,
         };
-        let Some(ride) = self.ride.as_ref().filter(|ride| ride.id == id) else {
+        let Some(ride) = self.ride_by_id(id) else {
             return report;
         };
-        if self.circuit.is_none() {
+        if !self.ride_available(id) {
             return report;
         }
         let Some(entrance) = &ride.entrance else {
@@ -388,7 +415,7 @@ impl Park {
             report.status = RideAccessStatus::NoEntrance;
             return report;
         };
-        let Ok(station) = self.entrance_station(gate.pos, gate.height, entrance.facing) else {
+        let Ok(station) = self.entrance_station(id, gate.pos, gate.height, entrance.facing) else {
             report.status = RideAccessStatus::StationDisconnected;
             return report;
         };
@@ -532,49 +559,45 @@ pub(crate) fn validate_ride_state(park: &Park) -> Result<(), String> {
     if park.next_ride_id == 0 {
         return Err("next ride identity is zero".into());
     }
-    let ride_id = park.ride.as_ref().map(|ride| ride.id);
-    if ride_id.is_some_and(|id| id.0 == 0 || id.0 >= park.next_ride_id) {
-        return Err("ride identity would be reused".into());
+    let mut ids = BTreeSet::new();
+    let mut gates = BTreeMap::new();
+    for ride in park.all_rides() {
+        if ride.id.0 == 0 || ride.id.0 >= park.next_ride_id || !ids.insert(ride.id) {
+            return Err("ride identity would be reused".into());
+        }
+        for (gate, kind) in [
+            (ride.entrance, ObjectKind::RideEntrance),
+            (ride.exit, ObjectKind::RideExit),
+        ] {
+            if let Some(gate) = gate
+                && (gates.insert(gate.object, (gate, kind)).is_some()
+                    || park.object(gate.object).is_none_or(|o| o.kind != kind))
+            {
+                return Err("ride portal references a missing or shared object".into());
+            }
+        }
     }
-    let entrance = park.ride.as_ref().and_then(|ride| ride.entrance.as_ref());
-    let exit = park.ride.as_ref().and_then(|ride| ride.exit.as_ref());
     for object in &park.objects {
         if let Some(owner) = object.queue_owner
             && (object.kind != ObjectKind::Path
-                || Some(owner) != ride_id
+                || !ids.contains(&owner)
                 || object.clearance != object.path_slope.clearance())
         {
             return Err("queue owner, path kind or clearance is invalid".into());
         }
         if matches!(object.kind, ObjectKind::RideEntrance | ObjectKind::RideExit) {
-            let metadata = if object.kind == ObjectKind::RideEntrance {
-                entrance
-            } else {
-                exit
-            };
-            let Some(entrance) = metadata.filter(|entrance| entrance.object == object.id) else {
-                return Err("entrance object has no ride metadata".into());
-            };
-            if object.path_slope != PathSlope::Flat
+            let (gate, kind) = gates
+                .get(&object.id)
+                .ok_or("portal object has no ride metadata")?;
+            if *kind != object.kind
+                || object.path_slope != PathSlope::Flat
                 || object.clearance != crate::PATH_CLEARANCE
-                || object.axis != axis(entrance.facing)
+                || object.axis != axis(gate.facing)
                 || object.queue_owner.is_some()
             {
-                return Err("entrance has an invalid shape or facing axis".into());
+                return Err("portal has invalid shape or facing axis".into());
             }
         }
-    }
-    if entrance.is_some_and(|entrance| {
-        park.object(entrance.object)
-            .is_none_or(|o| o.kind != ObjectKind::RideEntrance)
-    }) {
-        return Err("ride entrance references a missing entrance object".into());
-    }
-    if exit.is_some_and(|exit| {
-        park.object(exit.object)
-            .is_none_or(|object| object.kind != ObjectKind::RideExit)
-    }) {
-        return Err("ride exit references a missing exit object".into());
     }
     Ok(())
 }

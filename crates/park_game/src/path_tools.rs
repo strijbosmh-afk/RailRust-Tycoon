@@ -9,8 +9,10 @@ use park_sim::{
 use crate::terrain_tools::{self, TerrainPreview};
 use crate::{ViewState, world};
 
+mod carousel;
 mod entrance;
 mod service;
+pub(super) use carousel::CarouselPreview;
 pub(super) use service::ServicePreview;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -22,6 +24,7 @@ pub(super) enum PathTool {
     Entrance,
     Exit,
     Service(ServiceKind),
+    Carousel,
     Demolish,
     RaiseTerrain,
     LowerTerrain,
@@ -50,6 +53,7 @@ pub(super) struct ToolState {
     pub preview: Option<PathPreview>,
     pub terrain_preview: Option<TerrainPreview>,
     pub service_preview: Option<ServicePreview>,
+    pub carousel_preview: Option<CarouselPreview>,
     pub hint: String,
 }
 
@@ -65,6 +69,7 @@ impl Default for ToolState {
             preview: None,
             terrain_preview: None,
             service_preview: None,
+            carousel_preview: None,
             hint: "Choose a build tool.\nM opens facility settings.".into(),
         }
     }
@@ -84,7 +89,7 @@ impl ToolState {
     }
 
     pub fn max_height(&self) -> u8 {
-        if matches!(self.mode, PathTool::Service(_)) {
+        if matches!(self.mode, PathTool::Service(_) | PathTool::Carousel) {
             return MAX_PATH_HEIGHT - 1;
         }
         if matches!(self.mode, PathTool::Entrance | PathTool::Exit) || self.slope == PathSlope::Flat
@@ -96,6 +101,9 @@ impl ToolState {
     }
 
     pub fn cycle_shape(&mut self) {
+        if self.mode == PathTool::Carousel {
+            return;
+        }
         if matches!(
             self.mode,
             PathTool::Entrance | PathTool::Exit | PathTool::Service(_)
@@ -135,16 +143,22 @@ impl ToolState {
         self.preview = None;
         self.terrain_preview = None;
         self.service_preview = None;
+        self.carousel_preview = None;
         self.hint = match self.mode {
             PathTool::Inspect => "Choose a build tool.\nM opens facility settings.",
             PathTool::Build => "Point at the height plane.\nClick once per path tile.",
             PathTool::BuildQueue => {
-                "Build a queue for Meadow Flyer.\nJoin one public path to its gate."
+                "Build a queue for the selected ride.\nJoin one public path to its gate."
             }
-            PathTool::Entrance => "Place beside the station.\nC turns the gate toward it.",
-            PathTool::Exit => "Place beside the station.\nConnect its outer edge to public path.",
+            PathTool::Entrance => "Place beside the selected ride.\nC turns the gate toward it.",
+            PathTool::Exit => {
+                "Place beside the selected ride.\nConnect its outer edge to public path."
+            }
             PathTool::Service(_) => {
                 "Place beside a public path.\nC turns its serving side toward it."
+            }
+            PathTool::Carousel => {
+                "Point at a clear 3 x 3 footprint.\nClick once to build the carousel."
             }
             PathTool::Demolish => "Point to a path, gate or facility.\nClick once to remove it.",
             PathTool::RaiseTerrain => {
@@ -191,6 +205,9 @@ pub(super) fn placement_message(error: PlacementError) -> String {
         PlacementError::FixtureMapSize { .. } => "Demo paths require a 32 x 32 park.".into(),
         PlacementError::EntranceRequiresRide => "Choose the ride Entrance tool.".into(),
         PlacementError::ServiceRequiresDefinition => "Choose a facility from Services [M].".into(),
+        PlacementError::CarouselRequiresDefinition => {
+            "Choose Build carousel from Rides [Y].".into()
+        }
     }
 }
 
@@ -212,6 +229,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
     view.path_tool.preview = None;
     view.path_tool.terrain_preview = None;
     view.path_tool.service_preview = None;
+    view.path_tool.carousel_preview = None;
     match view.path_tool.mode {
         PathTool::RaiseTerrain | PathTool::LowerTerrain => {
             terrain_tools::point_at(park, view, click)
@@ -219,13 +237,21 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         PathTool::Inspect => {
             if click {
                 view.selected = view.hovered;
+                if let Some(SurfaceId::Object(object)) = view.selected
+                    && let Some(id) = park.object_ride(object)
+                {
+                    view.select_ride(id);
+                }
             }
         }
+        PathTool::Carousel => carousel::point_at(park, view, point, click),
         PathTool::Entrance | PathTool::Exit => entrance::point_at(park, view, point, click),
         PathTool::Service(kind) => service::point_at(park, view, point, click, kind),
         PathTool::Build | PathTool::BuildQueue => {
             let queue = view.path_tool.mode == PathTool::BuildQueue;
-            let owner = queue.then(|| park.ride().map(|ride| ride.id)).flatten();
+            let owner = queue
+                .then(|| crate::ui::rides::selected_id(park, view))
+                .flatten();
             let name = if queue { "Queue" } else { "Path" };
             let height = view.path_tool.height;
             let slope = view.path_tool.slope;
@@ -283,9 +309,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             view.path_tool.hint = reason.clone().unwrap_or_else(|| {
                 if queue {
                     format!(
-                        "Queue / {} -> {}\nClick once for Meadow Flyer.",
+                        "Queue / {} -> {}\nFor selected ride #{}.",
                         height,
-                        height + u8::from(slope != PathSlope::Flat)
+                        height + u8::from(slope != PathSlope::Flat),
+                        owner.map_or(0, |id| id.0)
                     )
                 } else if slope == PathSlope::Flat {
                     format!(
@@ -342,12 +369,22 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                             | ObjectKind::RideEntrance
                             | ObjectKind::RideExit
                             | ObjectKind::Service
+                            | ObjectKind::Carousel
                     )
                 }),
                 _ => None,
             };
             if let Some(object) = target {
-                if object.kind == ObjectKind::Service {
+                if object.kind == ObjectKind::Carousel {
+                    if let Some(c) = park.object_ride(object.id).and_then(|id| park.carousel(id)) {
+                        view.path_tool.carousel_preview = Some(CarouselPreview {
+                            origin: c.origin,
+                            height: c.height,
+                            valid: park.object_removal_block_reason(object.id).is_none(),
+                            demolish: true,
+                        });
+                    }
+                } else if object.kind == ObjectKind::Service {
                     if let Some(facility) = park.service_by_object(object.id) {
                         view.path_tool.service_preview = Some(ServicePreview {
                             pos: object.pos,
@@ -407,6 +444,7 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
                         | ObjectKind::RideEntrance
                         | ObjectKind::RideExit
                         | ObjectKind::Service
+                        | ObjectKind::Carousel
                 )
             }) =>
         {
@@ -434,6 +472,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
                 | ObjectKind::RideEntrance
                 | ObjectKind::RideExit
                 | ObjectKind::Service
+                | ObjectKind::Carousel
         )
     }) else {
         return;
@@ -462,7 +501,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
 }
 
 fn gate_facing(park: &Park, id: ObjectId) -> Option<PathDirection> {
-    let ride = park.ride()?;
+    let ride = park.ride_by_id(park.object_ride(id)?)?;
     ride.entrance
         .iter()
         .chain(ride.exit.iter())
@@ -475,6 +514,7 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
         ObjectKind::RideEntrance => "Entrance",
         ObjectKind::RideExit => "Exit",
         ObjectKind::Service => "Facility",
+        ObjectKind::Carousel => "Carousel",
         _ => "Path",
     }
 }

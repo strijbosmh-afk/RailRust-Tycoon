@@ -51,14 +51,14 @@ pub struct RideQueueStats {
 
 impl Park {
     pub fn ride_queue_stats(&self, id: RideId) -> RideQueueStats {
-        let Some(ride) = self.ride.as_ref().filter(|ride| ride.id == id) else {
+        let Some(ride) = self.ride_by_id(id) else {
             return RideQueueStats::default();
         };
         let access = self.ride_access(id);
         let mut stats = RideQueueStats {
             capacity: access.queue_tiles,
             draining: ride.draining,
-            admitting: self.admission_eligible(&access)
+            admitting: self.admission_eligible(id, &access)
                 && !ride.draining
                 && ride.next_queue_ticket < u64::MAX,
             joined: ride.joined,
@@ -109,9 +109,8 @@ impl Park {
         members.into_iter().map(|(_, id)| id).collect()
     }
 
-    fn admission_eligible(&self, access: &RideAccess) -> bool {
-        access.status == RideAccessStatus::Ready
-            && self.train.as_ref().is_some_and(|train| train.open)
+    pub(crate) fn admission_eligible(&self, id: RideId, access: &RideAccess) -> bool {
+        access.status == RideAccessStatus::Ready && self.ride_is_open(id)
     }
 
     /// Commands reconcile intent immediately, including while paused. A surviving
@@ -120,21 +119,22 @@ impl Park {
         if self.guests.iter().all(|guest| guest.ride_visit.is_none()) {
             return;
         }
-        let Some(id) = self.ride.as_ref().map(|ride| ride.id) else {
-            return;
-        };
-        let access = self.ride_access(id);
-        self.reconcile_admission(&access, false);
+        let mut ids: Vec<_> = self.all_rides().map(|r| r.id).collect();
+        ids.sort_unstable();
+        for id in ids {
+            let access = self.ride_access(id);
+            self.reconcile_admission(id, &access, false);
+        }
     }
 
-    fn reconcile_admission(&mut self, access: &RideAccess, patience: bool) {
-        let eligible = self.admission_eligible(access);
-        let Some(ride) = &mut self.ride else {
+    fn reconcile_admission(&mut self, id: RideId, access: &RideAccess, patience: bool) {
+        let eligible = self.admission_eligible(id, access);
+        let Some(mut ride) = self.ride_by_id(id).cloned() else {
             return;
         };
         let cancel = !eligible || ride.draining || patience;
         for guest in &mut self.guests {
-            let Some(visit) = &mut guest.ride_visit else {
+            let Some(visit) = guest.ride_visit.as_mut().filter(|v| v.ride == id) else {
                 continue;
             };
             if visit.phase == RideVisitPhase::Approaching
@@ -162,72 +162,117 @@ impl Park {
         }
         ride.draining = self.guests.iter().any(|guest| {
             guest.ride_visit.as_ref().is_some_and(|visit| {
-                visit.ticket.is_some() && visit.phase == RideVisitPhase::Leaving
+                visit.ride == id && visit.ticket.is_some() && visit.phase == RideVisitPhase::Leaving
             })
         });
+        *self.ride_by_id_mut(id).unwrap() = ride;
     }
 
     pub(crate) fn drain_queue_for_funds(&mut self, access: &RideAccess, rejected: GuestId) {
-        let ride = self.ride.as_mut().expect("queue belongs to a ride");
+        let id = self
+            .guests
+            .iter()
+            .find(|g| g.id == rejected)
+            .and_then(|g| g.ride_visit.as_ref())
+            .expect("queue guest")
+            .ride;
+        let ride = self.ride_by_id_mut(id).expect("queue belongs to a ride");
         ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
         // A front guest cannot pass the line behind them. Reuse the existing
         // tail-first physical drain, without charging anyone or moving poses.
-        self.reconcile_admission(access, true);
+        self.reconcile_admission(id, access, true);
         if let Some(guest) = self.guests.iter_mut().find(|guest| guest.id == rejected) {
             guest.think(GuestThought::NotEnoughMoney, self.ticks);
         }
     }
 
     pub(crate) fn drain_queue_for_value(&mut self, access: &RideAccess, rejected: GuestId) {
-        let ride = self.ride.as_mut().expect("queue belongs to a ride");
+        let id = self
+            .guests
+            .iter()
+            .find(|g| g.id == rejected)
+            .and_then(|g| g.ride_visit.as_ref())
+            .expect("queue guest")
+            .ride;
+        let ride = self.ride_by_id_mut(id).expect("queue belongs to a ride");
         ride.value_rejections = ride.value_rejections.saturating_add(1);
-        self.reconcile_admission(access, true);
+        self.reconcile_admission(id, access, true);
         if let Some(guest) = self.guests.iter_mut().find(|guest| guest.id == rejected) {
             guest.think(GuestThought::TooExpensive, self.ticks);
         }
     }
 
     pub(crate) fn step_admission_crowd(&mut self, graph: &crate::crowds::PathGraph) {
-        // Preserve old iteration and RNG behavior exactly when there is no ride.
-        let Some(id) = self.ride.as_ref().map(|ride| ride.id) else {
+        let mut ids: Vec<_> = self.all_rides().map(|r| r.id).collect();
+        ids.sort_unstable();
+        let mut patience = std::collections::BTreeSet::new();
+        if !ids.is_empty() {
             for guest in &mut self.guests {
-                if guest.service_visit.is_some() {
-                    continue;
-                }
-                graph.step_guest(guest, &mut self.crowd_rng);
-            }
-            return;
-        };
-        let access = self.ride_access(id);
-        let mut patience = false;
-        for guest in &mut self.guests {
-            if guest.ride_cooldown > 0 {
-                guest.ride_cooldown -= 1;
-            }
-            if let Some(visit) = &mut guest.ride_visit
-                && visit.phase == RideVisitPhase::Queueing
-            {
-                visit.waited_ticks = visit
-                    .waited_ticks
-                    .saturating_add(1)
-                    .min(QUEUE_PATIENCE_TICKS);
-                patience |= visit.waited_ticks == QUEUE_PATIENCE_TICKS;
-                if visit.waited_ticks == guest.preferences.comfortable_queue_ticks {
-                    guest.satisfaction = guest.satisfaction.saturating_sub(5);
-                    guest.think(GuestThought::WaitingTooLong, self.ticks);
+                guest.ride_cooldown = guest.ride_cooldown.saturating_sub(1);
+                if let Some(visit) = &mut guest.ride_visit
+                    && visit.phase == RideVisitPhase::Queueing
+                {
+                    visit.waited_ticks = visit
+                        .waited_ticks
+                        .saturating_add(1)
+                        .min(QUEUE_PATIENCE_TICKS);
+                    if visit.waited_ticks == QUEUE_PATIENCE_TICKS {
+                        patience.insert(visit.ride);
+                    }
+                    if visit.waited_ticks == guest.preferences.comfortable_queue_ticks {
+                        guest.satisfaction = guest.satisfaction.saturating_sub(5);
+                        guest.think(GuestThought::WaitingTooLong, self.ticks);
+                    }
                 }
             }
         }
-        self.reconcile_admission(&access, patience);
-        let eligible = self.admission_eligible(&access)
-            && !self.ride.as_ref().unwrap().draining
-            && self.ride.as_ref().unwrap().next_queue_ticket < u64::MAX;
-        if !eligible && self.guests.iter().all(|guest| guest.ride_visit.is_none()) {
-            for guest in &mut self.guests {
-                if guest.service_visit.is_some() {
-                    continue;
-                }
+        let accesses: BTreeMap<_, _> = ids.iter().map(|&id| (id, self.ride_access(id))).collect();
+        for &id in &ids {
+            self.reconcile_admission(id, &accesses[&id], patience.contains(&id));
+        }
+        let choices = self.choose_guest_rides(graph, &accesses);
+        // Keep legacy public-walk RNG ordering when there is only one ride.
+        let ordinary_inline = ids.len() == 1;
+        let processed: std::collections::BTreeSet<_> = self
+            .guests
+            .iter()
+            .filter(|g| ordinary_inline || g.ride_visit.is_some() || choices.contains_key(&g.id))
+            .map(|g| g.id)
+            .collect();
+        for id in ids {
+            self.step_admission_for_ride(id, graph, &accesses[&id], &choices, ordinary_inline);
+        }
+        for guest in &mut self.guests {
+            if guest.service_visit.is_none() && !processed.contains(&guest.id) {
                 graph.step_guest(guest, &mut self.crowd_rng);
+            }
+        }
+    }
+
+    fn step_admission_for_ride(
+        &mut self,
+        id: RideId,
+        graph: &crate::crowds::PathGraph,
+        access: &RideAccess,
+        choices: &BTreeMap<GuestId, RideId>,
+        ordinary_inline: bool,
+    ) {
+        let mut ride = self.ride_by_id(id).unwrap().clone();
+        let eligible = self.admission_eligible(id, access)
+            && !ride.draining
+            && ride.next_queue_ticket < u64::MAX;
+        if !eligible
+            && self
+                .guests
+                .iter()
+                .all(|g| g.ride_visit.as_ref().is_none_or(|v| v.ride != id))
+        {
+            if ordinary_inline {
+                for guest in &mut self.guests {
+                    if guest.service_visit.is_none() {
+                        graph.step_guest(guest, &mut self.crowd_rng);
+                    }
+                }
             }
             return;
         }
@@ -243,7 +288,7 @@ impl Park {
             .enumerate()
             .map(|(index, id)| (*id, index))
             .collect();
-        let escape = if self.ride.as_ref().unwrap().draining {
+        let escape = if ride.draining {
             EscapeGraph::new(&objects, id)
         } else {
             EscapeGraph {
@@ -256,7 +301,7 @@ impl Park {
             .iter()
             .enumerate()
             .filter_map(|(index, guest)| {
-                let visit = guest.ride_visit.as_ref()?;
+                let visit = guest.ride_visit.as_ref().filter(|v| v.ride == id)?;
                 if !matches!(
                     visit.phase,
                     RideVisitPhase::Queueing | RideVisitPhase::Leaving
@@ -267,7 +312,7 @@ impl Park {
             })
             .collect();
         members.sort_unstable();
-        if self.ride.as_ref().unwrap().draining {
+        if ride.draining {
             // A repaired footprint belongs first to its anchored former
             // occupant. Reserve these before another returning guest can walk
             // into the replacement, even if edits reversed the escape route.
@@ -363,7 +408,15 @@ impl Park {
         }
         let mut applicants = Vec::new();
         for (index, guest) in self.guests.iter_mut().enumerate() {
-            if guest.service_visit.is_some() {
+            if guest.service_visit.is_some()
+                || guest.ride_visit.as_ref().is_some_and(|v| v.ride != id)
+            {
+                continue;
+            }
+            if guest.ride_visit.is_none() && choices.get(&guest.id) != Some(&id) {
+                if ordinary_inline {
+                    graph.step_guest(guest, &mut self.crowd_rng);
+                }
                 continue;
             }
             if guest
@@ -392,18 +445,13 @@ impl Park {
                     } else {
                         reject_applicant(
                             guest,
-                            self.ride.as_mut().unwrap(),
+                            &mut ride,
                             GuestThought::CannotReachRide,
                             self.ticks,
                         );
                     }
                 } else {
-                    reject_applicant(
-                        guest,
-                        self.ride.as_mut().unwrap(),
-                        GuestThought::CannotReachRide,
-                        self.ticks,
-                    );
+                    reject_applicant(guest, &mut ride, GuestThought::CannotReachRide, self.ticks);
                 }
                 continue;
             }
@@ -414,7 +462,7 @@ impl Park {
                 && let (Some(current), Some(entry)) = (guest.current, access.public_entry)
                 && let Some(mut route) = graph.route(current, entry)
             {
-                let ride = self.ride.as_mut().unwrap();
+                let ride = &mut ride;
                 if guest.wallet_cents < ride.ticket_price_cents {
                     ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
                     reject_applicant(guest, ride, GuestThought::NotEnoughMoney, self.ticks);
@@ -449,7 +497,6 @@ impl Park {
                 }
                 continue;
             }
-            graph.step_guest(guest, &mut self.crowd_rng);
         }
         applicants.sort_unstable_by_key(|index| self.guests[*index].id);
         let mut occupied = self
@@ -457,18 +504,19 @@ impl Park {
             .iter()
             .filter(|guest| {
                 guest.ride_visit.as_ref().is_some_and(|visit| {
-                    matches!(
-                        visit.phase,
-                        RideVisitPhase::Queueing
-                            | RideVisitPhase::Leaving
-                            | RideVisitPhase::Boarding
-                    )
+                    visit.ride == id
+                        && matches!(
+                            visit.phase,
+                            RideVisitPhase::Queueing
+                                | RideVisitPhase::Leaving
+                                | RideVisitPhase::Boarding
+                        )
                 })
             })
             .count();
         for index in applicants {
             let guest = &mut self.guests[index];
-            let ride = self.ride.as_mut().unwrap();
+            let ride = &mut ride;
             if guest.wallet_cents < ride.ticket_price_cents {
                 ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
                 reject_applicant(guest, ride, GuestThought::NotEnoughMoney, self.ticks);
@@ -507,8 +555,9 @@ impl Park {
             }
         }
         if occupied == 0 {
-            self.ride.as_mut().unwrap().draining = false;
+            ride.draining = false;
         }
+        *self.ride_by_id_mut(id).unwrap() = ride;
     }
 }
 
@@ -520,17 +569,29 @@ pub(crate) fn validate_admission(
     objects: &BTreeMap<ObjectId, &SurfaceObject>,
 ) -> Result<(), String> {
     let fail = |message: &str| Err(message.to_owned());
-    let Some(ride) = &park.ride else {
-        return if park
-            .guests
-            .iter()
-            .any(|guest| guest.ride_visit.is_some() || guest.ride_cooldown != 0)
+    for guest in &park.guests {
+        if guest.ride_cooldown > RIDE_COOLDOWN_TICKS
+            || guest
+                .ride_visit
+                .as_ref()
+                .is_some_and(|v| park.ride_by_id(v.ride).is_none())
+            || (park.all_rides().next().is_none() && guest.ride_cooldown != 0)
         {
-            fail("guest ride state has no ride")
-        } else {
-            Ok(())
-        };
-    };
+            return fail("guest ride state has no allocated owner or invalid cooldown");
+        }
+    }
+    for ride in park.all_rides() {
+        validate_ride_admission(park, objects, ride)?;
+    }
+    Ok(())
+}
+
+fn validate_ride_admission(
+    park: &Park,
+    objects: &BTreeMap<ObjectId, &SurfaceObject>,
+    ride: &crate::Ride,
+) -> Result<(), String> {
+    let fail = |message: &str| Err(message.to_owned());
     if ride.next_queue_ticket == 0
         || ride.joined != ride.next_queue_ticket - 1
         || ride.abandoned > ride.joined
@@ -538,7 +599,7 @@ pub(crate) fn validate_admission(
         return fail("ride admission counters or ticket allocator are inconsistent");
     }
     let access = park.ride_access(ride.id);
-    let eligible = park.admission_eligible(&access);
+    let eligible = park.admission_eligible(ride.id, &access);
     let indices: BTreeMap<_, _> = access
         .ordered_queue
         .iter()
@@ -555,10 +616,10 @@ pub(crate) fn validate_admission(
         if guest.ride_cooldown > RIDE_COOLDOWN_TICKS {
             return fail("guest ride cooldown is out of range");
         }
-        let Some(visit) = &guest.ride_visit else {
+        let Some(visit) = guest.ride_visit.as_ref().filter(|v| v.ride == ride.id) else {
             continue;
         };
-        if visit.ride != ride.id || guest.ride_cooldown != 0 {
+        if guest.ride_cooldown != 0 {
             return fail("guest visit has foreign ride or active cooldown");
         }
         if visit.phase == RideVisitPhase::Approaching {

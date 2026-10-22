@@ -26,6 +26,7 @@ pub enum ObjectKind {
     RideEntrance,
     RideExit,
     Service,
+    Carousel,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -66,6 +67,7 @@ pub enum PlacementError {
     FixtureMapSize { width: u32, height: u32 },
     EntranceRequiresRide,
     ServiceRequiresDefinition,
+    CarouselRequiresDefinition,
 }
 
 impl std::fmt::Display for PlacementError {
@@ -77,6 +79,10 @@ impl std::fmt::Display for PlacementError {
                 pos.x, pos.y
             ),
             Self::EmptyClearance => write!(formatter, "object clearance must be positive"),
+            Self::CarouselRequiresDefinition => write!(
+                formatter,
+                "build the complete three by three carousel footprint"
+            ),
             Self::ServiceRequiresDefinition => write!(
                 formatter,
                 "a service needs a kind and an outward-facing counter"
@@ -187,6 +193,9 @@ impl Park {
         height: u8,
         clearance: u8,
     ) -> Result<ObjectId, PlacementError> {
+        if kind == ObjectKind::Carousel {
+            return Err(PlacementError::CarouselRequiresDefinition);
+        }
         if kind == ObjectKind::Service {
             return Err(PlacementError::ServiceRequiresDefinition);
         }
@@ -362,6 +371,11 @@ impl Park {
             return None;
         }
         let index = self.objects.iter().position(|object| object.id == id)?;
+        if self.objects[index].kind == ObjectKind::Carousel {
+            let removed = self.objects[index];
+            self.remove_carousel(self.object_ride(id)?).ok()?;
+            return Some(removed);
+        }
         let removed = self.objects.remove(index);
         if removed.is_public_path() {
             self.path_cache.invalidate();
@@ -370,18 +384,13 @@ impl Park {
             self.reconcile_guests_after_removal(removed);
         }
         self.reconcile_train_after_removal(id);
-        if let Some(ride) = &mut self.ride
-            && ride
-                .entrance
-                .as_ref()
-                .is_some_and(|entrance| entrance.object == id)
-        {
-            ride.entrance = None;
-        }
-        if let Some(ride) = &mut self.ride
-            && ride.exit.is_some_and(|exit| exit.object == id)
-        {
-            ride.exit = None;
+        for ride in self.all_rides_mut() {
+            if ride.entrance.is_some_and(|gate| gate.object == id) {
+                ride.entrance = None;
+            }
+            if ride.exit.is_some_and(|gate| gate.object == id) {
+                ride.exit = None;
+            }
         }
         self.reconcile_ride_visits();
         for service in &mut self.services {
@@ -596,6 +605,7 @@ mod tests {
             state: GuestState::Waiting,
             arrivals: 0,
             rides_completed: 0,
+            ride_history: Vec::new(),
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
             service_spent_cents: 0,

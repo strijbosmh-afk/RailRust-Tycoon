@@ -57,6 +57,9 @@ struct ViewState {
     guests_open: bool,
     services_open: bool,
     finance_open: bool,
+    rides_open: bool,
+    selected_ride: Option<park_sim::RideId>,
+    ride_browse_pending: i32,
     finance_page: usize,
     finance_page_pending: i32,
     selected_service: Option<park_sim::ServiceId>,
@@ -108,6 +111,9 @@ impl Default for ViewState {
             guests_open: false,
             services_open: false,
             finance_open: false,
+            rides_open: false,
+            selected_ride: None,
+            ride_browse_pending: 0,
             finance_page: 0,
             finance_page_pending: 0,
             selected_service: None,
@@ -212,6 +218,7 @@ impl ViewState {
             || self.guests_open
             || self.services_open
             || self.finance_open
+            || self.rides_open
             || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -225,11 +232,42 @@ impl ViewState {
         self.guests_open = guests;
         self.services_open = services;
         self.finance_open = finance;
+        self.rides_open = false;
         self.modal_input_blocked = true;
         self.ui_pointer_consumed = true;
         self.dragging = false;
         self.hovered = None;
         self.path_tool.clear_pointer();
+    }
+
+    fn set_rides_modal(&mut self, open: bool) {
+        self.set_modal(false, false, false, false);
+        self.rides_open = open;
+        self.ride_browse_pending = 0;
+    }
+
+    fn choose_carousel(&mut self) {
+        if !self.rides_open
+            || self.capture_active
+            || self.diagnostic_case.is_some()
+            || self
+                .save_pending
+                .is_some_and(|action| action != SaveAction::Save)
+        {
+            return;
+        }
+        self.set_rides_modal(false);
+        self.modal_transition_pending = true;
+        self.path_tool.set_mode(path_tools::PathTool::Carousel);
+        self.path_notice = None;
+    }
+
+    fn select_ride(&mut self, id: park_sim::RideId) {
+        if self.selected_ride != Some(id) {
+            self.selected_ride = Some(id);
+            self.path_tool.clear_pointer();
+            self.price_notice = None;
+        }
     }
 
     fn choose_service(&mut self, kind: park_sim::ServiceKind) {
@@ -362,6 +400,7 @@ fn main() -> AppExit {
                 apply_camera,
                 update_scene,
                 static_landscape::update_visibility,
+                ui::rides::refresh,
                 ui::refresh,
                 ui::guests::refresh,
                 ui::services::refresh,
@@ -488,7 +527,11 @@ fn keyboard_input(
         return;
     }
     if keys.just_pressed(KeyCode::Escape)
-        && (view.help || view.guests_open || view.services_open || view.finance_open)
+        && (view.help
+            || view.guests_open
+            || view.services_open
+            || view.finance_open
+            || view.rides_open)
     {
         view.set_modal(false, false, false, false);
         return;
@@ -516,6 +559,22 @@ fn keyboard_input(
         view.finance_page = 0;
         view.finance_page_pending = 0;
         view.set_modal(false, false, false, open);
+        return;
+    }
+    if keys.just_pressed(KeyCode::KeyY) {
+        let open = !view.rides_open;
+        view.set_rides_modal(open);
+        return;
+    }
+    if view.rides_open {
+        if keys.just_pressed(KeyCode::Space) {
+            view.pause();
+        }
+        for (key, delta) in [(KeyCode::ArrowUp, -1), (KeyCode::ArrowDown, 1)] {
+            if keys.just_pressed(key) {
+                view.ride_browse_pending = view.ride_browse_pending.saturating_add(delta);
+            }
+        }
         return;
     }
     if view.finance_open {
@@ -769,8 +828,15 @@ fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) 
 }
 
 fn focus_train(park: &Park, view: &mut ViewState) {
-    if let Some(center) = world::train_focus(park, view.rotation) {
-        view.zoom = 1.5 * view.camera_span;
+    let Some(id) = ui::rides::selected_id(park, view) else {
+        return;
+    };
+    if let Some(center) = world::ride_focus(park, id, view.rotation) {
+        view.zoom = if park.carousel(id).is_some() {
+            3.5
+        } else {
+            1.5
+        } * view.camera_span;
         view.pan =
             center - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
         view.hovered = None;
@@ -780,11 +846,13 @@ fn focus_train(park: &Park, view: &mut ViewState) {
 fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
     if view.toggle_train_pending {
         view.toggle_train_pending = false;
-        if let Some(train) = sim.0.train()
+        if let Some(id) = ui::rides::selected_id(&sim.0, &view)
             && !view.edits_blocked()
         {
-            let open = !train.open;
-            sim.0.set_train_open(open);
+            let open = !sim.0.ride_is_open(id);
+            if let Err(error) = sim.0.set_ride_open(id, open) {
+                view.price_notice = Some(error.to_string());
+            }
         }
     }
     if view.focus_train_pending {
@@ -793,6 +861,7 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
             && !view.guests_open
             && !view.services_open
             && !view.finance_open
+            && !view.rides_open
             && !view.modal_input_blocked
         {
             focus_train(&sim.0, &mut view);
@@ -807,7 +876,8 @@ fn apply_price_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
     if steps == 0 || view.edits_blocked() {
         return;
     }
-    let Some(ride) = sim.0.ride() else {
+    let Some(ride) = ui::rides::selected_id(&sim.0, &view).and_then(|id| sim.0.ride_by_id(id))
+    else {
         view.price_notice = Some("Build a ride before setting its ticket price.".into());
         return;
     };
@@ -832,6 +902,7 @@ fn apply_service_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
     if view.help
         || view.guests_open
         || view.finance_open
+        || view.rides_open
         || !view.services_open
         || view.modal_input_blocked
         || view.capture_active
@@ -962,6 +1033,7 @@ fn pointer_input(
             || view.guests_open
             || view.services_open
             || view.finance_open
+            || view.rides_open
             || view.modal_input_blocked
             || view.ui_pointer_consumed,
     );
@@ -974,6 +1046,7 @@ fn pointer_input(
         || view.guests_open
         || view.services_open
         || view.finance_open
+        || view.rides_open
         || view.modal_input_blocked
         || (!buttons.pressed(MouseButton::Right) && !buttons.pressed(MouseButton::Middle))
     {
@@ -1024,6 +1097,7 @@ fn pointer_input(
             && !view.guests_open
             && !view.services_open
             && !view.finance_open
+            && !view.rides_open
             && !view.modal_input_blocked
             && buttons.just_pressed(MouseButton::Left)
         {
@@ -1060,6 +1134,7 @@ type SelectionSnapshot = (
     Option<path_tools::PathPreview>,
     Option<terrain_tools::TerrainPreview>,
     Option<path_tools::ServicePreview>,
+    Option<path_tools::CarouselPreview>,
 );
 
 #[derive(bevy::ecs::system::SystemParam)]
@@ -1108,6 +1183,7 @@ fn update_scene(
         view.path_tool.preview,
         view.path_tool.terrain_preview,
         view.path_tool.service_preview,
+        view.path_tool.carousel_preview,
     );
     if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
@@ -1120,7 +1196,9 @@ fn update_scene(
             );
         }
         if let Some(mesh) = meshes.get_mut(&scene.path_preview) {
-            *mesh = if view.path_tool.service_preview.is_some() {
+            *mesh = if view.path_tool.carousel_preview.is_some() {
+                world::carousel_preview_mesh(view.path_tool.carousel_preview, &sim.0, view.rotation)
+            } else if view.path_tool.service_preview.is_some() {
                 world::service_preview_mesh(view.path_tool.service_preview, &sim.0, view.rotation)
             } else if view.path_tool.terrain_preview.is_some() {
                 world::terrain_preview_mesh(view.path_tool.terrain_preview, &sim.0, view.rotation)
