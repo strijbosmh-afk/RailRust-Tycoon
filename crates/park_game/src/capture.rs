@@ -29,6 +29,7 @@ const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
 mod admission_scenes;
 mod economy_scenes;
+mod feedback_scenes;
 mod journey_scenes;
 mod queue_scenes;
 mod slope_scenes;
@@ -97,9 +98,27 @@ enum Scene {
     EconomyCancelled,
     EconomyUnaffordable,
     EconomyFree,
+    FeedbackValue,
+    FeedbackQueue,
+    FeedbackSatisfied,
+    FeedbackCancelled,
+    FeedbackRecovered,
+    FeedbackGuests,
 }
 
 impl Scene {
+    fn is_feedback(self) -> bool {
+        matches!(
+            self,
+            Self::FeedbackValue
+                | Self::FeedbackQueue
+                | Self::FeedbackSatisfied
+                | Self::FeedbackCancelled
+                | Self::FeedbackRecovered
+                | Self::FeedbackGuests
+        )
+    }
+
     fn is_economy(self) -> bool {
         matches!(
             self,
@@ -304,6 +323,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("economy-cancelled") => Scene::EconomyCancelled,
                 Some("economy-unaffordable") => Scene::EconomyUnaffordable,
                 Some("economy-free") => Scene::EconomyFree,
+                Some("feedback-value") => Scene::FeedbackValue,
+                Some("feedback-queue") => Scene::FeedbackQueue,
+                Some("feedback-satisfied") => Scene::FeedbackSatisfied,
+                Some("feedback-cancelled") => Scene::FeedbackCancelled,
+                Some("feedback-recovered") => Scene::FeedbackRecovered,
+                Some("feedback-guests") => Scene::FeedbackGuests,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -531,6 +556,9 @@ fn apply_preset(
     }
     if capture.scene.is_economy() {
         economy_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_feedback() {
+        feedback_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

@@ -2792,7 +2792,7 @@ dependencies = [
 
 [[package]]
 name = "park_game"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "bevy",
  "park_sim",
@@ -2802,7 +2802,7 @@ dependencies = [
 
 [[package]]
 name = "park_sim"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "serde",
  "serde_json",

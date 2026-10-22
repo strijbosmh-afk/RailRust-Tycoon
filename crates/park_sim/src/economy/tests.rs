@@ -312,8 +312,11 @@ fn unaffordable_seekers_and_queued_fronts_leave_without_paying_and_can_retry() {
 
 #[test]
 fn spending_survives_fixture_reinstallation_fault_repair_and_exhausted_wallets() {
-    let mut park = fixture(INITIAL_GUEST_WALLET_CENTS);
-    seek(&mut park, |park| park.ride().unwrap().revenue_cents > 0);
+    let mut park = fixture(1000);
+    // Willing guests can afford two real departures before their wallets empty.
+    seek(&mut park, |park| {
+        park.guests().iter().any(|guest| guest.wallet_cents == 0)
+    });
     park.set_train_open(false);
     seek(&mut park, |park| !occupied(park));
     assert!(park.guests().iter().any(|guest| guest.wallet_cents == 0));
@@ -406,7 +409,9 @@ fn money_continuation_matches_complete_ticks_at_all_speeds() {
 }
 
 fn v5_value(park: &Park) -> Value {
-    let mut value: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+    let mut value = crate::experience::tests::strip_feedback(
+        serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap(),
+    );
     value["schema_version"] = json!(5);
     value["content_version"] = json!(5);
     value["park"].as_object_mut().unwrap().remove("cash_cents");
@@ -444,6 +449,7 @@ fn v5_passengers_migrate_free_with_exact_future_and_strict_old_shapes() {
         RideVisitPhase::Exiting,
     ] {
         seek(&mut source, |park| member(park, phase).is_some());
+        crate::experience::tests::reset_feedback(&mut source);
         let legacy = v5_value(&source);
         let mut loaded = Park::from_save_bytes(&serde_json::to_vec(&legacy).unwrap()).unwrap();
         assert_eq!(loaded, source);
@@ -593,7 +599,7 @@ fn malformed_money_and_missing_v6_fields_are_rejected_without_mutation() {
             "accepted absent {field}"
         );
     }
-    for (schema, content) in [(7, 7), (6, 5), (5, 6)] {
+    for (schema, content) in [(8, 8), (7, 6), (6, 7), (6, 5), (5, 6)] {
         let mut invalid = base.clone();
         invalid["schema_version"] = json!(schema);
         invalid["content_version"] = json!(content);

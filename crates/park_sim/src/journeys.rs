@@ -385,6 +385,8 @@ impl Park {
             } else {
                 let path_id = transfer.path;
                 let completed = passenger.completed_lap;
+                let fare = passenger.fare_cents;
+                let waited = visit.waited_ticks;
                 let path = *self.object(path_id).expect("protected transfer landing");
                 let guest = &mut self.guests[index];
                 guest.current = Some(path.id);
@@ -402,6 +404,7 @@ impl Park {
                 if completed {
                     ride.completed += 1;
                     guest.rides_completed = guest.rides_completed.saturating_add(1);
+                    guest.rate_completed_trip(ride, fare, waited, self.ticks);
                 }
             }
         }
@@ -448,6 +451,17 @@ impl Park {
                     progress: 0,
                 });
                 self.guests[index].state = GuestState::Walking;
+                if !self.guests[index]
+                    .ride_visit
+                    .as_ref()
+                    .unwrap()
+                    .passenger
+                    .as_ref()
+                    .unwrap()
+                    .completed_lap
+                {
+                    self.guests[index].cancel_experience(self.ticks);
+                }
             }
             return;
         }
@@ -494,7 +508,14 @@ impl Park {
         if let Some((_, index)) = candidate {
             let fare_cents = self.ride.as_ref().unwrap().ticket_price_cents;
             if self.guests[index].wallet_cents < fare_cents {
-                self.drain_queue_for_funds(&access);
+                self.drain_queue_for_funds(&access, self.guests[index].id);
+                return;
+            }
+            if !self.guests[index].willing_to_pay(fare_cents) {
+                self.drain_queue_for_value(&access, self.guests[index].id);
+                return;
+            }
+            if !self.can_reserve_rating(index) {
                 return;
             }
             let portal = self.ride.as_ref().unwrap().entrance.unwrap().object;

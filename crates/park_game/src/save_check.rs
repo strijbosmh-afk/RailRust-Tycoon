@@ -1,7 +1,7 @@
 //! Opt-in cross-process continuation proof using the production save commands.
 //! All write modes require a new absolute directory. Verification modes
-//! never replace their saves. The original write/verify scenario stays stable
-//! so older releases can participate in the same cross-version proof.
+//! never replace their saves. Current-version write/verify checks exact future
+//! equality; verify-legacy preserves old fields at load and checks new-rule replay.
 
 use std::{ffi::OsString, fs, io::Write, path::Path};
 
@@ -15,7 +15,9 @@ use crate::{
 
 mod admission;
 pub(super) mod economy;
+pub(super) mod feedback;
 mod journey;
+mod legacy;
 mod queues;
 mod slopes;
 
@@ -34,9 +36,9 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy"
             ))
-            .ok_or("--save-check requires write/verify, write-paths/verify-paths, write-terrain/verify-terrain, write-slopes/verify-slopes, write-queues/verify-queues, write-admission/verify-admission, write-journey/verify-journey or write-economy/verify-economy")?;
+            .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
             return Err("--save-check requires an explicit absolute --save-dir".into());
         }
@@ -130,6 +132,9 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-journey" => journey::verify(&session)?,
             "write-economy" => economy::write(&session)?,
             "verify-economy" => economy::verify(&session)?,
+            "write-feedback" => feedback::write(&session)?,
+            "verify-feedback" => feedback::verify(&session)?,
+            "verify-legacy" => legacy::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

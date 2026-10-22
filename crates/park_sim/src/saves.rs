@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 6;
-const CONTENT_VERSION: u32 = 6;
+const SCHEMA_VERSION: u32 = 7;
+const CONTENT_VERSION: u32 = 7;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -258,7 +258,10 @@ impl Park {
         if header.format != FORMAT {
             return Err(invalid("unrecognized save format"));
         }
-        if !matches!(header.schema_version, 1 | 2 | 3 | 4 | 5 | SCHEMA_VERSION) {
+        if !matches!(
+            header.schema_version,
+            1 | 2 | 3 | 4 | 5 | 6 | SCHEMA_VERSION
+        ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
         if header.content_version != header.schema_version {
@@ -285,6 +288,10 @@ impl Park {
         } else if header.schema_version == 5 {
             let legacy: SaveEnvelope<VersionFiveParkData> = parse_save(bytes)?;
             legacy.park.migrate().into_park()
+        } else if header.schema_version == 6 {
+            let legacy: SaveEnvelope<ParkData<SurfaceObject, VersionSixGuest, VersionSixRide>> =
+                parse_save(bytes)?;
+            legacy.park.migrate_experience().into_park()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park.into_park()
@@ -441,6 +448,9 @@ impl From<VersionFourRide> for crate::Ride {
             ticket_price_cents: 0,
             revenue_cents: 0,
             unaffordable_rejections: 0,
+            value_rejections: 0,
+            rating_count: 0,
+            rating_total: 0,
         }
     }
 }
@@ -460,6 +470,13 @@ impl From<VersionFourGuest> for Guest {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
             ride_visit: old.ride_visit.map(|visit| crate::RideVisit {
                 ride: visit.ride,
                 phase: match visit.phase {
@@ -494,6 +511,13 @@ impl From<VersionTwoGuest> for Guest {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
             route: guest.route,
             wait_ticks: guest.wait_ticks,
             ride_visit: None,
@@ -621,6 +645,9 @@ impl From<VersionFiveRide> for crate::Ride {
             ticket_price_cents: 0,
             revenue_cents: 0,
             unaffordable_rejections: 0,
+            value_rejections: 0,
+            rating_count: 0,
+            rating_total: 0,
         }
     }
 }
@@ -640,6 +667,13 @@ impl From<VersionFiveGuest> for Guest {
             rides_completed: old.rides_completed,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
             ride_visit: old.ride_visit.map(|visit| crate::RideVisit {
                 ride: visit.ride,
                 phase: visit.phase,
@@ -661,6 +695,142 @@ impl From<VersionFiveGuest> for Guest {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionSixRide {
+    id: crate::RideId,
+    #[serde(deserialize_with = "required_object_option")]
+    entrance: Option<crate::RideEntrance>,
+    #[serde(deserialize_with = "required_object_option")]
+    exit: Option<crate::RideEntrance>,
+    draining: bool,
+    next_queue_ticket: u64,
+    joined: u64,
+    turned_away: u64,
+    abandoned: u64,
+    boarded: u64,
+    exited: u64,
+    completed: u64,
+    ticket_price_cents: u32,
+    revenue_cents: u64,
+    unaffordable_rejections: u64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionSixGuest {
+    id: crate::GuestId,
+    #[serde(deserialize_with = "required_option")]
+    current: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    next: Option<ObjectId>,
+    #[serde(deserialize_with = "required_option")]
+    destination: Option<ObjectId>,
+    #[serde(deserialize_with = "strict_object")]
+    anchor: crate::TilePos,
+    height: u8,
+    #[serde(deserialize_with = "string_enum")]
+    anchor_slope: crate::PathSlope,
+    progress: u16,
+    #[serde(deserialize_with = "string_enum")]
+    state: GuestState,
+    arrivals: u64,
+    rides_completed: u64,
+    wallet_cents: u32,
+    spent_cents: u64,
+    #[serde(deserialize_with = "required_object_option")]
+    ride_visit: Option<crate::RideVisit>,
+    ride_cooldown: u16,
+    #[serde(deserialize_with = "bounded_route")]
+    route: VecDeque<ObjectId>,
+    wait_ticks: u16,
+}
+impl From<VersionSixRide> for crate::Ride {
+    fn from(old: VersionSixRide) -> Self {
+        Self {
+            id: old.id,
+            entrance: old.entrance,
+            exit: old.exit,
+            draining: old.draining,
+            next_queue_ticket: old.next_queue_ticket,
+            joined: old.joined,
+            turned_away: old.turned_away,
+            abandoned: old.abandoned,
+            boarded: old.boarded,
+            exited: old.exited,
+            completed: old.completed,
+            ticket_price_cents: old.ticket_price_cents,
+            revenue_cents: old.revenue_cents,
+            unaffordable_rejections: old.unaffordable_rejections,
+            value_rejections: 0,
+            rating_count: 0,
+            rating_total: 0,
+        }
+    }
+}
+impl From<VersionSixGuest> for Guest {
+    fn from(old: VersionSixGuest) -> Self {
+        Self {
+            id: old.id,
+            current: old.current,
+            next: old.next,
+            destination: old.destination,
+            anchor: old.anchor,
+            height: old.height,
+            anchor_slope: old.anchor_slope,
+            progress: old.progress,
+            state: old.state,
+            arrivals: old.arrivals,
+            rides_completed: old.rides_completed,
+            wallet_cents: old.wallet_cents,
+            spent_cents: old.spent_cents,
+            ride_visit: old.ride_visit,
+            ride_cooldown: old.ride_cooldown,
+            route: old.route,
+            wait_ticks: old.wait_ticks,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
+        }
+    }
+}
+
+fn migrate_guest_experience<G: Into<Guest>>(guests: Vec<G>, seed: Option<u64>) -> Vec<Guest> {
+    guests
+        .into_iter()
+        .map(|guest| {
+            let mut guest = guest.into();
+            guest.preferences = crate::GuestPreferences::for_guest(seed.unwrap_or(0), guest.id);
+            guest
+        })
+        .collect()
+}
+
+impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> ParkData<O, G, R> {
+    fn migrate_experience(self) -> ParkData {
+        ParkData {
+            width: self.width,
+            height: self.height,
+            tiles: self.tiles,
+            ticks: self.ticks,
+            objects: self.objects.into_iter().map(Into::into).collect(),
+            next_object_id: self.next_object_id,
+            guests: migrate_guest_experience(self.guests, self.crowd_seed),
+            next_guest_id: self.next_guest_id,
+            crowd_seed: self.crowd_seed,
+            crowd_rng: self.crowd_rng,
+            circuit: self.circuit,
+            train: self.train,
+            ride: self.ride.map(Into::into),
+            next_ride_id: self.next_ride_id,
+            cash_cents: self.cash_cents,
+        }
+    }
+}
+
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
@@ -670,7 +840,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
             ticks: self.ticks,
             objects: self.objects.into_iter().map(Into::into).collect(),
             next_object_id: self.next_object_id,
-            guests: self.guests.into_iter().map(Into::into).collect(),
+            guests: migrate_guest_experience(self.guests, self.crowd_seed),
             next_guest_id: self.next_guest_id,
             crowd_seed: self.crowd_seed,
             crowd_rng: self.crowd_rng,
@@ -785,6 +955,13 @@ impl From<LegacyGuest> for Guest {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
             ride_visit: None,
             ride_cooldown: 0,
             route: guest.route,
@@ -806,7 +983,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             tiles: self.tiles,
             ticks: self.ticks,
             objects: self.objects.into_iter().map(Into::into).collect(),
-            guests: self.guests.into_iter().map(Into::into).collect(),
+            guests: migrate_guest_experience(self.guests, self.crowd_seed),
             next_object_id: self.next_object_id,
             next_guest_id: self.next_guest_id,
             crowd_seed: self.crowd_seed,
@@ -912,6 +1089,7 @@ impl ParkData {
         crate::admission::validate_admission(&park, &objects).map_err(invalid)?;
         crate::journeys::validate_journeys(&park, &objects).map_err(invalid)?;
         crate::economy::validate_economy(&park).map_err(invalid)?;
+        crate::experience::validate_experience(&park).map_err(invalid)?;
         Ok(park)
     }
 }
@@ -1336,7 +1514,7 @@ mod tests {
     }
 
     fn version_five_value(park: &Park) -> Value {
-        let mut data = value(park);
+        let mut data = crate::experience::tests::strip_feedback(value(park));
         data["schema_version"] = json!(5);
         data["content_version"] = json!(5);
         assert_eq!(
@@ -1423,8 +1601,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(6));
-            assert_eq!(modern["content_version"], json!(6));
+            assert_eq!(modern["schema_version"], json!(7));
+            assert_eq!(modern["content_version"], json!(7));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -1540,6 +1718,7 @@ mod tests {
             .unwrap();
         park.remove_object(removed).unwrap();
         for mut original in [seeking, moving, leaving, park] {
+            crate::experience::tests::reset_feedback(&mut original);
             let legacy = version_four_value(&original);
             let mut migrated = decode(&legacy).unwrap();
             assert_eq!(original, migrated);
@@ -1745,7 +1924,9 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (7, 7),
+            (8, 8),
+            (7, 6),
+            (6, 7),
             (6, 5),
             (5, 6),
             (1, 2),
@@ -1816,6 +1997,13 @@ mod tests {
             rides_completed: 0,
             wallet_cents: crate::INITIAL_GUEST_WALLET_CENTS,
             spent_cents: 0,
+            preferences: crate::GuestPreferences::default(),
+            satisfaction: 70,
+            thought: crate::GuestThought::Exploring,
+            thought_tick: 0,
+            ratings_given: 0,
+            rating_total: 0,
+            last_rating: None,
             ride_visit: None,
             ride_cooldown: 0,
             route: VecDeque::from([high]),
@@ -1960,8 +2148,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":6",
-            "\"schema_version\":6,\"schema_version\":6",
+            "\"schema_version\":7",
+            "\"schema_version\":7,\"schema_version\":7",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());

@@ -2,8 +2,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
 use crate::{
-    Guest, GuestId, GuestState, ObjectId, ObjectKind, Park, RideAccess, RideAccessStatus, RideId,
-    SurfaceObject, WALK_TICKS, paths_connect,
+    Guest, GuestId, GuestState, GuestThought, ObjectId, ObjectKind, Park, RideAccess,
+    RideAccessStatus, RideId, SurfaceObject, WALK_TICKS, paths_connect,
 };
 
 pub const QUEUE_PATIENCE_TICKS: u32 = 1800;
@@ -142,6 +142,14 @@ impl Park {
             {
                 guest.ride_visit = None;
                 guest.ride_cooldown = RIDE_COOLDOWN_TICKS;
+                guest.think(
+                    if guest.current.is_none() || guest.state == GuestState::Lost {
+                        GuestThought::CannotReachRide
+                    } else {
+                        GuestThought::RideCancelled
+                    },
+                    self.ticks,
+                );
                 ride.turned_away = ride.turned_away.saturating_add(1);
             } else if visit.phase == RideVisitPhase::Queueing && cancel {
                 visit.phase = RideVisitPhase::Leaving;
@@ -149,6 +157,7 @@ impl Park {
                 guest.route.clear();
                 guest.destination = guest.next;
                 guest.wait_ticks = 0;
+                guest.cancel_experience(self.ticks);
             }
         }
         ride.draining = self.guests.iter().any(|guest| {
@@ -158,12 +167,24 @@ impl Park {
         });
     }
 
-    pub(crate) fn drain_queue_for_funds(&mut self, access: &RideAccess) {
+    pub(crate) fn drain_queue_for_funds(&mut self, access: &RideAccess, rejected: GuestId) {
         let ride = self.ride.as_mut().expect("queue belongs to a ride");
         ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
         // A front guest cannot pass the line behind them. Reuse the existing
         // tail-first physical drain, without charging anyone or moving poses.
         self.reconcile_admission(access, true);
+        if let Some(guest) = self.guests.iter_mut().find(|guest| guest.id == rejected) {
+            guest.think(GuestThought::NotEnoughMoney, self.ticks);
+        }
+    }
+
+    pub(crate) fn drain_queue_for_value(&mut self, access: &RideAccess, rejected: GuestId) {
+        let ride = self.ride.as_mut().expect("queue belongs to a ride");
+        ride.value_rejections = ride.value_rejections.saturating_add(1);
+        self.reconcile_admission(access, true);
+        if let Some(guest) = self.guests.iter_mut().find(|guest| guest.id == rejected) {
+            guest.think(GuestThought::TooExpensive, self.ticks);
+        }
     }
 
     pub(crate) fn step_admission_crowd(&mut self) {
@@ -189,6 +210,10 @@ impl Park {
                     .saturating_add(1)
                     .min(QUEUE_PATIENCE_TICKS);
                 patience |= visit.waited_ticks == QUEUE_PATIENCE_TICKS;
+                if visit.waited_ticks == guest.preferences.comfortable_queue_ticks {
+                    guest.satisfaction = guest.satisfaction.saturating_sub(5);
+                    guest.think(GuestThought::WaitingTooLong, self.ticks);
+                }
             }
         }
         self.reconcile_admission(&access, patience);
@@ -357,10 +382,20 @@ impl Park {
                         guest.state = GuestState::Walking;
                         guest.wait_ticks = 0;
                     } else {
-                        reject_applicant(guest, self.ride.as_mut().unwrap());
+                        reject_applicant(
+                            guest,
+                            self.ride.as_mut().unwrap(),
+                            GuestThought::CannotReachRide,
+                            self.ticks,
+                        );
                     }
                 } else {
-                    reject_applicant(guest, self.ride.as_mut().unwrap());
+                    reject_applicant(
+                        guest,
+                        self.ride.as_mut().unwrap(),
+                        GuestThought::CannotReachRide,
+                        self.ticks,
+                    );
                 }
                 continue;
             }
@@ -374,10 +409,17 @@ impl Park {
                 let ride = self.ride.as_mut().unwrap();
                 if guest.wallet_cents < ride.ticket_price_cents {
                     ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
-                    reject_applicant(guest, ride);
+                    reject_applicant(guest, ride, GuestThought::NotEnoughMoney, self.ticks);
                     graph.step_guest(guest, &mut self.crowd_rng);
                     continue;
                 }
+                if !guest.willing_to_pay(ride.ticket_price_cents) {
+                    ride.value_rejections = ride.value_rejections.saturating_add(1);
+                    reject_applicant(guest, ride, GuestThought::TooExpensive, self.ticks);
+                    graph.step_guest(guest, &mut self.crowd_rng);
+                    continue;
+                }
+                guest.think(GuestThought::HeadingToRide, self.ticks);
                 guest.ride_visit = Some(RideVisit {
                     ride: id,
                     phase: RideVisitPhase::Approaching,
@@ -421,12 +463,24 @@ impl Park {
             let ride = self.ride.as_mut().unwrap();
             if guest.wallet_cents < ride.ticket_price_cents {
                 ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
-                reject_applicant(guest, ride);
+                reject_applicant(guest, ride, GuestThought::NotEnoughMoney, self.ticks);
+            } else if !guest.willing_to_pay(ride.ticket_price_cents) {
+                ride.value_rejections = ride.value_rejections.saturating_add(1);
+                reject_applicant(guest, ride, GuestThought::TooExpensive, self.ticks);
             } else if !eligible
                 || occupied >= access.queue_tiles
                 || ride.next_queue_ticket == u64::MAX
             {
-                reject_applicant(guest, ride);
+                reject_applicant(
+                    guest,
+                    ride,
+                    if occupied >= access.queue_tiles {
+                        GuestThought::QueueFull
+                    } else {
+                        GuestThought::RideCancelled
+                    },
+                    self.ticks,
+                );
             } else if let Some(&tail) = access.ordered_queue.last()
                 && !reserved.contains_key(&tail)
             {
@@ -441,6 +495,7 @@ impl Park {
                 ride.joined = ride.joined.saturating_add(1);
                 occupied += 1;
                 start_edge(guest, tail, &objects, &mut reserved);
+                guest.think(GuestThought::Queueing, self.ticks);
             }
         }
         if occupied == 0 {
@@ -621,10 +676,11 @@ pub(crate) fn validate_admission(
     Ok(())
 }
 
-fn reject_applicant(guest: &mut Guest, ride: &mut crate::Ride) {
+fn reject_applicant(guest: &mut Guest, ride: &mut crate::Ride, thought: GuestThought, tick: u64) {
     guest.ride_visit = None;
     guest.ride_cooldown = RIDE_COOLDOWN_TICKS;
     ride.turned_away = ride.turned_away.saturating_add(1);
+    guest.think(thought, tick);
 }
 fn end_visit(guest: &mut Guest) {
     guest.ride_visit = None;

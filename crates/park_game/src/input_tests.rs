@@ -11,6 +11,8 @@ use super::*;
 mod admission_input_tests;
 #[path = "economy_input_tests.rs"]
 mod economy_input_tests;
+#[path = "guest_inspection_input_tests.rs"]
+mod guest_inspection_input_tests;
 #[path = "journey_input_tests.rs"]
 mod journey_input_tests;
 #[path = "path_input_tests.rs"]

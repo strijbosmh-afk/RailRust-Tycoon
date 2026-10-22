@@ -7,6 +7,7 @@ mod admission;
 mod crowds;
 pub mod diagnostics;
 mod economy;
+mod experience;
 mod journeys;
 mod path_geometry;
 mod ride_access;
@@ -28,6 +29,7 @@ pub use economy::{
     EconomyError, INITIAL_GUEST_WALLET_CENTS, INITIAL_PARK_CASH_CENTS, MAX_TICKET_PRICE_CENTS,
     PRICE_STEP_CENTS, RideEconomyStats,
 };
+pub use experience::{GuestExperienceSummary, GuestPreferences, GuestThought, RideExperienceStats};
 pub use journeys::{
     PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
     RideJourneyStats, RideTransfer, TRAIN_SEATS,

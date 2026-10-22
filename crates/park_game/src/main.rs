@@ -54,6 +54,13 @@ struct ViewState {
     hovered: Option<SurfaceId>,
     view_mode: world::ViewMode,
     help: bool,
+    guests_open: bool,
+    selected_guest: Option<park_sim::GuestId>,
+    guest_page: usize,
+    guest_browse_pending: i32,
+    guest_page_pending: i32,
+    modal_transition_pending: bool,
+    modal_input_blocked: bool,
     dragging: bool,
     ui_pointer_consumed: bool,
     scene_dirty: bool,
@@ -90,6 +97,13 @@ impl Default for ViewState {
             hovered: None,
             view_mode: world::ViewMode::Surface,
             help: false,
+            guests_open: false,
+            selected_guest: None,
+            guest_page: 0,
+            guest_browse_pending: 0,
+            guest_page_pending: 0,
+            modal_transition_pending: false,
+            modal_input_blocked: false,
             dragging: false,
             ui_pointer_consumed: false,
             scene_dirty: false,
@@ -179,11 +193,23 @@ impl ViewState {
 
     fn edits_blocked(&self) -> bool {
         self.help
+            || self.guests_open
+            || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
             || self
                 .save_pending
                 .is_some_and(|action| action != SaveAction::Save)
+    }
+
+    fn set_modal(&mut self, help: bool, guests: bool) {
+        self.help = help;
+        self.guests_open = guests;
+        self.modal_input_blocked = true;
+        self.ui_pointer_consumed = true;
+        self.dragging = false;
+        self.hovered = None;
+        self.path_tool.clear_pointer();
     }
 
     fn request_price_change(&mut self, steps: i8) {
@@ -297,6 +323,7 @@ fn main() -> AppExit {
                 update_scene,
                 static_landscape::update_visibility,
                 ui::refresh,
+                ui::guests::refresh,
             )
                 .chain(),
         );
@@ -404,20 +431,48 @@ fn tick_simulation(
 }
 
 fn keyboard_input(keys: Res<ButtonInput<KeyCode>>, time: Res<Time>, mut view: ResMut<ViewState>) {
+    // UI transitions are gathered first; neither their closing click nor a
+    // simultaneous keyboard command may reach controls under the modal.
+    view.modal_input_blocked = std::mem::take(&mut view.modal_transition_pending);
     if view.capture_active {
         return;
     }
+    if view.modal_input_blocked {
+        return;
+    }
+    if keys.just_pressed(KeyCode::Escape) && (view.help || view.guests_open) {
+        view.set_modal(false, false);
+        return;
+    }
     if keys.just_pressed(KeyCode::F1) || keys.just_pressed(KeyCode::KeyH) {
-        view.help = !view.help;
-        view.ui_pointer_consumed = true;
+        let open = !view.help;
+        view.set_modal(open, false);
+        return;
+    }
+    if keys.just_pressed(KeyCode::KeyL) {
+        let open = !view.guests_open;
+        view.set_modal(false, open);
+        return;
+    }
+    if view.guests_open {
+        if keys.just_pressed(KeyCode::Space) {
+            view.pause();
+        }
+        for (key, delta) in [(KeyCode::ArrowUp, -1), (KeyCode::ArrowDown, 1)] {
+            if keys.just_pressed(key) {
+                view.guest_browse_pending = view.guest_browse_pending.saturating_add(delta);
+            }
+        }
+        for (key, delta) in [(KeyCode::PageUp, -1), (KeyCode::PageDown, 1)] {
+            if keys.just_pressed(key) {
+                view.guest_page_pending = view.guest_page_pending.saturating_add(delta);
+            }
+        }
+        return;
     }
     if keys.just_pressed(KeyCode::Escape) {
-        if view.help {
-            view.help = false;
-        } else {
-            view.selected = None;
-            view.path_tool.set_mode(path_tools::PathTool::Inspect);
-        }
+        view.selected = None;
+        view.path_tool.set_mode(path_tools::PathTool::Inspect);
         view.ui_pointer_consumed = true;
     }
     if view.help {
@@ -629,7 +684,9 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
     }
     if view.focus_train_pending {
         view.focus_train_pending = false;
-        focus_train(&sim.0, &mut view);
+        if !view.help && !view.guests_open && !view.modal_input_blocked {
+            focus_train(&sim.0, &mut view);
+        }
     }
 }
 
@@ -735,13 +792,20 @@ fn pointer_input(
     // and would make dragging dependent on DPI and device acceleration.
     let movement = previous_cursor.map_or(Vec2::ZERO, |previous| cursor - previous);
     *previous_cursor = Some(cursor);
-    let over_map = is_map_position(cursor, window, view.help || view.ui_pointer_consumed);
+    let over_map = is_map_position(
+        cursor,
+        window,
+        view.help || view.guests_open || view.modal_input_blocked || view.ui_pointer_consumed,
+    );
     let starting_drag = over_map
         && (buttons.just_pressed(MouseButton::Right) || buttons.just_pressed(MouseButton::Middle));
     if starting_drag {
         view.dragging = true;
     }
-    if view.help || (!buttons.pressed(MouseButton::Right) && !buttons.pressed(MouseButton::Middle))
+    if view.help
+        || view.guests_open
+        || view.modal_input_blocked
+        || (!buttons.pressed(MouseButton::Right) && !buttons.pressed(MouseButton::Middle))
     {
         view.dragging = false;
     }
@@ -787,6 +851,8 @@ fn pointer_input(
             && !panning
             && view.diagnostic_case.is_some()
             && !view.help
+            && !view.guests_open
+            && !view.modal_input_blocked
             && buttons.just_pressed(MouseButton::Left)
         {
             view.selected = view.hovered;
