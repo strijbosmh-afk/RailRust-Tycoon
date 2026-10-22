@@ -30,6 +30,7 @@ const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 mod admission_scenes;
 mod economy_scenes;
 mod feedback_scenes;
+mod finance_scenes;
 mod journey_scenes;
 mod queue_scenes;
 mod service_scenes;
@@ -111,9 +112,28 @@ enum Scene {
     ServiceServed,
     ServiceBlocked,
     ServiceRecovered,
+    FinanceLedger,
+    FinanceProfit,
+    FinanceLoss,
+    FinanceClosed,
+    FinanceReopened,
+    FinanceRemoved,
+    FinanceHistory,
 }
 
 impl Scene {
+    fn is_finance(self) -> bool {
+        matches!(
+            self,
+            Self::FinanceLedger
+                | Self::FinanceProfit
+                | Self::FinanceLoss
+                | Self::FinanceClosed
+                | Self::FinanceReopened
+                | Self::FinanceRemoved
+                | Self::FinanceHistory
+        )
+    }
     fn is_service(self) -> bool {
         matches!(
             self,
@@ -353,6 +373,13 @@ pub(super) fn configure(app: &mut App) {
                 Some("service-served") => Scene::ServiceServed,
                 Some("service-blocked") => Scene::ServiceBlocked,
                 Some("service-recovered") => Scene::ServiceRecovered,
+                Some("finance-ledger") => Scene::FinanceLedger,
+                Some("finance-profit") => Scene::FinanceProfit,
+                Some("finance-loss") => Scene::FinanceLoss,
+                Some("finance-closed") => Scene::FinanceClosed,
+                Some("finance-reopened") => Scene::FinanceReopened,
+                Some("finance-removed") => Scene::FinanceRemoved,
+                Some("finance-history") => Scene::FinanceHistory,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -586,6 +613,9 @@ fn apply_preset(
     }
     if capture.scene.is_service() {
         service_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_finance() {
+        finance_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

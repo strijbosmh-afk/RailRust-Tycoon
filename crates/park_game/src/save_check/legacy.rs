@@ -59,20 +59,56 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
                 "legacy feedback defaults changed history or drew inconsistent traits".into(),
             );
         }
-        if guest.needs != GuestNeeds::for_guest(seed, guest.id)
-            || guest.service_visit.is_some()
-            || guest.service_cooldown != 0
-            || guest.service_spent_cents != 0
-            || guest.services_used != 0
+        if old["schema_version"].as_u64().unwrap() <= 7
+            && (guest.needs != GuestNeeds::for_guest(seed, guest.id)
+                || guest.service_visit.is_some()
+                || guest.service_cooldown != 0
+                || guest.service_spent_cents != 0
+                || guest.services_used != 0)
         {
             return Err(
                 "legacy service defaults invented usage, money or inconsistent needs".into(),
             );
         }
     }
-    if !park.services().is_empty() {
+    if old["schema_version"].as_u64().unwrap() <= 7 && !park.services().is_empty() {
         return Err("migration invented service facilities/history".into());
     }
+    let ledger = park.finance_ledger();
+    if ledger.opening_tick != park.ticks()
+        || ledger.opening_cash_cents != park.cash_cents()
+        || ledger.opening_ride_revenue_cents != park.ride().map_or(0, |r| r.revenue_cents)
+        || !ledger.entries.is_empty()
+        || ledger.next_entry_id != 1
+        || ledger.archived_entries != 0
+        || ledger.archived_through_tick != park.ticks()
+        || !ledger.archived_services.is_empty()
+        || ledger.archived != park_sim::FinanceTotals::default()
+        || ledger.opening_services.len() != park.services().len()
+    {
+        return Err(
+            "legacy migration invented ledger transactions or changed opening balances".into(),
+        );
+    }
+    for service in park.services() {
+        let opening = ledger
+            .opening_services
+            .iter()
+            .find(|s| s.service == service.id)
+            .ok_or("legacy service lacks opening baseline")?;
+        if opening.revenue_cents != service.revenue_cents
+            || opening.served != service.served
+            || service.upkeep_progress != 0
+            || service.upkeep_cents != 0
+            || service.supplies_cents != 0
+            || service.closed_for_funds
+        {
+            return Err(
+                "legacy service finance defaults changed history or invented expenses".into(),
+            );
+        }
+    }
+    super::finance::check(park)?;
     if old["schema_version"].as_u64().unwrap() <= 6
         && let Some(ride) = park.ride()
     {
@@ -150,12 +186,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=7).contains(&schema)
+        if !(1..=8).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version1..7 source slot".into(),
+                "verify-legacy requires an authentic strict version1..8 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -179,12 +215,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let modern_bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
         let modern: Value =
             serde_json::from_slice(&modern_bytes).map_err(|error| error.to_string())?;
-        if modern["schema_version"] != 8
-            || modern["content_version"] != 8
-            || modern["park"]["next_service_id"] != 1
+        if modern["schema_version"] != 9
+            || modern["content_version"] != 9
+            || (schema <= 7 && modern["park"]["next_service_id"] != 1)
         {
             return Err(
-                "migration did not produce strict8 state with a fresh service allocator".into(),
+                "migration did not produce strict9 state with correct service allocation".into(),
             );
         }
         require_old_fields(&old["park"], &modern["park"], "/park")?;
@@ -201,7 +237,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money and active journeys): PASS\nOnly newly added traits/needs/history initialized; original feedback preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v8 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v8 guest decisions intentionally use new needs/service rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nFinance opening balances preserve old receipts without invented transactions/expenses: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v9 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v9 continues under current needs/service/cost rules\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
@@ -209,7 +245,25 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+    fn strip_finances(value: &mut Value) {
+        value["park"].as_object_mut().unwrap().remove("finances");
+        let mut costs = 0;
+        for service in value["park"]["services"].as_array_mut().unwrap() {
+            costs += service["upkeep_cents"].as_u64().unwrap()
+                + service["supplies_cents"].as_u64().unwrap();
+            for field in [
+                "upkeep_progress",
+                "upkeep_cents",
+                "supplies_cents",
+                "closed_for_funds",
+            ] {
+                service.as_object_mut().unwrap().remove(field);
+            }
+        }
+        value["park"]["cash_cents"] = json!(value["park"]["cash_cents"].as_u64().unwrap() + costs);
+    }
     fn strip_services(value: &mut Value) {
+        strip_finances(value);
         value["park"].as_object_mut().unwrap().remove("services");
         value["park"]
             .as_object_mut()
@@ -239,6 +293,54 @@ mod tests {
         ] {
             assert!(require_old_fields(&old, &changed, "/park").is_err());
         }
+    }
+    #[test]
+    fn legacy_v8_preserves_needs_service_history_and_active_use_with_new_finance_baseline() {
+        let directory = std::env::temp_dir().join(format!(
+            "Parkbound legacy service é {} {}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let mut park = demonstration_park();
+        super::super::services::install(&mut park).unwrap();
+        super::super::services::seek(
+            &mut park,
+            |p| {
+                p.guest_needs_summary().services_used > 0
+                    && super::super::services::guest_in_phase(p, park_sim::ServiceVisitPhase::Using)
+                        .is_some()
+            },
+            "earned v8 service history and occupied use",
+        )
+        .unwrap();
+        let mut value: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        // Synthetic strict-v8 fixture: strip only v9 data and undo its costs.
+        // Authentic old-executable files are checked separately by runtime QA.
+        strip_finances(&mut value);
+        value["schema_version"] = json!(8);
+        value["content_version"] = json!(8);
+        let bytes = serde_json::to_vec(&value).unwrap();
+        fs::write(directory.join("park.park.json"), &bytes).unwrap();
+        fs::write(directory.join("park.park.json.bak"), &bytes).unwrap();
+        assert_eq!(
+            run(vec![
+                OsString::from("--save-check"),
+                OsString::from("verify-legacy"),
+                OsString::from("--save-dir"),
+                directory.clone().into_os_string()
+            ]),
+            Some(AppExit::Success)
+        );
+        assert_eq!(fs::read(directory.join("park.park.json")).unwrap(), bytes);
+        assert_eq!(
+            fs::read(directory.join("park.park.json.bak")).unwrap(),
+            bytes
+        );
+        fs::remove_dir_all(directory).unwrap();
     }
     #[test]
     fn legacy_mode_checks_raw_v6_slots_then_current_rules_without_old_future_oracle() {

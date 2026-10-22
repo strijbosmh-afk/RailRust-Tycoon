@@ -90,10 +90,16 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
         .iter()
         .map(|service| u128::from(service.served))
         .sum();
+    let costs: u64 = park
+        .services()
+        .iter()
+        .map(|service| service.upkeep_cents + service.supplies_cents)
+        .sum();
     if spent - service_spent != actual.revenue_cents
         || service_spent != service_revenue
         || services_used != service_count
-        || park.cash_cents() != INITIAL_PARK_CASH_CENTS + spent
+        || u128::from(park.cash_cents()) + u128::from(costs)
+            != u128::from(INITIAL_PARK_CASH_CENTS) + u128::from(spent)
         || stats.revenue_cents != spent - service_spent
         || stats.ticket_price_cents != actual.ticket_price_cents
         || stats.unaffordable_rejections != actual.unaffordable_rejections
@@ -105,7 +111,7 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
             "ride revenue, park cash, reserved fares or affordability statistics disagree".into(),
         );
     }
-    Ok(())
+    super::finance::check(park)
 }
 
 /// Conservation alone cannot detect an equal repeated debit/credit. Derive each
@@ -113,6 +119,7 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
 pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
     let before = park.guests().to_vec();
     let services = park.services().to_vec();
+    let ledger = park.finance_ledger().clone();
     let revenue = park.ride().unwrap().revenue_cents;
     let cash = park.cash_cents();
     let was_stopped = park.train().is_some_and(|train| train.speed == 0);
@@ -216,7 +223,6 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
         }
         earned += u64::from(charge);
     }
-    let mut service_total = 0;
     if services.len() != park.services().len() {
         return Err("simulation tick changed service records".into());
     }
@@ -228,13 +234,11 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
         {
             return Err("service revenue/count delta differs from actual completed uses".into());
         }
-        service_total += money;
     }
-    if park.cash_cents() != cash + earned + service_total
-        || park.ride().unwrap().revenue_cents != revenue + earned
-    {
+    if park.ride().unwrap().revenue_cents != revenue + earned {
         return Err("cash/revenue delta differs from actual per-guest departure payments".into());
     }
+    super::finance::check_tick(&services, &before, &ledger, cash, park, earned)?;
     require_accounting(park)
 }
 
@@ -261,8 +265,8 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let envelope: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if envelope["schema_version"] != 8 || envelope["content_version"] != 8 {
-        return Err("economy proof requires strict schema/content 8/8".into());
+    if envelope["schema_version"] != 9 || envelope["content_version"] != 9 {
+        return Err("economy proof requires strict schema/content 9/9".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {
         return Err("economy roundtrip changed authoritative state".into());
@@ -584,7 +588,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         return Err("economy verification changed primary or backup bytes".into());
     }
     write_new(&store.directory().join("verification-economy.txt"), format!(
-        "Parkbound {}\nFresh-process paid moving primary equality: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks + price changes, paid completion, predeparture cancellation, unaffordable rejection and affordable recovery)\nLocked fares survive price changes and charge only at actual departure: PASS\nEvery-tick wallet plus spent, revenue and park cash conservation: PASS\nPredeparture cancellation and rejected attempts move no money: PASS\nExplicit reserved-transfer backup, paused/Inspect loading and uncharged cancellation: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 8/8: PASS\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nFresh-process paid moving primary equality: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks + price changes, paid completion, predeparture cancellation, unaffordable rejection and affordable recovery)\nLocked fares survive price changes and charge only at actual departure: PASS\nEvery-tick wallet plus spent, revenue and park cash conservation: PASS\nPredeparture cancellation and rejected attempts move no money: PASS\nExplicit reserved-transfer backup, paused/Inspect loading and uncharged cancellation: PASS\nPrimary and backup files unchanged: PASS\nStrict schema/content 9/9: PASS\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     println!("Fresh-process economy and reserved-fare backup verified.");
     Ok(())

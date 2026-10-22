@@ -8,6 +8,7 @@ mod crowds;
 pub mod diagnostics;
 mod economy;
 mod experience;
+mod finances;
 mod journeys;
 mod path_geometry;
 mod ride_access;
@@ -31,6 +32,10 @@ pub use economy::{
     PRICE_STEP_CENTS, RideEconomyStats,
 };
 pub use experience::{GuestExperienceSummary, GuestPreferences, GuestThought, RideExperienceStats};
+pub use finances::{
+    FINANCE_LEDGER_CAPACITY, FinanceEntry, FinanceKind, FinanceLedger, FinanceStats, FinanceTotals,
+    SERVICE_UPKEEP_TICKS, ServiceFinanceOpening, ServiceFinanceTotals,
+};
 pub use journeys::{
     PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
     RideJourneyStats, RideTransfer, TRAIN_SEATS,
@@ -168,6 +173,7 @@ pub struct Park {
     ride: Option<Ride>,
     next_ride_id: u64,
     cash_cents: u64,
+    finances: FinanceLedger,
     services: Vec<Service>,
     next_service_id: u64,
     path_cache: crowds::PathCache,
@@ -193,6 +199,7 @@ impl PartialEq for Park {
             && self.ride == other.ride
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
+            && self.finances == other.finances
             && self.services == other.services
             && self.next_service_id == other.next_service_id
     }
@@ -239,6 +246,7 @@ impl Park {
             ride: None,
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
+            finances: FinanceLedger::default(),
             services: Vec::new(),
             next_service_id: 1,
             path_cache: crowds::PathCache::default(),
@@ -371,6 +379,7 @@ impl Park {
                 break;
             }
             self.ticks += 1;
+            self.step_service_upkeep();
             self.step_needs();
             self.step_crowd();
             self.step_ride_journeys();

@@ -12,6 +12,7 @@ use park_sim::{
 use crate::path_tools::PathTool;
 
 mod economy;
+pub(crate) mod finance;
 pub(super) mod guests;
 pub(crate) mod services;
 pub(super) use economy::money;
@@ -55,6 +56,9 @@ pub(super) enum Action {
     BrowseService(i8),
     ServicePrice(i8),
     ToggleService,
+    Finance,
+    CloseFinance,
+    FinancePage(i8),
     Save,
     Load,
     LoadBackup,
@@ -183,7 +187,23 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                label(p, "PARKBOUND", 25.0, PAPER);
+                p.spawn(row()).with_children(|p| {
+                    label(p, "PARKBOUND", 25.0, PAPER);
+                    p.spawn((
+                        Button,
+                        Action::Finance,
+                        Node {
+                            width: px(100),
+                            height: px(24),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON),
+                        BorderRadius::all(px(5)),
+                    ))
+                    .with_children(|p| label(p, "Finance [N]", 12.0, INK));
+                });
                 dynamic_label(
                     p,
                     "Cash $1000.00 / Revenue $0.00 / Wallets $20.00",
@@ -550,11 +570,11 @@ pub(super) fn setup(mut commands: Commands) {
                     MUTED,
                 );
                 for (keys, purpose) in [
-                    ("Click / L / M", "Inspect tile / guests / services"),
+                    ("Click / L / M / N", "Tile / guests / services / finance"),
                     ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
                     ("C / shape button", "Cycle slope / turn gate or service"),
                     ("B / V", "Raise / lower dry land one step"),
-                    ("PgUp / PgDn", "Raise / lower path or service height"),
+                    ("PgUp / PgDn", "Build height / guest or finance page"),
                     ("Drag / WASD / arrows", "Pan around the park"),
                     ("Mouse wheel / + / -", "Zoom in and out"),
                     ("Q / E / Home", "Rotate / fit the park in view"),
@@ -568,7 +588,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("F5 / F9", "Save / load park"),
                     ("Shift + F9", "Load the previous valid save"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
-                    ("Esc", "Close help / return to inspection"),
+                    ("Esc", "Close window / return to inspection"),
                 ] {
                     p.spawn(Node {
                         justify_content: JustifyContent::SpaceBetween,
@@ -590,6 +610,7 @@ pub(super) fn setup(mut commands: Commands) {
         });
     guests::setup(&mut commands);
     services::setup(&mut commands);
+    finance::setup(&mut commands);
 }
 
 type ChangedButtons<'w, 's> =
@@ -613,9 +634,10 @@ pub(super) fn button_actions(
     if keys.as_ref().is_some_and(|keys| {
         keys.just_pressed(KeyCode::KeyL)
             || keys.just_pressed(KeyCode::KeyM)
+            || keys.just_pressed(KeyCode::KeyN)
             || keys.just_pressed(KeyCode::KeyH)
             || keys.just_pressed(KeyCode::F1)
-            || ((view.help || view.guests_open || view.services_open)
+            || ((view.help || view.guests_open || view.services_open || view.finance_open)
                 && keys.just_pressed(KeyCode::Escape))
     }) {
         view.ui_pointer_consumed = true;
@@ -630,33 +652,61 @@ pub(super) fn button_actions(
                 return None;
             }
             match action {
-                Action::CloseHelp if view.help => Some((0, false, false, false, None)),
-                Action::CloseGuests if view.guests_open => Some((0, false, false, false, None)),
-                Action::CloseServices if view.services_open => Some((0, false, false, false, None)),
+                Action::CloseHelp if view.help => Some((0, false, false, false, false, None)),
+                Action::CloseGuests if view.guests_open => {
+                    Some((0, false, false, false, false, None))
+                }
+                Action::CloseServices if view.services_open => {
+                    Some((0, false, false, false, false, None))
+                }
+                Action::CloseFinance if view.finance_open => {
+                    Some((0, false, false, false, false, None))
+                }
                 Action::BuildService(kind)
                     if view.services_open
+                        && !view.help
+                        && !view.guests_open
+                        && !view.finance_open
                         && !view.capture_active
                         && view.diagnostic_case.is_none()
                         && view
                             .save_pending
                             .is_none_or(|pending| pending == SaveAction::Save) =>
                 {
-                    Some((1, false, false, false, Some(*kind)))
+                    Some((1, false, false, false, false, Some(*kind)))
                 }
-                Action::Help if !view.guests_open && !view.services_open => {
-                    Some((2, !view.help, false, false, None))
+                Action::Help if !view.guests_open && !view.services_open && !view.finance_open => {
+                    Some((2, !view.help, false, false, false, None))
                 }
-                Action::Guests if !view.help && !view.guests_open && !view.services_open => {
-                    Some((3, false, true, false, None))
+                Action::Guests
+                    if !view.help
+                        && !view.guests_open
+                        && !view.services_open
+                        && !view.finance_open =>
+                {
+                    Some((3, false, true, false, false, None))
                 }
-                Action::Services if !view.help && !view.guests_open && !view.services_open => {
-                    Some((4, false, false, true, None))
+                Action::Services
+                    if !view.help
+                        && !view.guests_open
+                        && !view.services_open
+                        && !view.finance_open =>
+                {
+                    Some((4, false, false, true, false, None))
+                }
+                Action::Finance
+                    if !view.help
+                        && !view.guests_open
+                        && !view.services_open
+                        && !view.finance_open =>
+                {
+                    Some((5, false, false, false, true, None))
                 }
                 _ => None,
             }
         })
         .min_by_key(|transition| transition.0);
-    if let Some((_, help, guests, facilities, build)) = transition {
+    if let Some((_, help, guests, facilities, finances, build)) = transition {
         if let Some(kind) = build {
             view.choose_service(kind);
         } else {
@@ -665,7 +715,11 @@ pub(super) fn button_actions(
                 view.service_browse_pending = 0;
                 view.service_notice = None;
             }
-            view.set_modal(help, guests, facilities);
+            if finances {
+                view.finance_page = 0;
+                view.finance_page_pending = 0;
+            }
+            view.set_modal(help, guests, facilities, finances);
         }
         view.modal_transition_pending = true;
         return;
@@ -695,6 +749,9 @@ pub(super) fn button_actions(
                     | Action::ToggleService
             )
         {
+            continue;
+        }
+        if view.finance_open && !matches!(action, Action::Pause | Action::FinancePage(_)) {
             continue;
         }
         if view.diagnostic_case.is_some()
@@ -737,6 +794,10 @@ pub(super) fn button_actions(
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
             Action::TicketPrice(delta) => view.request_price_change(*delta),
+            Action::FinancePage(delta) if view.finance_open => {
+                view.finance_page_pending =
+                    view.finance_page_pending.saturating_add(i32::from(*delta));
+            }
             Action::SelectGuest(id) if view.guests_open && id.is_some() => {
                 view.selected_guest = *id;
                 view.guest_browse_pending = 0;
@@ -781,6 +842,7 @@ pub(super) fn button_actions(
             | Action::BrowseService(_)
             | Action::ServicePrice(_)
             | Action::ToggleService => {}
+            Action::Finance | Action::CloseFinance | Action::FinancePage(_) => {}
             Action::Save => view.request_save(SaveAction::Save),
             Action::Load => view.request_save(SaveAction::Load),
             Action::LoadBackup => view.request_save(SaveAction::Backup),
@@ -1173,6 +1235,7 @@ pub(super) fn refresh(
             Action::Underground => view.view_mode == ViewMode::Underground,
             Action::ToggleTrain => sim.0.train().is_some_and(|train| !train.open),
             Action::Services => view.services_open,
+            Action::Finance => view.finance_open,
             Action::SetPathTool(mode) => view.path_tool.mode == *mode,
             _ => false,
         };

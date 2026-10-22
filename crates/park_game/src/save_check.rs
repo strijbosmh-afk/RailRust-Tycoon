@@ -16,6 +16,7 @@ use crate::{
 mod admission;
 pub(super) mod economy;
 pub(super) mod feedback;
+pub(super) mod finance;
 mod journey;
 mod legacy;
 mod queues;
@@ -37,7 +38,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -138,6 +139,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-legacy" => legacy::verify(&session)?,
             "write-services" => services::write(&session)?,
             "verify-services" => services::verify(&session)?,
+            "write-finance" => finance::write(&session)?,
+            "verify-finance" => finance::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

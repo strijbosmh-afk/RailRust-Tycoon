@@ -476,7 +476,7 @@ fn invalid_preferences_feedback_and_rating_aggregates_are_rejected() {
             .remove(field);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
     }
-    for pair in [(9, 9), (8, 7), (7, 8), (7, 6), (6, 7)] {
+    for pair in [(10, 10), (8, 7), (7, 8), (7, 6), (6, 7)] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(pair.0);
         forged["content_version"] = json!(pair.1);

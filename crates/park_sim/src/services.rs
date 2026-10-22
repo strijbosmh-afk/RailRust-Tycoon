@@ -32,6 +32,20 @@ pub enum ServiceKind {
 }
 impl ServiceKind {
     pub const ALL: [Self; 3] = [Self::Food, Self::Drink, Self::Toilet];
+    pub const fn upkeep_cost_cents(self) -> u32 {
+        match self {
+            Self::Food => 30,
+            Self::Drink => 20,
+            Self::Toilet => 10,
+        }
+    }
+    pub const fn supply_cost_cents(self) -> u32 {
+        match self {
+            Self::Food => 60,
+            Self::Drink => 25,
+            Self::Toilet => 10,
+        }
+    }
     pub const fn default_price_cents(self) -> u32 {
         match self {
             Self::Food => 200,
@@ -129,6 +143,10 @@ pub struct Service {
     pub served: u64,
     pub revenue_cents: u64,
     pub unaffordable_rejections: u64,
+    pub upkeep_progress: u16,
+    pub upkeep_cents: u64,
+    pub supplies_cents: u64,
+    pub closed_for_funds: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -207,6 +225,11 @@ pub struct ServiceStats {
     pub served: u64,
     pub revenue_cents: u64,
     pub unaffordable_rejections: u64,
+    pub upkeep_progress: u16,
+    pub upkeep_cents: u64,
+    pub supplies_cents: u64,
+    pub closed_for_funds: bool,
+    pub profit_cents: i64,
 }
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct GuestNeedsSummary {
@@ -292,6 +315,10 @@ impl Park {
             served: 0,
             revenue_cents: 0,
             unaffordable_rejections: 0,
+            upkeep_progress: 0,
+            upkeep_cents: 0,
+            supplies_cents: 0,
+            closed_for_funds: false,
         });
         Ok(id)
     }
@@ -363,6 +390,7 @@ impl Park {
             return Err(ServiceError::RemovedService(id));
         }
         service.open = open;
+        service.closed_for_funds = false;
         self.reconcile_service_visits();
         Ok(())
     }
@@ -376,6 +404,13 @@ impl Park {
             served: service.served,
             revenue_cents: service.revenue_cents,
             unaffordable_rejections: service.unaffordable_rejections,
+            upkeep_progress: service.upkeep_progress,
+            upkeep_cents: service.upkeep_cents,
+            supplies_cents: service.supplies_cents,
+            closed_for_funds: service.closed_for_funds,
+            profit_cents: service.revenue_cents as i64
+                - service.upkeep_cents as i64
+                - service.supplies_cents as i64,
             ..Default::default()
         };
         for visit in self
@@ -471,13 +506,22 @@ impl Park {
     }
     pub(crate) fn step_services(&mut self, graph: &crate::crowds::PathGraph) {
         self.reconcile_service_visits();
-        let access: BTreeMap<_, _> = self
-            .services
-            .iter()
-            .map(|service| (service.id, self.service_access(service.id)))
-            .collect();
         // Finish occupied counters before awarding any newly available slot.
-        for index in 0..self.guests.len() {
+        // Stable service/guest IDs determine the order when limited cash can
+        // fund only some completions. Serialized vector order is irrelevant.
+        let mut customers: Vec<_> = self
+            .guests
+            .iter()
+            .enumerate()
+            .filter_map(|(index, guest)| {
+                guest
+                    .service_visit
+                    .as_ref()
+                    .map(|visit| (visit.service, guest.id, index))
+            })
+            .collect();
+        customers.sort_unstable();
+        for (_, _, index) in customers {
             let Some(visit) = &mut self.guests[index].service_visit else {
                 continue;
             };
@@ -488,6 +532,18 @@ impl Park {
                 }
                 let id = visit.service;
                 let price = visit.price_cents;
+                let supply = u64::from(self.service(id).unwrap().kind.supply_cost_cents());
+                if self.cash_cents + u64::from(price) < supply {
+                    let service = self
+                        .services
+                        .iter_mut()
+                        .find(|service| service.id == id)
+                        .unwrap();
+                    service.open = false;
+                    service.closed_for_funds = true;
+                    self.reconcile_service_visits();
+                    continue;
+                }
                 let service = self
                     .services
                     .iter_mut()
@@ -500,13 +556,19 @@ impl Park {
                 guest.services_used += 1;
                 service.served += 1;
                 service.revenue_cents += u64::from(price);
-                self.cash_cents += u64::from(price);
+                service.supplies_cents += supply;
                 *guest.needs.value_mut(service.kind) = 20;
                 guest.satisfaction = guest.satisfaction.saturating_add(5).min(100);
                 guest.think(service.kind.relief_thought(), self.ticks);
                 guest.service_visit = None;
                 guest.service_cooldown = SERVICE_COOLDOWN_TICKS;
                 guest.wait_ticks = 1;
+                self.record_cash(
+                    crate::FinanceKind::ServiceRevenue,
+                    Some(id),
+                    u64::from(price),
+                );
+                self.record_cash(crate::FinanceKind::ServiceSupplies, Some(id), supply);
                 continue;
             }
             if visit.phase == ServiceVisitPhase::Approaching {
@@ -523,6 +585,11 @@ impl Park {
                 }
             }
         }
+        let access: BTreeMap<_, _> = self
+            .services
+            .iter()
+            .map(|service| (service.id, self.service_access(service.id)))
+            .collect();
         // A failed search is bounded by cooldown, with no navigation RNG draw.
         for guest in &mut self.guests {
             if guest.ride_visit.is_some()

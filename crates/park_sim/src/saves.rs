@@ -20,8 +20,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 8;
-const CONTENT_VERSION: u32 = 8;
+const SCHEMA_VERSION: u32 = 9;
+const CONTENT_VERSION: u32 = 9;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -133,6 +133,96 @@ struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
     services: Vec<crate::Service>,
     next_service_id: u64,
+    #[serde(deserialize_with = "strict_object")]
+    finances: crate::FinanceLedger,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionEightParkData {
+    width: u32,
+    height: u32,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_TILES>")]
+    tiles: Vec<Tile>,
+    ticks: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_OBJECTS>")]
+    objects: Vec<SurfaceObject>,
+    next_object_id: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, MAX_GUESTS>")]
+    guests: Vec<Guest>,
+    next_guest_id: u64,
+    #[serde(deserialize_with = "required_option")]
+    crowd_seed: Option<u64>,
+    crowd_rng: u64,
+    #[serde(deserialize_with = "required_object_option")]
+    circuit: Option<CircuitData>,
+    #[serde(deserialize_with = "required_object_option")]
+    train: Option<Train>,
+    #[serde(deserialize_with = "required_object_option")]
+    ride: Option<crate::Ride>,
+    next_ride_id: u64,
+    cash_cents: u64,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
+    services: Vec<VersionEightService>,
+    next_service_id: u64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionEightService {
+    id: crate::ServiceId,
+    #[serde(deserialize_with = "required_option")]
+    object: Option<ObjectId>,
+    #[serde(deserialize_with = "string_enum")]
+    kind: crate::ServiceKind,
+    #[serde(deserialize_with = "string_enum")]
+    facing: crate::PathDirection,
+    open: bool,
+    price_cents: u32,
+    served: u64,
+    revenue_cents: u64,
+    unaffordable_rejections: u64,
+}
+impl VersionEightParkData {
+    fn migrate(self) -> ParkData {
+        ParkData {
+            width: self.width,
+            height: self.height,
+            tiles: self.tiles,
+            ticks: self.ticks,
+            objects: self.objects,
+            next_object_id: self.next_object_id,
+            guests: self.guests,
+            next_guest_id: self.next_guest_id,
+            crowd_seed: self.crowd_seed,
+            crowd_rng: self.crowd_rng,
+            circuit: self.circuit,
+            train: self.train,
+            ride: self.ride,
+            next_ride_id: self.next_ride_id,
+            cash_cents: self.cash_cents,
+            next_service_id: self.next_service_id,
+            services: self
+                .services
+                .into_iter()
+                .map(|old| crate::Service {
+                    id: old.id,
+                    object: old.object,
+                    kind: old.kind,
+                    facing: old.facing,
+                    open: old.open,
+                    price_cents: old.price_cents,
+                    served: old.served,
+                    revenue_cents: old.revenue_cents,
+                    unaffordable_rejections: old.unaffordable_rejections,
+                    upkeep_progress: 0,
+                    upkeep_cents: 0,
+                    supplies_cents: 0,
+                    closed_for_funds: false,
+                })
+                .collect(),
+            finances: crate::FinanceLedger::default(),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -197,7 +287,9 @@ where
     Option::<StrictObject<T>>::deserialize(deserializer).map(|value| value.map(|object| object.0))
 }
 
-fn bounded_objects<'de, D, T, const LIMIT: usize>(deserializer: D) -> Result<Vec<T>, D::Error>
+pub(crate) fn bounded_objects<'de, D, T, const LIMIT: usize>(
+    deserializer: D,
+) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -291,46 +383,53 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | SCHEMA_VERSION
+            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
         if header.content_version != header.schema_version {
             return Err(SaveError::UnsupportedContent(header.content_version));
         }
-        if header.schema_version == 1 {
+        let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
-            legacy.park.migrate().into_park()
+            legacy.park.migrate()
         } else if header.schema_version == 2 {
             let legacy: SaveEnvelope<LegacyParkData<VersionTwoObject, VersionTwoGuest>> =
                 parse_save(bytes)?;
-            legacy.park.migrate().into_park()
+            legacy.park.migrate()
         } else if header.schema_version == 3 {
             let legacy: SaveEnvelope<
                 VersionFiveParkData<SurfaceObject, VersionTwoGuest, LegacyRide>,
             > = parse_save(bytes)?;
-            legacy.park.migrate().into_park()
+            legacy.park.migrate()
         } else if header.schema_version == 4 {
             let legacy: SaveEnvelope<
                 VersionFiveParkData<SurfaceObject, VersionFourGuest, VersionFourRide>,
             > = parse_save(bytes)?;
-            legacy.park.migrate().into_park()
+            legacy.park.migrate()
         } else if header.schema_version == 5 {
             let legacy: SaveEnvelope<VersionFiveParkData> = parse_save(bytes)?;
-            legacy.park.migrate().into_park()
+            legacy.park.migrate()
         } else if header.schema_version == 6 {
             let legacy: SaveEnvelope<
                 VersionSevenParkData<SurfaceObject, VersionSixGuest, VersionSixRide>,
             > = parse_save(bytes)?;
-            legacy.park.migrate_experience().into_park()
+            legacy.park.migrate_experience()
         } else if header.schema_version == 7 {
             let legacy: SaveEnvelope<VersionSevenParkData> = parse_save(bytes)?;
-            legacy.park.migrate_services().into_park()
+            legacy.park.migrate_services()
+        } else if header.schema_version == 8 {
+            let legacy: SaveEnvelope<VersionEightParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
-            envelope.park.into_park()
+            envelope.park
+        };
+        if header.schema_version < SCHEMA_VERSION {
+            data.initialize_finances();
         }
+        data.into_park()
     }
 }
 
@@ -994,6 +1093,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             cash_cents: self.cash_cents,
             services: Vec::new(),
             next_service_id: 1,
+            finances: crate::FinanceLedger::default(),
         }
     }
     fn migrate_experience(self) -> ParkData {
@@ -1015,6 +1115,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             cash_cents: self.cash_cents,
             services: Vec::new(),
             next_service_id: 1,
+            finances: crate::FinanceLedger::default(),
         }
     }
 }
@@ -1039,6 +1140,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
             cash_cents: crate::INITIAL_PARK_CASH_CENTS,
             services: Vec::new(),
             next_service_id: 1,
+            finances: crate::FinanceLedger::default(),
         }
     }
 }
@@ -1190,6 +1292,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             cash_cents: crate::INITIAL_PARK_CASH_CENTS,
             services: Vec::new(),
             next_service_id: 1,
+            finances: crate::FinanceLedger::default(),
         }
     }
 }
@@ -1205,6 +1308,26 @@ fn check_bytes(actual: usize) -> Result<(), SaveError> {
 }
 
 impl ParkData {
+    fn initialize_finances(&mut self) {
+        let mut opening_services: Vec<_> = self
+            .services
+            .iter()
+            .map(|service| crate::ServiceFinanceOpening {
+                service: service.id,
+                revenue_cents: service.revenue_cents,
+                served: service.served,
+            })
+            .collect();
+        opening_services.sort_by_key(|entry| entry.service);
+        self.finances = crate::FinanceLedger {
+            opening_tick: self.ticks,
+            opening_cash_cents: self.cash_cents,
+            opening_ride_revenue_cents: self.ride.as_ref().map_or(0, |ride| ride.revenue_cents),
+            opening_services,
+            archived_through_tick: self.ticks,
+            ..Default::default()
+        };
+    }
     fn from_park(park: &Park) -> Self {
         Self {
             width: park.width,
@@ -1234,6 +1357,7 @@ impl ParkData {
             cash_cents: park.cash_cents,
             services: park.services.clone(),
             next_service_id: park.next_service_id,
+            finances: park.finances.clone(),
         }
     }
 
@@ -1271,6 +1395,7 @@ impl ParkData {
             // Derived navigation is built lazily after validated loading.
             services: self.services,
             next_service_id: self.next_service_id,
+            finances: self.finances,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
         };
@@ -1292,6 +1417,7 @@ impl ParkData {
         crate::economy::validate_economy(&park).map_err(invalid)?;
         crate::experience::validate_experience(&park).map_err(invalid)?;
         crate::services::validate_services(&park).map_err(invalid)?;
+        crate::finances::validate_finances(&park).map_err(invalid)?;
         Ok(park)
     }
 }
@@ -1798,13 +1924,14 @@ mod tests {
         lost.remove_object(track).unwrap();
         assert_eq!(lost.train().unwrap().phase, TrainPhase::Fault);
         for mut original in [Park::new(2, 3), fixture(), live, lost] {
+            crate::finances::tests::reset_finances(&mut original);
             let old_data = legacy_value(&original);
             let old_bytes = serde_json::to_vec(&old_data).unwrap();
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(8));
-            assert_eq!(modern["content_version"], json!(8));
+            assert_eq!(modern["schema_version"], json!(9));
+            assert_eq!(modern["content_version"], json!(9));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -1845,7 +1972,8 @@ mod tests {
         lost.remove_object(slope).unwrap();
         let track = lost.circuit().unwrap().pieces[0].object;
         lost.remove_object(track).unwrap();
-        for original in [live, lost] {
+        for mut original in [live, lost] {
+            crate::finances::tests::reset_finances(&mut original);
             let legacy = version_two_value(&original);
             let migrated = decode(&legacy).unwrap();
             assert_eq!(migrated, original);
@@ -1997,6 +2125,7 @@ mod tests {
         let current = fault.guests[0].current.unwrap();
         fault.remove_object(current).unwrap();
         for mut original in [live, fault] {
+            crate::finances::tests::reset_finances(&mut original);
             let legacy = version_three_value(&original);
             let mut migrated = decode(&legacy).unwrap();
             assert_eq!(migrated, original);
@@ -2126,7 +2255,7 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (9, 9),
+            (10, 10),
             (7, 6),
             (6, 7),
             (6, 5),
@@ -2355,8 +2484,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":8",
-            "\"schema_version\":8,\"schema_version\":8",
+            "\"schema_version\":9",
+            "\"schema_version\":9,\"schema_version\":9",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
@@ -2371,8 +2500,8 @@ mod tests {
             ),
             (
                 "content_version",
-                json!(9),
-                SaveError::UnsupportedContent(9),
+                json!(CONTENT_VERSION + 1),
+                SaveError::UnsupportedContent(CONTENT_VERSION + 1),
             ),
         ] {
             let mut altered = value(&park);

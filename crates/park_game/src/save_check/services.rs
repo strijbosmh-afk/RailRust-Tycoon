@@ -212,11 +212,11 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     check(park)?;
     let bytes = park.to_save_bytes().map_err(|e| e.to_string())?;
     let json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if json["schema_version"] != 8
-        || json["content_version"] != 8
+    if json["schema_version"] != 9
+        || json["content_version"] != 9
         || Park::from_save_bytes(&bytes).map_err(|e| e.to_string())? != *park
     {
-        return Err("service strict8 roundtrip changed authoritative state".into());
+        return Err("service strict9 roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }
@@ -561,7 +561,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("service verification changed source slots".into());
     }
-    write_new(&store.directory().join("verification-services.txt"), format!("Parkbound {}\nExact miduse primary and midapproach backup: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks with natural needs)\nPer-tick needs values and completed-use relief/locked-price payments: PASS\nReview and completed-use satisfaction include prior critical-crossing penalties: PASS\nAccess-loss cancellation, fresh path ID, demolition tombstones and fresh facility IDs: PASS\nUnaffordable refusal, free-price recovery and completed ride return: PASS\nCombined ride/service revenue, wallet and cash conservation: PASS\nPaused loading and modal reset: PASS\nStrict8 roundtrips and unchanged primary/backup bytes: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-services.txt"), format!("Parkbound {}\nExact miduse primary and midapproach backup: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks with natural needs)\nPer-tick needs values and completed-use relief/locked-price payments: PASS\nReview and completed-use satisfaction include prior critical-crossing penalties: PASS\nAccess-loss cancellation, fresh path ID, demolition tombstones and fresh facility IDs: PASS\nUnaffordable refusal, free-price recovery and completed ride return: PASS\nCombined ride/service revenue, wallet and cash conservation: PASS\nPaused loading and modal reset: PASS\nStrict9 roundtrips and unchanged primary/backup bytes: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
