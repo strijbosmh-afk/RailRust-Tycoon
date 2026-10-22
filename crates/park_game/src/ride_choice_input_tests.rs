@@ -82,8 +82,10 @@ fn ride_modal_transitions_consume_world_edits_and_selector_wraps_by_identity() {
     );
     assert!(!app.world().resource::<ViewState>().rides_open);
     assert_eq!(app.world().resource::<Simulation>().0, park);
-    assert!(ui::rides::PANEL_WIDTH <= 1024.0);
-    assert!(ui::rides::PANEL_HEIGHT <= 680.0 - HEADER - FOOTER);
+    const {
+        assert!(ui::rides::PANEL_WIDTH <= 1024.0);
+        assert!(ui::rides::PANEL_HEIGHT <= 680.0 - HEADER - FOOTER);
+    }
 }
 
 #[test]
