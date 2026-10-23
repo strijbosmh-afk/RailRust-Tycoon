@@ -39,6 +39,7 @@ mod ride_choice_scenes;
 mod service_scenes;
 mod slope_scenes;
 mod terrain_scenes;
+mod track_construction_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
@@ -142,9 +143,24 @@ enum Scene {
     FacilityUnaffordable,
     FacilityFinance,
     FacilityRemoved,
+    TrackDraft,
+    TrackInvalid,
+    TrackReady,
+    TrackBuilt,
+    TrackOccupied,
 }
 
 impl Scene {
+    fn is_track_construction(self) -> bool {
+        matches!(
+            self,
+            Self::TrackDraft
+                | Self::TrackInvalid
+                | Self::TrackReady
+                | Self::TrackBuilt
+                | Self::TrackOccupied
+        )
+    }
     fn is_facility_construction(self) -> bool {
         matches!(
             self,
@@ -458,6 +474,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("facility-unaffordable") => Scene::FacilityUnaffordable,
                 Some("facility-finance") => Scene::FacilityFinance,
                 Some("facility-removed") => Scene::FacilityRemoved,
+                Some("track-draft") => Scene::TrackDraft,
+                Some("track-invalid") => Scene::TrackInvalid,
+                Some("track-ready") => Scene::TrackReady,
+                Some("track-built") => Scene::TrackBuilt,
+                Some("track-occupied") => Scene::TrackOccupied,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -703,6 +724,9 @@ fn apply_preset(
     }
     if capture.scene.is_facility_construction() {
         facility_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_track_construction() {
+        track_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

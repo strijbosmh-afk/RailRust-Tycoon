@@ -186,6 +186,7 @@ pub(super) struct VersionElevenParkData {
 impl VersionElevenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,

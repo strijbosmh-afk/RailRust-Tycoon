@@ -29,6 +29,8 @@ mod service_input_tests;
 mod slope_input_tests;
 #[path = "terrain_input_tests.rs"]
 mod terrain_input_tests;
+#[path = "track_input_tests.rs"]
+mod track_input_tests;
 
 fn crowd_park() -> Park {
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);

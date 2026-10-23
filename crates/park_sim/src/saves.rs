@@ -4,6 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 
+mod track_construction;
+use track_construction::VersionTwelveParkData;
 mod construction;
 use construction::{LegacyFinanceKind, VersionTenFinanceTotals, VersionTenParkData};
 mod service_construction;
@@ -27,8 +29,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 12;
-const CONTENT_VERSION: u32 = 12;
+const SCHEMA_VERSION: u32 = 13;
+const CONTENT_VERSION: u32 = 13;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -115,6 +117,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_TRACK_DRAFT_PIECES }>")]
+    track_draft: Vec<TrackPieceSpec>,
     width: u32,
     height: u32,
     #[serde(deserialize_with = "bounded_objects::<_, _, MAX_TILES>")]
@@ -263,6 +267,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -419,6 +424,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -622,7 +628,7 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | SCHEMA_VERSION
+            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
@@ -669,6 +675,9 @@ impl Park {
             legacy.park.migrate()
         } else if header.schema_version == 11 {
             let legacy: SaveEnvelope<VersionElevenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
+        } else if header.schema_version == 12 {
+            let legacy: SaveEnvelope<VersionTwelveParkData> = parse_save(bytes)?;
             legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
@@ -1332,6 +1341,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -1355,6 +1365,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -1381,6 +1392,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -1535,6 +1547,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            track_draft: Vec::new(),
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -1619,6 +1632,7 @@ impl ParkData {
     }
     fn from_park(park: &Park) -> Self {
         Self {
+            track_draft: park.track_draft.clone(),
             width: park.width,
             height: park.height,
             tiles: park.tiles.clone(),
@@ -1667,6 +1681,7 @@ impl ParkData {
         }
         let circuit_data = self.circuit;
         let mut park = Park {
+            track_draft: self.track_draft,
             width: self.width,
             height: self.height,
             tiles: self.tiles,
@@ -1691,6 +1706,8 @@ impl ParkData {
             path_cache: crate::crowds::PathCache::default(),
         };
         validate_counts(&park)?;
+        crate::track_construction::validate_saved_draft(&park)
+            .map_err(|error| invalid(error.to_string()))?;
         let objects = validate_objects(&park)?;
         validate_guests(&park, &objects)?;
         park.circuit = circuit_data
@@ -2337,8 +2354,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(12));
-            assert_eq!(modern["content_version"], json!(12));
+            assert_eq!(modern["schema_version"], json!(13));
+            assert_eq!(modern["content_version"], json!(13));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -2662,7 +2679,7 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (13, 13),
+            (14, 14),
             (10, 9),
             (9, 10),
             (7, 6),
@@ -2894,8 +2911,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":12",
-            "\"schema_version\":12,\"schema_version\":12",
+            "\"schema_version\":13",
+            "\"schema_version\":13,\"schema_version\":13",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());

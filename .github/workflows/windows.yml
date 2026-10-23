@@ -152,6 +152,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-facility-construction --save-dir $facilityConstructionDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process paid facilities continuation failed" }
           Get-Content -LiteralPath (Join-Path $facilityConstructionDirectory "verification-facility-construction.txt")
+      - name: Verify player-built track and saved drafts across fresh processes
+        shell: pwsh
+        run: |
+          $trackConstructionDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound track construction proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-track-construction --save-dir $trackConstructionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Track construction writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-track-construction --save-dir $trackConstructionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process track construction continuation failed" }
+          Get-Content -LiteralPath (Join-Path $trackConstructionDirectory "verification-track-construction.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:
