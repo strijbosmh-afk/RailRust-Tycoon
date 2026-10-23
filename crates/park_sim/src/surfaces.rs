@@ -57,22 +57,55 @@ pub struct SurfaceObject {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PlacementError {
-    OutOfBounds { pos: TilePos },
+    OutOfBounds {
+        pos: TilePos,
+    },
     EmptyClearance,
-    HeightOutOfRange { height: u8, clearance: u8, max: u8 },
-    TerrainIntersection { pos: TilePos, terrain_height: u8 },
-    Occupied { pos: TilePos, object: ObjectId },
+    HeightOutOfRange {
+        height: u8,
+        clearance: u8,
+        max: u8,
+    },
+    TerrainIntersection {
+        pos: TilePos,
+        terrain_height: u8,
+    },
+    Occupied {
+        pos: TilePos,
+        object: ObjectId,
+    },
     IdExhausted,
-    CapacityExceeded { resource: &'static str, max: usize },
-    FixtureMapSize { width: u32, height: u32 },
+    CapacityExceeded {
+        resource: &'static str,
+        max: usize,
+    },
+    FixtureMapSize {
+        width: u32,
+        height: u32,
+    },
     EntranceRequiresRide,
     ServiceRequiresDefinition,
     CarouselRequiresDefinition,
+    InsufficientFunds {
+        required_cents: u64,
+        available_cents: u64,
+    },
 }
 
 impl std::fmt::Display for PlacementError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InsufficientFunds {
+                required_cents,
+                available_cents,
+            } => write!(
+                formatter,
+                "Construction costs ${}.{:02}; park cash is ${}.{:02}",
+                required_cents / 100,
+                required_cents % 100,
+                available_cents / 100,
+                available_cents % 100
+            ),
             Self::OutOfBounds { pos } => write!(
                 formatter,
                 "object tile ({}, {}) is outside the park",
@@ -371,6 +404,13 @@ impl Park {
             return None;
         }
         let index = self.objects.iter().position(|object| object.id == id)?;
+        let service_refund = self.service_by_object(id).map(|service| {
+            (
+                service.id,
+                self.service_demolition_quote(service.id)
+                    .expect("active service body"),
+            )
+        });
         if self.objects[index].kind == ObjectKind::Carousel {
             let removed = self.objects[index];
             self.remove_carousel(self.object_ride(id)?).ok()?;
@@ -397,9 +437,18 @@ impl Park {
             if service.object == Some(id) {
                 service.object = None;
                 service.open = false;
+                service.demolition_refund_cents =
+                    service_refund.expect("removed service has a quote").1;
             }
         }
         self.reconcile_service_visits();
+        if let Some((service, refund)) = service_refund {
+            self.record_cash(
+                crate::FinanceKind::ServiceDemolitionRefund,
+                Some(service),
+                refund,
+            );
+        }
         Some(removed)
     }
 

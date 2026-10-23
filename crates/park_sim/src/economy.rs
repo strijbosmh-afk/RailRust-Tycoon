@@ -272,13 +272,19 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
                 })
             })
             .and_then(|funds| {
+                park.services.iter().try_fold(funds, |cash, service| {
+                    cash.checked_add(service.demolition_refund_cents)
+                })
+            })
+            .and_then(|funds| {
                 park.carousels.iter().try_fold(funds, |cash, carousel| {
                     cash.checked_sub(carousel.construction_cost_cents)
                 })
             })
             .and_then(|funds| {
                 park.services.iter().try_fold(funds, |cash, service| {
-                    cash.checked_sub(service.upkeep_cents)?
+                    cash.checked_sub(service.construction_cost_cents)?
+                        .checked_sub(service.upkeep_cents)?
                         .checked_sub(service.supplies_cents)
                 })
             })

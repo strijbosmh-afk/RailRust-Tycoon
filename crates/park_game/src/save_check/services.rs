@@ -212,11 +212,11 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     check(park)?;
     let bytes = park.to_save_bytes().map_err(|e| e.to_string())?;
     let json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if json["schema_version"] != 11
-        || json["content_version"] != 11
+    if json["schema_version"] != 12
+        || json["content_version"] != 12
         || Park::from_save_bytes(&bytes).map_err(|e| e.to_string())? != *park
     {
-        return Err("service strict11 roundtrip changed authoritative state".into());
+        return Err("service strict12 roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }
@@ -359,7 +359,9 @@ fn continue_services(park: &mut Park) -> Result<(), String> {
                     if tombstone.object.is_some()
                         || tombstone.served != old.served
                         || tombstone.revenue_cents != old.revenue_cents
-                        || park.cash_cents() != before.cash_cents()
+                        || park.cash_cents()
+                            != before.cash_cents() + old.construction_cost_cents / 2
+                        || tombstone.demolition_refund_cents != old.construction_cost_cents / 2
                         || guest(park, id).spent_cents != guest(&before, id).spent_cents
                         || guest(park, id).needs != guest(&before, id).needs
                         || guest(park, id).service_visit.is_some()
@@ -561,7 +563,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("service verification changed source slots".into());
     }
-    write_new(&store.directory().join("verification-services.txt"), format!("Parkbound {}\nExact miduse primary and midapproach backup: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks with natural needs)\nPer-tick needs values and completed-use relief/locked-price payments: PASS\nReview and completed-use satisfaction include prior critical-crossing penalties: PASS\nAccess-loss cancellation, fresh path ID, demolition tombstones and fresh facility IDs: PASS\nUnaffordable refusal, free-price recovery and completed ride return: PASS\nCombined ride/service revenue, wallet and cash conservation: PASS\nPaused loading and modal reset: PASS\nStrict9 roundtrips and unchanged primary/backup bytes: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-services.txt"), format!("Parkbound {}\nExact miduse primary and midapproach backup: PASS\nContinuation: PASS ({REPLAY_TICKS} complete ticks with natural needs)\nPer-tick needs values and completed-use relief/locked-price payments: PASS\nReview and completed-use satisfaction include prior critical-crossing penalties: PASS\nAccess-loss cancellation, fresh path ID, demolition tombstones and fresh facility IDs: PASS\nUnaffordable refusal, free-price recovery and completed ride return: PASS\nCombined ride/service revenue, wallet and cash conservation: PASS\nPaused loading and modal reset: PASS\nStrict12 roundtrips and unchanged primary/backup bytes: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

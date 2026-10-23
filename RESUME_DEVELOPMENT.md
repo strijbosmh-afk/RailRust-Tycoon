@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-Updated 22 October 2026 for **0.22.0 ride construction costs and demolition refunds**, on `codex/ride-construction-economy` from completed 0.21 checkpoint `489bfff52c3ab44242c157d04d84d9d36e0906bb`. Carousel purchases and paid-basis refunds now affect park cash, with visible quotes, atomic refusal and retained ledger history. Section 10 and the [ride construction report](docs/RIDE_CONSTRUCTION_REPORT.md) record current verification; earlier named reports remain historical.
+Updated 23 October 2026 for **0.23.0 service construction costs and demolition refunds**, on `codex/service-construction-economy` from completed 0.22 checkpoint `f167b352cd741638a758608f121f967562e1f590`. Per-kind facility purchases and paid-basis refunds now affect cash with immutable previews, atomic refusal and retained finance ownership. Section 10 and the [service construction report](docs/SERVICE_CONSTRUCTION_REPORT.md) record current verification; earlier reports remain historical.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>. **Parkbound** is a temporary title for an original Rust theme park simulation inspired by classic RCT1/RCT2. The user chose Windows-only free distribution with all functionality included, developed in playable stages. It is not yet a complete management game. **No reference PC is selected; this development PC is explicitly excluded.** Its measurements remain local diagnostics, not hardware requirements or 60 FPS acceptance.
 
@@ -20,7 +20,7 @@ The previously used second-PC checkout is:
 C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon
 ```
 
-That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch and commit before continuing. The current branch is `codex/ride-construction-economy`, based on `codex/second-ride-choice` / [PR #19](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/19), which was open and unmerged at stage start. Current draft is [PR #20](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/20); exact runtime/verification identities are recorded in section 10. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+That second path is a **separate clone**, not evidence that OneDrive syncs it. Preserve both historical paths. Verify the actual folder, branch and commit before continuing. The current branch is `codex/service-construction-economy`, based on `codex/ride-construction-economy` / [PR #20](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/20), which was open and unmerged at stage start. The current draft and exact runtime/verification identities are recorded in section 10. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -42,10 +42,10 @@ Set-Location -LiteralPath $projectDirectory
 git fetch origin
 git branch -a
 # Only after the current branch is listed on origin:
-git switch --track origin/codex/ride-construction-economy
+git switch --track origin/codex/service-construction-economy
 ```
 
-If the branch already exists locally, use `git switch codex/ride-construction-economy` instead. If it is absent from `origin`, finish/push the first PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/service-construction-economy` instead. If it is absent from `origin`, finish/push the first PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -59,12 +59,13 @@ Retain historical reports, raw benchmark data, evidence paths and notices. In pa
 
 ## 2. Read the project records
 
-Start with [RIDE_CONSTRUCTION_REPORT.md](docs/RIDE_CONSTRUCTION_REPORT.md), [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md), [SERVICE_FINANCE_REPORT.md](docs/SERVICE_FINANCE_REPORT.md), [GUEST_SERVICES_REPORT.md](docs/GUEST_SERVICES_REPORT.md), [GUEST_EXPERIENCE_REPORT.md](docs/GUEST_EXPERIENCE_REPORT.md), [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
+Start with [SERVICE_CONSTRUCTION_REPORT.md](docs/SERVICE_CONSTRUCTION_REPORT.md), [RIDE_CONSTRUCTION_REPORT.md](docs/RIDE_CONSTRUCTION_REPORT.md), [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md), [SERVICE_FINANCE_REPORT.md](docs/SERVICE_FINANCE_REPORT.md), [GUEST_SERVICES_REPORT.md](docs/GUEST_SERVICES_REPORT.md), [GUEST_EXPERIENCE_REPORT.md](docs/GUEST_EXPERIENCE_REPORT.md), [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
 
 Historical reports retain exact source, test, capture, native, CI, package, and checksum evidence without duplicating it all here:
 
 | Version | Retained report |
 | --- | --- |
+| 0.23 | [Service construction costs and demolition refunds](docs/SERVICE_CONSTRUCTION_REPORT.md) |
 | 0.22 | [Ride construction costs and demolition refunds](docs/RIDE_CONSTRUCTION_REPORT.md) |
 | 0.21 | [Buildable second ride and guest choice](docs/SECOND_RIDE_REPORT.md) |
 | 0.20 | [Service costs and finance ledger](docs/SERVICE_FINANCE_REPORT.md) |
@@ -191,6 +192,13 @@ This is four queue tiles and capacity for four admitted guests. Resume an open r
 
 The exit's return path joins existing public (13,12); at (13,10) it fits under the raised lift. With both access routes connected, guests board at the stopped station, occupy up to six seats, ride and unload through the teal exit before walking on public paths again. Without an exit, the old approach/queue/patience behavior remains usable and the empty train still runs; no guests board. Removing an unused exit during a lap lets passengers finish that lap and wait at the station for repairs.
 
+### 0.23 service construction economy
+
+Food costs 12000 cents, Drinks 8000 and Toilets 10000. Each retains its actual `construction_cost_cents`; successful removal returns 50% once and retains `demolition_refund_cents` with the removed ServiceId. Old services imported from schemas 1–11 have zero paid basis and zero refund. Existing paid carousel data from v11 is preserved. New facility construction does not alter guest wallets, time or random state. Rebuilding allocates a fresh ID and loses half the purchase amount, so cycling cannot create cash.
+
+`ServiceKind::build_cost_cents`, `Park::service_build_quote` and `Park::service_demolition_quote` are the authoritative price APIs. Preview is immutable; commit validates again before changing anything. `place_service` and `remove_object` retain their entry points. Failed cash/geometry/capacity validation preserves the whole authoritative park. Removal still cancels unfinished service visits free, without satisfaction relief or a customer purchase; visitors remain on their public paths. Operating charges and supplies retain their separate rules.
+
+M/Services shows the three purchase prices, actual paid basis and removal quote. The tool hint shows cash and shortfall. Finance identifies facility purchases/refunds separately from ride purchases/refunds and sales; per-service Net cash includes capital costs/refunds, while operating profit excludes them. Paused deliberate construction/removal still changes cash at the current tick. Paths, gates, terrain and the fixed coaster retain their current rules.
 ### 0.22 carousel construction economy
 
 The full body costs 30000 cents. `carousel_build_quote(origin,height)` validates the full footprint and available cash; `carousel_demolition_quote(id)` validates that the body exists and is empty, returning half of its persisted paid basis. Place/remove revalidate before mutation. `CarouselRide::construction_cost_cents` and `demolition_refund_cents` survive removal; the new `RideConstruction`/`RideDemolitionRefund` ledger categories remain separate from ticket income, and opening/archived totals retain their owner. See the current report for strict save invariants and exact verification. The fixed coaster, paths, gates, terrain and service purchase/removal remain under their prior free-construction rules.
@@ -281,9 +289,9 @@ Save serializes and validates before touching the slots, uses same-directory uni
 
 After a crash, close all Parkbound instances before deciding that the exact lock is stale and removing that lock. Never delete a lock belonging to a running writer. If the UI says `Recovery: see save folder`, preserve `.parkbound-rollback-*.tmp` files before manual recovery. They contain previous backup bytes, which may themselves require validation. Do not sweep unrelated temporary files or replace a valid slot blindly; keep copies and validate with the codec/isolated application first.
 
-New saves are strict **schema 11/content 11**, requiring paid carousel construction/refund amounts and aggregate/per-ride finance categories alongside all existing carousel runtime, guest histories, needs, services and money. Explicit versions 1–10 migration preserves every original park field. Legacy free carousels get zero paid basis/refund; all old cash, ledger IDs/ticks/order/balances and archive sources survive unchanged. Versions 1–8 retain their opening-baseline migration. No past purchase or refund entitlement is invented. Validation reconciles active/removed bodies, actual paid basis, refunded totals, ride ownership, opening/archived/recent ledger amounts and all existing relationships before replacing live state. Unknown/missing fields and hybrid old/new schemas reject. Bounds remain 8 MiB, 4,096 objects, 1,024 paths, 256 guests, 2,048 circuit pieces, 65,536 route IDs, 256 services and eight retained carousels; recent finance entries remain capped at 128. Normal play remains 32 × 32.
+New saves are strict **schema 12/content 12**, requiring service construction/refund amounts and per-service capital totals alongside all v11 ride, finance, guest and world data. Explicit migrations preserve every original field in schemas 1–11, add zero basis/refund to old free services and retain existing paid carousel history. Opening/archived/recent finance validation reconciles actual purchases, refunds, source ownership and balances, rejecting missing/unknown fields and hybrid schemas. Limits remain 8 MiB, 4,096 objects, 1,024 paths, 256 guests, 2,048 circuit pieces, 65,536 route IDs, 256 lifetime service records, eight retained carousels and 128 recent finance entries; normal play stays 32 × 32.
 
-Explicit strict **1/1 through 10/10 migration** preserves original IDs, allocators, RNG, cash, active journeys, feedback, needs, services, carousels and existing finance data. Earlier-version defaults apply only where fields did not exist. Compare original state and deterministic current-rule continuations, not the old executable future. Loading leaves both files unchanged; Save writes 11/11. **0.21 intentionally rejects 11/11**; retain closed-game legacy copies.
+Explicit strict **1/1 through 11/11 migration** preserves IDs, allocators, RNG, cash, active journeys, needs, services and existing ride/finance data. Defaults apply only where fields did not exist. Compare original state and deterministic current-rule continuations, not old executable futures. Loading leaves both files unchanged; Save writes 12/12. **0.22 intentionally rejects 12/12**; retain closed-game legacy copies.
 
 ### Fresh-process continuation proof
 
@@ -292,21 +300,23 @@ Use the production executable, a new absolute directory with an existing parent,
 ```powershell
 $gameExecutable = (Resolve-Path '.\target\release\parkbound.exe').Path
 $rideProof = Join-Path ([IO.Path]::GetTempPath()) ('Parkbound construction proof é ' + [guid]::NewGuid())
-foreach ($proofMode in @('write-construction', 'verify-construction')) {
+foreach ($proofMode in @('write-facility-construction', 'verify-facility-construction')) {
     $proofArguments = '--save-check {0} --save-dir "{1}"' -f $proofMode, $rideProof
     $proofProcess = Start-Process -FilePath $gameExecutable -ArgumentList $proofArguments -WindowStyle Hidden -Wait -PassThru
     if ($proofProcess.ExitCode -ne 0) { throw "Proof failed: $proofMode ($($proofProcess.ExitCode))" }
 }
-Get-Content -LiteralPath (Join-Path $rideProof 'verification-construction.txt')
+Get-Content -LiteralPath (Join-Path $rideProof 'verification-facility-construction.txt')
 ```
 
-The writer refuses an existing directory. The construction proof checks paid placement, refund/rebuild history, atomic refusals, saved paid basis and exact future continuation. The retained rides proof saves actual mid-boarding and concurrent paid-running states, then checks 24,000 ticks of separate fares, reviews, guest choices, closure and rebuilding. It verifies paused exact restoration and unchanged slots. The retained finance proof saves actual midperiod state and replays at least 24,000 complete ticks. It independently checks recurring costs and completion supplies, ledger rollover, balances, closure/reopening, retained demolition history, insufficient-funds closure and recovery through real income. The verifier checks exact state, paused loading, modal reset and unchanged primary/backup bytes. Retained services, feedback, journey and economy proofs continue to exercise needs, reviews, passenger repair and departure accounting under current rules.
+The writer refuses an existing directory. The facility-construction proof covers all three prices, actual usage cancellation, retained history, archive rollover, refusal, save/load and deterministic continuation. The retained carousel construction proof checks paid placement, refund/rebuild history, atomic refusals, saved paid basis and exact future continuation. The retained rides proof saves actual mid-boarding and concurrent paid-running states, then checks 24,000 ticks of separate fares, reviews, guest choices, closure and rebuilding. It verifies paused exact restoration and unchanged slots. The retained finance proof saves actual midperiod state and replays at least 24,000 complete ticks. It independently checks recurring costs and completion supplies, ledger rollover, balances, closure/reopening, retained demolition history, insufficient-funds closure and recovery through real income. The verifier checks exact state, paused loading, modal reset and unchanged primary/backup bytes. Retained services, feedback, journey and economy proofs continue to exercise needs, reviews, passenger repair and departure accounting under current rules.
 
-Retain ordinary `write`/`verify`, `write-paths`/`verify-paths`, `write-terrain`/`verify-terrain`, `write-slopes`/`verify-slopes`, `write-queues`/`verify-queues`, `write-admission`/`verify-admission`, `write-journey`/`verify-journey` and `write-economy`/`verify-economy`, each in a fresh directory. Add `write-feedback`/`verify-feedback` for 18,000 ticks of experience and review-event continuation, `write-services`/`verify-services` for needs/service receipts, and `write-finance`/`verify-finance` for operating costs and ledger continuity. Repeat against the packaged executable. For authentic 0.12–0.21 writers use current `verify-legacy`, including occupied v5 journey, paid/reserved v6 economy, reviewed v7 feedback, occupied v8 service slots v9 finance/occupied-history slots and v10 dual-ride/removed-history slots. It compares every original park field and runs deterministic current-version continuations with round-trips, leaving both files unchanged and writing `verification-legacy.txt`. Old 0.21 rejection of 11/11 must leave both slots intact. Do not compare the new rules against an old executable's future.
+Retain ordinary `write`/`verify`, `write-paths`/`verify-paths`, `write-terrain`/`verify-terrain`, `write-slopes`/`verify-slopes`, `write-queues`/`verify-queues`, `write-admission`/`verify-admission`, `write-journey`/`verify-journey` and `write-economy`/`verify-economy`, each in a fresh directory. Add `write-feedback`/`verify-feedback` for 18,000 ticks of experience and review-event continuation, `write-services`/`verify-services` for needs/service receipts, and `write-finance`/`verify-finance` for operating costs and ledger continuity. Repeat against the packaged executable. For authentic 0.12–0.22 writers use current `verify-legacy`, including occupied v5 journey, paid/reserved v6 economy, reviewed v7 feedback, occupied v8 service slots v9 finance/occupied-history slots and v10 dual-ride/removed-history slots. It compares every original park field and runs deterministic current-version continuations with round-trips, leaving both files unchanged and writing `verification-legacy.txt`. Old 0.22 rejection of 12/12 must leave both slots intact. Do not compare the new rules against an old executable's future.
 
 The service proof saves real mid-approach backup and mid-use primary state. A 24,000-tick replay checks completion charges/relief, locked quotes, cancellation without purchase, access repair with fresh IDs, funds refusal and recovery, plus eventual ride return. Retained feedback checks include need-critical penalties before review updates.
 
 ## 8. Runtime captures and diagnostics
+
+Facility construction scenes: `facility-price|facility-refund|facility-unaffordable|facility-finance|facility-removed` use real purchase/refund commands. Inspect all rotations, both views and the minimum 1024 × 680 window; these captures are separate from native mouse/keyboard acceptance.
 
 Construction scenes: `construction-price|construction-refund|construction-unaffordable|construction-finance|construction-removed`. They use actual quote/commit commands, including repeated loss-making build/removal until funds are insufficient. Cover all rotations and inspect the minimum-window price/refund/Finance text. Source scene tests distinguish state preparation from read-only presentation.
 
@@ -364,7 +374,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.22.0 outputs under `dist\Parkbound-0.22.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Exact executable identity, payload/guide counts, notices and relocation evidence belong in the ride construction report and `artifacts/ride-construction-0.22.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
+Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.23.0 outputs under `dist\Parkbound-0.23.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Exact executable identity, payload/guide counts, notices and relocation evidence belong in the service construction report and `artifacts/service-construction-0.23.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
 
 The package includes the executable, required redistributable runtime, third-party and Rust standard-library notices, current README/resume/development plan/docs, measurement wrapper and payload manifest. Preserve notice sources, attribution and `.gitattributes` byte rules; newline normalization can invalidate recorded hashes. Do not drop dependency/license files because a local launch succeeds. There is no imported RCT art, sound or original game data. Source licensing and final naming/trademark review remain unresolved; free binary distribution does not itself grant an open-source license.
 
@@ -372,11 +382,15 @@ Verify a fresh extraction to a path containing spaces and a non-ASCII character,
 
 When documentation changes after runtime verification, retain the runtime source commit and binary identity, refresh package guides/manifest/ZIP, and reverify them. Do **not** place a mutable ZIP's own hash inside a bundled guide: that creates self-reference. The adjacent `.zip.sha256` is the canonical archive checksum.
 
-`.github/workflows/windows.yml` runs on `windows-2022` with Rust 1.93.1: formatting, strict all-target release Clippy, workspace tests, packaging, ordinary/path/terrain/slope/queue/admission/journey/economy/feedback/services/finance/rides/construction fresh-process continuation, CPU-reporting smoke and artifact uploads. Permissions are read-only contents; uploads currently retain 14 days. Read the exact run for the actual source/PR rather than inferring green from configuration or an older run. Preserve useful receipts before hosted artifacts expire. A stacked draft PR is not a public release or proof that the branch has merged.
+`.github/workflows/windows.yml` runs on `windows-2022` with Rust 1.93.1: formatting, strict all-target release Clippy, workspace tests, packaging, ordinary/path/terrain/slope/queue/admission/journey/economy/feedback/services/finance/rides/construction/facility-construction fresh-process continuation, CPU-reporting smoke and artifact uploads. Permissions are read-only contents; uploads currently retain 14 days. Read the exact run for the actual source/PR rather than inferring green from configuration or an older run. Preserve useful receipts before hosted artifacts expire. A stacked draft PR is not a public release or proof that the branch has merged.
 
 Before ending a stage, confirm the source branch is pushed, the draft PR targets the correct predecessor, exact CI completion is recorded, local source/docs are current, and final package guides match those docs. Commit only intended source/docs/locked dependency changes; generated builds and local raw captures stay in ignored output directories unless a curated evidence record is deliberately tracked.
 
 ## 10. Current verification and remaining checks
+
+Current 0.23 verification is being recorded in [SERVICE_CONSTRUCTION_REPORT.md](docs/SERVICE_CONSTRUCTION_REPORT.md). Raw receipts are in ignored `artifacts/service-construction-0.23.0/`. This section will be finalized after source, runtime, migration, package and Git checks.
+
+### Historical 0.22 evidence
 
 Runtime source **`e387de6032289c526e547df6cf8540581364fa2b`** is pushed in [draft PR #20](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/20), stacked on open #19 / `codex/second-ride-choice`. All **450 release tests (269 game / 181 simulation)**, formatting, strict all-target release Clippy and the production build pass. The eight new simulation regressions cover exact/insufficient funds, immutable quotes, all body cells, occupied protection, refund-once, loss-making rebuilding, archived ownership and strict migration/chronology. Six game regressions cover actual input, finance presentation, fresh-process continuation and capture fixtures. Paid rides cannot claim earnings from before their purchase, including after purchase entries archive.
 
@@ -490,6 +504,6 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Next major gameplay milestone
 
-Extend the same purchase/refund rules to service facilities, with per-kind build prices, immutable previews, atomic cash rejection, persisted paid basis and attributed ledger entries. Then add a minimal station/straight/curve coaster track builder with explicit circuit validation. Carousel purchase/refunds are implemented in 0.22; broad construction, GST-03/MGT-01/MGT-02 and full-game criteria remain incomplete. Multiple active carousels, general track design, ride running costs, stock, wages, energy/nausea/resting, admission, loans and scenario finances remain absent.
+Implement a minimal station/straight/curve coaster track builder with explicit endpoint and circuit validation, safe invalid-layout feedback, original geometry and save continuation. Stage the editor before extending physics, track families or operations. Carousel and service purchase/refunds are now implemented; general track construction and broad GST-03/MGT-01/MGT-02 remain incomplete. Multiple active carousels, ride running costs, stock, wages, energy/nausea/resting, admission, loans and scenario finances remain later work.
 
-For the next session: read this guide and the ride construction report; verify current branch/source, local edits and remote state; inspect the acceptance checklist; complete one cohesive stage with matching source/runtime evidence. Update source, guides and the portable package together. Preserve map/save caps and original-content requirements unless the next scoped change deliberately revisits them. This PC remains excluded from performance acceptance.
+For the next session: read this guide and the service construction report; verify branch/source, local edits and remote state; inspect the acceptance checklist; complete one cohesive stage with matching source/runtime evidence. Update source, guides and the portable package together. Preserve map/save caps, original-content requirements and both local paths above. This PC remains excluded from performance acceptance.

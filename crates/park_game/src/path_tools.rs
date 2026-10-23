@@ -176,6 +176,13 @@ impl ToolState {
                 park_sim::CAROUSEL_REFUND_PERCENT
             );
         }
+        if let PathTool::Service(kind) = self.mode {
+            self.hint = format!(
+                "{kind}: {} / face public path.\n{}% paid cost back on demolition.",
+                crate::ui::money(kind.build_cost_cents()),
+                park_sim::SERVICE_REFUND_PERCENT
+            );
+        }
     }
 }
 
@@ -208,6 +215,13 @@ pub(super) fn placement_message(error: PlacementError) -> String {
             format!("Park limit reached: {max} {resource}.")
         }
         PlacementError::IdExhausted => "No more park objects can be created.".into(),
+        PlacementError::InsufficientFunds {
+            required_cents,
+            available_cents,
+        } => format!(
+            "Need {} more to build.",
+            crate::ui::money(required_cents - available_cents)
+        ),
         PlacementError::EmptyClearance => "A path needs two height steps of clearance.".into(),
         PlacementError::FixtureMapSize { .. } => "Demo paths require a 32 x 32 park.".into(),
         PlacementError::EntranceRequiresRide => "Choose the ride Entrance tool.".into(),
@@ -398,7 +412,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                             height: object.height,
                             kind: facility.kind,
                             facing: facility.facing,
-                            valid: park.object_removal_block_reason(object.id).is_none(),
+                            valid: park.service_demolition_quote(facility.id).is_ok(),
                             demolish: true,
                         });
                     }
@@ -438,6 +452,17 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                             "Removal blocked / no refund now.\nLet all passengers leave first."
                                 .into()
                         }
+                    };
+                }
+                if object.kind == ObjectKind::Service
+                    && let Some(facility) = park.service_by_object(object.id)
+                {
+                    view.path_tool.hint = match park.service_demolition_quote(facility.id) {
+                        Ok(refund) => format!(
+                            "Refund {} / click to remove.\nUnfinished visits cancel free.\nPublic path stays in place.",
+                            crate::ui::money(refund)
+                        ),
+                        Err(error) => format!("Removal unavailable: {error}"),
                     };
                 }
                 if click {
@@ -515,6 +540,18 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
                 return;
             }
         }
+    } else if object.kind == ObjectKind::Service {
+        let Some(facility) = park.service_by_object(id) else {
+            view.path_notice = Some("Facility unavailable; nothing refunded.".into());
+            return;
+        };
+        match park.service_demolition_quote(facility.id) {
+            Ok(amount) => Some(amount),
+            Err(error) => {
+                view.path_notice = Some(format!("Facility not removed: {error}"));
+                return;
+            }
+        }
     } else {
         None
     };
@@ -533,8 +570,13 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
     view.path_tool.clear_pointer();
     view.scene_dirty = true;
     view.path_notice = Some(match refund {
-        Some(amount) => format!(
+        Some(amount) if object.kind == ObjectKind::Carousel => format!(
             "Removed / refund {}.\nCash {} / queue kept.",
+            crate::ui::money(amount),
+            crate::ui::money(park.cash_cents())
+        ),
+        Some(amount) => format!(
+            "Removed / refund {}.\nCash {} / visits cancelled.",
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),

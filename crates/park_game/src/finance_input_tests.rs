@@ -171,7 +171,7 @@ fn finance_paging_is_newest_first_bounded_live_and_does_not_change_the_park() {
     let directory = InputSaveDirectory::new();
     let park = finance_park(FINANCE_LEDGER_CAPACITY + 5);
     assert_eq!(park.finance_ledger().entries.len(), 128);
-    assert_eq!(park.finance_ledger().archived_entries, 5);
+    assert_eq!(park.finance_ledger().archived_entries, 6);
     let (mut app, window) = finance_app(
         &directory,
         park.clone(),
@@ -193,7 +193,7 @@ fn finance_paging_is_newest_first_bounded_live_and_does_not_change_the_park() {
         matches!(kind, ui::finance::FinanceLabel::Row(0))
     });
     assert!(
-        first.starts_with("06:39 / ") && first.contains("-$0.10 / Cash $986.70"),
+        first.starts_with("06:39 / ") && first.contains("-$0.10 / Cash $886.70"),
         "{first}"
     );
     assert!(
@@ -201,7 +201,7 @@ fn finance_paging_is_newest_first_bounded_live_and_does_not_change_the_park() {
             kind,
             ui::finance::FinanceLabel::History
         ))
-        .contains("Older 5 transactions: income +$0.00 / costs -$0.50")
+        .contains("Older 6 transactions: income +$0.00 / costs -$100.50")
     );
     persistence_key_frame(
         &mut app,
@@ -318,7 +318,7 @@ fn finance_empty_and_loaded_history_reset_without_saving_transient_state() {
             .finance_ledger()
             .entries
             .len(),
-        17
+        18
     );
     assert_eq!(directory.store().load().unwrap(), empty);
     persistence_key_frame(&mut app, &[KeyCode::KeyN]);
@@ -392,7 +392,7 @@ fn finance_shows_construction_and_refunds_separately_from_guest_sales_and_keeps_
     let categories = label(&mut app, |kind| {
         matches!(kind, ui::finance::FinanceLabel::Categories)
     });
-    assert!(categories.contains("Ride construction -$300.00 / Demolition refunds +$150.00"));
+    assert!(categories.contains("Construction -$300.00 / Demolition refunds +$150.00"));
     assert_eq!(app.world().resource::<Simulation>().0, park);
 
     park.place_service(
@@ -405,22 +405,77 @@ fn finance_shows_construction_and_refunds_separately_from_guest_sales_and_keeps_
     for _ in 0..FINANCE_LEDGER_CAPACITY * usize::from(SERVICE_UPKEEP_TICKS) {
         park.advance(Speed::Normal);
     }
-    assert_eq!(park.finance_ledger().archived_entries, 2);
+    assert_eq!(park.finance_ledger().archived_entries, 3);
     app.world_mut().resource_mut::<Simulation>().0 = park.clone();
     frame(&mut app);
     let history = label(&mut app, |kind| {
         matches!(kind, ui::finance::FinanceLabel::History)
     });
     assert!(
-        history.contains("Older 2 transactions: income +$0.00 / costs -$300.00 / refunds +$150.00"),
+        history.contains("Older 3 transactions: income +$0.00 / costs -$400.00 / refunds +$150.00"),
         "{history}"
     );
     let summary = label(&mut app, |kind| {
         matches!(kind, ui::finance::FinanceLabel::Summary)
     });
     assert!(
-        summary.contains("Cash $837.20 / Sales +$0.00 / Costs -$312.80 / Net cash -$162.80"),
+        summary.contains("Cash $737.20 / Sales +$0.00 / Costs -$412.80 / Net cash -$262.80"),
         "{summary}"
     );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+}
+
+#[test]
+fn finance_distinguishes_facility_and_ride_capital_even_when_their_numeric_ids_match() {
+    let directory = InputSaveDirectory::new();
+    let mut park = Park::new(32, 32);
+    let ride = park.place_carousel(TilePos { x: 12, y: 12 }, 0).unwrap();
+    park.remove_carousel(ride).unwrap();
+    let facility = park
+        .place_service(
+            TilePos { x: 4, y: 5 },
+            0,
+            PathDirection::North,
+            ServiceKind::Drink,
+        )
+        .unwrap();
+    assert_eq!(facility.0, ride.0);
+    park.remove_object(park.service(facility).unwrap().object.unwrap())
+        .unwrap();
+    let (mut app, _) = finance_app(
+        &directory,
+        park.clone(),
+        ViewState {
+            finance_open: true,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    for (index, expected) in [
+        "00:00 / Demolition refund / facility #1 / +$40.00 / Cash $810.00",
+        "00:00 / Facility construction / facility #1 / -$80.00 / Cash $770.00",
+        "00:00 / Demolition refund / ride #1 / +$150.00 / Cash $850.00",
+        "00:00 / Ride construction / ride #1 / -$300.00 / Cash $700.00",
+    ]
+    .iter()
+    .enumerate()
+    {
+        assert_eq!(
+            label(
+                &mut app,
+                |kind| matches!(kind,ui::finance::FinanceLabel::Row(row) if *row==index)
+            ),
+            *expected
+        );
+    }
+    let categories = label(&mut app, |kind| {
+        matches!(kind, ui::finance::FinanceLabel::Categories)
+    });
+    assert!(categories.contains("Construction -$380.00 / Demolition refunds +$190.00"));
+    let summary = label(&mut app, |kind| {
+        matches!(kind, ui::finance::FinanceLabel::Summary)
+    });
+    assert!(summary.contains("Sales +$0.00 / Costs -$380.00 / Net cash -$190.00"));
     assert_eq!(app.world().resource::<Simulation>().0, park);
 }

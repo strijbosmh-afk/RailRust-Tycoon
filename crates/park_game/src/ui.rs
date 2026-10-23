@@ -1021,8 +1021,9 @@ pub(super) fn refresh(
                     sim.0.object(id).map_or(String::new(), |object| {
                         if let Some(service)=sim.0.service_by_object(id) {
                             let stats=sim.0.service_stats(service.id);
-                            return format!("{} / {}\nFaces {} / height {}\nServing {} / Served {}\nM opens service settings",stats.status,money(u64::from(service.price_cents)),
-                                direction_name(service.facing),object.height,stats.using,compact_count(stats.served));
+                            let refund=sim.0.service_demolition_quote(service.id).map_or_else(|_|"Refund unavailable".into(),|amount|format!("Refund {}",money(amount)));
+                            return format!("{} / {}\nFaces {} / height {}\nPaid {} / {refund}\nM: settings / X or Delete: remove",stats.status,money(u64::from(service.price_cents)),
+                                direction_name(service.facing),object.height,money(service.construction_cost_cents));
                         }
                         let buried = sim.0.is_underground(id);
                         let state = if buried && view.view_mode == ViewMode::Surface {
@@ -1139,7 +1140,8 @@ pub(super) fn refresh(
                 "Demolish / click a visible path, gate or facility".into()
             }
             Label::Status if matches!(view.path_tool.mode,PathTool::Service(_)) => {
-                "Facility / C turns serving side / M opens settings".into()
+                let PathTool::Service(kind)=view.path_tool.mode else {unreachable!()};
+                format!("Build {kind} / {} / C turns serving side",money(kind.build_cost_cents()))
             }
             Label::Status if view.path_tool.mode==PathTool::Carousel=>format!("Build carousel / {} / clear 3 x 3 footprint",money(park_sim::CAROUSEL_BUILD_COST_CENTS)),
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {

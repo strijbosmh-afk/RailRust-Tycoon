@@ -85,7 +85,7 @@ struct VersionTenFinanceLedger {
     #[serde(deserialize_with = "strict_object")]
     archived: VersionTenFinanceTotals,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
-    archived_services: Vec<crate::ServiceFinanceTotals>,
+    archived_services: Vec<VersionElevenServiceFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
     archived_rides: Vec<VersionTenRideFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::FINANCE_LEDGER_CAPACITY }>")]
@@ -103,7 +103,7 @@ impl From<VersionTenFinanceLedger> for crate::FinanceLedger {
             archived_entries: old.archived_entries,
             archived_through_tick: old.archived_through_tick,
             archived: old.archived.into(),
-            archived_services: old.archived_services,
+            archived_services: old.archived_services.into_iter().map(Into::into).collect(),
             archived_rides: old.archived_rides.into_iter().map(Into::into).collect(),
             entries: old
                 .entries
@@ -184,7 +184,7 @@ pub(super) struct VersionTenParkData {
     next_ride_id: u64,
     cash_cents: u64,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
-    services: Vec<crate::Service>,
+    services: Vec<VersionElevenService>,
     next_service_id: u64,
     #[serde(deserialize_with = "strict_object")]
     finances: VersionTenFinanceLedger,
@@ -209,7 +209,7 @@ impl VersionTenParkData {
             ride: self.ride,
             next_ride_id: self.next_ride_id,
             cash_cents: self.cash_cents,
-            services: self.services,
+            services: self.services.into_iter().map(Into::into).collect(),
             next_service_id: self.next_service_id,
             finances: self.finances.into(),
             carousels: self.carousels.into_iter().map(Into::into).collect(),

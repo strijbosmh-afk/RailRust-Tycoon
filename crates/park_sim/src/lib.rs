@@ -55,9 +55,9 @@ pub use ride_access::{Ride, RideAccess, RideAccessError, RideAccessStatus, RideE
 pub use saves::{MAX_SAVE_BYTES, SaveError};
 pub use services::{
     GuestNeeds, GuestNeedsSummary, MAX_SERVICE_PRICE_CENTS, MAX_SERVICES, NEED_CRITICAL_THRESHOLD,
-    NEED_SEEK_THRESHOLD, SERVICE_COOLDOWN_TICKS, SERVICE_PRICE_STEP_CENTS, SERVICE_USE_TICKS,
-    SERVICE_WAIT_TICKS, Service, ServiceAccess, ServiceAccessStatus, ServiceError, ServiceId,
-    ServiceKind, ServiceStats, ServiceVisit, ServiceVisitPhase,
+    NEED_SEEK_THRESHOLD, SERVICE_COOLDOWN_TICKS, SERVICE_PRICE_STEP_CENTS, SERVICE_REFUND_PERCENT,
+    SERVICE_USE_TICKS, SERVICE_WAIT_TICKS, Service, ServiceAccess, ServiceAccessStatus,
+    ServiceError, ServiceId, ServiceKind, ServiceStats, ServiceVisit, ServiceVisitPhase,
 };
 pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,

@@ -23,14 +23,17 @@ pub(super) fn point_at(
     let Some(pos) =
         world::pick_sloped_path_plane(point, park, view.rotation, height, PathSlope::Flat)
     else {
-        view.path_tool.hint = "Outside the park at this height.".into();
+        view.path_tool.hint = format!(
+            "Build {}\nOutside the park at this height.",
+            crate::ui::money(kind.build_cost_cents())
+        );
         if click {
             view.path_notice = Some("No facility placed: outside the park.".into());
         }
         return;
     };
     let validation =
-        park.validate_service(pos, height, facing, kind)
+        park.service_build_quote(pos, height, facing, kind)
             .map_err(|error| match error {
                 PlacementError::HeightOutOfRange { .. } => {
                     "Choose a facility height from 0 to 29.".into()
@@ -61,13 +64,14 @@ pub(super) fn point_at(
             demolish: false,
         });
     }
-    view.path_tool.hint = reason.clone().unwrap_or_else(|| {
-        format!(
-            "{kind} / tile {}, {}\nServing side must meet public path.",
-            pos.x + 1,
-            pos.y + 1
-        )
-    });
+    view.path_tool.hint = format!(
+        "Build {} / Cash {}\n{}",
+        crate::ui::money(kind.build_cost_cents()),
+        crate::ui::money(park.cash_cents()),
+        reason
+            .as_deref()
+            .unwrap_or("Face the counter toward public path.")
+    );
     if !click {
         return;
     }
@@ -86,7 +90,11 @@ pub(super) fn point_at(
             view.selected_service = Some(id);
             view.scene_dirty = true;
             view.path_tool.clear_pointer();
-            view.path_notice = Some(format!("{kind} #{} placed.\nM opens its settings.", id.0));
+            view.path_notice = Some(format!(
+                "Built for {}.\nCash {} / M: settings.",
+                crate::ui::money(kind.build_cost_cents()),
+                crate::ui::money(park.cash_cents())
+            ));
         }
         Err(error) => {
             view.path_notice = Some(format!("No facility placed: {}", placement_message(error)))
@@ -123,25 +131,49 @@ mod tests {
 
     #[test]
     fn facility_preview_commit_rejection_and_visible_removal_are_atomic() {
-        for rotation in 0..4 {
+        for (rotation, kind) in (0..4).flat_map(|rotation| {
+            [ServiceKind::Food, ServiceKind::Drink, ServiceKind::Toilet]
+                .map(|kind| (rotation, kind))
+        }) {
             let mut park = Park::new(32, 32);
             let pos = TilePos { x: 14, y: 18 };
             let mut view = ViewState {
                 rotation,
                 ..default()
             };
-            view.path_tool
-                .set_mode(PathTool::Service(ServiceKind::Food));
+            view.path_tool.set_mode(PathTool::Service(kind));
             let point = world::path_build_center(pos, &park, rotation, 8, PathSlope::Flat).unwrap();
             let before = park.clone();
-            super::point_at(&mut park, &mut view, point, false, ServiceKind::Food);
+            super::point_at(&mut park, &mut view, point, false, kind);
             assert_eq!(park, before);
             assert!(view.path_tool.service_preview.unwrap().valid);
-            super::point_at(&mut park, &mut view, point, true, ServiceKind::Food);
+            assert!(view.path_tool.hint.contains(&format!(
+                "Build {} / Cash $1000.00",
+                crate::ui::money(kind.build_cost_cents())
+            )));
+            super::point_at(&mut park, &mut view, point, true, kind);
             let id = view.selected_service.unwrap();
             let object = park.service(id).unwrap().object.unwrap();
+            assert_eq!(
+                park.cash_cents(),
+                before.cash_cents() - kind.build_cost_cents()
+            );
+            assert_eq!(
+                park.service(id).unwrap().construction_cost_cents,
+                kind.build_cost_cents()
+            );
+            let entry = park.finance_ledger().entries.last().unwrap();
+            assert_eq!(
+                (entry.kind, entry.service, entry.ride, entry.amount_cents),
+                (
+                    park_sim::FinanceKind::ServiceConstruction,
+                    Some(id),
+                    None,
+                    kind.build_cost_cents()
+                )
+            );
             let built = park.clone();
-            super::point_at(&mut park, &mut view, point, true, ServiceKind::Food);
+            super::point_at(&mut park, &mut view, point, true, kind);
             assert_eq!(park, built, "occupied placement changes no IDs or state");
             assert!(
                 view.path_notice
@@ -149,6 +181,19 @@ mod tests {
                     .unwrap()
                     .starts_with("No facility placed:")
             );
+            view.path_tool.set_mode(PathTool::Demolish);
+            view.hovered = Some(SurfaceId::Object(object));
+            super::super::point_at(&mut park, &mut view, point, false);
+            assert_eq!(park, built, "refund previews are read-only");
+            assert!(
+                view.path_tool
+                    .service_preview
+                    .is_some_and(|p| p.demolish && p.valid)
+            );
+            assert!(view.path_tool.hint.contains(&format!(
+                "Refund {}",
+                crate::ui::money(kind.build_cost_cents() / 2)
+            )));
             view.selected = Some(SurfaceId::Object(object));
             remove_selected(&mut park, &mut view);
             assert!(park.object(object).is_none());
@@ -157,6 +202,57 @@ mod tests {
                 "retired history survives demolition"
             );
             assert!(view.selected.is_none());
+            assert_eq!(
+                park.cash_cents(),
+                before.cash_cents() - kind.build_cost_cents() / 2
+            );
+            let entry = park.finance_ledger().entries.last().unwrap();
+            assert_eq!(
+                (entry.kind, entry.service, entry.ride, entry.amount_cents),
+                (
+                    park_sim::FinanceKind::ServiceDemolitionRefund,
+                    Some(id),
+                    None,
+                    kind.build_cost_cents() / 2
+                )
+            );
+            let removed = park.clone();
+            view.selected = Some(SurfaceId::Object(object));
+            remove_selected(&mut park, &mut view);
+            assert_eq!(park, removed, "stale selections never refund twice");
+        }
+    }
+
+    #[test]
+    fn unaffordable_service_preview_stays_red_and_click_leaves_every_field_unchanged() {
+        for kind in [ServiceKind::Food, ServiceKind::Drink, ServiceKind::Toilet] {
+            let mut park = Park::new(32, 32);
+            let pos = TilePos { x: 14, y: 18 };
+            while park.cash_cents() >= kind.build_cost_cents() {
+                let id = park
+                    .place_service(pos, 8, PathDirection::North, kind)
+                    .unwrap();
+                park.remove_object(park.service(id).unwrap().object.unwrap())
+                    .unwrap();
+            }
+            let original = park.clone();
+            let mut view = ViewState::default();
+            view.path_tool.set_mode(PathTool::Service(kind));
+            let point = world::path_build_center(pos, &park, 0, 8, PathSlope::Flat).unwrap();
+            for click in [false, true] {
+                super::point_at(&mut park, &mut view, point, click, kind);
+                assert_eq!(park, original);
+                assert!(view.path_tool.service_preview.is_some_and(|p| !p.valid));
+                assert!(view.path_tool.hint.contains(&format!(
+                    "Build {}",
+                    crate::ui::money(kind.build_cost_cents())
+                )));
+                assert!(view.path_tool.hint.contains(&format!(
+                    "Need {} more",
+                    crate::ui::money(kind.build_cost_cents() - park.cash_cents())
+                )));
+                assert!(!view.scene_dirty);
+            }
         }
     }
 }
