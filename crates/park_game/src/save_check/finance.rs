@@ -27,7 +27,10 @@ fn supply_cost(kind: ServiceKind) -> u64 {
 fn income(kind: FinanceKind) -> bool {
     matches!(
         kind,
-        FinanceKind::RideRevenue | FinanceKind::ServiceRevenue | FinanceKind::RideDemolitionRefund
+        FinanceKind::RideRevenue
+            | FinanceKind::ServiceRevenue
+            | FinanceKind::RideDemolitionRefund
+            | FinanceKind::ServiceDemolitionRefund
     )
 }
 fn total(entries: &[FinanceEntry], kind: FinanceKind, service: Option<ServiceId>) -> u64 {
@@ -49,12 +52,22 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         .carousels()
         .iter()
         .map(|r| r.construction_cost_cents)
-        .sum();
+        .sum::<u64>()
+        + park
+            .services()
+            .iter()
+            .map(|s| s.construction_cost_cents)
+            .sum::<u64>();
     let refunds: u64 = park
         .carousels()
         .iter()
         .map(|r| r.demolition_refund_cents)
-        .sum();
+        .sum::<u64>()
+        + park
+            .services()
+            .iter()
+            .map(|s| s.demolition_refund_cents)
+            .sum::<u64>();
     if stats.cash_cents != park.cash_cents()
         || stats.ride_revenue_cents != ride
         || stats.service_revenue_cents != revenue
@@ -133,10 +146,13 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             != upkeep
         || archived.supplies_cents + total(&ledger.entries, FinanceKind::ServiceSupplies, None)
             != supplies
-        || archived.construction_cents + total(&ledger.entries, FinanceKind::RideConstruction, None)
+        || archived.construction_cents
+            + total(&ledger.entries, FinanceKind::RideConstruction, None)
+            + total(&ledger.entries, FinanceKind::ServiceConstruction, None)
             != construction
         || archived.demolition_refunds_cents
             + total(&ledger.entries, FinanceKind::RideDemolitionRefund, None)
+            + total(&ledger.entries, FinanceKind::ServiceDemolitionRefund, None)
             != refunds
     {
         return Err(
@@ -188,6 +204,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         let old_revenue = archived.map_or(0, |s| s.revenue_cents);
         let old_upkeep = archived.map_or(0, |s| s.upkeep_cents);
         let old_supplies = archived.map_or(0, |s| s.supplies_cents);
+        let old_construction = archived.map_or(0, |s| s.construction_cents);
+        let old_refunds = archived.map_or(0, |s| s.demolition_refunds_cents);
         if opening
             + old_revenue
             + total(
@@ -210,6 +228,20 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     Some(service.id),
                 )
                 != service.supplies_cents
+            || old_construction
+                + total(
+                    &ledger.entries,
+                    FinanceKind::ServiceConstruction,
+                    Some(service.id),
+                )
+                != service.construction_cost_cents
+            || old_refunds
+                + total(
+                    &ledger.entries,
+                    FinanceKind::ServiceDemolitionRefund,
+                    Some(service.id),
+                )
+                != service.demolition_refund_cents
         {
             return Err("retained facility income/costs differ from its ledger history".into());
         }
@@ -218,6 +250,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             != i128::from(service.revenue_cents)
                 - i128::from(service.upkeep_cents)
                 - i128::from(service.supplies_cents)
+                - i128::from(service.construction_cost_cents)
+                + i128::from(service.demolition_refund_cents)
         {
             return Err("facility net profit differs from income minus both costs".into());
         }
@@ -376,9 +410,11 @@ pub(crate) fn check_tick(
         || ledger.archived.construction_cents
             != old_ledger.archived.construction_cents
                 + total(removed, FinanceKind::RideConstruction, None)
+                + total(removed, FinanceKind::ServiceConstruction, None)
         || ledger.archived.demolition_refunds_cents
             != old_ledger.archived.demolition_refunds_cents
                 + total(removed, FinanceKind::RideDemolitionRefund, None)
+                + total(removed, FinanceKind::ServiceDemolitionRefund, None)
         || ledger.opening_tick != old_ledger.opening_tick
         || ledger.opening_cash_cents != old_ledger.opening_cash_cents
         || ledger.opening_ride_revenue_cents != old_ledger.opening_ride_revenue_cents
@@ -418,15 +454,18 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
 
 pub(crate) fn install_auxiliaries(park: &mut Park) -> Result<Vec<ServiceId>, String> {
     let mut result = Vec::new();
-    for y in 24..28 {
-        for x in 1..6 {
-            let pos = TilePos { x, y };
-            let height = park.tile(pos).unwrap().height;
-            result.push(
-                park.place_service(pos, height, PathDirection::North, ServiceKind::Food)
-                    .map_err(|e| e.to_string())?,
-            );
-        }
+    // Keep these genuine paid facilities within the fixture's available budget.
+    let count = ((park.cash_cents().saturating_sub(12_000)) / 12_000).min(4) as u32;
+    if count == 0 {
+        return Err("finance fixture cannot afford an auxiliary facility".into());
+    }
+    for x in 1..=count {
+        let pos = TilePos { x, y: 24 };
+        let height = park.tile(pos).unwrap().height;
+        result.push(
+            park.place_service(pos, height, PathDirection::North, ServiceKind::Food)
+                .map_err(|e| e.to_string())?,
+        );
     }
     Ok(result)
 }
@@ -460,6 +499,7 @@ fn continue_finance(park: &mut Park) -> Result<(), String> {
         .unwrap()
         .id;
     let auxiliary = install_auxiliaries(park)?;
+    super::facility_construction::spend_down(park)?;
     let removed_id = auxiliary[0];
     let mut stage = 0;
     let mut restored_count = 0;
@@ -625,7 +665,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("finance verification changed original slots".into());
     }
-    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict11 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict12 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

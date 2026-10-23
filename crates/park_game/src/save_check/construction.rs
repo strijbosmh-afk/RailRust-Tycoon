@@ -201,7 +201,7 @@ fn replay(park: &mut Park) -> Result<(), String> {
     // Unreachable food facilities generate enough real expenses to archive the
     // construction and first refund; their existing independent tick oracle is used.
     super::finance::install_auxiliaries(park)?;
-    for _ in 0..720 {
+    for _ in 0..4_320 {
         let old = park.clone();
         park.advance(Speed::Normal);
         super::finance::check_tick(
@@ -214,8 +214,20 @@ fn replay(park: &mut Park) -> Result<(), String> {
         )?;
     }
     super::finance::close_all(park)?;
-    if park.finance_ledger().archived.construction_cents != 2 * BUILD
-        || park.finance_ledger().archived.demolition_refunds_cents != REFUND
+    if park
+        .finance_ledger()
+        .archived_rides
+        .iter()
+        .map(|r| r.construction_cents)
+        .sum::<u64>()
+        != 2 * BUILD
+        || park
+            .finance_ledger()
+            .archived_rides
+            .iter()
+            .map(|r| r.demolition_refunds_cents)
+            .sum::<u64>()
+            != REFUND
     {
         return Err("construction and refund did not survive attributed ledger rollover".into());
     }
@@ -321,7 +333,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("paused verification changed park or original save slots".into());
     }
-    write_new(&store.directory().join("verification-construction.txt"), format!("Parkbound {}\nExact paid-body backup and occupied primary: PASS\nFresh-process continuation: PASS ({REPLAY_TICKS} ticks)\n$300 construction / $150 single refund / fresh-ID rebuilding: PASS\nPrecommit quotes, occupied protection and insufficient-funds atomic rejection: PASS\nBody/gate removal with retained queue, revenue and review history: PASS\nIndependent owner transaction amounts, wallet isolation and running balances: PASS\nConstruction/refund archive rollover and saved paid basis: PASS\nPaused/reset strict11 loading and unchanged source slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-construction.txt"), format!("Parkbound {}\nExact paid-body backup and occupied primary: PASS\nFresh-process continuation: PASS ({REPLAY_TICKS} ticks)\n$300 construction / $150 single refund / fresh-ID rebuilding: PASS\nPrecommit quotes, occupied protection and insufficient-funds atomic rejection: PASS\nBody/gate removal with retained queue, revenue and review history: PASS\nIndependent owner transaction amounts, wallet isolation and running balances: PASS\nConstruction/refund archive rollover and saved paid basis: PASS\nPaused/reset strict12 loading and unchanged source slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

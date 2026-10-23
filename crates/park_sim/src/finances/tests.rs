@@ -45,6 +45,17 @@ fn using_fixture() -> (Park, usize, ServiceId) {
 
 /// Test-only projection of a current park into the preceding strict DTO.
 pub(crate) fn strip_finances(mut value: Value) -> Value {
+    let net_capital = value["park"]["services"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|service| {
+            service["construction_cost_cents"].as_u64().unwrap()
+                - service["demolition_refund_cents"].as_u64().unwrap()
+        })
+        .sum::<u64>();
+    value["park"]["cash_cents"] =
+        json!(value["park"]["cash_cents"].as_u64().unwrap() + net_capital);
     strip_carousel_fields(&mut value);
     let costs = value["park"]["services"]
         .as_array()
@@ -86,6 +97,7 @@ pub(crate) fn strip_carousel_fields(value: &mut Value) {
     }
 }
 pub(crate) fn strip_construction_fields(value: &mut Value) {
+    strip_service_construction_fields(value);
     for carousel in value["park"]["carousels"].as_array_mut().unwrap() {
         carousel
             .as_object_mut()
@@ -107,6 +119,45 @@ pub(crate) fn strip_construction_fields(value: &mut Value) {
         }
     }
 }
+pub(crate) fn strip_service_construction_fields(value: &mut Value) {
+    for service in value["park"]["services"].as_array_mut().unwrap() {
+        service
+            .as_object_mut()
+            .unwrap()
+            .remove("construction_cost_cents");
+        service
+            .as_object_mut()
+            .unwrap()
+            .remove("demolition_refund_cents");
+    }
+    if let Some(ledger) = value["park"]["finances"].as_object_mut() {
+        for entry in ledger["archived_services"].as_array_mut().unwrap() {
+            entry.as_object_mut().unwrap().remove("construction_cents");
+            entry
+                .as_object_mut()
+                .unwrap()
+                .remove("demolition_refunds_cents");
+        }
+    }
+}
+/// Explicit zero-basis fixture for legacy operating-cost and lifetime-cap tests.
+/// Restore the original ledger as well as cash: no synthetic capital entries.
+pub(crate) fn place_legacy_service(
+    park: &mut Park,
+    pos: TilePos,
+    height: u8,
+    facing: PathDirection,
+    kind: ServiceKind,
+) -> ServiceId {
+    let cash = park.cash_cents;
+    let ledger = park.finances.clone();
+    park.cash_cents = cash.max(kind.build_cost_cents());
+    let id = park.place_service(pos, height, facing, kind).unwrap();
+    park.services.last_mut().unwrap().construction_cost_cents = 0;
+    park.cash_cents = cash;
+    park.finances = ledger;
+    id
+}
 pub(crate) fn reset_finances(park: &mut Park) {
     park.cash_cents = INITIAL_PARK_CASH_CENTS
         + park
@@ -119,6 +170,8 @@ pub(crate) fn reset_finances(park: &mut Park) {
         service.upkeep_cents = 0;
         service.supplies_cents = 0;
         service.closed_for_funds = false;
+        service.construction_cost_cents = 0;
+        service.demolition_refund_cents = 0;
     }
     park.finances = FinanceLedger::opening(park);
     if let Some(ride) = &park.ride {
@@ -142,7 +195,7 @@ fn open_disconnected_services_charge_at_the_exact_boundary_and_preserve_partial_
     let toilet = site(&mut park, 4, ServiceKind::Toilet);
     assert_eq!(park.finance_stats().open_upkeep_per_minute_cents, 1200);
     advance(&mut park, 89);
-    assert_eq!(park.cash_cents, INITIAL_PARK_CASH_CENTS);
+    assert_eq!(park.cash_cents, INITIAL_PARK_CASH_CENTS - 30_000);
     assert!(
         park.services
             .iter()
@@ -156,14 +209,14 @@ fn open_disconnected_services_charge_at_the_exact_boundary_and_preserve_partial_
     park.advance(Speed::Normal);
     loaded.advance(Speed::Normal);
     assert_eq!(park, loaded);
-    assert_eq!(park.cash_cents, INITIAL_PARK_CASH_CENTS - 40);
+    assert_eq!(park.cash_cents, INITIAL_PARK_CASH_CENTS - 30_000 - 40);
     assert_eq!(
         park.finance_ledger()
             .entries
             .iter()
             .map(|entry| entry.service.unwrap())
             .collect::<Vec<_>>(),
-        vec![food, toilet]
+        vec![food, drink, toilet, food, toilet]
     );
     assert_eq!(park.service(drink).unwrap().upkeep_progress, 89);
     park.set_service_open(drink, true).unwrap();
@@ -185,16 +238,17 @@ fn chronological_rollover_retains_all_category_and_source_totals() {
     advance(&mut park, 90 * 200);
     let ledger = park.finance_ledger();
     assert_eq!(ledger.entries.len(), 128);
-    assert_eq!(ledger.archived_entries, 72);
-    assert_eq!(ledger.entries[0].id, 73);
+    assert_eq!(ledger.archived_entries, 73);
+    assert_eq!(ledger.entries[0].id, 74);
     assert_eq!(ledger.entries[0].tick, 90 * 73);
-    assert_eq!(ledger.next_entry_id, 201);
+    assert_eq!(ledger.next_entry_id, 202);
     assert_eq!(ledger.archived.upkeep_cents, 72 * 20);
     assert_eq!(ledger.archived_services[0].upkeep_cents, 72 * 20);
-    assert_eq!(park.finance_stats().net_profit_cents, -4000);
+    assert_eq!(ledger.archived.construction_cents, 8_000);
+    assert_eq!(park.finance_stats().net_profit_cents, -12_000);
     // Keep the allocator and all retained IDs mutually consistent, so only
     // fixed-cost archive-count validation can reject this forged history.
-    for count in [1_u64, 73] {
+    for count in [1_u64, 74] {
         let mut forged = park.clone();
         forged.finances.archived_entries = count;
         for (index, entry) in forged.finances.entries.iter_mut().enumerate() {
@@ -223,7 +277,13 @@ fn chronological_rollover_retains_all_category_and_source_totals() {
 fn no_debt_auto_closure_is_stable_by_service_id_and_reopen_retries_due_cost() {
     let mut park = Park::new(32, 32);
     for x in 1..=20 {
-        site(&mut park, x, ServiceKind::Food);
+        place_legacy_service(
+            &mut park,
+            TilePos { x, y: 2 },
+            0,
+            PathDirection::North,
+            ServiceKind::Food,
+        );
     }
     let mut reversed = park.clone();
     reversed.services.reverse();
@@ -461,7 +521,7 @@ fn strict_finance_metadata_rejects_forged_chronology_balances_sources_and_costs(
     for (path, value) in [
         ("/park/finances/opening_tick", json!(park.ticks + 1)),
         ("/park/finances/opening_cash_cents", json!(100001)),
-        ("/park/finances/archived_entries", json!(13)),
+        ("/park/finances/archived_entries", json!(14)),
         ("/park/finances/archived_through_tick", json!(0)),
         ("/park/finances/archived/upkeep_cents", json!(0)),
         ("/park/finances/archived_services/0/service", json!(999)),
@@ -499,7 +559,7 @@ fn strict_finance_metadata_rejects_forged_chronology_balances_sources_and_costs(
         .unwrap()
         .remove("service");
     assert!(Park::from_save_bytes(&serde_json::to_vec(&missing_source).unwrap()).is_err());
-    for (schema, content) in [(12, 12), (10, 9), (9, 10), (9, 8), (8, 9)] {
+    for (schema, content) in [(13, 13), (10, 9), (9, 10), (9, 8), (8, 9)] {
         let mut bad = base.clone();
         bad["schema_version"] = json!(schema);
         bad["content_version"] = json!(content);

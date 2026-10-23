@@ -4,7 +4,21 @@ use park_sim::{Park, Service, ServiceId, ServiceKind};
 use super::*;
 
 pub(crate) const PANEL_WIDTH: f32 = 560.0;
-pub(crate) const PANEL_HEIGHT: f32 = 420.0;
+pub(crate) const PANEL_HEIGHT: f32 = 480.0;
+
+pub(crate) fn construction_details(park: &Park, service: &Service) -> String {
+    match park.service_demolition_quote(service.id) {
+        Ok(refund) => format!(
+            "Paid {} / Demolition refund {}",
+            money(service.construction_cost_cents),
+            money(refund)
+        ),
+        Err(_) => format!(
+            "Paid {} / Refund unavailable",
+            money(service.construction_cost_cents)
+        ),
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ServiceCommand {
@@ -77,7 +91,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     for kind in [ServiceKind::Food, ServiceKind::Drink, ServiceKind::Toilet] {
                         button(
                             p,
-                            &format!("Build {kind}"),
+                            &format!("Build {kind} {}", money(kind.build_cost_cents())),
                             Action::BuildService(kind),
                             166.0,
                         );
@@ -85,7 +99,10 @@ pub(super) fn setup(commands: &mut Commands) {
                 });
                 label(
                     p,
-                    "Place a facility; face its counter toward a public path.",
+                    &format!(
+                        "Face its counter toward public path. Demolition refunds {}% of paid cost.",
+                        park_sim::SERVICE_REFUND_PERCENT
+                    ),
                     11.0,
                     MUTED,
                 );
@@ -99,7 +116,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     button(p, ">", Action::BrowseService(1), 45.0);
                 });
                 p.spawn(Node {
-                    height: px(110),
+                    height: px(148),
                     flex_shrink: 0.0,
                     ..default()
                 })
@@ -203,9 +220,10 @@ pub(crate) fn refresh(
                 |(service,stats)| {
                     let status=if stats.closed_for_funds {"Closed: park cannot cover costs".into()}else{stats.status.to_string()};
                     let per_minute=u64::from(service.kind.upkeep_cost_cents()) * (60*TICKS_PER_SECOND/u64::from(park_sim::SERVICE_UPKEEP_TICKS));
-                    format!("{status} / Faces {}\nSeeking {} / Waiting {} / Using {}\nServed {} / Revenue +{}\nUpkeep -{} / Supplies -{} / Profit {}\nOpen upkeep {}/min / Supplies {}/completed use\nPrice refusals {} / N: park finances",
+                    let operating_profit=stats.revenue_cents as i64-stats.upkeep_cents as i64-stats.supplies_cents as i64;
+                    format!("{status} / Faces {}\nSeeking {} / Waiting {} / Using {}\nServed {} / Sales +{}\nUpkeep -{} / Supplies -{}\nOperating profit {} / Net cash {}\n{}\nOpen upkeep {}/min / Supplies {}/completed use\nPrice refusals {} / N: park finances",
                         direction_name(service.facing),stats.approaching,stats.waiting,stats.using,
-                        compact_count(stats.served),money(stats.revenue_cents),money(stats.upkeep_cents),money(stats.supplies_cents),finance::signed_money(stats.profit_cents),
+                        compact_count(stats.served),money(stats.revenue_cents),money(stats.upkeep_cents),money(stats.supplies_cents),finance::signed_money(operating_profit),finance::signed_money(stats.profit_cents),construction_details(&sim.0,service),
                         money(per_minute),money(u64::from(service.kind.supply_cost_cents())),compact_count(stats.unaffordable_rejections))
                 }),
             ServiceLabel::Price=>facility.map_or_else(||"Price unavailable".into(),|service|format!("Price {}",money(u64::from(service.price_cents)))),

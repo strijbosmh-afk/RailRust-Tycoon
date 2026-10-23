@@ -92,12 +92,14 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::ServiceSupplies => ("Service supplies", "-"),
         FinanceKind::RideConstruction => ("Ride construction", "-"),
         FinanceKind::RideDemolitionRefund => ("Demolition refund", "+"),
+        FinanceKind::ServiceConstruction => ("Facility construction", "-"),
+        FinanceKind::ServiceDemolitionRefund => ("Demolition refund", "+"),
     };
     let service = entry.ride.map_or_else(
         || {
             entry
                 .service
-                .map_or(String::new(), |id| format!(" #{}", id.0))
+                .map_or(String::new(), |id| format!(" / facility #{}", id.0))
         },
         |id| format!(" / ride #{}", id.0),
     );
@@ -158,7 +160,7 @@ pub(crate) fn refresh(
                 money(stats.open_upkeep_per_minute_cents)
             ),
             FinanceLabel::Categories => format!(
-                "Ride tickets +{} / Service sales +{} / Upkeep -{} / Supplies -{}\nRide construction -{} / Demolition refunds +{}",
+                "Ride tickets +{} / Service sales +{} / Upkeep -{} / Supplies -{}\nConstruction -{} / Demolition refunds +{}",
                 money(stats.ride_revenue_cents),
                 money(stats.service_revenue_cents),
                 money(stats.upkeep_cents),
@@ -217,10 +219,11 @@ mod tests {
     #[test]
     fn ledger_rows_use_transaction_kind_for_sign_and_preserve_positive_amounts() {
         for (kind, sign) in [
-            (FinanceKind::RideRevenue, "+"),
             (FinanceKind::ServiceRevenue, "+"),
             (FinanceKind::ServiceUpkeep, "-"),
             (FinanceKind::ServiceSupplies, "-"),
+            (FinanceKind::ServiceConstruction, "-"),
+            (FinanceKind::ServiceDemolitionRefund, "+"),
         ] {
             let entry = FinanceEntry {
                 ride: None,
@@ -233,7 +236,7 @@ mod tests {
             };
             let text = row_text(&entry);
             assert!(text.starts_with("00:03 / "));
-            assert!(text.contains(&format!(" #7 / {sign}$0.60 / Cash $12.34")));
+            assert!(text.contains(&format!(" / facility #7 / {sign}$0.60 / Cash $12.34")));
             assert_eq!(entry.amount_cents, 60);
         }
         assert_eq!(signed_money(-123), "-$1.23");

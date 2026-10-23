@@ -6,7 +6,19 @@ use park_sim::{ServiceId, ServiceKind};
 fn prepare_state(park: &mut Park, view: &mut ViewState, scene: Scene) -> Option<ServiceId> {
     assert!(scene.is_finance());
     park.set_train_open(false);
-    service_scenes::install(park, view);
+    if matches!(scene, Scene::FinanceProfit) {
+        let id = park
+            .place_service(
+                TilePos { x: 15, y: 21 },
+                8,
+                park_sim::PathDirection::North,
+                ServiceKind::Drink,
+            )
+            .unwrap();
+        view.selected_service = Some(id);
+    } else {
+        service_scenes::install(park, view);
+    }
     if matches!(scene, Scene::FinanceLoss) {
         finance::seek(
             park,
@@ -30,6 +42,7 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, scene: Scene) -> Option<
         .unwrap();
     } else if matches!(scene, Scene::FinanceClosed | Scene::FinanceReopened) {
         finance::install_auxiliaries(park).unwrap();
+        crate::save_check::facility_construction::spend_down(park).unwrap();
         finance::seek(
             park,
             |p| p.services().iter().any(|s| s.closed_for_funds),

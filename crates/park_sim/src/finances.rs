@@ -14,12 +14,17 @@ pub enum FinanceKind {
     ServiceSupplies,
     RideConstruction,
     RideDemolitionRefund,
+    ServiceConstruction,
+    ServiceDemolitionRefund,
 }
 impl FinanceKind {
     fn income(self) -> bool {
         matches!(
             self,
-            Self::RideRevenue | Self::ServiceRevenue | Self::RideDemolitionRefund
+            Self::RideRevenue
+                | Self::ServiceRevenue
+                | Self::RideDemolitionRefund
+                | Self::ServiceDemolitionRefund
         )
     }
     fn ride_source(self) -> bool {
@@ -38,6 +43,8 @@ impl std::fmt::Display for FinanceKind {
             Self::ServiceSupplies => "Service supplies",
             Self::RideConstruction => "Ride construction",
             Self::RideDemolitionRefund => "Demolition refund",
+            Self::ServiceConstruction => "Service construction",
+            Self::ServiceDemolitionRefund => "Service demolition refund",
         })
     }
 }
@@ -74,8 +81,12 @@ impl FinanceTotals {
             FinanceKind::ServiceRevenue => &mut self.service_revenue_cents,
             FinanceKind::ServiceUpkeep => &mut self.upkeep_cents,
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
-            FinanceKind::RideConstruction => &mut self.construction_cents,
-            FinanceKind::RideDemolitionRefund => &mut self.demolition_refunds_cents,
+            FinanceKind::RideConstruction | FinanceKind::ServiceConstruction => {
+                &mut self.construction_cents
+            }
+            FinanceKind::RideDemolitionRefund | FinanceKind::ServiceDemolitionRefund => {
+                &mut self.demolition_refunds_cents
+            }
         };
         *target = target
             .checked_add(amount)
@@ -137,6 +148,8 @@ pub struct ServiceFinanceTotals {
     pub revenue_cents: u64,
     pub upkeep_cents: u64,
     pub supplies_cents: u64,
+    pub construction_cents: u64,
+    pub demolition_refunds_cents: u64,
 }
 impl ServiceFinanceTotals {
     fn new(service: ServiceId) -> Self {
@@ -145,6 +158,8 @@ impl ServiceFinanceTotals {
             revenue_cents: 0,
             upkeep_cents: 0,
             supplies_cents: 0,
+            construction_cents: 0,
+            demolition_refunds_cents: 0,
         }
     }
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
@@ -152,6 +167,8 @@ impl ServiceFinanceTotals {
             FinanceKind::ServiceRevenue => &mut self.revenue_cents,
             FinanceKind::ServiceUpkeep => &mut self.upkeep_cents,
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
+            FinanceKind::ServiceConstruction => &mut self.construction_cents,
+            FinanceKind::ServiceDemolitionRefund => &mut self.demolition_refunds_cents,
             _ => return Err("ride transaction has a service source".into()),
         };
         *target = target
@@ -342,11 +359,13 @@ impl Park {
             .carousels
             .iter()
             .map(|c| c.construction_cost_cents)
+            .chain(self.services.iter().map(|s| s.construction_cost_cents))
             .sum::<u64>();
         let demolition_refunds_cents = self
             .carousels
             .iter()
             .map(|c| c.demolition_refund_cents)
+            .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .sum::<u64>();
         let total_costs_cents = upkeep_cents + supplies_cents + construction_cents;
         FinanceStats {
@@ -496,6 +515,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         if last.is_some_and(|id| id >= entry.service)
             || entry.served > service.served
             || entry.revenue_cents > service.revenue_cents
+            || (service.construction_cost_cents != 0
+                && (entry.served != 0 || entry.revenue_cents != 0))
             || u128::from(entry.revenue_cents)
                 > u128::from(entry.served) * u128::from(crate::INITIAL_GUEST_WALLET_CENTS)
         {
@@ -555,7 +576,11 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             .service(entry.service)
             .ok_or("archived service source is invalid")?;
         if last.is_some_and(|id| id >= entry.service)
-            || (entry.revenue_cents == 0 && entry.upkeep_cents == 0 && entry.supplies_cents == 0)
+            || (entry.revenue_cents == 0
+                && entry.upkeep_cents == 0
+                && entry.supplies_cents == 0
+                && entry.construction_cents == 0
+                && entry.demolition_refunds_cents == 0)
         {
             return Err("archived service source is invalid".into());
         }
@@ -564,8 +589,25 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         if entry.upkeep_cents % upkeep_cost != 0 || entry.supplies_cents % supply_cost != 0 {
             return Err("archived service expenses are not whole fixed-cost transactions".into());
         }
+        if (entry.construction_cents != 0
+            && entry.construction_cents != service.construction_cost_cents)
+            || (entry.demolition_refunds_cents != 0
+                && (entry.demolition_refunds_cents != service.demolition_refund_cents
+                    || entry.construction_cents != service.construction_cost_cents))
+            || (service.construction_cost_cents != 0
+                && entry.construction_cents == 0
+                && (entry.revenue_cents != 0
+                    || entry.upkeep_cents != 0
+                    || entry.supplies_cents != 0))
+        {
+            return Err(
+                "archived service construction or refund disagrees with facility history".into(),
+            );
+        }
         let expenses = u128::from(entry.upkeep_cents / upkeep_cost)
-            + u128::from(entry.supplies_cents / supply_cost);
+            + u128::from(entry.supplies_cents / supply_cost)
+            + u128::from(entry.construction_cents != 0)
+            + u128::from(entry.demolition_refunds_cents != 0);
         let receipts = u128::from(entry.revenue_cents);
         minimum_archived +=
             expenses + receipts.div_ceil(u128::from(crate::INITIAL_GUEST_WALLET_CENTS));
@@ -574,6 +616,11 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         archived_check.add(FinanceKind::ServiceRevenue, entry.revenue_cents)?;
         archived_check.add(FinanceKind::ServiceUpkeep, entry.upkeep_cents)?;
         archived_check.add(FinanceKind::ServiceSupplies, entry.supplies_cents)?;
+        archived_check.add(FinanceKind::ServiceConstruction, entry.construction_cents)?;
+        archived_check.add(
+            FinanceKind::ServiceDemolitionRefund,
+            entry.demolition_refunds_cents,
+        )?;
         sources.insert(entry.service, entry.clone());
     }
     if archived_check != ledger.archived
@@ -608,7 +655,10 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             || (entry.tick == ledger.opening_tick
                 && !matches!(
                     entry.kind,
-                    FinanceKind::RideConstruction | FinanceKind::RideDemolitionRefund
+                    FinanceKind::RideConstruction
+                        | FinanceKind::RideDemolitionRefund
+                        | FinanceKind::ServiceConstruction
+                        | FinanceKind::ServiceDemolitionRefund
                 ))
             || entry.tick > park.ticks
             || entry.amount_cents == 0
@@ -684,10 +734,44 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             {
                 return Err("service receipt exceeds any possible wallet".into());
             }
-            sources
+            let source = sources
                 .entry(id)
-                .or_insert_with(|| ServiceFinanceTotals::new(id))
-                .add(entry.kind, entry.amount_cents)?;
+                .or_insert_with(|| ServiceFinanceTotals::new(id));
+            match entry.kind {
+                FinanceKind::ServiceConstruction => {
+                    if entry.amount_cents != service.construction_cost_cents
+                        || source.construction_cents != 0
+                        || source.demolition_refunds_cents != 0
+                        || source.revenue_cents != 0
+                        || source.upkeep_cents != 0
+                        || source.supplies_cents != 0
+                    {
+                        return Err(
+                            "service construction charge is duplicated or out of order".into()
+                        );
+                    }
+                }
+                FinanceKind::ServiceDemolitionRefund => {
+                    if entry.amount_cents != service.demolition_refund_cents
+                        || source.construction_cents != service.construction_cost_cents
+                        || source.demolition_refunds_cents != 0
+                    {
+                        return Err(
+                            "service refund is duplicated or has no construction charge".into()
+                        );
+                    }
+                }
+                _ => {
+                    if source.construction_cents != service.construction_cost_cents
+                        || source.demolition_refunds_cents != 0
+                    {
+                        return Err(
+                            "service operation precedes construction or follows demolition".into(),
+                        );
+                    }
+                }
+            }
+            source.add(entry.kind, entry.amount_cents)?;
         }
         balance = if entry.kind.income() {
             balance.checked_add(entry.amount_cents)
@@ -740,6 +824,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         if initial_revenue.checked_add(source.revenue_cents) != Some(service.revenue_cents)
             || source.upkeep_cents != service.upkeep_cents
             || source.supplies_cents != service.supplies_cents
+            || source.construction_cents != service.construction_cost_cents
+            || source.demolition_refunds_cents != service.demolition_refund_cents
             || service.upkeep_progress >= SERVICE_UPKEEP_TICKS
             || service.upkeep_cents % u64::from(service.kind.upkeep_cost_cents()) != 0
             || u128::from(service.upkeep_cents / u64::from(service.kind.upkeep_cost_cents()))

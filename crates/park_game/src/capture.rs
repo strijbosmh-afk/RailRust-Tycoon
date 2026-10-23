@@ -30,6 +30,7 @@ const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 mod admission_scenes;
 mod construction_scenes;
 mod economy_scenes;
+mod facility_construction_scenes;
 mod feedback_scenes;
 mod finance_scenes;
 mod journey_scenes;
@@ -136,9 +137,24 @@ enum Scene {
     ConstructionUnaffordable,
     ConstructionFinance,
     ConstructionRemoved,
+    FacilityPrice,
+    FacilityRefund,
+    FacilityUnaffordable,
+    FacilityFinance,
+    FacilityRemoved,
 }
 
 impl Scene {
+    fn is_facility_construction(self) -> bool {
+        matches!(
+            self,
+            Self::FacilityPrice
+                | Self::FacilityRefund
+                | Self::FacilityUnaffordable
+                | Self::FacilityFinance
+                | Self::FacilityRemoved
+        )
+    }
     fn is_construction(self) -> bool {
         matches!(
             self,
@@ -437,6 +453,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("construction-unaffordable") => Scene::ConstructionUnaffordable,
                 Some("construction-finance") => Scene::ConstructionFinance,
                 Some("construction-removed") => Scene::ConstructionRemoved,
+                Some("facility-price") => Scene::FacilityPrice,
+                Some("facility-refund") => Scene::FacilityRefund,
+                Some("facility-unaffordable") => Scene::FacilityUnaffordable,
+                Some("facility-finance") => Scene::FacilityFinance,
+                Some("facility-removed") => Scene::FacilityRemoved,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -679,6 +700,9 @@ fn apply_preset(
     }
     if capture.scene.is_construction() {
         construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_facility_construction() {
+        facility_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

@@ -12,6 +12,7 @@ pub const SERVICE_PRICE_STEP_CENTS: u32 = 50;
 pub const SERVICE_USE_TICKS: u16 = 90;
 pub const SERVICE_WAIT_TICKS: u16 = 900;
 pub const SERVICE_COOLDOWN_TICKS: u16 = 300;
+pub const SERVICE_REFUND_PERCENT: u8 = 50;
 pub const NEED_SEEK_THRESHOLD: u8 = 60;
 pub const NEED_CRITICAL_THRESHOLD: u8 = 85;
 // A per-person and per-service bound keeps every bounded save-wide sum safe.
@@ -32,6 +33,13 @@ pub enum ServiceKind {
 }
 impl ServiceKind {
     pub const ALL: [Self; 3] = [Self::Food, Self::Drink, Self::Toilet];
+    pub const fn build_cost_cents(self) -> u64 {
+        match self {
+            Self::Food => 12_000,
+            Self::Drink => 8_000,
+            Self::Toilet => 10_000,
+        }
+    }
     pub const fn upkeep_cost_cents(self) -> u32 {
         match self {
             Self::Food => 30,
@@ -147,6 +155,10 @@ pub struct Service {
     pub upkeep_cents: u64,
     pub supplies_cents: u64,
     pub closed_for_funds: bool,
+    /// Actual construction charge; imported free facilities retain zero.
+    pub construction_cost_cents: u64,
+    /// One-time demolition refund retained with the service's history.
+    pub demolition_refund_cents: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -229,6 +241,8 @@ pub struct ServiceStats {
     pub upkeep_cents: u64,
     pub supplies_cents: u64,
     pub closed_for_funds: bool,
+    pub construction_cost_cents: u64,
+    pub demolition_refund_cents: u64,
     pub profit_cents: i64,
 }
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -261,9 +275,20 @@ impl Park {
         &self,
         pos: TilePos,
         height: u8,
-        _facing: PathDirection,
-        _kind: ServiceKind,
+        facing: PathDirection,
+        kind: ServiceKind,
     ) -> Result<(), PlacementError> {
+        self.service_build_quote(pos, height, facing, kind)
+            .map(|_| ())
+    }
+    /// Read-only price and placement validation used again by the command.
+    pub fn service_build_quote(
+        &self,
+        pos: TilePos,
+        height: u8,
+        _facing: PathDirection,
+        kind: ServiceKind,
+    ) -> Result<u64, PlacementError> {
         if self.services.len() >= MAX_SERVICES {
             return Err(PlacementError::CapacityExceeded {
                 resource: "service records",
@@ -279,8 +304,24 @@ impl Park {
         self.next_service_id
             .checked_add(1)
             .ok_or(PlacementError::IdExhausted)?;
-        self.validate_object_placement(pos, ObjectKind::Service, height, 3)
-            .map(|_| ())
+        self.validate_object_placement(pos, ObjectKind::Service, height, 3)?;
+        let cost = kind.build_cost_cents();
+        if self.cash_cents < cost {
+            return Err(PlacementError::InsufficientFunds {
+                required_cents: cost,
+                available_cents: self.cash_cents,
+            });
+        }
+        Ok(cost)
+    }
+    /// Unfinished service users can leave safely on the serving public path;
+    /// demolition cancels their purchase without charging or granting relief.
+    pub fn service_demolition_quote(&self, id: ServiceId) -> Result<u64, ServiceError> {
+        let service = self.service(id).ok_or(ServiceError::UnknownService(id))?;
+        if service.object.is_none() {
+            return Err(ServiceError::RemovedService(id));
+        }
+        Ok(service.construction_cost_cents * u64::from(SERVICE_REFUND_PERCENT) / 100)
     }
     pub fn place_service(
         &mut self,
@@ -289,7 +330,7 @@ impl Park {
         facing: PathDirection,
         kind: ServiceKind,
     ) -> Result<ServiceId, PlacementError> {
-        self.validate_service(pos, height, facing, kind)?;
+        let cost = self.service_build_quote(pos, height, facing, kind)?;
         let object = self.insert_surface_object(
             SurfaceObject {
                 id: ObjectId(0),
@@ -319,7 +360,10 @@ impl Park {
             upkeep_cents: 0,
             supplies_cents: 0,
             closed_for_funds: false,
+            construction_cost_cents: cost,
+            demolition_refund_cents: 0,
         });
+        self.record_cash(crate::FinanceKind::ServiceConstruction, Some(id), cost);
         Ok(id)
     }
     pub fn service_access(&self, id: ServiceId) -> ServiceAccess {
@@ -408,7 +452,10 @@ impl Park {
             upkeep_cents: service.upkeep_cents,
             supplies_cents: service.supplies_cents,
             closed_for_funds: service.closed_for_funds,
-            profit_cents: service.revenue_cents as i64
+            construction_cost_cents: service.construction_cost_cents,
+            demolition_refund_cents: service.demolition_refund_cents,
+            profit_cents: service.revenue_cents as i64 + service.demolition_refund_cents as i64
+                - service.construction_cost_cents as i64
                 - service.upkeep_cents as i64
                 - service.supplies_cents as i64,
             ..Default::default()
@@ -766,6 +813,17 @@ pub(crate) fn validate_services(park: &Park) -> Result<(), String> {
     let mut served = 0_u64;
     let mut revenue = 0_u64;
     for service in &park.services {
+        if (service.construction_cost_cents != 0
+            && service.construction_cost_cents != service.kind.build_cost_cents())
+            || service.demolition_refund_cents
+                != if service.object.is_none() {
+                    service.construction_cost_cents * u64::from(SERVICE_REFUND_PERCENT) / 100
+                } else {
+                    0
+                }
+        {
+            return Err("service construction basis or demolition refund is invalid".into());
+        }
         if service.id.0 == 0
             || service.id.0 >= park.next_service_id
             || ids.insert(service.id, service).is_some()
@@ -888,3 +946,6 @@ pub(crate) fn validate_services(park: &Park) -> Result<(), String> {
 
 #[cfg(test)]
 pub(crate) mod tests;
+
+#[cfg(test)]
+mod construction_tests;

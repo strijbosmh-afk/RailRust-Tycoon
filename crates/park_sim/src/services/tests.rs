@@ -655,7 +655,7 @@ fn malformed_service_references_quotes_histories_and_missing_fields_are_rejected
             assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
         }
     }
-    for (schema, content) in [(12, 12), (10, 9), (9, 10), (8, 7), (7, 8)] {
+    for (schema, content) in [(13, 13), (10, 9), (9, 10), (8, 7), (7, 8)] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(schema);
         forged["content_version"] = json!(content);
@@ -728,9 +728,13 @@ fn service_history_capacity_and_counter_exhaustion_reject_atomically() {
     let mut park = Park::new(32, 32);
     let pos = TilePos { x: 2, y: 2 };
     for _ in 0..MAX_SERVICES {
-        let id = park
-            .place_service(pos, 0, PathDirection::North, ServiceKind::Toilet)
-            .unwrap();
+        let id = crate::finances::tests::place_legacy_service(
+            &mut park,
+            pos,
+            0,
+            PathDirection::North,
+            ServiceKind::Toilet,
+        );
         park.remove_object(park.service(id).unwrap().object.unwrap())
             .unwrap();
     }

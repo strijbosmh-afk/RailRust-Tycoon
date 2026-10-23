@@ -220,9 +220,9 @@ fn archived_tick_zero_charge_and_later_refund_retain_attributed_costs() {
     for _ in 0..128 * u64::from(crate::SERVICE_UPKEEP_TICKS) {
         park.advance(Speed::Normal);
     }
-    assert_eq!(park.finances.archived_entries, 1);
+    assert_eq!(park.finances.archived_entries, 2);
     assert_eq!(park.finances.archived_through_tick, 0);
-    assert_eq!(park.finances.archived.construction_cents, 30_000);
+    assert_eq!(park.finances.archived.construction_cents, 40_000);
     assert_eq!(park.finances.archived_rides[0].ride, id);
     assert_eq!(park.finances.archived_rides[0].construction_cents, 30_000);
     let mut restored = saved(&park);
@@ -324,13 +324,13 @@ fn paid_basis_and_financial_sources_are_required_strict_and_cross_checked() {
 fn archived_paid_ride_cannot_relabel_genuine_income_as_legacy_opening_revenue() {
     let (mut park, id) = super::tests::fixture(true);
     for x in 0..20 {
-        park.place_service(
+        crate::finances::tests::place_legacy_service(
+            &mut park,
             TilePos { x, y: 0 },
             0,
             PathDirection::North,
             ServiceKind::Food,
-        )
-        .unwrap();
+        );
     }
     for _ in 0..12_000 {
         if park
