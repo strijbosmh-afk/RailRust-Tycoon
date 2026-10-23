@@ -37,7 +37,7 @@ pub enum TrackDirection {
 }
 
 impl TrackDirection {
-    fn opposite(self) -> Self {
+    pub(crate) fn opposite(self) -> Self {
         match self {
             Self::North => Self::South,
             Self::East => Self::West,
@@ -80,6 +80,13 @@ pub struct TrackPieceSpec {
     pub entry: TrackPort,
     #[serde(deserialize_with = "crate::saves::strict_object")]
     pub exit: TrackPort,
+}
+
+impl TrackPieceSpec {
+    /// The same centerline used by the train; useful for pending track previews.
+    pub fn samples(self) -> Vec<TrackPoint> {
+        piece_samples(self)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

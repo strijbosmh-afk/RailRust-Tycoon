@@ -21,6 +21,7 @@ mod services;
 #[cfg(test)]
 mod slope_tests;
 mod surfaces;
+mod track_construction;
 mod trains;
 
 pub use admission::{
@@ -63,6 +64,7 @@ pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,
     SurfaceObject,
 };
+pub use track_construction::{MAX_TRACK_DRAFT_PIECES, TrackBuildKind, TrackConstructionError};
 pub use trains::{
     STATION_DWELL_TICKS, TRACK_UNITS, TrackDirection, TrackKind, TrackPiece, TrackPieceSpec,
     TrackPoint, TrackPort, Train, TrainCircuit, TrainError, TrainPhase, TrainPose,
@@ -176,6 +178,7 @@ pub struct Park {
     crowd_seed: Option<u64>,
     crowd_rng: u64,
     circuit: Option<TrainCircuit>,
+    track_draft: Vec<TrackPieceSpec>,
     train: Option<Train>,
     ride: Option<Ride>,
     carousels: Vec<CarouselRide>,
@@ -203,6 +206,7 @@ impl PartialEq for Park {
             && self.crowd_seed == other.crowd_seed
             && self.crowd_rng == other.crowd_rng
             && self.circuit == other.circuit
+            && self.track_draft == other.track_draft
             && self.train == other.train
             && self.ride == other.ride
             && self.carousels == other.carousels
@@ -251,6 +255,7 @@ impl Park {
             crowd_seed: None,
             crowd_rng: 0,
             circuit: None,
+            track_draft: Vec::new(),
             train: None,
             ride: None,
             carousels: Vec::new(),

@@ -17,6 +17,7 @@ mod path_preview;
 mod service_render;
 mod static_chunks;
 mod terrain_preview;
+mod track_preview;
 mod train_render;
 
 pub use carousel_render::{carousel_preview_mesh, ride_focus};
@@ -28,6 +29,7 @@ pub use path_preview::{
 pub use service_render::service_preview_mesh;
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
+pub(crate) use track_preview::{pick_track_draft, pick_track_plane, track_preview_mesh};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;

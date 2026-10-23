@@ -16,6 +16,7 @@ pub(crate) mod finance;
 pub(super) mod guests;
 pub(crate) mod rides;
 pub(crate) mod services;
+pub(super) mod track;
 pub(super) use economy::money;
 
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
@@ -64,6 +65,8 @@ pub(super) enum Action {
     CloseRides,
     BrowseRide(i8),
     BuildCarousel,
+    EditTrack,
+    Track(crate::track_tools::TrackCommand),
     Save,
     Load,
     LoadBackup,
@@ -365,6 +368,7 @@ pub(super) fn setup(mut commands: Commands) {
 
     commands
         .spawn((
+            track::BuildPanel,
             Node {
                 position_type: PositionType::Absolute,
                 top: px(PATH_PANEL_TOP),
@@ -591,6 +595,7 @@ pub(super) fn setup(mut commands: Commands) {
                 );
                 for (keys, purpose) in [
                     ("L / M / N / Y", "Guests / services / finance / rides"),
+                    ("Z / track tools", "Draft track / C heading / X erase"),
                     ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
                     ("C / shape button", "Cycle slope / turn gate or service"),
                     ("B / V", "Raise / lower dry land one step"),
@@ -632,6 +637,7 @@ pub(super) fn setup(mut commands: Commands) {
     services::setup(&mut commands);
     finance::setup(&mut commands);
     rides::setup(&mut commands);
+    track::setup(&mut commands);
 }
 
 type ChangedButtons<'w, 's> =
@@ -657,6 +663,7 @@ pub(super) fn button_actions(
             || keys.just_pressed(KeyCode::KeyM)
             || keys.just_pressed(KeyCode::KeyN)
             || keys.just_pressed(KeyCode::KeyY)
+            || keys.just_pressed(KeyCode::KeyZ)
             || keys.just_pressed(KeyCode::KeyH)
             || keys.just_pressed(KeyCode::F1)
             || ((view.help
@@ -678,6 +685,7 @@ pub(super) fn button_actions(
             match action {
                 Action::CloseRides if view.rides_open => Some(0),
                 Action::BuildCarousel if view.rides_open => Some(1),
+                Action::EditTrack if view.rides_open => Some(3),
                 Action::Rides
                     if !view.help
                         && !view.guests_open
@@ -691,7 +699,11 @@ pub(super) fn button_actions(
         })
         .min();
     if let Some(transition) = ride_transition {
-        if transition == 1 {
+        if transition == 3 {
+            if let Some(sim) = sim.as_ref() {
+                crate::track_tools::begin(&sim.0, &mut view);
+            }
+        } else if transition == 1 {
             view.choose_carousel();
         } else {
             view.set_rides_modal(transition == 2);
@@ -849,7 +861,12 @@ pub(super) fn button_actions(
                 view.ride_browse_pending =
                     view.ride_browse_pending.saturating_add(i32::from(*delta));
             }
-            Action::Rides | Action::CloseRides | Action::BuildCarousel | Action::BrowseRide(_) => {}
+            Action::Rides
+            | Action::CloseRides
+            | Action::BuildCarousel
+            | Action::EditTrack
+            | Action::BrowseRide(_) => {}
+            Action::Track(command) => crate::track_tools::queue(&mut view, *command),
             Action::Speed(speed) => view.set_speed(*speed),
             Action::RotateLeft => view.rotate(3),
             Action::RotateRight => view.rotate(1),
@@ -860,10 +877,12 @@ pub(super) fn button_actions(
                 view.grid = !view.grid;
                 view.scene_dirty = true;
             }
-            Action::Terrain => view.toggle_terrain_profile(),
+            Action::Terrain if !view.track_editor.active => view.toggle_terrain_profile(),
+            Action::Terrain => {}
             Action::Underground => view.toggle_underground(),
-            Action::RemovePath => view.remove_path_pending = true,
-            Action::RestorePaths => view.restore_paths_pending = true,
+            Action::RemovePath if !view.track_editor.active => view.remove_path_pending = true,
+            Action::RestorePaths if !view.track_editor.active => view.restore_paths_pending = true,
+            Action::RemovePath | Action::RestorePaths => {}
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
             Action::TicketPrice(delta) => view.request_price_change(*delta),
@@ -1123,6 +1142,7 @@ pub(super) fn refresh(
             ),
             Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
             Label::Status if view.price_notice.is_some() => view.price_notice.clone().unwrap(),
+            Label::Status if view.track_editor.active => "Track draft / cyan saved pieces / Apply replaces coaster / Z or Esc to finish".into(),
             Label::Status if view.path_tool.mode == PathTool::Build => format!(
                 "Path tool / height {} / click to place",
                 view.path_tool.height
@@ -1335,11 +1355,23 @@ pub(super) fn refresh(
             Action::Services => view.services_open,
             Action::Finance => view.finance_open,
             Action::SetPathTool(mode) => view.path_tool.mode == *mode,
+            Action::Track(crate::track_tools::TrackCommand::Piece(kind)) => {
+                view.track_editor.active
+                    && !view.track_editor.erase
+                    && view.track_editor.kind == *kind
+            }
+            Action::Track(crate::track_tools::TrackCommand::Erase) => {
+                view.track_editor.active && view.track_editor.erase
+            }
             _ => false,
         };
         let tool_disabled = matches!(
             action,
-            Action::SetPathTool(_) | Action::PathHeight(_) | Action::CyclePathShape
+            Action::SetPathTool(_)
+                | Action::PathHeight(_)
+                | Action::CyclePathShape
+                | Action::EditTrack
+                | Action::Track(_)
         ) && (view.capture_active || view.diagnostic_case.is_some());
         let price_disabled = matches!(action, Action::TicketPrice(delta) if view.edits_blocked()
         || economy.as_ref().is_none_or(|stats| {
@@ -1352,7 +1384,12 @@ pub(super) fn refresh(
                     service.object.is_none() || matches!(action,Action::ServicePrice(delta) if (*delta<0 && service.price_cents==0)
                         || (*delta>0 && service.price_cents==park_sim::MAX_SERVICE_PRICE_CENTS))
                 })));
-        let color = if tool_disabled || price_disabled || service_disabled {
+        let world_edit_disabled = view.track_editor.active
+            && matches!(
+                action,
+                Action::RemovePath | Action::RestorePaths | Action::Terrain
+            );
+        let color = if tool_disabled || price_disabled || service_disabled || world_edit_disabled {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD

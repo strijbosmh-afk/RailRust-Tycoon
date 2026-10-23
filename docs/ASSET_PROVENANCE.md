@@ -1,6 +1,6 @@
 # Asset provenance
 
-This register includes the 0.23 facility purchase/refund interface and proof data, the 0.22 ride construction interface, and the 0.21 original carousel, moving seats/passengers, Rides interface and deterministic ride-choice/proof data alongside all earlier assets. [The service construction report](SERVICE_CONSTRUCTION_REPORT.md) records current validation; earlier named-build evidence remains historical. No dependency, external model, texture, font, audio or original game data is added. Add an entry before importing assets.
+This register includes the 0.24 original track draft geometry, editor controls and proof data, the 0.23 facility purchase/refund interface and proof data, the 0.22 ride construction interface, and the 0.21 original carousel, moving seats/passengers, Rides interface and deterministic ride-choice/proof data alongside all earlier assets. [The track construction report](TRACK_CONSTRUCTION_REPORT.md) records current validation; earlier named-build evidence remains historical. No dependency, external model, texture, font, audio or original game data is added. Add an entry before importing assets.
 
 | Asset | Source | Rights and distribution treatment |
 | --- | --- | --- |

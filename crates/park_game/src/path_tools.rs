@@ -251,6 +251,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
     view.path_tool.terrain_preview = None;
     view.path_tool.service_preview = None;
     view.path_tool.carousel_preview = None;
+    if view.track_editor.active {
+        crate::track_tools::point_at(park, view, point, click);
+        return;
+    }
     match view.path_tool.mode {
         PathTool::RaiseTerrain | PathTool::LowerTerrain => {
             terrain_tools::point_at(park, view, click)

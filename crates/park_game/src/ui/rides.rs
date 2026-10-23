@@ -3,7 +3,7 @@ use super::*;
 use park_sim::{CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, Park, RideId, RideKind};
 
 pub(crate) const PANEL_WIDTH: f32 = 560.0;
-pub(crate) const PANEL_HEIGHT: f32 = 430.0;
+pub(crate) const PANEL_HEIGHT: f32 = 465.0;
 
 pub(crate) fn active_ids(park: &Park) -> Vec<RideId> {
     let mut ids: Vec<_> = park
@@ -81,6 +81,7 @@ pub(super) fn setup(commands: &mut Commands) {
             p.spawn((Text::new(""),TextFont{font_size:13.0,..default()},TextColor(INK),RideLabel::Details));
         });
         button(p,&format!("Build carousel / {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,310.0);
+        button(p,"Edit coaster track [Z]",Action::EditTrack,310.0);
         label(p,&format!("Six seats; 3 x 3 tiles. Queue and gates placed separately.\nDemolition returns {}% of the amount paid for this ride.\nOne carousel at a time. Choose height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
         label(p,"Selected ride: O open/close / F find / F6-F7 ticket price\nJ queue / I entrance / K exit / Space pause",12.0,MUTED);
     }); });

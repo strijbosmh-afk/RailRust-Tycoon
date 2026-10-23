@@ -14,6 +14,7 @@ mod save_check;
 mod save_store;
 mod static_landscape;
 mod terrain_tools;
+mod track_tools;
 mod ui;
 mod world;
 
@@ -84,6 +85,7 @@ struct ViewState {
     restore_paths_pending: bool,
     path_notice: Option<String>,
     path_tool: path_tools::ToolState,
+    track_editor: track_tools::TrackEditor,
     toggle_train_pending: bool,
     focus_train_pending: bool,
     price_delta_pending: i32,
@@ -138,6 +140,7 @@ impl Default for ViewState {
             restore_paths_pending: false,
             path_notice: None,
             path_tool: default(),
+            track_editor: default(),
             toggle_train_pending: false,
             focus_train_pending: false,
             price_delta_pending: 0,
@@ -238,6 +241,7 @@ impl ViewState {
         self.dragging = false;
         self.hovered = None;
         self.path_tool.clear_pointer();
+        self.track_editor.preview = None;
     }
 
     fn set_rides_modal(&mut self, open: bool) {
@@ -259,12 +263,15 @@ impl ViewState {
         self.set_rides_modal(false);
         self.modal_transition_pending = true;
         self.path_tool.set_mode(path_tools::PathTool::Carousel);
+        self.track_editor.active = false;
         self.path_notice = None;
     }
 
     fn select_ride(&mut self, id: park_sim::RideId) {
         if self.selected_ride != Some(id) {
             self.selected_ride = Some(id);
+            self.track_editor.active = false;
+            self.track_editor.preview = None;
             self.path_tool.clear_pointer();
             self.price_notice = None;
         }
@@ -286,6 +293,7 @@ impl ViewState {
         self.set_modal(false, false, false, false);
         self.modal_transition_pending = true;
         self.path_tool.set_mode(path_tools::PathTool::Service(kind));
+        self.track_editor.active = false;
         self.service_notice = None;
     }
 
@@ -297,6 +305,8 @@ impl ViewState {
 
     fn set_path_tool(&mut self, mode: path_tools::PathTool) {
         if !self.edits_blocked() {
+            self.track_editor.active = false;
+            self.track_editor.preview = None;
             self.price_notice = None;
             self.path_tool.set_mode(mode);
             self.hovered = None;
@@ -395,6 +405,7 @@ fn main() -> AppExit {
                 apply_train_actions,
                 apply_price_actions,
                 apply_service_actions,
+                track_tools::apply_commands,
                 pointer_input,
                 persistence::apply_save_action,
                 apply_camera,
@@ -405,6 +416,7 @@ fn main() -> AppExit {
                 ui::guests::refresh,
                 ui::services::refresh,
                 ui::finance::refresh,
+                ui::track::refresh,
             )
                 .chain(),
         );
@@ -567,6 +579,12 @@ fn keyboard_input(
         return;
     }
     if view.rides_open {
+        if keys.just_pressed(KeyCode::KeyZ) {
+            if let Some(sim) = sim.as_ref() {
+                track_tools::begin(&sim.0, &mut view);
+            }
+            return;
+        }
         if keys.just_pressed(KeyCode::Space) {
             view.pause();
         }
@@ -634,6 +652,22 @@ fn keyboard_input(
         }
         return;
     }
+    if keys.just_pressed(KeyCode::KeyZ) && !view.help {
+        if view.track_editor.active {
+            view.track_editor.active = false;
+            view.track_editor.preview = None;
+            view.ui_pointer_consumed = true;
+        } else if let Some(sim) = sim.as_ref() {
+            track_tools::begin(&sim.0, &mut view);
+        }
+        return;
+    }
+    if keys.just_pressed(KeyCode::Escape) && view.track_editor.active {
+        view.track_editor.active = false;
+        view.track_editor.preview = None;
+        view.ui_pointer_consumed = true;
+        return;
+    }
     if keys.just_pressed(KeyCode::Escape) {
         view.selected = None;
         view.path_tool.set_mode(path_tools::PathTool::Inspect);
@@ -664,47 +698,60 @@ fn keyboard_input(
         view.grid = !view.grid;
         view.scene_dirty = true;
     }
-    if keys.just_pressed(KeyCode::KeyT) {
+    if keys.just_pressed(KeyCode::KeyT) && !view.track_editor.active {
         view.toggle_terrain_profile();
     }
     if keys.just_pressed(KeyCode::KeyU) {
         view.toggle_underground();
     }
-    if keys.just_pressed(KeyCode::KeyP) {
-        view.set_path_tool(path_tools::PathTool::Build);
-    }
-    if keys.just_pressed(KeyCode::KeyJ) {
-        view.set_path_tool(path_tools::PathTool::BuildQueue);
-    }
-    if keys.just_pressed(KeyCode::KeyI) {
-        view.set_path_tool(path_tools::PathTool::Entrance);
-    }
-    if keys.just_pressed(KeyCode::KeyK) {
-        view.set_path_tool(path_tools::PathTool::Exit);
-    }
-    if keys.just_pressed(KeyCode::KeyC) {
-        view.cycle_path_shape();
-    }
-    if keys.just_pressed(KeyCode::KeyX) {
-        view.set_path_tool(path_tools::PathTool::Demolish);
-    }
-    if keys.just_pressed(KeyCode::KeyB) {
-        view.set_path_tool(path_tools::PathTool::RaiseTerrain);
-    }
-    if keys.just_pressed(KeyCode::KeyV) {
-        view.set_path_tool(path_tools::PathTool::LowerTerrain);
-    }
-    if keys.just_pressed(KeyCode::PageUp) {
-        view.adjust_path_height(1);
-    }
-    if keys.just_pressed(KeyCode::PageDown) {
-        view.adjust_path_height(-1);
-    }
-    if keys.just_pressed(KeyCode::Delete) {
-        view.remove_path_pending = true;
-    }
-    if keys.just_pressed(KeyCode::KeyR) {
-        view.restore_paths_pending = true;
+    if view.track_editor.active {
+        for (key, command) in [
+            (KeyCode::KeyC, track_tools::TrackCommand::Turn),
+            (KeyCode::PageUp, track_tools::TrackCommand::Height(1)),
+            (KeyCode::PageDown, track_tools::TrackCommand::Height(-1)),
+            (KeyCode::KeyX, track_tools::TrackCommand::Erase),
+        ] {
+            if keys.just_pressed(key) {
+                track_tools::queue(&mut view, command);
+            }
+        }
+    } else {
+        if keys.just_pressed(KeyCode::KeyP) {
+            view.set_path_tool(path_tools::PathTool::Build);
+        }
+        if keys.just_pressed(KeyCode::KeyJ) {
+            view.set_path_tool(path_tools::PathTool::BuildQueue);
+        }
+        if keys.just_pressed(KeyCode::KeyI) {
+            view.set_path_tool(path_tools::PathTool::Entrance);
+        }
+        if keys.just_pressed(KeyCode::KeyK) {
+            view.set_path_tool(path_tools::PathTool::Exit);
+        }
+        if keys.just_pressed(KeyCode::KeyC) {
+            view.cycle_path_shape();
+        }
+        if keys.just_pressed(KeyCode::KeyX) {
+            view.set_path_tool(path_tools::PathTool::Demolish);
+        }
+        if keys.just_pressed(KeyCode::KeyB) {
+            view.set_path_tool(path_tools::PathTool::RaiseTerrain);
+        }
+        if keys.just_pressed(KeyCode::KeyV) {
+            view.set_path_tool(path_tools::PathTool::LowerTerrain);
+        }
+        if keys.just_pressed(KeyCode::PageUp) {
+            view.adjust_path_height(1);
+        }
+        if keys.just_pressed(KeyCode::PageDown) {
+            view.adjust_path_height(-1);
+        }
+        if keys.just_pressed(KeyCode::Delete) {
+            view.remove_path_pending = true;
+        }
+        if keys.just_pressed(KeyCode::KeyR) {
+            view.restore_paths_pending = true;
+        }
     }
     if keys.just_pressed(KeyCode::KeyO) {
         view.toggle_train_pending = true;
@@ -795,6 +842,11 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
 }
 
 fn apply_path_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.track_editor.active {
+        view.remove_path_pending = false;
+        view.restore_paths_pending = false;
+        return;
+    }
     if view.edits_blocked() {
         view.remove_path_pending = false;
         view.restore_paths_pending = false;
@@ -1004,6 +1056,7 @@ fn pointer_input(
     let Ok(window) = windows.single() else {
         view.hovered = None;
         view.path_tool.clear_pointer();
+        view.track_editor.preview = None;
         view.dragging = false;
         *previous_cursor = None;
         return;
@@ -1012,12 +1065,14 @@ fn pointer_input(
         view.dragging = false;
         view.hovered = None;
         view.path_tool.clear_pointer();
+        view.track_editor.preview = None;
         *previous_cursor = None;
         return;
     }
     let Some(cursor) = window.cursor_position() else {
         view.hovered = None;
         view.path_tool.clear_pointer();
+        view.track_editor.preview = None;
         view.dragging = false;
         *previous_cursor = None;
         return;
@@ -1089,6 +1144,7 @@ fn pointer_input(
         }
     } else {
         view.path_tool.clear_pointer();
+        view.track_editor.preview = None;
         // Inspection remains available in large diagnostic previews.
         if point.is_some()
             && !panning
@@ -1135,6 +1191,9 @@ type SelectionSnapshot = (
     Option<terrain_tools::TerrainPreview>,
     Option<path_tools::ServicePreview>,
     Option<path_tools::CarouselPreview>,
+    bool,
+    u64,
+    Option<track_tools::TrackPreview>,
 );
 
 #[derive(bevy::ecs::system::SystemParam)]
@@ -1184,6 +1243,9 @@ fn update_scene(
         view.path_tool.terrain_preview,
         view.path_tool.service_preview,
         view.path_tool.carousel_preview,
+        view.track_editor.active,
+        view.track_editor.revision,
+        view.track_editor.preview,
     );
     if terrain_changed || *last_selection != Some(selection) {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
@@ -1196,7 +1258,9 @@ fn update_scene(
             );
         }
         if let Some(mesh) = meshes.get_mut(&scene.path_preview) {
-            *mesh = if view.path_tool.carousel_preview.is_some() {
+            *mesh = if view.track_editor.active {
+                world::track_preview_mesh(&view.track_editor, &sim.0, view.rotation)
+            } else if view.path_tool.carousel_preview.is_some() {
                 world::carousel_preview_mesh(view.path_tool.carousel_preview, &sim.0, view.rotation)
             } else if view.path_tool.service_preview.is_some() {
                 world::service_preview_mesh(view.path_tool.service_preview, &sim.0, view.rotation)
