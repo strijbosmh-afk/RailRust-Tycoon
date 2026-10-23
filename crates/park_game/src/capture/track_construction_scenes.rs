@@ -67,7 +67,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackBuilt => {
-            view.path_notice = Some("New circuit is carrying paying guests. Station, straights and both curve directions are live.".into());
+            view.path_notice = Some("New loop is carrying paying guests.".into());
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackDraft => {

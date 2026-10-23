@@ -213,7 +213,7 @@ pub(crate) fn status(park: &Park) -> String {
     let count = park.track_draft().len();
     match park.validate_track_draft() {
         Ok(_) => format!(
-            "{count} pieces / complete loop\nClose ride and wait for guests to exit.\nApply is free in this prototype."
+            "{count} pieces / complete loop\nClose coaster; wait until empty.\nTrack building is free."
         ),
         Err(error) => format!("{count} draft pieces\n{}", error_message(park, error)),
     }
@@ -228,7 +228,7 @@ pub(crate) fn error_message(park: &Park, error: park_sim::TrackConstructionError
                 || "Join every piece into one loop.".into(),
                 |piece| {
                     format!(
-                        "Join {}, {} toward {} at height {}.\nMatch the next piece's entry arrow.",
+                        "Tile {}, {}: {} / height {}.\nMatch next entry arrow.",
                         pos.x + 1,
                         pos.y + 1,
                         direction_name(piece.exit.edge),
@@ -244,7 +244,7 @@ pub(crate) fn error_message(park: &Park, error: park_sim::TrackConstructionError
             "Keep exactly one station in the loop.".into()
         }
         Error::DisconnectedPieces => {
-            "Join all pieces into one directed loop.\nErase any disconnected draft pieces.".into()
+            "Join all pieces into one loop.\nErase disconnected pieces.".into()
         }
         error => error.to_string(),
     }
