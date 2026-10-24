@@ -224,7 +224,7 @@ fn bytes(park: &Park) -> Result<Vec<u8>, String> {
         || value["content_version"] != 16
         || Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park
     {
-        return Err("feedback strict v15 roundtrip changed authoritative state".into());
+        return Err("feedback current-schema roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }
