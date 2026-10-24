@@ -1,0 +1,15 @@
+# Original starter designs — 0.36.0
+
+Implementation is in verification on `codex/starter-track-designs`, based on locally verified 0.35.0 checkpoint `5e4356e6f6366ea5478145e4c91cbe171bd4800d` / PR #34. The car-count package remains retained. This bounded construction slice makes complete original layouts available through the existing import/preview/quote/Apply workflow.
+
+The package includes **Pocket Oval** (16 pieces, 5 × 5), **Meadow Winder** (18 pieces, 6 × 5) and **Meadow Climb** (24 pieces, 8 × 6, three-step climb with drops and a brake). On fresh empty terrain their track quotes are $270, $300 and $420. Existing track, refunds, obstructions and placements can change the actual quote/readiness. [STARTER_DESIGNS_GUIDE.md](STARTER_DESIGNS_GUIDE.md) covers player construction and access.
+
+`crates/park_sim/examples/generate-starter-designs.rs` authors these original layouts using production track specifications and the design codec. It validates every loop in four rotations before writing canonical JSON into a new absolute directory; it refuses an existing destination. No external game assets or layouts were used. The three tracked JSON files are the package content; regeneration should be compared in a separate directory before changing them.
+
+Saves remain **19/19**, and design/catalog formats remain **1**. Runtime simulation rules are unchanged from 0.35. The library explains where to import the starters. Small car-label and capture-camera improvements are included. No player catalog is filled or replaced automatically.
+
+Source tests verify canonical codecs, all rotations, actual purchase quotes and settlement, complete laps, strict save roundtrips and paid journeys. For each layout the actual existing path planner builds a valid return route, including slopes/bridges, without damaging the queue. Production `write-starters` / `verify-starters` import and export all three files through the existing transfer completion boundary, preserve canonical bytes and the catalog, build all layouts for their quotes, save a paid occupied primary and parked backup per layout, and verify 3,600 ticks of future state per layout after restart. Source slots remain unchanged. Native file-picker gestures are a separate acceptance check.
+
+Capture scenes `starter-pocket`, `starter-winder`, `starter-climb` and `starter-paid` use actual bundled content. The preview scenes are read-only in-memory catalogs; filesystem import/export is proved independently. Tests exercise the real PostStartup boundary and fresh fixtures. Package generation copies the three named files, and package verification checks every bundled design against its current source in addition to manifest and guide checks.
+
+Validation is in progress. Evidence will be retained in `artifacts/starter-designs-0.36.0/`. The broader construction, multiple-coaster, ride-family, staff, maintenance, progression, scenario, audio and management roadmap remains open. No reference PC is selected, and this development PC remains excluded. Preserve all three continuation paths and the current map/save caps.

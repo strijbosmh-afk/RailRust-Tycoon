@@ -401,7 +401,10 @@ pub(crate) fn refresh(
                 appeal_details(&sim.0, id),
                 construction_details(&sim.0, id)
             ),
-            RideLabel::OperatingValue(OperatingField::Cars) => format!("Train / {} cars, {} seats\n1 train; 1-3 cars; 2 seats per car", sim.0.coaster_car_count(id).unwrap_or(3), journey.capacity),
+            RideLabel::OperatingValue(OperatingField::Cars) => {
+                let cars=sim.0.coaster_car_count(id).unwrap_or(3);
+                format!("Train / {cars} car{}, {} seats\n1 train; 1-3 cars; 2 seats per car", if cars==1 {""} else {"s"},journey.capacity)
+            },
             RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, journey.capacity) }),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
             RideLabel::OperatingStatus => sim.0.ride_dispatch_progress(id).filter(|progress| progress.waiting_for_load).map_or_else(

@@ -234,7 +234,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                     });
                     label(
                         p,
-                        "Save a draft for reuse. Load into the editor, then Apply to build.\nShare .parktrack.json files; duplicate imports get numbered names.",
+                        "Save a draft for reuse. Load into the editor, then Apply to build.\nImport starter coasters from the package's designs folder.",
                         12.0,
                         MUTED,
                     );

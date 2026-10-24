@@ -88,6 +88,11 @@ foreach ($guide in $guides) {
         (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory $guide)).Hash) { throw "Stale bundled guide: $guide" }
 }
 $executable = Join-Path $package 'Parkbound.exe'
+foreach ($name in @('pocket-oval.parktrack.json','meadow-winder.parktrack.json','meadow-climb.parktrack.json')) {
+    $relative = 'designs/' + $name
+    if ((Get-FileHash -LiteralPath (Join-Path $package $relative)).Hash -ne
+        (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory $relative)).Hash) { throw "Missing or stale starter: $name" }
+}
 if ((Get-FileHash -LiteralPath $executable).Hash -ne $ExpectedExecutableSha256) { throw 'Unexpected executable.' }
 Record "PASS: $($payloads.Count) payload hashes, no extra files, $($guides.Count) current guides."
 Record "Executable SHA256: $($ExpectedExecutableSha256.ToLowerInvariant())"

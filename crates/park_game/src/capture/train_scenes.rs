@@ -51,8 +51,9 @@ pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
     view.pan = Vec2::ZERO;
     if matches!(scene, Scene::CarsMap) {
         view.rides_open = false;
-        view.zoom = 3.5;
+
         crate::focus_train(park, view);
+        view.zoom = 3.5;
     }
     assert_eq!(park.train_cars().len(), usize::from(cars));
     assert_eq!(

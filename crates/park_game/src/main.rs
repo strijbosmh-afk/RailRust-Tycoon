@@ -24,6 +24,7 @@ mod render_scene;
 mod ride_operations;
 mod save_check;
 mod save_store;
+mod starter_designs;
 mod static_landscape;
 mod terrain_tools;
 mod track_tools;

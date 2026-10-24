@@ -462,8 +462,8 @@ mod tests {
                     assert!(progress.waiting_for_load && progress.extra_waited_ticks > 0);
                 }
             }
-            // Schema 17 has exactly the current body shape. Project only the
-            // headers; the external process proof also uses genuine 0.33 files.
+            // Schema 17 predates the car-count field. Project the older
+            // body and headers; external proofs also use genuine old files.
             let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
             old["schema_version"] = json!(17);
             old["park"].as_object_mut().unwrap().remove("coaster_cars");

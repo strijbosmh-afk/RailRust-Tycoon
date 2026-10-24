@@ -32,6 +32,7 @@ mod queues;
 pub(super) mod ride_choice;
 pub(super) mod services;
 mod slopes;
+pub(super) mod starters;
 pub(super) mod track_construction;
 pub(super) mod trains;
 
@@ -50,7 +51,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -173,6 +174,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-coaster-testing" => coaster_testing::verify(&session)?,
             "write-dispatch" => dispatch::write(&session)?,
             "verify-dispatch" => dispatch::verify(&session)?,
+            "write-starters" => starters::write(&session)?,
+            "verify-starters" => starters::verify(&session)?,
             "write-trains" => trains::write(&session)?,
             "verify-trains" => trains::verify(&session)?,
             "write-appeal" => appeal::write(&session)?,
