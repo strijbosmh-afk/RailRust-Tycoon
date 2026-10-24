@@ -344,6 +344,10 @@ fn full_schedules_save_resume_and_speed_grouping_preserve_feedback_exactly() {
 pub(crate) fn strip_feedback(value: Value) -> Value {
     let mut value = crate::services::tests::strip_services(value);
     value["schema_version"] = json!(6);
+    value["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     value["content_version"] = json!(6);
     for guest in value["park"]["guests"].as_array_mut().unwrap() {
         for field in [

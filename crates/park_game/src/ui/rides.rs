@@ -6,7 +6,7 @@ use park_sim::{CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, Park, RideId,
 use park_sim::{RideAccessBuildKind, RideAccessStatus, RideExitStatus};
 
 pub(crate) const PANEL_WIDTH: f32 = 820.0;
-pub(crate) const PANEL_HEIGHT: f32 = 540.0;
+pub(crate) const PANEL_HEIGHT: f32 = 568.0;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum RideTab {
@@ -213,7 +213,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 });
                 button(p,&format!("Build carousel / {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,310.0);
                 button(p,"Edit coaster track [Z]",Action::EditTrack,310.0);
-                label(p,&format!("Six seats; 3 x 3 tiles. Add a queue and gates.\nDemolition returns {}% of the amount paid.\nOne carousel at a time. Set height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
+                label(p,&format!("Carousel: six seats; 3 x 3 tiles. Add gates.\nDemolition returns {}% of the amount paid.\nOne carousel at a time. Set height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
                 label(p,"After closing this panel: O open/close / F find\nF6-F7 ticket / J queue / I entrance / K exit\nSpace pauses from this panel or the park.",12.0,MUTED);
             });
             p.spawn(Node { width: px(356), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
@@ -231,6 +231,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 .with_children(|p| operating_label(p, RideLabel::ToggleOpen, 13.0, INK));
                 p.spawn(Node { height: px(30), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingStatus, 12.0, MUTED));
+                operating_row(p, OperatingField::Cars);
                 operating_row(p, OperatingField::StationWait);
                 operating_row(p, OperatingField::LiftSpeed);
                 operating_row(p, OperatingField::BrakeSpeed);
@@ -400,6 +401,8 @@ pub(crate) fn refresh(
                 appeal_details(&sim.0, id),
                 construction_details(&sim.0, id)
             ),
+            RideLabel::OperatingValue(OperatingField::Cars) => format!("Train / {} cars, {} seats\n1 train; 1-3 cars; 2 seats per car", sim.0.coaster_car_count(id).unwrap_or(3), journey.capacity),
+            RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, journey.capacity) }),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
             RideLabel::OperatingStatus => sim.0.ride_dispatch_progress(id).filter(|progress| progress.waiting_for_load).map_or_else(
                 || sim.0.ride_operating_settings_status(id).map_or_else(|error| error.to_string(), |()| "Ready to tune. Open the ride when ready.".into()),
@@ -513,6 +516,7 @@ fn operating_value(
     let speed =
         |value| f64::from(value) * TICKS_PER_SECOND as f64 / f64::from(park_sim::TRACK_UNITS);
     match field {
+        OperatingField::Cars => "Train cars".into(),
         OperatingField::StationWait => format!(
             "Station wait / {} s\n1-30 s; step 1 s",
             seconds(settings.station_wait_ticks)
@@ -542,7 +546,7 @@ fn operating_value(
             }
         ),
         OperatingField::MaxExtraWait => format!(
-            "Extra loading wait / {} s\n1-60 s; after mandatory station wait",
+            "Extra loading wait / {} s\n1-60 s; after station wait",
             seconds(policy.maximum_extra_wait_ticks)
         ),
     }

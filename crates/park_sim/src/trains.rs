@@ -258,7 +258,7 @@ impl Park {
         self.train.as_ref()
     }
 
-    /// Three compact cars. All three fit inside the one-tile station at rest:
+    /// One to three compact cars. All three fit inside the station at rest:
     /// their outermost ends are 8 and 888 units along its 1024-unit centerline.
     /// Faulted or absent circuits produce no poses.
     pub fn train_cars(&self) -> Vec<TrainPose> {
@@ -268,7 +268,7 @@ impl Park {
         if train.phase == TrainPhase::Fault {
             return Vec::new();
         }
-        (0..3)
+        (0..u32::from(self.coaster_cars))
             .map(|index| {
                 let center = wrap_sub(train.distance, index * CAR_SPACING, circuit.total_length);
                 TrainPose {

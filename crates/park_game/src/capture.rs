@@ -47,6 +47,7 @@ mod slope_scenes;
 mod terrain_scenes;
 mod testing_scenes;
 mod track_construction_scenes;
+mod train_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
@@ -141,6 +142,12 @@ enum Scene {
     OperationsCarousel,
     OperationsRunning,
     OperationsLimits,
+    CarsOne,
+    CarsTwo,
+    CarsThree,
+    CarsRiding,
+    CarsMinimum,
+    CarsMap,
     AccessNeeds,
     AccessReady,
     AccessUnavailable,
@@ -210,9 +217,22 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_testing()
+        self.is_train_configuration()
+            || self.is_testing()
             || self.is_appeal()
             || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
+    }
+
+    fn is_train_configuration(self) -> bool {
+        matches!(
+            self,
+            Self::CarsOne
+                | Self::CarsTwo
+                | Self::CarsThree
+                | Self::CarsRiding
+                | Self::CarsMinimum
+                | Self::CarsMap
+        )
     }
 
     fn is_appeal(self) -> bool {
@@ -594,6 +614,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("operations-carousel") => Scene::OperationsCarousel,
                 Some("operations-running") => Scene::OperationsRunning,
                 Some("operations-limits") => Scene::OperationsLimits,
+                Some("cars-one") => Scene::CarsOne,
+                Some("cars-two") => Scene::CarsTwo,
+                Some("cars-three") => Scene::CarsThree,
+                Some("cars-riding") => Scene::CarsRiding,
+                Some("cars-minimum") => Scene::CarsMinimum,
+                Some("cars-map") => Scene::CarsMap,
                 Some("access-needs") => Scene::AccessNeeds,
                 Some("access-ready") => Scene::AccessReady,
                 Some("access-unavailable") => Scene::AccessUnavailable,
@@ -912,6 +938,9 @@ fn apply_preset(
     }
     if capture.scene.is_ride_choice() {
         ride_choice_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_train_configuration() {
+        train_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_operations() {
         operations_scenes::prepare(&mut sim.0, &mut view, capture.scene);

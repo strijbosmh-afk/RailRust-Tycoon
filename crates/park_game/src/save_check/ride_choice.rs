@@ -97,7 +97,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                 return Err("guest has unknown ride or concurrent service ownership".into());
             }
             if let Some(passenger) = &visit.passenger
-                && (passenger.seat >= 6 || !seats.insert((visit.ride, passenger.seat)))
+                && (usize::from(passenger.seat) >= park.ride_capacity(visit.ride).unwrap_or(0)
+                    || !seats.insert((visit.ride, passenger.seat)))
             {
                 return Err("duplicate seat within the same ride".into());
             }

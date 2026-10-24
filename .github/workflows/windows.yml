@@ -226,6 +226,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-appeal --save-dir $appealDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride appeal verification failed" }
           Get-Content -LiteralPath (Join-Path $appealDirectory "verification-appeal.txt")
+      - name: Verify configurable coaster cars across fresh processes
+        shell: pwsh
+        run: |
+          $trainDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound cars é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-trains --save-dir $trainDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Train configuration writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-trains --save-dir $trainDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Train configuration verification failed" }
+          Get-Content -LiteralPath (Join-Path $trainDirectory "verification-trains.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -6,6 +6,7 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Historical maximum and fixed carousel capacity; use ride_capacity for a coaster.
 pub const TRAIN_SEATS: usize = 6;
 pub const RIDE_TRANSFER_TICKS: u16 = 60;
 
@@ -211,7 +212,7 @@ impl Park {
     pub fn ride_journey_stats(&self, id: RideId) -> RideJourneyStats {
         let access = self.ride_exit_access(id);
         let mut stats = RideJourneyStats {
-            capacity: TRAIN_SEATS,
+            capacity: self.ride_capacity(id).unwrap_or(0),
             boarding: 0,
             riding: 0,
             exiting: 0,
@@ -299,7 +300,7 @@ impl Park {
         })
     }
     fn seat_point(&self, id: RideId, seat: u8) -> Option<PathPoint> {
-        if usize::from(seat) >= TRAIN_SEATS {
+        if usize::from(seat) >= self.ride_capacity(id)? {
             return None;
         }
         if self.carousel(id).is_some() {
@@ -486,7 +487,9 @@ impl Park {
                     .map(|passenger| passenger.seat)
             })
             .collect();
-        let Some(seat) = (0..TRAIN_SEATS as u8).find(|seat| !used.contains(seat)) else {
+        let Some(seat) =
+            (0..self.ride_capacity(ride_id).unwrap_or(0) as u8).find(|seat| !used.contains(seat))
+        else {
             return;
         };
         let access = self.ride_access(ride_id);
@@ -638,7 +641,7 @@ fn validate_owner_journeys(
             .ok_or("passenger phase lacks seat state")?;
         let running = park.ride_is_running(ride.id);
         if !park.ride_available(ride.id)
-            || usize::from(passenger.seat) >= TRAIN_SEATS
+            || usize::from(passenger.seat) >= park.ride_capacity(ride.id).unwrap_or(0)
             || !seats.insert(passenger.seat)
             || guest.current.is_some()
             || guest.next.is_some()

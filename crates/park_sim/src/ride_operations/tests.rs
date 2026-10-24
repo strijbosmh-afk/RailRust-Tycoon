@@ -552,6 +552,7 @@ fn schema_fifteen_preserves_every_prior_field_and_default_future_behavior() {
     park.copy_installed_track_to_draft().unwrap();
     let mut old = value(&park);
     old["schema_version"] = json!(15);
+    old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(15);
     old["park"]
         .as_object_mut()
@@ -568,6 +569,10 @@ fn schema_fifteen_preserves_every_prior_field_and_default_future_behavior() {
     }
     let mut projection = value(&migrated);
     projection["schema_version"] = json!(15);
+    projection["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     projection["content_version"] = json!(15);
     projection["park"]
         .as_object_mut()
@@ -628,6 +633,10 @@ fn timer_validation_uses_current_settings_but_legacy_keeps_original_counter_boun
     original.set_ride_open(id, false).unwrap();
     let mut legacy = value(&original);
     legacy["schema_version"] = json!(15);
+    legacy["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     legacy["content_version"] = json!(15);
     legacy["park"]
         .as_object_mut()

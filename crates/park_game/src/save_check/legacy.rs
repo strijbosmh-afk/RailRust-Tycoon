@@ -44,6 +44,12 @@ fn require_old_fields(old: &Value, current: &Value, location: &str) -> Result<()
 }
 
 fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
+    if park
+        .ride()
+        .is_some_and(|ride| park.coaster_car_count(ride.id) != Some(3))
+    {
+        return Err("legacy train did not retain three cars and six seats".into());
+    }
     let version = old["schema_version"].as_u64().unwrap();
     let seed = old["park"]["crowd_seed"].as_u64().unwrap_or(0);
     for guest in park.guests() {
@@ -354,12 +360,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=17).contains(&schema)
+        if !(1..=18).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version 1..17 source slot".into(),
+                "verify-legacy requires an authentic strict version 1..18 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -460,6 +466,7 @@ mod tests {
             // headers; the external process proof also uses genuine 0.33 files.
             let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
             old["schema_version"] = json!(17);
+            old["park"].as_object_mut().unwrap().remove("coaster_cars");
             old["content_version"] = json!(17);
             let bytes = serde_json::to_vec(&old).unwrap();
             assert_eq!(Park::from_save_bytes(&bytes).unwrap(), park);
@@ -510,6 +517,7 @@ mod tests {
         .unwrap();
         let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = json!(16);
+        old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(16);
         old["park"].as_object_mut().unwrap().remove("ride_dispatch");
         assert!(
@@ -557,6 +565,7 @@ mod tests {
         assert!(!park.track_economy().paid_pieces.is_empty());
         let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = json!(15);
+        old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(15);
         old["park"].as_object_mut().unwrap().remove("ride_dispatch");
         old["park"]
@@ -690,6 +699,10 @@ mod tests {
         // Authentic old-executable files are checked separately by runtime QA.
         strip_finances(&mut value);
         value["schema_version"] = json!(8);
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("coaster_cars");
         value["content_version"] = json!(8);
         let bytes = serde_json::to_vec(&value).unwrap();
         fs::write(directory.join("park.park.json"), &bytes).unwrap();
@@ -725,6 +738,10 @@ mod tests {
         let mut value: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         strip_services(&mut value);
         value["schema_version"] = json!(6);
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("coaster_cars");
         value["content_version"] = json!(6);
         for guest in value["park"]["guests"].as_array_mut().unwrap() {
             for key in [
@@ -793,6 +810,10 @@ mod tests {
         let mut value: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         strip_services(&mut value);
         value["schema_version"] = json!(7);
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("coaster_cars");
         value["content_version"] = json!(7);
         for guest in value["park"]["guests"].as_array_mut().unwrap() {
             if [

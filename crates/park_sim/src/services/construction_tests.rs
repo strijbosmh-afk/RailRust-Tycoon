@@ -452,6 +452,7 @@ fn schema_eleven_keeps_paid_rides_and_free_services_without_retroactive_refunds(
     let mut old = value(&legacy);
     crate::finances::tests::strip_service_construction_fields(&mut old);
     old["schema_version"] = json!(11);
+    old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(11);
     let mut migrated = read(&old).unwrap();
     assert_eq!(migrated, legacy);
@@ -506,6 +507,7 @@ fn using_legacy_service_continues_with_zero_basis_and_a_new_paid_service_after_m
     let mut old = value(&legacy);
     crate::finances::tests::strip_service_construction_fields(&mut old);
     old["schema_version"] = json!(11);
+    old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(11);
     let mut migrated = read(&old).unwrap();
     assert_eq!(migrated, legacy);

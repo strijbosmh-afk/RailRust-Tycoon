@@ -401,6 +401,7 @@ fn version_ten_migration_preserves_bodies_and_history_without_refund_windfalls()
     let mut old = value(&legacy);
     crate::finances::tests::strip_construction_fields(&mut old);
     old["schema_version"] = json!(10);
+    old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(10);
     let mut migrated = read(&old).unwrap();
     assert_eq!(migrated, legacy);

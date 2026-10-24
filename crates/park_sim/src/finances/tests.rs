@@ -79,6 +79,10 @@ pub(crate) fn strip_finances(mut value: Value) -> Value {
         }
     }
     value["schema_version"] = json!(8);
+    value["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     value["content_version"] = json!(8);
     value
 }

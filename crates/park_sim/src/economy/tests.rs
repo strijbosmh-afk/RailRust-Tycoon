@@ -489,6 +489,10 @@ fn v5_value(park: &Park) -> Value {
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap(),
     );
     value["schema_version"] = json!(5);
+    value["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     value["content_version"] = json!(5);
     value["park"].as_object_mut().unwrap().remove("cash_cents");
     for guest in value["park"]["guests"].as_array_mut().unwrap() {

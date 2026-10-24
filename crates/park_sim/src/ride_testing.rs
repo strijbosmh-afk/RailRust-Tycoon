@@ -16,6 +16,7 @@ pub const COASTER_TEST_LIMITATIONS: &str = "Mechanics test excludes passenger lo
 /// Passenger dispatch policy is excluded because this is not a capacity test.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoasterTestInput {
+    pub cars: u8,
     pub ride: RideId,
     pub specs: Vec<TrackPieceSpec>,
     pub settings: RideOperatingSettings,
@@ -26,6 +27,7 @@ impl CoasterTestInput {
     /// An opened, moving, occupied, missing or faulted coaster invalidates it.
     pub fn matches(&self, park: &Park) -> bool {
         park.ride().is_some_and(|ride| ride.id == self.ride)
+            && park.coaster_car_count(self.ride) == Some(self.cars)
             && park.ride_operating_settings_status(self.ride).is_ok()
             && park.ride_operating_settings(self.ride) == Some(self.settings)
             && park
@@ -116,6 +118,7 @@ impl Park {
         // explicitly retain the complete directed-loop contract for this API.
         crate::trains::validate_specs(self, circuit.specs()).map_err(CoasterTestError::Circuit)?;
         Ok(CoasterTestInput {
+            cars: self.coaster_car_count(ride.id).expect("validated coaster"),
             ride: ride.id,
             specs: circuit.specs().to_vec(),
             settings: self.coaster_operating_settings(),
