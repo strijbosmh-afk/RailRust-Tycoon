@@ -8,6 +8,10 @@ use crate::{
     TrackKind, paths_connect,
 };
 
+mod bridge;
+#[cfg(test)]
+mod bridge_tests;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RideAccessBuildKind {
     Entrance,
@@ -430,36 +434,11 @@ impl Park {
             .iter()
             .filter_map(|id| graph.nodes.get(id))
             .collect();
-        let distance = |path: &SurfaceObject| {
-            destinations
-                .iter()
-                .map(|target| tile_distance(path.pos, path.height, target))
-                .min()
-                .unwrap_or(u32::MAX)
-        };
-        let mut origins: Vec<_> = component(landing)
+        let origins: Vec<_> = component(landing)
             .iter()
             .filter_map(|id| graph.nodes.get(id))
             .collect();
-        origins.sort_by_key(|path| (distance(path), path.pos.y, path.pos.x, path.height, path.id));
-        // Local assistance, not an unbounded route search. Up to eight nearby
-        // frontier anchors yield at most 96 flat/graded tile candidates.
-        for anchor in origins.into_iter().take(8) {
-            let mut nearby = Vec::new();
-            self.add_public_neighbors(anchor, ride, &mut nearby);
-            nearby.retain(|suggestion| {
-                distance(&path_object(*suggestion, ObjectId(0), None)) < distance(anchor)
-            });
-            choices.extend(nearby);
-        }
-        choices.sort_by_key(|s| {
-            (
-                distance(&path_object(*s, ObjectId(0), None)),
-                slope_rank(s.slope),
-                s.pos.y,
-                s.pos.x,
-            )
-        });
+        choices.extend(bridge::first_step(self, ride, &origins, &destinations));
     }
 }
 
@@ -640,7 +619,7 @@ fn access_advice(plan: &RideAccessPlan) -> &'static str {
                 "Build a public path outward from the exit at its deck height."
             }
             RideExitStatus::PublicDisconnected => {
-                "Join the exit's public path to the public network at this queue's entry."
+                "The exit gate joins the ride. Continue its public path to the queue-entry network."
             }
             RideExitStatus::Ready => {
                 "Entrance, queue and exit are connected. Extend their public network to reach your guests."

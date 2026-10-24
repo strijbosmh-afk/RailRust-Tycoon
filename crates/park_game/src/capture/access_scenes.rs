@@ -4,6 +4,15 @@ use super::*;
 pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
     let id = if matches!(scene, Scene::AccessReady) {
         crate::save_check::ride_choice::install(park).unwrap().0
+    } else if matches!(
+        scene,
+        Scene::ExitPathMissing | Scene::ExitPathDisconnected | Scene::ExitPathPrepared
+    ) {
+        crate::save_check::access::install_exit_walkway(
+            park,
+            !matches!(scene, Scene::ExitPathMissing),
+        )
+        .unwrap()
     } else {
         park.set_train_open(false);
         let id = park.ride().unwrap().id;
@@ -31,6 +40,17 @@ pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
     view.scene_dirty = true;
     view.zoom = 1.2;
     view.pan = Vec2::ZERO;
+    if matches!(scene, Scene::ExitPathPrepared) {
+        assert!(crate::access_planning::perform_command(
+            park,
+            view,
+            id,
+            crate::access_planning::AccessCommand::Prepare(
+                park_sim::RideAccessBuildKind::PublicPath
+            )
+        ));
+        assert!(view.path_tool.preview.is_some_and(|preview| preview.valid));
+    }
 }
 
 #[cfg(test)]
@@ -42,6 +62,8 @@ mod tests {
             Scene::AccessNeeds,
             Scene::AccessReady,
             Scene::AccessUnavailable,
+            Scene::ExitPathMissing,
+            Scene::ExitPathDisconnected,
         ] {
             let mut park = crate::demonstration_park();
             let mut view = ViewState {
@@ -58,6 +80,18 @@ mod tests {
             }
             if matches!(scene, Scene::AccessNeeds) {
                 assert!(!plan.suggestions.is_empty());
+            }
+            if matches!(scene, Scene::ExitPathMissing | Scene::ExitPathDisconnected) {
+                assert!(plan.exit.station.is_some());
+                assert_eq!(plan.entrance.status, park_sim::RideAccessStatus::Ready);
+                assert_eq!(
+                    plan.exit.status,
+                    if matches!(scene, Scene::ExitPathMissing) {
+                        park_sim::RideExitStatus::NoPublicExit
+                    } else {
+                        park_sim::RideExitStatus::PublicDisconnected
+                    }
+                );
             }
             assert!(view.prepared_access.is_none() && view.ride_access_commands.is_empty());
             assert_eq!(

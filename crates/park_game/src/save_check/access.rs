@@ -3,8 +3,118 @@ use super::*;
 use crate::access_planning::{self, AccessCommand};
 use crate::path_tools::PathTool;
 use park_sim::{
-    RideAccessBuildKind, RideAccessStatus, RideAccessSuggestion, RideExitStatus, RideId,
+    PathDirection, PathSlope, RideAccessBuildKind, RideAccessStatus, RideAccessSuggestion,
+    RideExitStatus, RideId,
 };
+
+/// A valid station gate with a dead-end public walkway, like the reported layout.
+/// These diagnostic fixtures use disposable parks, never a player's profile.
+pub(crate) fn install_exit_walkway(park: &mut Park, landing: bool) -> Result<RideId, String> {
+    park.set_train_open(false);
+    let id = park.ride().ok_or("exit proof needs a coaster")?.id;
+    park.place_ride_entrance(TilePos { x: 8, y: 11 }, 8, PathDirection::North, id)
+        .map_err(|e| e.to_string())?;
+    for y in 12..=15 {
+        park.place_queue_path(TilePos { x: 8, y }, 8, PathSlope::Flat, id)
+            .map_err(|e| e.to_string())?;
+    }
+    park.place_ride_exit(TilePos { x: 8, y: 9 }, 8, PathDirection::South, id)
+        .map_err(|e| e.to_string())?;
+    if landing {
+        for x in 8..=13 {
+            park.place_path(TilePos { x, y: 8 }, 8)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    if park.ride_access(id).status != RideAccessStatus::Ready
+        || park.ride_exit_access(id).status
+            != if landing {
+                RideExitStatus::PublicDisconnected
+            } else {
+                RideExitStatus::NoPublicExit
+            }
+    {
+        return Err("exit fixture must have a connected queue and incomplete return path".into());
+    }
+    Ok(id)
+}
+
+fn exit_walkway_report(source: &Park) -> Result<String, String> {
+    let mut report = String::new();
+    for end in [8, 13] {
+        report.push_str(&format!("Initial walkway end: {},9\n", end + 1));
+        report.push_str(&exit_walkway_variant(source, end)?);
+    }
+    Ok(report)
+}
+
+fn exit_walkway_variant(source: &Park, end: u32) -> Result<String, String> {
+    let mut park = source.clone();
+    let id = install_exit_walkway(&mut park, true)?;
+    let trim: Vec<_> = park
+        .objects()
+        .iter()
+        .filter(|path| {
+            path.is_public_path() && path.pos.y == 8 && path.pos.x > end && path.pos.x <= 13
+        })
+        .map(|path| path.id)
+        .collect();
+    for object in trim {
+        park.remove_object(object)
+            .ok_or("could not trim diagnostic exit walkway")?;
+    }
+    let mut report = String::new();
+    for _ in 0..32 {
+        if park.ride_exit_access(id).status == RideExitStatus::Ready {
+            // The repaired route must support actual boarding, laps and exits.
+            replay(&mut park)?;
+            report.push_str(&format!(
+                "Completed journeys: {}\n",
+                park.ride_by_id(id).unwrap().completed
+            ));
+            return Ok(report);
+        }
+        let before = park.clone();
+        let mut view = ViewState::default();
+        if !access_planning::perform_command(
+            &mut park,
+            &mut view,
+            id,
+            AccessCommand::Prepare(RideAccessBuildKind::PublicPath),
+        ) {
+            return Err("exit route assistance ran out of public path suggestions".into());
+        }
+        if park != before {
+            return Err("preparing exit path changed the park".into());
+        }
+        let preview = view
+            .path_tool
+            .preview
+            .ok_or("exit path suggestion is hidden")?;
+        if !preview.valid {
+            return Err("exit path suggestion is not buildable".into());
+        }
+        let suggestion = first_suggestion(&park, id, RideAccessBuildKind::PublicPath)?;
+        let point = access_planning::suggestion_point(&park, &view, suggestion)
+            .ok_or("exit path has no build point")?;
+        crate::path_tools::point_at(&mut park, &mut view, point, true);
+        if park.objects().len() != before.objects().len() + 1
+            || park.ride_access(id).status != RideAccessStatus::Ready
+        {
+            return Err("exit path build failed or damaged the queue".into());
+        }
+        report.push_str(&format!(
+            "{},{} height {} {:?}\n",
+            preview.pos.x + 1,
+            preview.pos.y + 1,
+            preview.height,
+            preview.slope
+        ));
+        park =
+            Park::from_save_bytes(&super::ride_choice::bytes(&park)?).map_err(|e| e.to_string())?;
+    }
+    Err("exit route did not finish within 32 suggestions".into())
+}
 
 fn inspect(park: &mut Park) -> Result<String, String> {
     let before = park.clone();
@@ -193,6 +303,7 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
     }
     let missing = inspect(&mut park)?;
     let intermediate = intermediate_reports(&park)?;
+    let exit_walkway = exit_walkway_report(&park)?;
     if park.ride_access_plan(RideId(u64::MAX)).is_ok() {
         return Err("unknown ride unexpectedly produced access assistance".into());
     }
@@ -207,6 +318,10 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
     write_new(
         &store.directory().join("expected-intermediate.txt"),
         intermediate.as_bytes(),
+    )?;
+    write_new(
+        &store.directory().join("expected-exit-walkway.txt"),
+        exit_walkway.as_bytes(),
     )?;
     write_new(
         &store.directory().join("expected-backup.park.json"),
@@ -264,13 +379,19 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("intermediate queue/public-path assistance differs after restart".into());
     }
+    if exit_walkway_report(&park)?.as_bytes()
+        != fs::read(store.directory().join("expected-exit-walkway.txt"))
+            .map_err(|e| e.to_string())?
+    {
+        return Err("exit walkway repair differs after restart".into());
+    }
     if fs::read(store.save_path()).map_err(|e| e.to_string())? != original_primary
         || fs::read(store.backup_path()).map_err(|e| e.to_string())? != original_backup
     {
         return Err("access verification changed source saves".into());
     }
     write_new(&store.directory().join("verification-access.txt"), format!(
-        "Parkbound {}\nMissing and ready access reports survive fresh-process loads: PASS\nIntermediate missing-queue/public-path reports replay from a disposable backup copy: PASS\nAll gate candidates and suggestions pass existing placement validation: PASS\nEach available Prepare action selects its first ranked tile with matching mode, height, slope, owner and gate facing: PASS\nPrepared tools and intermediate planning preserve the source park and save bytes: PASS\nConnected rides complete paid journeys over 3600 ticks with strict roundtrips: PASS\nOriginal primary and backup unchanged: PASS\nNative pointer gestures: NOT CLAIMED\n", env!("CARGO_PKG_VERSION")
+        "Parkbound {}\nMissing and ready access reports survive fresh-process loads: PASS\nIntermediate missing-queue/public-path reports replay from a disposable backup copy: PASS\nAll gate candidates and suggestions pass existing placement validation: PASS\nEach available Prepare action selects its first ranked tile with matching mode, height, slope, owner and gate facing: PASS\nPrepared tools and intermediate planning preserve the source park and save bytes: PASS\nConnected rides complete paid journeys over 3600 ticks with strict roundtrips: PASS\nDisconnected coaster exit walkway repaired with prepared path tools, strict roundtrips and completed journeys: PASS\nOriginal primary and backup unchanged: PASS\nNative pointer gestures: NOT CLAIMED\n", env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     Ok(())
 }

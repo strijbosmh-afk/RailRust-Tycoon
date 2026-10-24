@@ -13,7 +13,7 @@ use crate::{
     persistence::{self, SaveAction, SaveSession},
 };
 
-mod access;
+pub(super) mod access;
 mod admission;
 pub(super) mod appeal;
 mod coaster_testing;
