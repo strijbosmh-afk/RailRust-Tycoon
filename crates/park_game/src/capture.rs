@@ -616,6 +616,9 @@ pub(super) fn configure(app: &mut App) {
         std::process::id()
     ));
 
+    // The capture plugin owns the resources its optional design presets need.
+    // Existing in-memory state is preserved; initialization never opens files.
+    app.init_resource::<crate::design_library::DesignLibrary>();
     app.insert_resource(Capture {
         destination,
         temporary,
@@ -640,7 +643,8 @@ fn apply_preset(
     session: Res<SaveSession>,
     mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
-    mut library: ResMut<crate::design_library::DesignLibrary>,
+    // Non-design presets also run in minimal rendering apps without a library.
+    library: Option<ResMut<crate::design_library::DesignLibrary>>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
@@ -784,6 +788,7 @@ fn apply_preset(
         track_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_design() {
+        let mut library = library.expect("design capture configuration initializes the library");
         design_scenes::prepare(&mut sim.0, &mut view, &mut library, capture.scene);
     }
     if capture.scene.is_slope_tool() {
