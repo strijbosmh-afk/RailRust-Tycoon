@@ -2,7 +2,7 @@ use super::*;
 use crate::{Axis, PathDirection, ServiceKind, Speed, TerrainProfile};
 use serde_json::{Value, json};
 
-fn loop_specs(x: u32, y: u32, height: u8) -> Vec<TrackPieceSpec> {
+pub(super) fn loop_specs(x: u32, y: u32, height: u8) -> Vec<TrackPieceSpec> {
     use TrackBuildKind::{CurveRight, Station, Straight};
     use TrackDirection::{East, North, South, West};
     [
@@ -29,7 +29,7 @@ fn loop_specs(x: u32, y: u32, height: u8) -> Vec<TrackPieceSpec> {
     .collect()
 }
 
-fn graded_loop_specs() -> Vec<TrackPieceSpec> {
+pub(super) fn graded_loop_specs() -> Vec<TrackPieceSpec> {
     use TrackBuildKind::{Brake, CurveRight, Drop, Lift, Station, SteepDrop, Straight};
     use TrackDirection::{East, North, South, West};
     [
@@ -59,22 +59,22 @@ fn graded_loop_specs() -> Vec<TrackPieceSpec> {
     .collect()
 }
 
-fn draft(park: &mut Park, specs: &[TrackPieceSpec]) {
+pub(super) fn draft(park: &mut Park, specs: &[TrackPieceSpec]) {
     for spec in specs.iter().rev() {
         park.set_track_draft_piece(*spec).unwrap();
     }
 }
-fn roundtrip(park: &Park) -> Park {
+pub(super) fn roundtrip(park: &Park) -> Park {
     let bytes = park.to_save_bytes().unwrap();
     let loaded = Park::from_save_bytes(&bytes).unwrap();
     assert_eq!(park, &loaded);
     assert_eq!(bytes, loaded.to_save_bytes().unwrap());
     loaded
 }
-fn json_value(park: &Park) -> Value {
+pub(super) fn json_value(park: &Park) -> Value {
     serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap()
 }
-fn read(value: &Value) -> Result<Park, crate::SaveError> {
+pub(super) fn read(value: &Value) -> Result<Park, crate::SaveError> {
     Park::from_save_bytes(&serde_json::to_vec(value).unwrap())
 }
 
@@ -337,8 +337,8 @@ fn unordered_plan_builds_closed_coaster_and_continues_deterministically() {
     park.apply_track_draft().unwrap();
     assert_eq!(park.train().unwrap().phase, TrainPhase::Closed);
     assert_eq!(park.circuit().unwrap().pieces.len(), 8);
-    assert_eq!(park.cash_cents, crate::INITIAL_PARK_CASH_CENTS);
-    assert!(park.finances.entries.is_empty());
+    assert_eq!(park.cash_cents, crate::INITIAL_PARK_CASH_CENTS - 19_000);
+    assert_eq!(park.finances.entries.len(), 1);
     let before = park.clone();
     park.apply_track_draft().unwrap();
     assert_eq!(park, before);
@@ -379,8 +379,11 @@ fn editing_draft_preserves_live_world_until_apply_and_replaces_only_owned_track(
     park.apply_track_draft().unwrap();
     assert_eq!(park.ride, before.ride);
     assert_eq!(park.guests, before.guests);
-    assert_eq!(park.finances, before.finances);
-    assert_eq!(park.cash_cents, before.cash_cents);
+    assert_eq!(
+        park.finances.entries.len(),
+        before.finances.entries.len() + 1
+    );
+    assert_eq!(park.cash_cents, before.cash_cents - 19_000);
     assert_eq!(park.crowd_rng, before.crowd_rng);
     assert_eq!(park.path_cache_stats(), before.path_cache_stats());
     assert_eq!(park.object(foreign), before.object(foreign));
@@ -686,8 +689,9 @@ fn schema_fourteen_requires_strict_bounded_drafts_and_migrates_twelve_without_re
     )
     .unwrap();
     let base = json_value(&park);
-    assert_eq!(base["schema_version"], json!(14));
+    assert_eq!(base["schema_version"], json!(15));
     let mut old = base.clone();
+    old["park"].as_object_mut().unwrap().remove("track_economy");
     old["schema_version"] = json!(12);
     old["content_version"] = json!(12);
     old["park"].as_object_mut().unwrap().remove("track_draft");
@@ -745,12 +749,13 @@ fn schema_thirteen_migration_preserves_level_drafts_and_rejects_new_piece_kinds(
         park.advance(Speed::Normal);
     }
     let mut old = json_value(&park);
+    old["park"].as_object_mut().unwrap().remove("track_economy");
     old["schema_version"] = json!(13);
     old["content_version"] = json!(13);
     let mut migrated = read(&old).unwrap();
     assert_eq!(migrated, park);
-    assert_eq!(json_value(&migrated)["schema_version"], json!(14));
-    assert_eq!(json_value(&migrated)["content_version"], json!(14));
+    assert_eq!(json_value(&migrated)["schema_version"], json!(15));
+    assert_eq!(json_value(&migrated)["content_version"], json!(15));
     for _ in 0..300 {
         park.advance(Speed::Normal);
         migrated.advance(Speed::Normal);

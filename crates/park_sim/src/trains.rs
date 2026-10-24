@@ -343,6 +343,14 @@ impl Park {
                     candidate.place_object(spec.pos, ObjectKind::Track, axis, height, clearance)?
                 }
             };
+            if candidate
+                .track_economy
+                .paid_pieces
+                .iter()
+                .any(|paid| paid.object == object && paid.spec != *spec)
+            {
+                return Err(TrainError::ObjectMismatch { object });
+            }
             if pieces.iter().any(|piece| piece.object == object) {
                 return Err(TrainError::DuplicateObject { object });
             }

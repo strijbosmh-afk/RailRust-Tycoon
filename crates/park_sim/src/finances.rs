@@ -16,6 +16,8 @@ pub enum FinanceKind {
     RideDemolitionRefund,
     ServiceConstruction,
     ServiceDemolitionRefund,
+    TrackConstruction,
+    TrackRefund,
 }
 impl FinanceKind {
     fn income(self) -> bool {
@@ -25,12 +27,17 @@ impl FinanceKind {
                 | Self::ServiceRevenue
                 | Self::RideDemolitionRefund
                 | Self::ServiceDemolitionRefund
+                | Self::TrackRefund
         )
     }
     fn ride_source(self) -> bool {
         matches!(
             self,
-            Self::RideRevenue | Self::RideConstruction | Self::RideDemolitionRefund
+            Self::RideRevenue
+                | Self::RideConstruction
+                | Self::RideDemolitionRefund
+                | Self::TrackConstruction
+                | Self::TrackRefund
         )
     }
 }
@@ -45,6 +52,8 @@ impl std::fmt::Display for FinanceKind {
             Self::RideDemolitionRefund => "Demolition refund",
             Self::ServiceConstruction => "Service construction",
             Self::ServiceDemolitionRefund => "Service demolition refund",
+            Self::TrackConstruction => "Track construction",
+            Self::TrackRefund => "Track refund",
         })
     }
 }
@@ -81,12 +90,12 @@ impl FinanceTotals {
             FinanceKind::ServiceRevenue => &mut self.service_revenue_cents,
             FinanceKind::ServiceUpkeep => &mut self.upkeep_cents,
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
-            FinanceKind::RideConstruction | FinanceKind::ServiceConstruction => {
-                &mut self.construction_cents
-            }
-            FinanceKind::RideDemolitionRefund | FinanceKind::ServiceDemolitionRefund => {
-                &mut self.demolition_refunds_cents
-            }
+            FinanceKind::RideConstruction
+            | FinanceKind::ServiceConstruction
+            | FinanceKind::TrackConstruction => &mut self.construction_cents,
+            FinanceKind::RideDemolitionRefund
+            | FinanceKind::ServiceDemolitionRefund
+            | FinanceKind::TrackRefund => &mut self.demolition_refunds_cents,
         };
         *target = target
             .checked_add(amount)
@@ -131,8 +140,12 @@ impl RideFinanceTotals {
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
         let target = match kind {
             FinanceKind::RideRevenue => &mut self.revenue_cents,
-            FinanceKind::RideConstruction => &mut self.construction_cents,
-            FinanceKind::RideDemolitionRefund => &mut self.demolition_refunds_cents,
+            FinanceKind::RideConstruction | FinanceKind::TrackConstruction => {
+                &mut self.construction_cents
+            }
+            FinanceKind::RideDemolitionRefund | FinanceKind::TrackRefund => {
+                &mut self.demolition_refunds_cents
+            }
             _ => return Err("service transaction has a ride owner".into()),
         };
         *target = target
@@ -360,12 +373,14 @@ impl Park {
             .iter()
             .map(|c| c.construction_cost_cents)
             .chain(self.services.iter().map(|s| s.construction_cost_cents))
+            .chain(std::iter::once(self.track_economy.construction_cents))
             .sum::<u64>();
         let demolition_refunds_cents = self
             .carousels
             .iter()
             .map(|c| c.demolition_refund_cents)
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
+            .chain(std::iter::once(self.track_economy.refund_cents))
             .sum::<u64>();
         let total_costs_cents = upkeep_cents + supplies_cents + construction_cents;
         FinanceStats {
@@ -549,19 +564,42 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         }
         previous_ride = Some(entry.ride);
         let carousel = park.carousel(entry.ride);
-        let basis = carousel.map_or(0, |c| c.construction_cost_cents);
-        let refund = carousel.map_or(0, |c| c.demolition_refund_cents);
-        if (entry.construction_cents != 0 && entry.construction_cents != basis)
-            || (entry.demolition_refunds_cents != 0
-                && (entry.demolition_refunds_cents != refund || entry.construction_cents != basis))
+        let basis = carousel.map_or(park.track_economy.construction_cents, |c| {
+            c.construction_cost_cents
+        });
+        let refund = carousel.map_or(park.track_economy.refund_cents, |c| {
+            c.demolition_refund_cents
+        });
+        if carousel.is_some()
+            && ((entry.construction_cents != 0 && entry.construction_cents != basis)
+                || (entry.demolition_refunds_cents != 0
+                    && (entry.demolition_refunds_cents != refund
+                        || entry.construction_cents != basis)))
         {
             return Err("archived ride construction or refund disagrees with body history".into());
         }
         let capital_entries = u128::from(entry.construction_cents != 0)
             + u128::from(entry.demolition_refunds_cents != 0);
         let receipts = u128::from(entry.revenue_cents);
-        minimum_archived += receipts.div_ceil(max_fare_batch) + capital_entries;
-        maximum_archived += receipts + capital_entries;
+        if carousel.is_none() {
+            if entry.construction_cents > basis
+                || entry.construction_cents % 500 != 0
+                || entry.demolition_refunds_cents > refund
+                || entry.demolition_refunds_cents % 250 != 0
+                || entry.demolition_refunds_cents > entry.construction_cents / 2
+            {
+                return Err("archived track basis or refund is invalid".into());
+            }
+            minimum_archived += receipts.div_ceil(max_fare_batch)
+                + u128::from(entry.construction_cents).div_ceil(2_560_000)
+                + u128::from(entry.demolition_refunds_cents).div_ceil(1_280_000);
+            maximum_archived += receipts
+                + u128::from(entry.construction_cents / 1_000)
+                + u128::from(entry.demolition_refunds_cents / 500);
+        } else {
+            minimum_archived += receipts.div_ceil(max_fare_batch) + capital_entries;
+            maximum_archived += receipts + capital_entries;
+        }
         archived_check.add(FinanceKind::RideRevenue, entry.revenue_cents)?;
         archived_check.add(FinanceKind::RideConstruction, entry.construction_cents)?;
         archived_check.add(
@@ -659,6 +697,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::RideDemolitionRefund
                         | FinanceKind::ServiceConstruction
                         | FinanceKind::ServiceDemolitionRefund
+                        | FinanceKind::TrackConstruction
+                        | FinanceKind::TrackRefund
                 ))
             || entry.tick > park.ticks
             || entry.amount_cents == 0
@@ -677,7 +717,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 FinanceKind::RideRevenue => {
                     if entry.amount_cents
                         > crate::TRAIN_SEATS as u64 * u64::from(crate::INITIAL_GUEST_WALLET_CENTS)
-                        || source.demolition_refunds_cents != 0
+                        || (park.carousel(id).is_some() && source.demolition_refunds_cents != 0)
                     {
                         return Err(
                             "ride receipt amount or construction chronology is invalid".into()
@@ -710,6 +750,28 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         return Err(
                             "demolition refund is duplicated or has no construction charge".into(),
                         );
+                    }
+                }
+                FinanceKind::TrackConstruction | FinanceKind::TrackRefund => {
+                    if park.ride.as_ref().is_none_or(|ride| ride.id != id) {
+                        return Err("track transaction owner is not the coaster".into());
+                    }
+                    if entry.kind == FinanceKind::TrackConstruction {
+                        if entry.amount_cents < 1_000
+                            || entry.amount_cents % 500 != 0
+                            || entry.amount_cents > 2_560_000
+                        {
+                            return Err("track purchase amount is invalid".into());
+                        }
+                    } else if entry.amount_cents < 500
+                        || entry.amount_cents % 250 != 0
+                        || entry.amount_cents > 1_280_000
+                        || source
+                            .demolition_refunds_cents
+                            .checked_add(entry.amount_cents)
+                            .is_none_or(|refund| refund > source.construction_cents / 2)
+                    {
+                        return Err("track refund has no prior paid basis".into());
                     }
                 }
                 _ => unreachable!(),
@@ -807,8 +869,14 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             .unwrap_or(0)
             .checked_add(source.revenue_cents)
             != Some(ride.revenue_cents)
-            || source.construction_cents != carousel.map_or(0, |c| c.construction_cost_cents)
-            || source.demolition_refunds_cents != carousel.map_or(0, |c| c.demolition_refund_cents)
+            || source.construction_cents
+                != carousel.map_or(park.track_economy.construction_cents, |c| {
+                    c.construction_cost_cents
+                })
+            || source.demolition_refunds_cents
+                != carousel.map_or(park.track_economy.refund_cents, |c| {
+                    c.demolition_refund_cents
+                })
         {
             return Err("ride income disagrees with attributed cash history".into());
         }

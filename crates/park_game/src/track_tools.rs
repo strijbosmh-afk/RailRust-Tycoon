@@ -47,8 +47,7 @@ impl Default for TrackEditor {
             preview: None,
             revision: 0,
             pending: Vec::new(),
-            notice: "Click to draft. Cyan rails are saved.\nApply replaces the existing coaster."
-                .into(),
+            notice: "Drafting is free. Apply buys track.\nRemoved paid track refunds 50%.".into(),
         }
     }
 }
@@ -94,7 +93,7 @@ pub(crate) fn begin(park: &Park, view: &mut ViewState) {
     view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
     view.track_editor.preview = None;
     view.track_editor.notice =
-        "Click to draft. Cyan rails are saved.\nApply replaces the existing coaster.".into();
+        "Drafting is free. Apply buys track.\nRemoved paid track refunds 50%.".into();
 }
 
 pub(crate) fn queue(view: &mut ViewState, command: TrackCommand) {
@@ -133,7 +132,10 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                     TrackBuildKind::Brake => "Level brakes slow the train.",
                     _ => "Level track joins equal heights.",
                 };
-                view.track_editor.notice = format!("{guidance}\nPgUp/Dn sets entry height.");
+                view.track_editor.notice = format!(
+                    "{guidance}\nNew piece: {} / PgUp/Dn height.",
+                    crate::ui::money(kind.cost_cents())
+                );
             }
             TrackCommand::Turn => {
                 view.track_editor.direction = match view.track_editor.direction {
@@ -158,13 +160,33 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                     "Draft cleared. Start with a station.\nThe live coaster is unchanged.".into();
             }
             TrackCommand::Apply => {
+                let quote = sim.0.track_construction_quote().ok();
                 match sim.0.apply_track_draft() {
                     Ok(()) => {
                         view.scene_dirty = true;
                         view.selected = None;
                         view.hovered = None;
                         view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
-                        view.track_editor.notice = "Track applied; coaster stays closed.\nReconnect gates, then open with O.".into();
+                        let payment = quote.map_or_else(
+                            || "Track applied".into(),
+                            |quote| {
+                                if quote.refund_cents > quote.construction_cents {
+                                    format!(
+                                        "Applied / received {}",
+                                        crate::ui::money(
+                                            quote.refund_cents - quote.construction_cents
+                                        )
+                                    )
+                                } else {
+                                    format!(
+                                        "Applied / paid {}",
+                                        crate::ui::money(quote.required_cents())
+                                    )
+                                }
+                            },
+                        );
+                        view.track_editor.notice =
+                            format!("{payment}\nCoaster closed; connect gates.");
                     }
                     Err(error) => {
                         view.track_editor.notice =
@@ -245,22 +267,59 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
 pub(crate) fn status(park: &Park) -> String {
     let count = park.track_draft().len();
     match park.validate_track_draft() {
-        Ok(pieces) => {
-            let count_kind = |kind| pieces.iter().filter(|piece| piece.kind == kind).count();
+        Ok(_) => format!("{count} pieces / complete loop\nClose and empty before Apply."),
+        Err(error) => error_message(park, error),
+    }
+}
+
+/// The price uses current cash and live paid pieces, including faulted remnants.
+/// Calling this read-only quote never buys, sells or mutates the draft.
+pub(crate) fn quote_text(park: &Park) -> String {
+    use crate::ui::money;
+    match park.track_construction_quote() {
+        Ok(quote) => {
+            let net = if quote.refund_cents > quote.construction_cents {
+                format!(
+                    "Receive {}",
+                    money(quote.refund_cents - quote.construction_cents)
+                )
+            } else {
+                format!("Pay {}", money(quote.required_cents()))
+            };
+            let balance = quote.balance_after().map_or_else(
+                || {
+                    format!(
+                        "Short {} / cannot apply",
+                        money(quote.required_cents().saturating_sub(quote.available_cents))
+                    )
+                },
+                |after| format!("After {}", money(after)),
+            );
             format!(
-                "{count} pieces / complete loop\nLift {} / Drop {} / Brake {}\nClose and empty before Apply.",
-                count_kind(park_sim::TrackKind::Lift),
-                count_kind(park_sim::TrackKind::Drop),
-                count_kind(park_sim::TrackKind::Brake)
+                "Buy {} / Refund {}\n{net} / Cash {}\n{balance}",
+                money(quote.construction_cents),
+                money(quote.refund_cents),
+                money(quote.available_cents)
             )
         }
-        Err(error) => format!("{count} draft pieces\n{}", error_message(park, error)),
+        Err(_) => format!(
+            "Complete a loop for its quote.\nDraft edits and clearing are free.\nCash {}",
+            money(park.cash_cents())
+        ),
     }
 }
 
 pub(crate) fn error_message(park: &Park, error: park_sim::TrackConstructionError) -> String {
     use park_sim::{TrackConstructionError as Error, TrainError};
     match error {
+        Error::InsufficientFunds {
+            required_cents,
+            available_cents,
+        } => format!(
+            "short {}\nCash {}. Draft kept.",
+            crate::ui::money(required_cents.saturating_sub(available_cents)),
+            crate::ui::money(available_cents)
+        ),
         Error::IncompleteLoop(pos) => {
             let piece = park.track_draft().iter().find(|piece| piece.pos == pos);
             piece.map_or_else(

@@ -606,7 +606,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
                     ("U", "Show / hide underground view"),
-                    ("Delete", "Remove selected path or building"),
+                    ("Delete", "Remove selected path, track or building"),
                     ("R", "Restore the demonstration paths"),
                     ("O / F", "Open/close ride or service / find ride"),
                     ("F6 / F7", "Ticket / service price - / + $0.50"),
@@ -1105,13 +1105,23 @@ pub(super) fn refresh(
                         }) {
                             let low = piece.samples.iter().map(|p| p.height).min().unwrap_or(0);
                             let high = piece.samples.iter().map(|p| p.height).max().unwrap_or(0);
+                            let refund = track_removal_details(&sim.0, id);
                             return format!(
-                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{state}",
+                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{refund}",
                                 track_name(piece.kind),
                                 object.pos.x + 1,
                                 object.pos.y + 1,
                                 low / park_sim::TRACK_UNITS,
                                 high / park_sim::TRACK_UNITS,
+                            );
+                        }
+                        if object.kind == ObjectKind::Track {
+                            return format!(
+                                "Track / Tile {}, {}\nHeight: {} steps\n{}",
+                                object.pos.x + 1,
+                                object.pos.y + 1,
+                                object.height,
+                                track_removal_details(&sim.0, id),
                             );
                         }
                         if object.kind == ObjectKind::Path && object.path_slope != PathSlope::Flat {
@@ -1142,7 +1152,7 @@ pub(super) fn refresh(
             ),
             Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
             Label::Status if view.price_notice.is_some() => view.price_notice.clone().unwrap(),
-            Label::Status if view.track_editor.active => "Track draft / cyan saved pieces / Apply replaces coaster / Z or Esc to finish".into(),
+            Label::Status if view.track_editor.active => "Track draft / free planning / Apply settles quote / Z or Esc to finish".into(),
             Label::Status if view.path_tool.mode == PathTool::Build => format!(
                 "Path tool / height {} / click to place",
                 view.path_tool.height
@@ -1412,6 +1422,18 @@ pub(super) fn refresh(
             node.display = display;
         }
     }
+}
+
+pub(super) fn track_removal_details(park: &park_sim::Park, id: park_sim::ObjectId) -> String {
+    park.object_removal_block_reason(id).map_or_else(
+        || {
+            format!(
+                "Refund {} / Delete to remove\nOpens a gap; train will stop.",
+                money(park.track_demolition_refund_cents(id))
+            )
+        },
+        |_| "Removal blocked / passengers aboard\nLet everyone leave first.".into(),
+    )
 }
 
 fn track_name(kind: TrackKind) -> &'static str {

@@ -495,6 +495,7 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
                         | ObjectKind::RideExit
                         | ObjectKind::Service
                         | ObjectKind::Carousel
+                        | ObjectKind::Track
                 )
             }) =>
         {
@@ -510,7 +511,7 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
     if let Some(id) = target {
         remove_path(park, view, id);
     } else {
-        view.path_notice = Some("Select a visible path, gate or facility.".into());
+        view.path_notice = Some("Select a visible path, track, gate or facility.".into());
     }
 }
 
@@ -523,6 +524,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
                 | ObjectKind::RideExit
                 | ObjectKind::Service
                 | ObjectKind::Carousel
+                | ObjectKind::Track
         )
     }) else {
         return;
@@ -556,6 +558,8 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
                 return;
             }
         }
+    } else if object.kind == ObjectKind::Track {
+        Some(park.track_demolition_refund_cents(id))
     } else {
         None
     };
@@ -576,6 +580,11 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
     view.path_notice = Some(match refund {
         Some(amount) if object.kind == ObjectKind::Carousel => format!(
             "Removed / refund {}.\nCash {} / queue kept.",
+            crate::ui::money(amount),
+            crate::ui::money(park.cash_cents())
+        ),
+        Some(amount) if object.kind == ObjectKind::Track => format!(
+            "Track removed / refund {}.\nCash {} / rebuild with Z.",
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),
@@ -606,6 +615,7 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
         ObjectKind::RideExit => "Exit",
         ObjectKind::Service => "Facility",
         ObjectKind::Carousel => "Carousel",
+        ObjectKind::Track => "Track",
         _ => "Path",
     }
 }

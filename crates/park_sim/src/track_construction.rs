@@ -7,6 +7,63 @@ use crate::{
 };
 
 pub const MAX_TRACK_DRAFT_PIECES: usize = 256;
+pub const TRACK_REFUND_PERCENT: u8 = 50;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TrackConstructionQuote {
+    pub construction_cents: u64,
+    pub refund_cents: u64,
+    pub retained_pieces: usize,
+    pub new_pieces: usize,
+    pub removed_pieces: usize,
+    pub available_cents: u64,
+}
+impl TrackConstructionQuote {
+    pub fn required_cents(self) -> u64 {
+        self.construction_cents.saturating_sub(self.refund_cents)
+    }
+    pub fn affordable(self) -> bool {
+        self.balance_after().is_some()
+    }
+    pub fn balance_after(self) -> Option<u64> {
+        self.available_cents
+            .checked_add(self.refund_cents)?
+            .checked_sub(self.construction_cents)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PaidTrackPiece {
+    pub object: crate::ObjectId,
+    #[serde(deserialize_with = "crate::saves::strict_object")]
+    pub spec: TrackPieceSpec,
+    pub paid_cents: u64,
+}
+
+/// Paid remnants survive a circuit fault so demolition cannot erase their basis.
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrackEconomy {
+    #[serde(
+        deserialize_with = "crate::saves::bounded_objects::<_, _, { crate::saves::MAX_OBJECTS }>"
+    )]
+    pub paid_pieces: Vec<PaidTrackPiece>,
+    pub construction_cents: u64,
+    pub refund_cents: u64,
+}
+
+pub fn track_piece_cost_cents(spec: TrackPieceSpec) -> u64 {
+    match spec.kind {
+        TrackKind::Station => 10_000,
+        TrackKind::Straight => 1_000,
+        TrackKind::Curve => 1_500,
+        TrackKind::Lift => 2_500,
+        TrackKind::Drop if spec.entry.height.abs_diff(spec.exit.height) == 2 => 2_000,
+        TrackKind::Drop => 1_500,
+        TrackKind::Brake => 2_000,
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TrackBuildKind {
@@ -21,6 +78,15 @@ pub enum TrackBuildKind {
 }
 
 impl TrackBuildKind {
+    pub const fn cost_cents(self) -> u64 {
+        match self {
+            Self::Station => 10_000,
+            Self::Straight => 1_000,
+            Self::CurveLeft | Self::CurveRight | Self::Drop => 1_500,
+            Self::Lift => 2_500,
+            Self::SteepDrop | Self::Brake => 2_000,
+        }
+    }
     /// Lowest entry height that preserves this piece's complete grade.
     pub const fn min_height(self) -> u8 {
         match self {
@@ -100,6 +166,10 @@ pub enum TrackConstructionError {
     DisconnectedPieces,
     CloseRide,
     GuestsStillVisiting,
+    InsufficientFunds {
+        required_cents: u64,
+        available_cents: u64,
+    },
 }
 
 impl From<TrainError> for TrackConstructionError {
@@ -136,12 +206,86 @@ impl std::fmt::Display for TrackConstructionError {
             Self::GuestsStillVisiting => {
                 f.write_str("let every coaster guest finish leaving before applying track")
             }
+            Self::InsufficientFunds { required_cents, available_cents } => write!(
+                f, "track needs ${}.{:02}; cash is ${}.{:02}",
+                required_cents / 100, required_cents % 100,
+                available_cents / 100, available_cents % 100
+            ),
         }
     }
 }
 impl std::error::Error for TrackConstructionError {}
 
 impl Park {
+    pub fn track_economy(&self) -> &TrackEconomy {
+        &self.track_economy
+    }
+
+    pub fn track_demolition_refund_cents(&self, id: crate::ObjectId) -> u64 {
+        self.track_economy
+            .paid_pieces
+            .iter()
+            .find(|piece| piece.object == id)
+            .map_or(0, |piece| piece.paid_cents / 2)
+    }
+
+    pub(crate) fn refund_removed_track(&mut self, id: crate::ObjectId) {
+        let Some(index) = self
+            .track_economy
+            .paid_pieces
+            .iter()
+            .position(|piece| piece.object == id)
+        else {
+            return;
+        };
+        let refund = self.track_economy.paid_pieces.remove(index).paid_cents / 2;
+        self.track_economy.refund_cents += refund;
+        self.record_ride_transaction(
+            crate::FinanceKind::TrackRefund,
+            self.ride.as_ref().expect("paid track has a ride owner").id,
+            refund,
+        );
+    }
+
+    /// Read-only estimate. Insufficient cash is represented in the quote so the
+    /// editor can show both gross amounts and the net affordable balance.
+    pub fn track_construction_quote(
+        &self,
+    ) -> Result<TrackConstructionQuote, TrackConstructionError> {
+        let specs = self.validate_track_draft()?;
+        Ok(self.quote_track_specs(&specs))
+    }
+
+    fn quote_track_specs(&self, specs: &[TrackPieceSpec]) -> TrackConstructionQuote {
+        let old = self.circuit.as_ref();
+        let retained_pieces = specs
+            .iter()
+            .filter(|spec| old.is_some_and(|c| c.specs.contains(spec)))
+            .count();
+        let construction_cents = specs
+            .iter()
+            .filter(|spec| old.is_none_or(|c| !c.specs.contains(spec)))
+            .map(|spec| track_piece_cost_cents(*spec))
+            .sum();
+        let mut refund_cents = 0;
+        let mut removed_pieces = 0;
+        if let Some(circuit) = old {
+            for (piece, spec) in circuit.pieces.iter().zip(&circuit.specs) {
+                if !specs.contains(spec) {
+                    removed_pieces += 1;
+                    refund_cents += self.track_demolition_refund_cents(piece.object);
+                }
+            }
+        }
+        TrackConstructionQuote {
+            construction_cents,
+            refund_cents,
+            retained_pieces,
+            new_pieces: specs.len() - retained_pieces,
+            removed_pieces,
+            available_cents: self.cash_cents,
+        }
+    }
     pub fn track_draft(&self) -> &[TrackPieceSpec] {
         &self.track_draft
     }
@@ -270,8 +414,16 @@ impl Park {
             }
             .into());
         }
+        let additions = ordered
+            .iter()
+            .filter(|spec| {
+                self.circuit
+                    .as_ref()
+                    .is_none_or(|c| !c.specs.contains(spec))
+            })
+            .count();
         self.next_object_id
-            .checked_add(ordered.len() as u64)
+            .checked_add(additions as u64)
             .ok_or(PlacementError::IdExhausted)?;
         Ok(ordered)
     }
@@ -299,6 +451,13 @@ impl Park {
             return Err(TrackConstructionError::GuestsStillVisiting);
         }
         let specs = self.validate_track_draft()?;
+        let quote = self.quote_track_specs(&specs);
+        if !quote.affordable() {
+            return Err(TrackConstructionError::InsufficientFunds {
+                required_cents: quote.required_cents(),
+                available_cents: self.cash_cents,
+            });
+        }
         // Re-applying an unchanged plan is a no-op, including stable track IDs.
         if self
             .circuit
@@ -309,26 +468,49 @@ impl Park {
         }
         let geometry = crate::trains::validate_specs(self, &specs)?;
         let mut candidate = self.clone();
-        candidate
-            .objects
-            .retain(|object| !self.owns_circuit_object(object.id));
+        let retained: Vec<_> = self
+            .circuit
+            .as_ref()
+            .into_iter()
+            .flat_map(|c| c.pieces.iter().zip(&c.specs))
+            .filter(|(_, spec)| specs.contains(spec))
+            .map(|(piece, spec)| (piece.object, *spec))
+            .collect();
+        candidate.objects.retain(|object| {
+            !self.owns_circuit_object(object.id) || retained.iter().any(|(id, _)| *id == object.id)
+        });
+        candidate.track_economy.paid_pieces.retain(|piece| {
+            !self.owns_circuit_object(piece.object)
+                || retained.iter().any(|(id, _)| *id == piece.object)
+        });
         let mut pieces = Vec::with_capacity(specs.len());
         let mut total_length = 0_u32;
         let mut station_stop = 0;
         for (spec, samples) in specs.iter().zip(geometry) {
             let (axis, height, clearance) = crate::trains::envelope(*spec);
-            let object = crate::ObjectId(candidate.next_object_id);
-            candidate.next_object_id += 1; // Checked for the whole transaction above.
-            candidate.objects.push(crate::SurfaceObject {
-                id: object,
-                pos: spec.pos,
-                kind: ObjectKind::Track,
-                axis,
-                height,
-                clearance,
-                path_slope: PathSlope::Flat,
-                queue_owner: None,
-            });
+            let object =
+                if let Some((id, _)) = retained.iter().find(|(_, previous)| previous == spec) {
+                    *id
+                } else {
+                    let object = crate::ObjectId(candidate.next_object_id);
+                    candidate.next_object_id += 1; // Checked for the whole transaction above.
+                    candidate.track_economy.paid_pieces.push(PaidTrackPiece {
+                        object,
+                        spec: *spec,
+                        paid_cents: track_piece_cost_cents(*spec),
+                    });
+                    candidate.objects.push(crate::SurfaceObject {
+                        id: object,
+                        pos: spec.pos,
+                        kind: ObjectKind::Track,
+                        axis,
+                        height,
+                        clearance,
+                        path_slope: PathSlope::Flat,
+                        queue_owner: None,
+                    });
+                    object
+                };
             let length: u32 = samples
                 .windows(2)
                 .map(|pair| crate::trains::point_distance(pair[0], pair[1]))
@@ -379,6 +561,23 @@ impl Park {
         });
         candidate.circuit = Some(circuit);
         candidate.validate_train_circuit()?;
+        candidate
+            .track_economy
+            .paid_pieces
+            .sort_by_key(|piece| piece.object);
+        candidate.track_economy.construction_cents += quote.construction_cents;
+        candidate.track_economy.refund_cents += quote.refund_cents;
+        let owner = candidate.ride.as_ref().expect("circuit has owner").id;
+        candidate.record_ride_transaction(
+            crate::FinanceKind::TrackRefund,
+            owner,
+            quote.refund_cents,
+        );
+        candidate.record_ride_transaction(
+            crate::FinanceKind::TrackConstruction,
+            owner,
+            quote.construction_cents,
+        );
         *self = candidate;
         Ok(())
     }
@@ -453,5 +652,60 @@ pub(crate) fn validate_saved_draft(park: &Park) -> Result<(), TrackConstructionE
     Ok(())
 }
 
+pub(crate) fn validate_track_economy(park: &Park) -> Result<(), String> {
+    let economy = &park.track_economy;
+    if economy.paid_pieces.len() > crate::saves::MAX_OBJECTS
+        || (park.ride.is_none() && *economy != TrackEconomy::default())
+        || economy.construction_cents % 500 != 0
+        || economy.refund_cents % 250 != 0
+    {
+        return Err("track economy owner, amounts or bounds are invalid".into());
+    }
+    let mut previous = None;
+    let mut basis = 0_u64;
+    for paid in &economy.paid_pieces {
+        if previous.is_some_and(|id| id >= paid.object)
+            || paid.paid_cents != track_piece_cost_cents(paid.spec)
+            || validate_piece_shape(park, paid.spec).is_err()
+        {
+            return Err("paid track record, order or fixed basis is invalid".into());
+        }
+        previous = Some(paid.object);
+        let object = park
+            .object(paid.object)
+            .ok_or("paid track object is missing")?;
+        let (axis, height, clearance) = crate::trains::envelope(paid.spec);
+        if object.kind != ObjectKind::Track
+            || object.pos != paid.spec.pos
+            || object.axis != axis
+            || object.height != height
+            || object.clearance != clearance
+            || park.circuit.as_ref().is_some_and(|circuit| {
+                circuit
+                    .pieces
+                    .iter()
+                    .zip(&circuit.specs)
+                    .any(|(piece, spec)| piece.object == paid.object && *spec != paid.spec)
+            })
+        {
+            return Err("paid track specification disagrees with its object or circuit".into());
+        }
+        basis = basis
+            .checked_add(paid.paid_cents)
+            .ok_or("paid track sum overflows")?;
+    }
+    if economy
+        .refund_cents
+        .checked_mul(2)
+        .and_then(|refund| refund.checked_add(basis))
+        != Some(economy.construction_cents)
+    {
+        return Err("track purchases, remaining basis and refunds do not conserve funds".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod economy_tests;
 #[cfg(test)]
 mod tests;

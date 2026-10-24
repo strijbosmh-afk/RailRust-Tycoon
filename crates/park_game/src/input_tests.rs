@@ -786,16 +786,9 @@ fn keyboard_deletion_and_restore_preserve_guests_time_and_other_objects() {
 }
 
 #[test]
-fn delete_rejects_non_paths_and_help_blocks_path_shortcuts() {
+fn delete_rejects_terrain_and_help_blocks_path_shortcuts() {
     let park = crowd_park();
-    let track = park
-        .objects()
-        .iter()
-        .find(|o| o.kind == ObjectKind::Track)
-        .unwrap()
-        .id;
     for (selected, help) in [
-        (Some(SurfaceId::Object(track)), false),
         (Some(SurfaceId::Terrain(TilePos { x: 12, y: 16 })), false),
         (
             Some(SurfaceId::Object(park.guests()[0].current.unwrap())),
