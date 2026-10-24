@@ -66,6 +66,7 @@ pub(super) enum Action {
     CloseRides,
     BrowseRide(i8),
     RideOperating(crate::ride_operations::OperationCommand),
+    RideAccess(crate::access_planning::AccessCommand),
     BuildCarousel,
     EditTrack,
     Track(crate::track_tools::TrackCommand),
@@ -847,7 +848,10 @@ pub(super) fn button_actions(
         if view.rides_open
             && !matches!(
                 action,
-                Action::Pause | Action::BrowseRide(_) | Action::RideOperating(_)
+                Action::Pause
+                    | Action::BrowseRide(_)
+                    | Action::RideOperating(_)
+                    | Action::RideAccess(_)
             )
         {
             continue;
@@ -871,6 +875,7 @@ pub(super) fn button_actions(
                     | Action::ServicePrice(_)
                     | Action::ToggleService
                     | Action::RideOperating(_)
+                    | Action::RideAccess(_)
             )
         {
             continue;
@@ -909,6 +914,10 @@ pub(super) fn button_actions(
                 crate::ride_operations::queue(&mut view, *command);
             }
             Action::RideOperating(_) => {}
+            Action::RideAccess(command) if view.rides_open => {
+                crate::access_planning::queue(&mut view, *command);
+            }
+            Action::RideAccess(_) => {}
             Action::Rides
             | Action::CloseRides
             | Action::BuildCarousel
@@ -1414,6 +1423,12 @@ pub(super) fn refresh(
             Action::Underground => view.view_mode == ViewMode::Underground,
             Action::ToggleTrain => ride_id.is_some_and(|id| !sim.0.ride_is_open(id)),
             Action::Rides => view.rides_open,
+            Action::RideAccess(crate::access_planning::AccessCommand::ShowAccess) => {
+                view.ride_access_open
+            }
+            Action::RideAccess(crate::access_planning::AccessCommand::ShowOperations) => {
+                !view.ride_access_open
+            }
             Action::Services => view.services_open,
             Action::Finance => view.finance_open,
             Action::SetPathTool(mode) => view.path_tool.mode == *mode,
@@ -1457,12 +1472,15 @@ pub(super) fn refresh(
             );
         let operating_disabled = matches!(action, Action::RideOperating(command)
             if !crate::ride_operations::command_enabled(&sim.0, &view, *command));
+        let access_disabled = matches!(action, Action::RideAccess(command)
+            if !crate::access_planning::command_enabled(&sim.0, &view, *command));
         let color = if tool_disabled
             || history_disabled
             || price_disabled
             || service_disabled
             || world_edit_disabled
             || operating_disabled
+            || access_disabled
         {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {

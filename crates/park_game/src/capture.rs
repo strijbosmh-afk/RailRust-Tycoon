@@ -27,6 +27,7 @@ const WARMUP_FRAMES: u32 = 90;
 const WARMUP_TIME: Duration = Duration::from_secs(2);
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
+mod access_scenes;
 mod admission_scenes;
 mod construction_scenes;
 mod design_scenes;
@@ -136,6 +137,9 @@ enum Scene {
     OperationsCarousel,
     OperationsRunning,
     OperationsLimits,
+    AccessNeeds,
+    AccessReady,
+    AccessUnavailable,
     RideClosed,
     RideFinance,
     CarouselRebuilt,
@@ -543,6 +547,9 @@ pub(super) fn configure(app: &mut App) {
                 Some("operations-carousel") => Scene::OperationsCarousel,
                 Some("operations-running") => Scene::OperationsRunning,
                 Some("operations-limits") => Scene::OperationsLimits,
+                Some("access-needs") => Scene::AccessNeeds,
+                Some("access-ready") => Scene::AccessReady,
+                Some("access-unavailable") => Scene::AccessUnavailable,
                 Some("ride-closed") => Scene::RideClosed,
                 Some("ride-finance") => Scene::RideFinance,
                 Some("carousel-rebuilt") => Scene::CarouselRebuilt,
@@ -837,6 +844,12 @@ fn apply_preset(
     }
     if capture.scene.is_operations() {
         operations_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if matches!(
+        capture.scene,
+        Scene::AccessNeeds | Scene::AccessReady | Scene::AccessUnavailable
+    ) {
+        access_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_construction() {
         construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
