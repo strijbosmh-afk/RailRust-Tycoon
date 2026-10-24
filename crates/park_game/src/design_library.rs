@@ -25,6 +25,8 @@ pub(crate) enum DesignCommand {
     Confirm,
     Cancel,
     LoadDraft,
+    Import,
+    Export,
     MoveX(i8),
     MoveY(i8),
     Height(i8),
@@ -43,6 +45,8 @@ pub(crate) struct DesignLibrary {
     pub notice: String,
     pub confirmation: Option<DesignCommand>,
     pub available: bool,
+    pub transfer_pending: bool,
+    pub(crate) transfer_request: Option<crate::design_transfer::TransferRequest>,
     select_all: bool,
     confirmed_target: Option<TrackDesign>,
     confirmed_replacement: Option<TrackDesign>,
@@ -61,6 +65,8 @@ impl Default for DesignLibrary {
             notice: "Save a draft for use in any park. Loading is free.".into(),
             confirmation: None,
             available: false,
+            transfer_pending: false,
+            transfer_request: None,
             select_all: false,
             confirmed_target: None,
             confirmed_replacement: None,
@@ -92,7 +98,7 @@ impl DesignLibrary {
         self.confirmed_replacement = None;
     }
 
-    fn refresh(&mut self, store: &DesignStore, preferred: Option<&str>) -> bool {
+    pub(crate) fn refresh(&mut self, store: &DesignStore, preferred: Option<&str>) -> bool {
         match store.list() {
             Ok(entries) => {
                 self.entries = entries;
@@ -137,6 +143,9 @@ pub(crate) fn command_enabled(
     if matches!(command, Open | Close | Cancel) {
         return true;
     }
+    if library.transfer_pending {
+        return false;
+    }
     if library.confirmation.is_some() {
         return command == Confirm;
     }
@@ -153,7 +162,8 @@ pub(crate) fn command_enabled(
         UpdateSelected => {
             selected && !park.track_draft().is_empty() && !library.name.trim().is_empty()
         }
-        DeleteSelected | LoadDraft | Turn => selected,
+        DeleteSelected | LoadDraft | Turn | Export => selected,
+        Import => library.entries.len() < crate::design_store::MAX_TRACK_DESIGNS,
         Browse(_) => library.entries.len() > 1,
         Select(index) => index < library.entries.len(),
         MoveX(delta) => {
@@ -211,6 +221,8 @@ fn close(view: &mut ViewState, library: &mut DesignLibrary) {
     view.modal_transition_pending = true;
     library.name_focused = false;
     library.cancel_confirmation();
+    library.transfer_pending = false;
+    library.transfer_request = None;
 }
 
 pub(crate) fn keyboard_text(
@@ -227,6 +239,7 @@ pub(crate) fn keyboard_text(
             || view.modal_transition_pending
             || !library.name_focused
             || library.confirmation.is_some()
+            || library.transfer_pending
             || event.state != ButtonState::Pressed
         {
             continue;
@@ -314,6 +327,11 @@ pub(crate) fn apply_commands(
         if !view.designs_open {
             break;
         }
+        // Controls disabled behind the prompt stay disabled for its whole
+        // input frame, including after a preceding Confirm clears it.
+        if confirmation_was_visible && command != DesignCommand::Confirm {
+            continue;
+        }
         // A hidden Confirm button cannot approve a prompt opened this frame.
         if command == DesignCommand::Confirm && !confirmation_was_visible {
             continue;
@@ -338,6 +356,8 @@ pub(crate) fn perform_command(
         Open => {
             info!("Track design library: {}", store.directory().display());
             library.cancel_confirmation();
+            library.transfer_pending = false;
+            library.transfer_request = None;
             let preferred = library.selected_design().map(|d| d.name().to_owned());
             if library.refresh(store, preferred.as_deref()) {
                 library.notice = "Save the current draft, or load a saved design to edit.\nLoading does not buy or replace live track.".into();
@@ -351,6 +371,8 @@ pub(crate) fn perform_command(
         Close => close(view, library),
         Cancel => {
             library.cancel_confirmation();
+            library.transfer_pending = false;
+            library.transfer_request = None;
             library.notice = "Cancelled. Saved designs are unchanged.".into();
         }
         Select(index) => library.select(index),
@@ -380,6 +402,29 @@ pub(crate) fn perform_command(
                 as u8
         }
         Turn => library.rotation = (library.rotation + 1) % 4,
+        Import | Export => {
+            let request = if command == Import {
+                crate::design_transfer::TransferRequest::Import
+            } else {
+                let Some(selected) = library.selected_design() else {
+                    return;
+                };
+                match store.load(selected.name()) {
+                    Ok(saved) if &saved == selected => {
+                        crate::design_transfer::TransferRequest::Export(saved)
+                    }
+                    _ => {
+                        library.notice = "Saved design changed or is unavailable.\nClose and reopen the library to refresh.".into();
+                        return;
+                    }
+                }
+            };
+            library.transfer_request = Some(request);
+            library.transfer_pending = true;
+            library.name_focused = false;
+            view.modal_transition_pending = true;
+            library.notice = "Choose a .parktrack.json file in the Windows dialog.\nImport and export leave the draft unchanged.".into();
+        }
         SaveNew => {
             let result = TrackDesign::from_draft(&library.name, park.track_draft());
             match result {

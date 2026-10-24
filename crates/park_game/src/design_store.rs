@@ -300,6 +300,38 @@ impl DesignStore {
         })
     }
 
+    /// Import a separate design, choosing a free name while holding the catalog lock.
+    /// Existing entries are never replaced, even when their geometry is identical.
+    pub(super) fn import_new(&self, design: &TrackDesign) -> Result<TrackDesign, DesignStoreError> {
+        self.mutate(|designs| {
+            if designs.len() == MAX_TRACK_DESIGNS {
+                return Err(DesignStoreError::Full);
+            }
+            let names: BTreeSet<_> = designs.iter().map(|entry| name_key(entry.name())).collect();
+            let imported = if !names.contains(&name_key(design.name())) {
+                design.clone()
+            } else {
+                // There are fewer than 32 existing entries, so these 32 distinct
+                // suffixes contain a free name. Count characters, never UTF-8 bytes.
+                let name = (2..=MAX_TRACK_DESIGNS + 1)
+                    .map(|number| {
+                        let suffix = format!(" ({number})");
+                        let prefix: String = design
+                            .name()
+                            .chars()
+                            .take(park_sim::MAX_TRACK_DESIGN_NAME_CHARS - suffix.chars().count())
+                            .collect();
+                        format!("{}{suffix}", prefix.trim_end())
+                    })
+                    .find(|candidate| !names.contains(&name_key(candidate)))
+                    .ok_or(DesignStoreError::Full)?;
+                TrackDesign::from_draft(&name, design.pieces()).map_err(invalid)?
+            };
+            designs.push(imported.clone());
+            Ok(imported)
+        })
+    }
+
     pub(super) fn replace_exact(
         &self,
         expected: &TrackDesign,
@@ -337,18 +369,18 @@ impl DesignStore {
         })
     }
 
-    fn mutate(
+    fn mutate<T>(
         &self,
-        operation: impl FnOnce(&mut Vec<TrackDesign>) -> Result<(), DesignStoreError>,
-    ) -> Result<(), DesignStoreError> {
+        operation: impl FnOnce(&mut Vec<TrackDesign>) -> Result<T, DesignStoreError>,
+    ) -> Result<T, DesignStoreError> {
         self.check_directory(true)?;
         let _lock = LibraryLock::acquire(&self.directory)?;
         let (previous, mut designs) = self.read_catalog()?;
-        operation(&mut designs)?;
+        let result = operation(&mut designs)?;
         designs.sort_by_key(|design| name_key(design.name()));
         let bytes = encode(&designs)?;
         if previous.as_deref() == Some(bytes.as_slice()) {
-            return Ok(());
+            return Ok(result);
         }
         let primary = self.catalog_path();
         let backup = self.directory.join(BACKUP_NAME);
@@ -382,7 +414,7 @@ impl DesignStore {
         } else {
             pending.replace(&primary)?;
         }
-        Ok(())
+        Ok(result)
     }
 
     fn read_catalog(&self) -> Result<(Option<Vec<u8>>, Vec<TrackDesign>), DesignStoreError> {
@@ -716,6 +748,91 @@ mod tests {
     }
 
     #[test]
+    fn imported_names_are_new_entries_and_choose_the_first_free_suffix_after_rereading() {
+        let scratch = Scratch::new();
+        let store = scratch.store();
+        let original = design("Forêt 🎢");
+        assert_eq!(store.import_new(&original).unwrap(), original);
+        let incoming = different_design("  FORÊT 🎢  ");
+        let unchanged = incoming.clone();
+        let other_instance = scratch.store();
+        let second = other_instance.import_new(&incoming).unwrap();
+        assert_eq!(second.name(), "FORÊT 🎢 (2)");
+        assert_eq!(second.pieces(), incoming.pieces());
+        let third = store.import_new(&incoming).unwrap();
+        assert_eq!(third.name(), "FORÊT 🎢 (3)");
+        assert_eq!(store.load(original.name()).unwrap(), original);
+        assert_eq!(store.load(second.name()).unwrap(), second);
+        other_instance.delete_exact(&second).unwrap();
+        let reused = store.import_new(&incoming).unwrap();
+        assert_eq!(reused, second);
+        assert_eq!(store.load(third.name()).unwrap(), third);
+        assert_eq!(incoming, unchanged);
+        assert_eq!(scratch.store().list().unwrap(), store.list().unwrap());
+        assert_clean(&store);
+    }
+
+    #[test]
+    fn import_suffixes_truncate_unicode_scalars_safely_across_two_digit_numbers() {
+        let scratch = Scratch::new();
+        let store = scratch.store();
+        let original = different_design(&"É".repeat(32));
+        let incoming = different_design(&"é".repeat(32));
+        store.save_new(&original).unwrap();
+        for number in 2..=12 {
+            let before = store.list().unwrap();
+            let imported = scratch.store().import_new(&incoming).unwrap();
+            let suffix = format!(" ({number})");
+            assert_eq!(
+                imported.name(),
+                format!("{}{suffix}", "é".repeat(32 - suffix.chars().count()))
+            );
+            assert_eq!(imported.name().chars().count(), 32);
+            assert_eq!(imported.pieces(), incoming.pieces());
+            for existing in before {
+                assert_eq!(store.load(existing.name()).unwrap(), existing);
+            }
+        }
+        assert_eq!(store.load(original.name()).unwrap(), original);
+        assert_clean(&store);
+    }
+
+    #[test]
+    fn importing_into_full_locked_or_corrupt_catalogs_preserves_all_original_bytes() {
+        let scratch = Scratch::new();
+        let store = scratch.store();
+        for number in 0..MAX_TRACK_DESIGNS {
+            store
+                .save_new(&different_design(&format!("Design {number}")))
+                .unwrap();
+        }
+        let incoming = different_design("Design 0");
+        let before = disk(&store);
+        assert!(matches!(
+            store.import_new(&incoming),
+            Err(DesignStoreError::Full)
+        ));
+        assert_eq!(disk(&store), before);
+        let lock = store.directory.join(LOCK_NAME);
+        fs::write(&lock, b"another instance").unwrap();
+        assert!(matches!(
+            store.import_new(&incoming),
+            Err(DesignStoreError::Busy { .. })
+        ));
+        assert_eq!(disk(&store), before);
+        assert_eq!(fs::read(&lock).unwrap(), b"another instance");
+        fs::remove_file(lock).unwrap();
+        fs::write(store.catalog_path(), b"{broken").unwrap();
+        let broken = disk(&store);
+        assert!(matches!(
+            store.import_new(&incoming),
+            Err(DesignStoreError::InvalidCatalog { .. })
+        ));
+        assert_eq!(disk(&store), broken);
+        assert_clean(&store);
+    }
+
+    #[test]
     fn duplicate_capacity_and_missing_selection_fail_without_changing_catalogs() {
         let scratch = Scratch::new();
         let store = scratch.store();
@@ -940,6 +1057,8 @@ mod tests {
             .open(store.catalog_path())
             .unwrap();
         assert!(store.save_new(&design("Third")).is_err());
+        assert_eq!(disk(&store), before);
+        assert!(store.import_new(&design("First")).is_err());
         assert_eq!(disk(&store), before);
         drop(held);
         assert_clean(&store);

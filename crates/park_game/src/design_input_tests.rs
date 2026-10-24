@@ -3,6 +3,8 @@ use super::*;
 use crate::{
     design_library::{DesignCommand, DesignLibrary},
     design_store::DesignStore,
+    design_transfer::{self, TransferRequest},
+    design_transfer_file,
     track_tools::{TrackCommand, TrackEditor},
 };
 use bevy::input::{
@@ -763,6 +765,305 @@ fn real_gallery_refreshes_actions_names_and_selection_after_confirmed_changes() 
     }
     assert!(scratch.store().load("Zulu renamed").is_err());
     press_gallery_control(&mut app, DesignCommand::Close);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+fn complete_test_transfer(
+    app: &mut App,
+    scratch: &Scratch,
+    choice: Result<Option<PathBuf>, String>,
+) -> bool {
+    let result = {
+        let mut library = app.world_mut().resource_mut::<DesignLibrary>();
+        let request = library
+            .transfer_request
+            .take()
+            .expect("UI must queue a file request");
+        assert!(library.transfer_pending);
+        design_transfer::complete_transfer(&scratch.store(), &mut library, request, choice)
+    };
+    frame(app);
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(!library.transfer_pending && library.transfer_request.is_none());
+    result
+}
+
+fn assert_no_transfer(app: &App) {
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(!library.transfer_pending);
+    assert!(library.transfer_request.is_none());
+}
+
+#[test]
+fn real_transfer_buttons_export_saved_geometry_and_select_a_numbered_import() {
+    let scratch = Scratch::new();
+    let saved = TrackDesign::from_draft("Shared coaster é", &specs(10)).unwrap();
+    scratch.store().save_new(&saved).unwrap();
+    let initial_catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    let (park, view) = fixture();
+    assert_ne!(park.track_draft(), saved.pieces());
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    let original_border = gallery_cards(&mut app)[0].4;
+    press_gallery_control(&mut app, DesignCommand::NameFocus);
+    type_text(&mut app, window, "Unsaved draft name");
+    for command in [
+        DesignCommand::Turn,
+        DesignCommand::MoveX(1),
+        DesignCommand::Height(1),
+    ] {
+        press_gallery_control(&mut app, command);
+    }
+    press_gallery_control(&mut app, DesignCommand::Export);
+    let request = app
+        .world()
+        .resource::<DesignLibrary>()
+        .transfer_request
+        .clone();
+    assert_eq!(request, Some(TransferRequest::Export(saved.clone())));
+    assert!(app.world().resource::<DesignLibrary>().transfer_pending);
+    for command in [
+        DesignCommand::Import,
+        DesignCommand::LoadDraft,
+        DesignCommand::UpdateSelected,
+    ] {
+        press_gallery_control(&mut app, command);
+        assert_eq!(
+            app.world().resource::<DesignLibrary>().transfer_request,
+            request
+        );
+    }
+    let exported = scratch.0.join("Shared coaster é.parktrack.json");
+    assert!(complete_test_transfer(
+        &mut app,
+        &scratch,
+        Ok(Some(exported.clone()))
+    ));
+    assert_eq!(design_transfer_file::read_design(&exported).unwrap(), saved);
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        initial_catalog
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+
+    press_gallery_control(&mut app, DesignCommand::Import);
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().transfer_request,
+        Some(TransferRequest::Import)
+    );
+    assert!(complete_test_transfer(
+        &mut app,
+        &scratch,
+        Ok(Some(exported.clone()))
+    ));
+    let imported = scratch.store().load("Shared coaster é (2)").unwrap();
+    assert_eq!(imported.pieces(), saved.pieces());
+    assert_eq!(scratch.store().load(saved.name()).unwrap(), saved);
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().selected_design(),
+        Some(&imported)
+    );
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Shared coaster é", "Shared coaster é (2)", "", ""]
+    );
+    let cards = gallery_cards(&mut app);
+    assert_eq!(cards[1].2, Display::Flex);
+    assert!(cards[1].3 == ui::Action::Design(DesignCommand::Select(1)));
+    assert_eq!(cards[1].4, original_border);
+    assert_ne!(cards[0].4, original_border);
+    assert_eq!(design_transfer_file::read_design(&exported).unwrap(), saved);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn transfer_cancellation_and_errors_preserve_catalog_park_history_and_existing_files() {
+    let scratch = Scratch::new();
+    let saved = TrackDesign::from_draft("Saved", &specs(10)).unwrap();
+    scratch.store().save_new(&saved).unwrap();
+    let catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    let (park, view) = fixture();
+    let (mut app, _) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    let entries = app.world().resource::<DesignLibrary>().entries.clone();
+    for command in [DesignCommand::Import, DesignCommand::Export] {
+        for choice in [
+            Ok(None),
+            Err("private path: C:\\private\\choice.json".into()),
+        ] {
+            press_gallery_control(&mut app, command);
+            assert!(!complete_test_transfer(&mut app, &scratch, choice));
+            let library = app.world().resource::<DesignLibrary>();
+            assert_eq!(library.entries, entries);
+            assert!(!library.notice.contains("C:\\private"));
+            assert_eq!(
+                std::fs::read(scratch.store().catalog_path()).unwrap(),
+                catalog
+            );
+            assert_eq!(app.world().resource::<Simulation>().0, park);
+            assert_eq!(history(&app), before_history);
+        }
+    }
+    let malformed = scratch.0.join("Invalid.parktrack.json");
+    std::fs::write(&malformed, b"{not a design").unwrap();
+    press_gallery_control(&mut app, DesignCommand::Import);
+    assert!(!complete_test_transfer(
+        &mut app,
+        &scratch,
+        Ok(Some(malformed.clone()))
+    ));
+    assert!(
+        app.world()
+            .resource::<DesignLibrary>()
+            .notice
+            .starts_with("Import refused:")
+    );
+    assert_eq!(std::fs::read(&malformed).unwrap(), b"{not a design");
+    let wrong_extension = scratch.0.join("Existing park.park.json");
+    std::fs::write(&wrong_extension, b"existing unrelated bytes").unwrap();
+    press_gallery_control(&mut app, DesignCommand::Export);
+    assert!(!complete_test_transfer(
+        &mut app,
+        &scratch,
+        Ok(Some(wrong_extension.clone()))
+    ));
+    assert!(
+        app.world()
+            .resource::<DesignLibrary>()
+            .notice
+            .starts_with("Export failed:")
+    );
+    assert_eq!(
+        std::fs::read(&wrong_extension).unwrap(),
+        b"existing unrelated bytes"
+    );
+    assert_eq!(app.world().resource::<DesignLibrary>().entries, entries);
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        catalog
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn confirmation_close_cancel_and_same_frame_ordering_preempt_file_requests() {
+    let scratch = Scratch::new();
+    scratch
+        .store()
+        .save_new(&TrackDesign::from_draft("Saved", &specs(10)).unwrap())
+        .unwrap();
+    let (park, view) = fixture();
+    let (mut app, _) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    for confirmation in [DesignCommand::UpdateSelected, DesignCommand::DeleteSelected] {
+        press_gallery_control(&mut app, confirmation);
+        for command in [DesignCommand::Import, DesignCommand::Export] {
+            press_gallery_control(&mut app, command);
+            assert_no_transfer(&app);
+            assert_eq!(
+                app.world().resource::<DesignLibrary>().confirmation,
+                Some(confirmation)
+            );
+        }
+        press_gallery_control(&mut app, DesignCommand::Cancel);
+    }
+    // Import/Export were disabled when this frame began. Confirming a saved
+    // update must not also activate either disabled file action in that frame.
+    for transfer in [DesignCommand::Import, DesignCommand::Export] {
+        for confirm_first in [true, false] {
+            press_gallery_control(&mut app, DesignCommand::UpdateSelected);
+            let pair = if confirm_first {
+                [DesignCommand::Confirm, transfer]
+            } else {
+                [transfer, DesignCommand::Confirm]
+            };
+            actions(&mut app, pair.into_iter().map(ui::Action::Design));
+            assert_no_transfer(&app);
+            assert!(
+                app.world()
+                    .resource::<DesignLibrary>()
+                    .confirmation
+                    .is_none()
+            );
+        }
+    }
+    let catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    for dismiss in [DesignCommand::Close, DesignCommand::Cancel] {
+        for transfer in [DesignCommand::Import, DesignCommand::Export] {
+            for dismiss_first in [true, false] {
+                if !app.world().resource::<ViewState>().designs_open {
+                    open(&mut app);
+                }
+                let pair = if dismiss_first {
+                    [dismiss, transfer]
+                } else {
+                    [transfer, dismiss]
+                };
+                actions(&mut app, pair.into_iter().map(ui::Action::Design));
+                assert!(!app.world().resource::<ViewState>().designs_open);
+                assert_no_transfer(&app);
+                settle(&mut app);
+            }
+        }
+    }
+    for command in [DesignCommand::Import, DesignCommand::Export] {
+        open(&mut app);
+        press_gallery_control(&mut app, command);
+        assert!(app.world().resource::<DesignLibrary>().transfer_pending);
+        press_gallery_control(&mut app, DesignCommand::Close);
+        assert_no_transfer(&app);
+    }
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        catalog
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn export_refuses_a_saved_design_changed_externally_until_the_library_reopens() {
+    let scratch = Scratch::new();
+    let old = TrackDesign::from_draft("Saved", &specs(10)).unwrap();
+    let new = TrackDesign::from_draft("Saved", &specs(20)).unwrap();
+    scratch.store().save_new(&old).unwrap();
+    let (park, view) = fixture();
+    let (mut app, _) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    scratch.store().replace_exact(&old, &new).unwrap();
+    let changed_catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    press_gallery_control(&mut app, DesignCommand::Export);
+    assert_no_transfer(&app);
+    assert!(
+        app.world()
+            .resource::<DesignLibrary>()
+            .notice
+            .starts_with("Saved design changed")
+    );
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().selected_design(),
+        Some(&old)
+    );
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        changed_catalog
+    );
+    press_gallery_control(&mut app, DesignCommand::Close);
+    open(&mut app);
+    press_gallery_control(&mut app, DesignCommand::Export);
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().transfer_request,
+        Some(TransferRequest::Export(new))
+    );
+    assert!(!complete_test_transfer(&mut app, &scratch, Ok(None)));
     assert_eq!(app.world().resource::<Simulation>().0, park);
     assert_eq!(history(&app), before_history);
 }

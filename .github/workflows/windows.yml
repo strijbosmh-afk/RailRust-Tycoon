@@ -171,6 +171,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process named designs verification failed" }
           Get-Content -LiteralPath (Join-Path $designDirectory "writer-designs.txt")
           Get-Content -LiteralPath (Join-Path $designDirectory "verification-designs.txt")
+      - name: Verify design import and export across fresh processes
+        shell: pwsh
+        run: |
+          $transferDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound design transfer é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-design-transfer --save-dir $transferDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Design transfer writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-design-transfer --save-dir $transferDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process design transfer verification failed" }
+          Get-Content -LiteralPath (Join-Path $transferDirectory "writer-design-transfer.txt")
+          Get-Content -LiteralPath (Join-Path $transferDirectory "verification-design-transfer.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

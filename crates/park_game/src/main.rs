@@ -2,12 +2,15 @@
 
 mod benchmark;
 mod capture;
+mod design_file_dialog;
 #[cfg(test)]
 mod design_input_tests;
 mod design_library;
 mod design_preview;
 mod design_store;
 mod design_thumbnail;
+mod design_transfer;
+mod design_transfer_file;
 mod frame_probe;
 mod gpu_probe;
 #[cfg(test)]
@@ -392,6 +395,8 @@ fn main() -> AppExit {
         .insert_resource(Simulation(park))
         .insert_resource(view)
         .init_resource::<design_library::DesignLibrary>()
+        .init_resource::<design_transfer::DialogPause>()
+        .insert_non_send_resource(design_transfer::DialogThread::default())
         .insert_resource(SaveSession::from_arguments(std::env::args_os().skip(1)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -417,6 +422,7 @@ fn main() -> AppExit {
                     keyboard_input,
                     design_library::keyboard_text,
                     design_library::apply_commands,
+                    design_transfer::open_dialog,
                     apply_terrain_profile,
                     apply_path_actions,
                     apply_train_actions,
@@ -533,13 +539,14 @@ fn tick_simulation(
     mut sim: ResMut<Simulation>,
     view: Res<ViewState>,
     mut probe: Option<ResMut<frame_probe::Probe>>,
+    dialog_pause: Option<Res<design_transfer::DialogPause>>,
 ) {
     let timer = probe
         .as_ref()
         .filter(|p| p.is_measuring())
         .map(|_| std::time::Instant::now());
     let before = sim.0.ticks();
-    if view.speed != Speed::Paused {
+    if view.speed != Speed::Paused && dialog_pause.is_none_or(|pause| !pause.suppresses_ticks()) {
         sim.0.advance(view.speed);
     }
     if let (Some(start), Some(probe)) = (timer, probe.as_mut()) {
