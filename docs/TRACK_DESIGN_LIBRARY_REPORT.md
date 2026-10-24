@@ -26,7 +26,20 @@ A damaged or unsupported catalog is refused without silently discarding entries 
 
 ## Verification
 
-Verification is in progress. Ten new simulation tests passed for strict design codecs, exact legacy/graded geometry, all rotations and checked transformations. The local full release checks, exact-source Windows CI, production-process checks, screenshots and portable package checks must complete before the 0.28 delivery is marked verified. The latest verified delivered build remains 0.27 until then.
+Runtime source is `d26fb29a26547c1e792ce0e31e73833f4c863487` on `codex/named-track-designs` / [draft PR #26](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/26), based on PR #25. All **560 local release tests passed: 326 game and 234 simulation**, with strict all-target release Clippy and formatting checks. The local test/Clippy source was parent `34b9d25292823aaf34a1aeb20a4f20e58a13305b`; the final change only shortens the Copy live feedback to fit its panel. The final runtime built and passed separate production `write-designs` / `verify-designs` processes.
+
+[Exact-source Windows CI 40082622037](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40082622037), job `120839112046`, passed all **29 steps** on the final runtime: formatting, strict Clippy, all 560 release tests, build/package, every retained continuation proof, the new named-design writer/verifier and performance-reporting smoke. The smoke checks reporting only, not performance acceptance. The delivery executable comes from this CI artifact:
+
+- Executable size: **48,857,088 bytes**.
+- Executable SHA-256: `83dc5b5b1a365713a8b207bbe60e46c900eb582bf6250715925213b65d8f6c1d`.
+- GitHub artifact `12555688606` outer ZIP digest: `eacadbe27ee661607367732d5c9b805e184019403d0a8f1e83a0bc7b554acece`.
+- Original CI package ZIP checksum: `7bedd28fc20552602555e405be07caafcfd39462b48a375707c1d8bb258182fa`. The local delivery refreshes guides only; its adjacent `.zip.sha256` sidecar identifies that archive.
+
+Both archive checksums and all CI payload hashes matched before running the extracted executable. The exact CI executable passed the named-design writer and verifier in separate processes from `C:\Windows`, with an isolated spaces/Unicode save directory. It also passed the retained **7,200-tick** paid-track and draft-history proof. Original primary, backup and catalog bytes stayed unchanged.
+
+Ordinary strict schema-15 continuation passed in both directions: **0.27 writer / 0.28 reader** and **0.28 writer / 0.27 reader**, each for **3,600 ticks plus commands** and backup restoration. The separate design proof establishes library and history behavior. Authentic schema-14 primary and backup files retained every original field and both original files, then continued under current rules for **3,600 ticks per slot**. These fixtures do not claim arbitrary future-version compatibility or legacy future equivalence.
+
+The added coverage includes ten simulation tests for strict codecs and checked transforms, ten storage tests for persistence and failure handling, six keyboard/command integration tests, capture purity and a fresh-process proof. Input coverage includes same-frame modifier edges and AltGr+A Unicode entry. Preliminary rendering caught clipped draft feedback; both loaded-design and Copy live notices were shortened and visually rechecked.
 
 The new production modes use separate processes and isolated absolute directories:
 
@@ -37,7 +50,11 @@ Parkbound.exe --save-check verify-designs --save-dir <same-directory>
 
 They exercise actual library commands and disk persistence, Unicode naming, update/delete/cancel, fresh-process reload, transformed draft replacement, Undo/Redo, invalid-placement refusal, park Save/Load/Backup with empty restored history and retained designs, and costs only at Apply. Retained track construction/economics proofs remain available separately.
 
-Capture scenes are `library-empty`, `library-saved`, `library-transformed`, `library-confirm-update`, `library-confirm-delete`, `library-invalid` and `loaded-design`. In-memory fixtures avoid player-library access. Presentation purity covers all four rotations and both views; direct screenshots must inspect normal and 1024 × 680 windows, the 32-character name, confirmations, placement feedback and the compact Track tools header.
+Capture scenes are `library-empty`, `library-saved`, `library-transformed`, `library-confirm-update`, `library-confirm-delete`, `library-invalid` and `loaded-design`. In-memory fixtures avoid player-library access. Presentation purity covers all seven scenes across all four rotations and both views without changing live park bytes.
+
+Ten captures from the exact CI executable were directly inspected: the normal-window saved library; minimum-window empty and saved libraries; transformed placement in rotation 1 / Underground; update and delete confirmations (delete in rotation 2); invalid placement; loaded design in rotation 3 / Flat; retained Copy live; and Help. The 560 × 560 modal fits 1024 × 680, including the 32-character name and wrapped confirmation. The loaded design shows 28 pieces and a $470 quote while actual cash remains $1,000; Copy live still quotes $0 with $720 cash. The new controls, corrected notices and shortcut help are readable without clipping. Screenshots and input tests do not establish native mouse/keyboard acceptance.
+
+The portable delivery is `dist/Parkbound-0.28.0-windows-x64.zip`. A fresh extraction at `C:\Users\strij\AppData\Local\Temp\Parkbound 0.28 relocated package é`, launched from `C:\Windows`, verified **43 payload hashes** with no extra files and **34 current Markdown guides**. All **291 dependency entries** and five dependency/native/notices/runtime files are unchanged from 0.27. That extracted executable passed the named-design writer/verifier; its minimum-window loaded-design capture matched the inspected CI capture byte for byte. Final guide and manifest refreshes preserve the exact executable. The final ZIP sidecar and payload/guide bytes are checked again in a second fresh extraction at `C:\Users\strij\AppData\Local\Temp\Parkbound 0.28 final delivery verification é`. Same-PC relocation does not establish clean-machine compatibility.
 
 Raw receipts belong under ignored `artifacts/named-track-designs-0.28.0/`; delivery belongs under ignored `dist/`. These require OneDrive or explicit transfer between PCs. The [resume guide](../RESUME_DEVELOPMENT.md) retains all three checkout paths. Native input, clean-PC/offline/standard-user compatibility and representative-hardware performance remain separate open acceptance checks. This development PC is not a performance reference.
 
