@@ -31,6 +31,7 @@ fn income(kind: FinanceKind) -> bool {
             | FinanceKind::ServiceRevenue
             | FinanceKind::RideDemolitionRefund
             | FinanceKind::ServiceDemolitionRefund
+            | FinanceKind::TrackRefund
     )
 }
 fn total(entries: &[FinanceEntry], kind: FinanceKind, service: Option<ServiceId>) -> u64 {
@@ -57,7 +58,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             .services()
             .iter()
             .map(|s| s.construction_cost_cents)
-            .sum::<u64>();
+            .sum::<u64>()
+        + park.track_economy().construction_cents;
     let refunds: u64 = park
         .carousels()
         .iter()
@@ -67,7 +69,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             .services()
             .iter()
             .map(|s| s.demolition_refund_cents)
-            .sum::<u64>();
+            .sum::<u64>()
+        + park.track_economy().refund_cents;
     if stats.cash_cents != park.cash_cents()
         || stats.ride_revenue_cents != ride
         || stats.service_revenue_cents != revenue
@@ -116,6 +119,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                 FinanceKind::RideRevenue
                     | FinanceKind::RideConstruction
                     | FinanceKind::RideDemolitionRefund
+                    | FinanceKind::TrackConstruction
+                    | FinanceKind::TrackRefund
             ) != entry.service.is_none()
             || entry.service.is_none() != entry.ride.is_some()
             || entry.ride.is_some_and(|id| park.ride_by_id(id).is_none())
@@ -149,16 +154,43 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || archived.construction_cents
             + total(&ledger.entries, FinanceKind::RideConstruction, None)
             + total(&ledger.entries, FinanceKind::ServiceConstruction, None)
+            + total(&ledger.entries, FinanceKind::TrackConstruction, None)
             != construction
         || archived.demolition_refunds_cents
             + total(&ledger.entries, FinanceKind::RideDemolitionRefund, None)
             + total(&ledger.entries, FinanceKind::ServiceDemolitionRefund, None)
+            + total(&ledger.entries, FinanceKind::TrackRefund, None)
             != refunds
     {
         return Err(
             "ledger opening/archive/retained amounts do not reconstruct current cash and totals"
                 .into(),
         );
+    }
+    if let Some(coaster) = park.ride() {
+        let archived = ledger.archived_rides.iter().find(|r| r.ride == coaster.id);
+        for (kind, archived_amount, expected) in [
+            (
+                FinanceKind::TrackConstruction,
+                archived.map_or(0, |r| r.construction_cents),
+                park.track_economy().construction_cents,
+            ),
+            (
+                FinanceKind::TrackRefund,
+                archived.map_or(0, |r| r.demolition_refunds_cents),
+                park.track_economy().refund_cents,
+            ),
+        ] {
+            let recent: u64 = ledger
+                .entries
+                .iter()
+                .filter(|e| e.kind == kind && e.ride == Some(coaster.id))
+                .map(|e| e.amount_cents)
+                .sum();
+            if archived_amount + recent != expected {
+                return Err("track construction/refund amounts differ from coaster-attributed ledger history".into());
+            }
+        }
     }
     for carousel in park.carousels() {
         let archived = ledger
@@ -665,7 +697,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("finance verification changed original slots".into());
     }
-    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict14 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-finance.txt"), format!("Parkbound {}\nExact midperiod primary/backup and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nIndependent ordered upkeep, sale, supplies and ride-entry amounts/balances: PASS\nBounded ledger rollover and first retained balance from opening plus archive: PASS\nClosure/reopen, retained demolition costs, automatic funds closure and earned-income recovery: PASS\nWallet/receipts/expenses/park cash identity: PASS\nPaused load, Finance reset, strict15 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

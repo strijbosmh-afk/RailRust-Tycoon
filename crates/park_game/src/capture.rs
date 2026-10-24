@@ -148,6 +148,10 @@ enum Scene {
     TrackReady,
     TrackBuilt,
     TrackOccupied,
+    TrackReplacement,
+    TrackUnaffordable,
+    TrackRefund,
+    TrackFinance,
 }
 
 impl Scene {
@@ -159,6 +163,10 @@ impl Scene {
                 | Self::TrackReady
                 | Self::TrackBuilt
                 | Self::TrackOccupied
+                | Self::TrackReplacement
+                | Self::TrackUnaffordable
+                | Self::TrackRefund
+                | Self::TrackFinance
         )
     }
     fn is_facility_construction(self) -> bool {
@@ -479,6 +487,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("track-ready") => Scene::TrackReady,
                 Some("track-built") => Scene::TrackBuilt,
                 Some("track-occupied") => Scene::TrackOccupied,
+                Some("track-replacement") => Scene::TrackReplacement,
+                Some("track-unaffordable") => Scene::TrackUnaffordable,
+                Some("track-refund") => Scene::TrackRefund,
+                Some("track-finance") => Scene::TrackFinance,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),

@@ -107,7 +107,7 @@ fn track_pointer_rotation_and_dpi_preserve_live_world_and_never_paint_while_held
 }
 
 #[test]
-fn track_apply_refuses_open_ride_then_replaces_closed_route_without_charging() {
+fn track_apply_refuses_open_ride_then_charges_exactly_once_for_the_closed_route() {
     let directory = InputSaveDirectory::new();
     let mut park = train_park();
     complete_draft(&mut park);
@@ -132,12 +132,315 @@ fn track_apply_refuses_open_ride_then_replaces_closed_route_without_charging() {
     let applied = &app.world().resource::<Simulation>().0;
     assert_eq!(applied.circuit().unwrap().pieces.len(), 8);
     assert_eq!(applied.ride(), closed.ride());
-    assert_eq!(applied.cash_cents(), closed.cash_cents());
+    assert_eq!(applied.cash_cents(), closed.cash_cents() - 19_000);
+    let entry = applied.finance_ledger().entries.last().unwrap();
+    assert_eq!(entry.kind, park_sim::FinanceKind::TrackConstruction);
+    assert_eq!(entry.amount_cents, 19_000);
+    assert_eq!(entry.ride, closed.ride().map(|ride| ride.id));
     assert_eq!(applied.ticks(), 0);
     assert!(app.world().resource::<ViewState>().scene_dirty);
     let applied = applied.clone();
     press_action(&mut app, TrackCommand::Apply);
     assert_eq!(app.world().resource::<Simulation>().0, applied);
+}
+
+#[test]
+fn track_quote_refreshes_after_cash_changes_and_replacement_settles_only_changed_track() {
+    let directory = InputSaveDirectory::new();
+    let mut park = train_park();
+    park.set_train_open(false);
+    complete_draft(&mut park);
+    let (mut app, _) = persistence_input_app(&directory, park.clone(), view(0));
+    add_commands(&mut app);
+    app.add_systems(
+        Update,
+        ui::track::refresh.after(track_tools::apply_commands),
+    );
+    let quote_label = app
+        .world_mut()
+        .spawn((ui::track::TrackLabel::Quote, Text::new("")))
+        .id();
+    frame(&mut app);
+    assert_eq!(
+        app.world().resource::<Simulation>().0,
+        park,
+        "showing a quote is read-only"
+    );
+    assert_eq!(
+        app.world().get::<Text>(quote_label).unwrap().0,
+        "Buy $190.00 / Refund $0.00\nPay $190.00 / Cash $1000.00\nAfter $810.00"
+    );
+    let revision = app.world().resource::<ViewState>().track_editor.revision;
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .place_service(
+            TilePos { x: 2, y: 2 },
+            8,
+            park_sim::PathDirection::North,
+            park_sim::ServiceKind::Food,
+        )
+        .unwrap();
+    frame(&mut app);
+    assert_eq!(
+        app.world().resource::<ViewState>().track_editor.revision,
+        revision
+    );
+    assert_eq!(
+        app.world().get::<Text>(quote_label).unwrap().0,
+        "Buy $190.00 / Refund $0.00\nPay $190.00 / Cash $880.00\nAfter $690.00"
+    );
+    press_action(&mut app, TrackCommand::Apply);
+    {
+        let mut sim = app.world_mut().resource_mut::<Simulation>();
+        complete_draft(&mut sim.0);
+        sim.0
+            .set_track_draft_piece(Kind::Brake.spec(TilePos { x: 22, y: 21 }, 8, Direction::South))
+            .unwrap();
+    }
+    let before = app.world().resource::<Simulation>().0.clone();
+    frame(&mut app);
+    assert_eq!(
+        app.world().get::<Text>(quote_label).unwrap().0,
+        "Buy $20.00 / Refund $5.00\nPay $15.00 / Cash $690.00\nAfter $675.00"
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    press_action(&mut app, TrackCommand::Apply);
+    let after = &app.world().resource::<Simulation>().0;
+    assert_eq!(after.cash_cents(), 67_500);
+    assert_eq!(after.track_economy().construction_cents, 21_000);
+    assert_eq!(after.track_economy().refund_cents, 500);
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .track_editor
+            .notice
+            .contains("paid $15.00")
+    );
+}
+
+#[test]
+fn unaffordable_track_apply_preserves_draft_cash_history_and_saved_state() {
+    let directory = InputSaveDirectory::new();
+    let mut park = train_park();
+    park.set_train_open(false);
+    crate::save_check::construction::exhaust_build_funds(&mut park).unwrap();
+    for _ in 0..2 {
+        let id = park
+            .place_service(
+                TilePos { x: 2, y: 2 },
+                8,
+                park_sim::PathDirection::North,
+                park_sim::ServiceKind::Food,
+            )
+            .unwrap();
+        park.remove_object(park.service(id).unwrap().object.unwrap())
+            .unwrap();
+    }
+    assert_eq!(park.cash_cents(), 13_000);
+    complete_draft(&mut park);
+    assert_eq!(
+        track_tools::quote_text(&park),
+        "Buy $190.00 / Refund $0.00\nPay $190.00 / Cash $130.00\nShort $60.00 / cannot apply"
+    );
+    let (mut app, _) = persistence_input_app(&directory, park.clone(), view(0));
+    add_commands(&mut app);
+    press_action(&mut app, TrackCommand::Apply);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(
+        app.world().resource::<ViewState>().track_editor.notice,
+        "Apply refused: short $60.00\nCash $130.00. Draft kept."
+    );
+    persistence_key_frame(&mut app, &[KeyCode::F5]);
+    assert_eq!(directory.store().load().unwrap(), park);
+}
+
+fn visible_track(park: &Park, paid: bool) -> park_sim::ObjectId {
+    park.objects()
+        .iter()
+        .filter(|object| {
+            object.kind == park_sim::ObjectKind::Track
+                && (!paid || park.track_demolition_refund_cents(object.id) > 0)
+        })
+        .find(|object| {
+            world::surface_center(park, SurfaceId::Object(object.id), 0).is_some_and(|point| {
+                world::pick_surface(point, park, 0, world::ViewMode::Surface)
+                    == Some(SurfaceId::Object(object.id))
+            })
+        })
+        .expect("fixture must have visible track")
+        .id
+}
+
+#[test]
+fn selected_track_delete_refunds_paid_basis_once_and_saves_fault_remnants() {
+    for paid in [false, true] {
+        let directory = InputSaveDirectory::new();
+        let mut park = train_park();
+        park.set_train_open(false);
+        if paid {
+            complete_draft(&mut park);
+            park.apply_track_draft().unwrap();
+        }
+        let id = visible_track(&park, paid);
+        let refund = park.track_demolition_refund_cents(id);
+        assert_eq!(refund > 0, paid);
+        assert!(
+            ui::track_removal_details(&park, id, true)
+                .contains(&format!("Refund {}", ui::money(refund)))
+        );
+        let old_cash = park.cash_cents();
+        let (mut app, _) = persistence_input_app(
+            &directory,
+            park,
+            ViewState {
+                selected: Some(SurfaceId::Object(id)),
+                speed: Speed::Paused,
+                ..default()
+            },
+        );
+        app.add_systems(
+            Update,
+            apply_path_actions
+                .after(keyboard_input)
+                .before(pointer_input),
+        );
+        persistence_key_frame(&mut app, &[KeyCode::Delete, KeyCode::F5]);
+        let removed = app.world().resource::<Simulation>().0.clone();
+        assert!(removed.object(id).is_none());
+        assert_eq!(removed.cash_cents(), old_cash + refund);
+        assert_eq!(directory.store().load().unwrap(), removed);
+        assert!(
+            app.world()
+                .resource::<ViewState>()
+                .path_notice
+                .as_ref()
+                .unwrap()
+                .contains(&format!("refund {}", ui::money(refund)))
+        );
+        app.world_mut().resource_mut::<ViewState>().selected = Some(SurfaceId::Object(id));
+        persistence_key_frame(&mut app, &[KeyCode::Delete]);
+        assert_eq!(
+            app.world().resource::<Simulation>().0,
+            removed,
+            "a stale selection never refunds twice"
+        );
+        if paid {
+            let next = visible_track(&removed, true);
+            let remaining_refund = removed.track_demolition_refund_cents(next);
+            app.world_mut().resource_mut::<ViewState>().selected = Some(SurfaceId::Object(next));
+            persistence_key_frame(&mut app, &[KeyCode::Delete, KeyCode::F5]);
+            let after = &app.world().resource::<Simulation>().0;
+            assert!(after.object(next).is_none());
+            assert_eq!(after.cash_cents(), removed.cash_cents() + remaining_refund);
+            assert_eq!(directory.store().load().unwrap(), *after);
+        }
+    }
+}
+
+#[test]
+fn selected_occupied_paid_track_cannot_refund_or_remove_passengers() {
+    let directory = InputSaveDirectory::new();
+    let mut park = train_park();
+    crate::save_check::track_construction::install_access(&mut park).unwrap();
+    crate::save_check::track_construction::draft(&mut park, true).unwrap();
+    park.apply_track_draft().unwrap();
+    crate::save_check::track_construction::occupied(&mut park).unwrap();
+    let id = visible_track(&park, true);
+    assert!(ui::track_removal_details(&park, id, true).contains("Removal blocked"));
+    assert!(!ui::track_removal_details(&park, id, true).contains("Refund"));
+    let (mut app, _) = persistence_input_app(
+        &directory,
+        park.clone(),
+        ViewState {
+            selected: Some(SurfaceId::Object(id)),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    app.add_systems(
+        Update,
+        apply_path_actions
+            .after(keyboard_input)
+            .before(pointer_input),
+    );
+    persistence_key_frame(&mut app, &[KeyCode::Delete]);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(
+        app.world().resource::<ViewState>().selected,
+        Some(SurfaceId::Object(id))
+    );
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .path_notice
+            .as_ref()
+            .unwrap()
+            .contains("not removed")
+    );
+}
+
+#[test]
+fn hiding_selected_track_keeps_buried_guidance_and_refund_without_offering_removal() {
+    for paid in [false, true] {
+        let directory = InputSaveDirectory::new();
+        let mut park = train_park();
+        park.set_train_open(false);
+        let pos = TilePos { x: 22, y: 21 };
+        let id = if paid {
+            complete_draft(&mut park);
+            park.apply_track_draft().unwrap();
+            park.objects()
+                .iter()
+                .find(|object| object.pos == pos && object.kind == ObjectKind::Track)
+                .unwrap()
+                .id
+        } else {
+            park.place_object(pos, ObjectKind::Track, park_sim::Axis::Y, 8, 2)
+                .unwrap()
+        };
+        park.set_terrain_height(pos, 16).unwrap();
+        assert!(park.is_underground(id));
+        let before = park.clone();
+        let (mut app, _) = persistence_input_app(
+            &directory,
+            park,
+            ViewState {
+                selected: Some(SurfaceId::Object(id)),
+                view_mode: world::ViewMode::Underground,
+                speed: Speed::Paused,
+                ..default()
+            },
+        );
+        app.add_systems(
+            Update,
+            apply_path_actions
+                .after(keyboard_input)
+                .before(pointer_input),
+        );
+        app.add_systems(Update, ui::refresh.after(apply_path_actions));
+        let label = app
+            .world_mut()
+            .spawn((ui::Label::SelectionDetails, Text::new("")))
+            .id();
+        frame(&mut app);
+        let details = &app.world().get::<Text>(label).unwrap().0;
+        assert!(details.contains("Underground"));
+        assert!(details.contains("Refund"));
+        assert!(details.contains(" / Delete"));
+        persistence_key_frame(&mut app, &[KeyCode::KeyU]);
+        let details = &app.world().get::<Text>(label).unwrap().0;
+        assert!(details.contains("Buried / U to reveal"));
+        assert!(details.contains("Refund"));
+        assert!(details.contains("reveal first"));
+        assert!(!details.contains(" / Delete"));
+        persistence_key_frame(&mut app, &[KeyCode::Delete]);
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+        assert_eq!(
+            app.world().resource::<ViewState>().selected,
+            Some(SurfaceId::Object(id))
+        );
+    }
 }
 
 #[test]

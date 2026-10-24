@@ -94,6 +94,8 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::RideDemolitionRefund => ("Demolition refund", "+"),
         FinanceKind::ServiceConstruction => ("Facility construction", "-"),
         FinanceKind::ServiceDemolitionRefund => ("Demolition refund", "+"),
+        FinanceKind::TrackConstruction => ("Track construction", "-"),
+        FinanceKind::TrackRefund => ("Track refund", "+"),
     };
     let service = entry.ride.map_or_else(
         || {
@@ -246,6 +248,8 @@ mod tests {
             (FinanceKind::RideRevenue, "Ride tickets", "+"),
             (FinanceKind::RideConstruction, "Ride construction", "-"),
             (FinanceKind::RideDemolitionRefund, "Demolition refund", "+"),
+            (FinanceKind::TrackConstruction, "Track construction", "-"),
+            (FinanceKind::TrackRefund, "Track refund", "+"),
         ] {
             let entry = FinanceEntry {
                 id: 1,

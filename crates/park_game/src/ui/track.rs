@@ -12,6 +12,7 @@ pub(crate) enum TrackLabel {
     Direction,
     Height,
     Status,
+    Quote,
     Notice,
 }
 
@@ -159,8 +160,9 @@ pub(super) fn setup(commands: &mut Commands) {
                 small_button(p, "Done [Esc]", TrackCommand::Done, 100.0);
             });
             for (kind, color, height) in [
-                (TrackLabel::Status, INK, 40.0),
-                (TrackLabel::Notice, MUTED, 54.0),
+                (TrackLabel::Status, INK, 27.0),
+                (TrackLabel::Quote, INK, 40.0),
+                (TrackLabel::Notice, MUTED, 27.0),
             ] {
                 p.spawn(Node {
                     height: px(height),
@@ -218,6 +220,9 @@ pub(crate) fn refresh(
     {
         *cached_status = Some((view.track_editor.revision, track_tools::status(&sim.0)));
     }
+    // Cash, paid basis and live track may change without a draft edit. Always
+    // refresh the immutable quote so this panel cannot offer stale funding.
+    let quote = track_tools::quote_text(&sim.0);
     for (kind, mut text) in &mut labels {
         let value = match kind {
             TrackLabel::Direction => format!(
@@ -238,6 +243,7 @@ pub(crate) fn refresh(
                 .expect("status cached above")
                 .1
                 .clone(),
+            TrackLabel::Quote => quote.clone(),
             TrackLabel::Notice => {
                 if let Some(preview) = view.track_editor.preview.filter(|preview| !preview.valid) {
                     sim.0

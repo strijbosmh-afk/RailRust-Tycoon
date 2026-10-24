@@ -1,8 +1,8 @@
-//! Player-built graded circuits, persisted drafts and paid passenger continuation.
+//! Purchased graded circuits, refunds, persisted drafts and paid passenger continuation.
 use super::*;
 use park_sim::{
-    PathDirection, PathSlope, RideId, TrackBuildKind, TrackDirection, TrackKind, TrackPieceSpec,
-    TrainPhase,
+    FinanceKind, ObjectId, PathDirection, PathSlope, RideId, TrackBuildKind, TrackDirection,
+    TrackKind, TrackPieceSpec, TrainPhase,
 };
 
 const REPLAY_TICKS: u64 = 7_200;
@@ -237,53 +237,166 @@ fn invalid_plans(park: &mut Park) -> Result<(), String> {
     Ok(())
 }
 
+/// Independent price oracle: do not call the simulation's pricing helper here.
+fn piece_cost(spec: TrackPieceSpec) -> u64 {
+    match spec.kind {
+        TrackKind::Station => 10_000,
+        TrackKind::Straight => 1_000,
+        TrackKind::Curve => 1_500,
+        TrackKind::Lift => 2_500,
+        TrackKind::Drop if spec.entry.height.abs_diff(spec.exit.height) == 2 => 2_000,
+        TrackKind::Drop => 1_500,
+        TrackKind::Brake => 2_000,
+    }
+}
+
+fn paid_refund(park: &Park, object: ObjectId) -> Result<u64, String> {
+    let refund = match park
+        .track_economy()
+        .paid_pieces
+        .iter()
+        .find(|piece| piece.object == object)
+    {
+        Some(piece) => {
+            if piece.paid_cents != piece_cost(piece.spec) {
+                return Err("saved track basis disagrees with the independent piece prices".into());
+            }
+            piece.paid_cents / 2
+        }
+        None => 0,
+    };
+    if park.track_demolition_refund_cents(object) != refund {
+        return Err("track demolition quote differs from half of its actual paid basis".into());
+    }
+    Ok(refund)
+}
+
+fn check_paid_history(park: &Park) -> Result<(), String> {
+    let economy = park.track_economy();
+    let mut active = 0;
+    for piece in &economy.paid_pieces {
+        active += 2 * paid_refund(park, piece.object)?;
+        if park.object(piece.object).is_none() {
+            return Err("a refunded or missing rail retained an active paid basis".into());
+        }
+    }
+    if active + 2 * economy.refund_cents != economy.construction_cents {
+        return Err(
+            "track purchases, remaining paid rails and refunds do not conserve basis".into(),
+        );
+    }
+    let restored =
+        Park::from_save_bytes(&super::ride_choice::bytes(park)?).map_err(|e| e.to_string())?;
+    if restored != *park {
+        return Err("track paid bases or ledger changed across a strict save roundtrip".into());
+    }
+    Ok(())
+}
+
 pub(crate) fn apply(park: &mut Park) -> Result<(), String> {
     let before = park.clone();
     let owned: Vec<_> = before
         .circuit()
-        .unwrap()
-        .pieces
-        .iter()
+        .into_iter()
+        .flat_map(|circuit| &circuit.pieces)
         .map(|p| p.object)
         .collect();
+    let planned = park.validate_track_draft().map_err(|e| e.to_string())?;
+    let old: Vec<_> = before
+        .circuit()
+        .into_iter()
+        .flat_map(|circuit| circuit.specs().iter().zip(&circuit.pieces))
+        .map(|(spec, piece)| (*spec, piece.object))
+        .collect();
+    let retained: Vec<_> = old
+        .iter()
+        .filter(|(spec, _)| planned.contains(spec))
+        .copied()
+        .collect();
+    let removed: Vec<_> = old
+        .iter()
+        .filter(|(spec, _)| !planned.contains(spec))
+        .map(|(_, id)| *id)
+        .collect();
+    let cost: u64 = planned
+        .iter()
+        .filter(|spec| !old.iter().any(|(old, _)| old == *spec))
+        .map(|spec| piece_cost(*spec))
+        .sum();
+    let refund = removed
+        .iter()
+        .try_fold(0, |sum, id| paid_refund(&before, *id).map(|n| sum + n))?;
+    let quote = park.track_construction_quote().map_err(|e| e.to_string())?;
+    if *park != before
+        || park.path_cache_stats() != before.path_cache_stats()
+        || quote.construction_cents != cost
+        || quote.refund_cents != refund
+        || quote.retained_pieces != retained.len()
+        || quote.new_pieces != planned.len() - retained.len()
+        || quote.removed_pieces != removed.len()
+        || quote.available_cents != before.cash_cents()
+        || !quote.affordable()
+    {
+        return Err(
+            "immutable construction quote differs from independently priced changed rails".into(),
+        );
+    }
     park.apply_track_draft().map_err(|e| e.to_string())?;
     let circuit = park.circuit().ok_or("applied draft has no circuit")?;
     let unrelated = |source: &Park| -> Result<serde_json::Value, String> {
         let mut value: serde_json::Value =
             serde_json::from_slice(&source.to_save_bytes().map_err(|e| e.to_string())?)
                 .map_err(|e| e.to_string())?;
-        for field in ["objects", "next_object_id", "circuit", "train"] {
+        for field in [
+            "objects",
+            "next_object_id",
+            "circuit",
+            "train",
+            "ride",
+            "next_ride_id",
+            "cash_cents",
+            "finances",
+            "track_economy",
+        ] {
             value["park"].as_object_mut().unwrap().remove(field);
         }
         Ok(value)
     };
     if unrelated(&before)? != unrelated(park)? {
         return Err(
-            "track Apply changed authoritative fields outside track objects and train placement"
+            "track Apply changed authoritative fields outside track construction and payment"
                 .into(),
         );
     }
-    if circuit.pieces != before.circuit().unwrap().pieces {
-        let largest_old_id = before.objects().iter().map(|o| o.id.0).max().unwrap_or(0);
-        if owned.iter().any(|id| park.object(*id).is_some())
-            || circuit
-                .pieces
-                .iter()
-                .any(|piece| piece.object.0 <= largest_old_id)
+    let largest_old_id = before.objects().iter().map(|o| o.id.0).max().unwrap_or(0);
+    if removed.iter().any(|id| park.object(*id).is_some()) {
+        return Err("replacement retained a removed rail object".into());
+    }
+    for (spec, piece) in circuit.specs().iter().zip(&circuit.pieces) {
+        if let Some((_, old_id)) = retained.iter().find(|(old, _)| old == spec) {
+            if piece.object != *old_id
+                || paid_refund(park, *old_id)? != paid_refund(&before, *old_id)?
+            {
+                return Err("unchanged track lost its identity or original paid basis".into());
+            }
+        } else if piece.object.0 <= largest_old_id
+            || paid_refund(park, piece.object)? != piece_cost(*spec) / 2
         {
-            return Err("replacement retained stale track or reused an old object identity".into());
+            return Err("new track reused an identity or lacks its exact paid basis".into());
         }
     }
-    if park.ride() != before.ride()
+    if (before.ride().is_some() && park.ride() != before.ride())
         || park.guests() != before.guests()
-        || park.cash_cents() != before.cash_cents()
-        || park.finance_ledger() != before.finance_ledger()
+        || park.cash_cents() != before.cash_cents() + refund - cost
+        || park.track_economy().construction_cents
+            != before.track_economy().construction_cents + cost
+        || park.track_economy().refund_cents != before.track_economy().refund_cents + refund
         || park.ticks() != before.ticks()
         || park.services() != before.services()
         || park.carousels() != before.carousels()
         || park.track_draft() != before.track_draft()
         || park.path_cache_stats() != before.path_cache_stats()
-        || circuit.pieces.len() != 28
+        || circuit.specs() != planned
         || circuit
             .pieces
             .iter()
@@ -294,7 +407,7 @@ pub(crate) fn apply(park: &mut Park) -> Result<(), String> {
             t.open
                 || t.speed != 0
                 || t.phase != TrainPhase::Closed
-                || t.laps != before.train().unwrap().laps
+                || t.laps != before.train().map_or(0, |t| t.laps)
         })
         || before
             .objects()
@@ -304,12 +417,200 @@ pub(crate) fn apply(park: &mut Park) -> Result<(), String> {
     {
         return Err("track Apply changed unrelated ownership/history or did not park the replacement closed".into());
     }
-    super::ride_choice::bytes(park)?;
+    let expected_entries: Vec<_> = [
+        (FinanceKind::TrackRefund, refund),
+        (FinanceKind::TrackConstruction, cost),
+    ]
+    .into_iter()
+    .filter(|(_, amount)| *amount != 0)
+    .collect();
+    let after_ledger = park.finance_ledger();
+    if after_ledger.next_entry_id
+        != before.finance_ledger().next_entry_id + expected_entries.len() as u64
+    {
+        return Err("track Apply recorded the wrong number of cash transactions".into());
+    }
+    let mut balance = before.cash_cents();
+    for (entry, (kind, amount)) in after_ledger
+        .entries
+        .iter()
+        .rev()
+        .take(expected_entries.len())
+        .rev()
+        .zip(expected_entries)
+    {
+        balance = if kind == FinanceKind::TrackRefund {
+            balance + amount
+        } else {
+            balance - amount
+        };
+        if entry.kind != kind
+            || entry.amount_cents != amount
+            || entry.balance_cents != balance
+            || entry.ride != Some(park.ride().unwrap().id)
+            || entry.service.is_some()
+            || entry.tick != park.ticks()
+        {
+            return Err(
+                "track Apply ledger did not attribute refund-before-purchase to its coaster".into(),
+            );
+        }
+    }
+    check_paid_history(park)?;
     let applied = park.clone();
     park.apply_track_draft().map_err(|e| e.to_string())?;
     if *park != applied {
-        return Err("reapplying an unchanged circuit allocated new IDs or changed history".into());
+        return Err(
+            "reapplying an unchanged circuit allocated IDs, charged cash or changed history".into(),
+        );
     }
+    Ok(())
+}
+
+fn economics_side_cases() -> Result<(), String> {
+    use TrackBuildKind::{CurveRight, Station, Straight};
+    use TrackDirection::{East, North, South, West};
+    let mut park = Park::new(32, 32);
+    let pieces: Vec<_> = [
+        (21, 20, Station, East),
+        (22, 20, CurveRight, East),
+        (22, 21, Straight, South),
+        (22, 22, CurveRight, South),
+        (21, 22, Straight, West),
+        (20, 22, CurveRight, West),
+        (20, 21, Straight, North),
+        (20, 20, CurveRight, North),
+    ]
+    .into_iter()
+    .map(|(x, y, kind, direction)| kind.spec(TilePos { x, y }, 8, direction))
+    .collect();
+    for piece in &pieces {
+        park.set_track_draft_piece(*piece)
+            .map_err(|e| e.to_string())?;
+    }
+    apply(&mut park)?;
+    if park.cash_cents() != 81_000 || park.track_economy().construction_cents != 19_000 {
+        return Err("independent eight-piece purchase did not cost exactly $190.00".into());
+    }
+
+    // Seventy one-piece replacements exceed the retained ledger window while
+    // leaving enough money for each transaction. A brake costs $20, a straight
+    // $10; retaining the other seven rails must never repurchase them.
+    for replacement in 0..70 {
+        let kind = if replacement % 2 == 0 {
+            TrackBuildKind::Brake
+        } else {
+            Straight
+        };
+        park.set_track_draft_piece(kind.spec(TilePos { x: 22, y: 21 }, 8, South))
+            .map_err(|e| e.to_string())?;
+        apply(&mut park)?;
+        if park.cash_cents() != 81_000 - (replacement / 2 + 1) * 1_500 {
+            return Err(
+                "alternating paid rail replacements created cash or charged retained pieces".into(),
+            );
+        }
+    }
+    if park.cash_cents() != 28_500
+        || park.finance_ledger().archived_entries == 0
+        || park.finance_ledger().entries.len() != park_sim::FINANCE_LEDGER_CAPACITY
+    {
+        return Err("track replacement proof did not exercise the bounded ledger archive".into());
+    }
+    check_paid_history(&park)?;
+
+    // The complete 28-piece plan costs $470.00. The old $190.00 circuit
+    // refunds $95.00; $285.00 cash plus that refund cannot fund the purchase.
+    let mut poor = park.clone();
+    poor.clear_track_draft();
+    draft(&mut poor, true)?;
+    let before_quote = poor.clone();
+    let quote = poor.track_construction_quote().map_err(|e| e.to_string())?;
+    if poor != before_quote
+        || quote.construction_cents != 47_000
+        || quote.refund_cents != 9_500
+        || quote.available_cents != 28_500
+        || quote.affordable()
+    {
+        return Err(
+            "unaffordable replacement quote changed state or used the wrong net price".into(),
+        );
+    }
+    reject_apply(&mut poor)?;
+
+    // Paid records outlive the circuit reference set. Removing its first rail
+    // faults the train; all seven remaining rails still refund exactly once,
+    // including when the partially demolished park is loaded again.
+    let installed: Vec<_> = park
+        .circuit()
+        .unwrap()
+        .specs()
+        .iter()
+        .zip(&park.circuit().unwrap().pieces)
+        .map(|(spec, piece)| (*spec, piece.object))
+        .collect();
+    let before_demolition = park.cash_cents();
+    let mut total_refund = 0;
+    for (spec, object) in installed {
+        let refund = piece_cost(spec) / 2;
+        if paid_refund(&park, object)? != refund {
+            return Err("paid remnant lost its independent per-piece demolition quote".into());
+        }
+        let cash = park.cash_cents();
+        park.remove_object(object)
+            .ok_or("closed paid track demolition failed")?;
+        total_refund += refund;
+        if park.cash_cents() != cash + refund
+            || park.circuit().is_some()
+            || park
+                .train()
+                .is_none_or(|train| train.phase != TrainPhase::Fault)
+            || park.track_demolition_refund_cents(object) != 0
+        {
+            return Err(
+                "partial demolition did not fault safely and refund just its paid rail".into(),
+            );
+        }
+        check_paid_history(&park)?;
+        park =
+            Park::from_save_bytes(&super::ride_choice::bytes(&park)?).map_err(|e| e.to_string())?;
+        let removed = park.clone();
+        if park.remove_object(object).is_some() || park != removed {
+            return Err("a removed paid track object could be refunded twice".into());
+        }
+    }
+    if total_refund != 9_500
+        || park.cash_cents() != before_demolition + total_refund
+        || !park.track_economy().paid_pieces.is_empty()
+    {
+        return Err("complete demolition failed to refund half the surviving paid bases".into());
+    }
+
+    // Fixture and migrated rails have no paid basis. Their removal, including
+    // the faulted remnants, cannot manufacture construction refunds or entries.
+    let mut free = Park::new(32, 32);
+    free.install_train_fixture().map_err(|e| e.to_string())?;
+    free.set_train_open(false);
+    let ids: Vec<_> = free
+        .circuit()
+        .unwrap()
+        .pieces
+        .iter()
+        .map(|piece| piece.object)
+        .collect();
+    let cash = free.cash_cents();
+    let ledger = free.finance_ledger().clone();
+    for object in ids {
+        if paid_refund(&free, object)? != 0 {
+            return Err("free fixture track unexpectedly acquired a paid basis".into());
+        }
+        free.remove_object(object)
+            .ok_or("free fixture rail removal failed")?;
+        if free.cash_cents() != cash || *free.finance_ledger() != ledger {
+            return Err("removing free legacy track manufactured a refund or cash entry".into());
+        }
+    }
+    check_paid_history(&free)?;
     Ok(())
 }
 
@@ -458,6 +759,7 @@ fn replay(park: &mut Park) -> Result<(), String> {
 pub(super) fn write(session: &SaveSession) -> Result<(), String> {
     let store = session.store.as_ref().ok_or("invalid --save-dir")?;
     fs::create_dir(store.directory()).map_err(|e| e.to_string())?;
+    economics_side_cases()?;
     let mut park = demonstration_park();
     install_access(&mut park)?;
     draft(&mut park, false)?;
@@ -503,6 +805,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     let store = session.store.as_ref().ok_or("invalid --save-dir")?;
     let primary = fs::read(store.save_path()).map_err(|e| e.to_string())?;
     let backup = fs::read(store.backup_path()).map_err(|e| e.to_string())?;
+    economics_side_cases()?;
     let mut park = demonstration_park();
     let mut view = ViewState::default();
     if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Load) {
@@ -540,7 +843,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("track verification changed an original save slot".into());
     }
-    write_new(&store.directory().join("verification-track-construction.txt"), format!("Parkbound {}\nArbitrary-order station, curves, chain lifts, one/two-step drops and brakes form an exact directed height-matched loop: PASS\nIncomplete persisted draft changes no live objects, IDs, money, RNG or path cache: PASS\nIncomplete, disconnected, mismatched-height, reversed-corner and occupied-path rejection preserve full state: PASS\nWhole lift envelope protects the public bridge where a level rail still fits: PASS\nClosed Apply retains coaster identity, portals, guests, finances, history and laps: PASS\nChanged drop/brake profile preserves earned revenue/reviews/laps, allocates fresh track IDs and completes another paid journey: PASS\nRepeated Apply preserves existing piece IDs: PASS\nPaid mid-lift primary, safe occupied refusal, complete lap and public guest return: PASS\nBoth built profiles show fixed-speed lifting, downhill acceleration and brake speed: PASS\nExact mid-lift/drop/brake roundtrips and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nStrict14 roundtrips, paused incomplete-draft backup and resumed construction: PASS\nOriginal primary and backup bytes unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-track-construction.txt"), format!("Parkbound {}\nArbitrary-order station, curves, chain lifts, one/two-step drops and brakes form an exact directed height-matched loop: PASS\nIncomplete persisted draft changes no live objects, IDs, money, RNG or path cache: PASS\nIncomplete, disconnected, mismatched-height, reversed-corner and occupied-path rejection preserve full state: PASS\nWhole lift envelope protects the public bridge where a level rail still fits: PASS\nImmutable quotes match independent fixed piece prices and actual paid-basis refunds: PASS\nClosed Apply retains coaster identity, portals, guests, earned history and laps: PASS\nChanged drop/brake profile preserves unchanged rail IDs and paid bases, charges only changed rails, refunds retired paid rails and completes another paid journey: PASS\nRefund-before-purchase entries attribute exact amounts and running balances to the coaster: PASS\nRepeated Apply preserves existing piece IDs, cash and ledger: PASS\nSeventy paid straight/brake replacements archive ledger entries without profitable rebuild cycles: PASS\nUnaffordable complete replacement rejects atomically including cash, paid bases and ledger: PASS\nPartial demolition faults safely; saved remnants retain half-price refunds exactly once: PASS\nFree fixture and legacy-basis rails yield no refund or ledger entry: PASS\nPaid mid-lift primary, safe occupied refusal, complete lap and public guest return: PASS\nBoth built profiles show fixed-speed lifting, downhill acceleration and brake speed: PASS\nExact mid-lift/drop/brake roundtrips and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nStrict15 roundtrips preserve paid bases, archived history and paused incomplete-draft backup: PASS\nOriginal primary and backup bytes unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

@@ -35,7 +35,13 @@ pub(crate) fn name(park: &Park, id: RideId) -> &'static str {
 
 pub(crate) fn construction_details(park: &Park, id: RideId) -> String {
     park.carousel(id).map_or_else(
-        || "Demo coaster / fixed circuit / no demolition".into(),
+        || {
+            let paid = park.track_economy().paid_pieces.iter().map(|piece| piece.paid_cents).sum();
+            format!(
+                "Live track paid {} / 50% back on removal\nZ: quote replacement / select rail + Delete: remove",
+                money(paid)
+            )
+        },
         |carousel| match park.carousel_demolition_quote(id) {
             Ok(refund) => format!(
                 "Paid {} / Demolition refund {}",

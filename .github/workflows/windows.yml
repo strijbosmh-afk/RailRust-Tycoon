@@ -152,7 +152,7 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-facility-construction --save-dir $facilityConstructionDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process paid facilities continuation failed" }
           Get-Content -LiteralPath (Join-Path $facilityConstructionDirectory "verification-facility-construction.txt")
-      - name: Verify player-built track and saved drafts across fresh processes
+      - name: Verify paid track, refunds and saved drafts across fresh processes
         shell: pwsh
         run: |
           $trackConstructionDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound track construction proof é " + [guid]::NewGuid())

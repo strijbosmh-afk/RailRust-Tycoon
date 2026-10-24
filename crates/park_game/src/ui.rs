@@ -606,7 +606,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("G", "Show or hide the grid"),
                     ("T", "Switch flat / terraced terrain"),
                     ("U", "Show / hide underground view"),
-                    ("Delete", "Remove selected path or building"),
+                    ("Delete", "Remove selected path, track or building"),
                     ("R", "Restore the demonstration paths"),
                     ("O / F", "Open/close ride or service / find ride"),
                     ("F6 / F7", "Ticket / service price - / + $0.50"),
@@ -1052,6 +1052,9 @@ pub(super) fn refresh(
                         } else {
                             "At / above ground"
                         };
+                        let track_visible = object.kind == ObjectKind::Track && crate::world::surface_center(&sim.0, SurfaceId::Object(id), view.rotation).is_some_and(|point| {
+                            crate::world::pick_surface(point, &sim.0, view.rotation, view.view_mode) == Some(SurfaceId::Object(id))
+                        });
                         if let Some(owner) = object.queue_owner {
                             let owned_access=sim.0.ride_access(owner);
                             let status=access_reason(owned_access.status);
@@ -1105,13 +1108,23 @@ pub(super) fn refresh(
                         }) {
                             let low = piece.samples.iter().map(|p| p.height).min().unwrap_or(0);
                             let high = piece.samples.iter().map(|p| p.height).max().unwrap_or(0);
+                            let refund = track_removal_details(&sim.0, id, track_visible);
                             return format!(
-                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{state}",
+                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{state}\n{refund}",
                                 track_name(piece.kind),
                                 object.pos.x + 1,
                                 object.pos.y + 1,
                                 low / park_sim::TRACK_UNITS,
                                 high / park_sim::TRACK_UNITS,
+                            );
+                        }
+                        if object.kind == ObjectKind::Track {
+                            return format!(
+                                "Track / Tile {}, {}\nHeight: {} steps\n{state}\n{}",
+                                object.pos.x + 1,
+                                object.pos.y + 1,
+                                object.height,
+                                track_removal_details(&sim.0, id, track_visible),
                             );
                         }
                         if object.kind == ObjectKind::Path && object.path_slope != PathSlope::Flat {
@@ -1142,7 +1155,7 @@ pub(super) fn refresh(
             ),
             Label::Status if view.terrain_error.is_some() => view.terrain_error.clone().unwrap(),
             Label::Status if view.price_notice.is_some() => view.price_notice.clone().unwrap(),
-            Label::Status if view.track_editor.active => "Track draft / cyan saved pieces / Apply replaces coaster / Z or Esc to finish".into(),
+            Label::Status if view.track_editor.active => "Track draft / free planning / Apply settles quote / Z or Esc to finish".into(),
             Label::Status if view.path_tool.mode == PathTool::Build => format!(
                 "Path tool / height {} / click to place",
                 view.path_tool.height
@@ -1412,6 +1425,23 @@ pub(super) fn refresh(
             node.display = display;
         }
     }
+}
+
+pub(super) fn track_removal_details(
+    park: &park_sim::Park,
+    id: park_sim::ObjectId,
+    visible: bool,
+) -> String {
+    park.object_removal_block_reason(id).map_or_else(
+        || {
+            format!(
+                "Refund {} / {}",
+                money(park.track_demolition_refund_cents(id)),
+                if visible { "Delete" } else { "reveal first" }
+            )
+        },
+        |_| "Removal blocked: passengers".into(),
+    )
 }
 
 fn track_name(kind: TrackKind) -> &'static str {

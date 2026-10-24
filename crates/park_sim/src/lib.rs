@@ -64,7 +64,10 @@ pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,
     SurfaceObject,
 };
-pub use track_construction::{MAX_TRACK_DRAFT_PIECES, TrackBuildKind, TrackConstructionError};
+pub use track_construction::{
+    MAX_TRACK_DRAFT_PIECES, PaidTrackPiece, TRACK_REFUND_PERCENT, TrackBuildKind,
+    TrackConstructionError, TrackConstructionQuote, TrackEconomy, track_piece_cost_cents,
+};
 pub use trains::{
     STATION_DWELL_TICKS, TRACK_UNITS, TrackDirection, TrackKind, TrackPiece, TrackPieceSpec,
     TrackPoint, TrackPort, Train, TrainCircuit, TrainError, TrainPhase, TrainPose,
@@ -179,6 +182,7 @@ pub struct Park {
     crowd_rng: u64,
     circuit: Option<TrainCircuit>,
     track_draft: Vec<TrackPieceSpec>,
+    track_economy: TrackEconomy,
     train: Option<Train>,
     ride: Option<Ride>,
     carousels: Vec<CarouselRide>,
@@ -207,6 +211,7 @@ impl PartialEq for Park {
             && self.crowd_rng == other.crowd_rng
             && self.circuit == other.circuit
             && self.track_draft == other.track_draft
+            && self.track_economy == other.track_economy
             && self.train == other.train
             && self.ride == other.ride
             && self.carousels == other.carousels
@@ -256,6 +261,7 @@ impl Park {
             crowd_rng: 0,
             circuit: None,
             track_draft: Vec::new(),
+            track_economy: TrackEconomy::default(),
             train: None,
             ride: None,
             carousels: Vec::new(),

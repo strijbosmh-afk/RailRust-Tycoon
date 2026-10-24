@@ -6,6 +6,17 @@ use crate::{
 };
 use park_sim::{TrackBuildKind, TrackDirection};
 
+const PAID_SITE: TilePos = TilePos { x: 14, y: 5 };
+
+fn paid_object(park: &Park) -> park_sim::ObjectId {
+    park.track_economy()
+        .paid_pieces
+        .iter()
+        .find(|p| p.spec.pos == PAID_SITE)
+        .unwrap()
+        .object
+}
+
 fn prepare_state(park: &mut Park, scene: Scene) {
     track_construction::install_access(park).unwrap();
     ride_choice::seek(
@@ -32,6 +43,33 @@ fn prepare_state(park: &mut Park, scene: Scene) {
     if matches!(scene, Scene::TrackOccupied) {
         track_construction::reject_apply(park).unwrap();
     }
+    if matches!(
+        scene,
+        Scene::TrackReplacement | Scene::TrackRefund | Scene::TrackFinance
+    ) {
+        track_construction::apply(park).unwrap();
+    }
+    if matches!(scene, Scene::TrackReplacement | Scene::TrackFinance) {
+        park.set_track_draft_piece(TrackBuildKind::Brake.spec(
+            PAID_SITE,
+            11,
+            TrackDirection::North,
+        ))
+        .unwrap();
+        let quote = park.track_construction_quote().unwrap();
+        assert_eq!((quote.construction_cents, quote.refund_cents), (2_000, 500));
+    }
+    if matches!(scene, Scene::TrackFinance) {
+        track_construction::apply(park).unwrap();
+        let object = paid_object(park);
+        assert_eq!(park.track_demolition_refund_cents(object), 1_000);
+        park.remove_object(object).unwrap();
+    }
+    if matches!(scene, Scene::TrackUnaffordable) {
+        crate::save_check::facility_construction::spend_down(park).unwrap();
+        assert!(!park.track_construction_quote().unwrap().affordable());
+        track_construction::reject_apply(park).unwrap();
+    }
 }
 
 fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
@@ -39,7 +77,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
     view.help = false;
     view.guests_open = false;
     view.services_open = false;
-    view.finance_open = false;
+    view.finance_open = matches!(scene, Scene::TrackFinance);
     view.rides_open = false;
     view.selected_ride = None;
     view.selected = None;
@@ -47,7 +85,10 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
     view.path_tool = ToolState::default();
     view.path_notice = None;
     view.track_editor = track_tools::TrackEditor {
-        active: !matches!(scene, Scene::TrackBuilt),
+        active: !matches!(
+            scene,
+            Scene::TrackBuilt | Scene::TrackRefund | Scene::TrackFinance
+        ),
         ..default()
     };
     let anchor = match scene {
@@ -56,10 +97,8 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             let spec = TrackBuildKind::Lift.spec(pos, 8, TrackDirection::East);
             view.track_editor.kind = TrackBuildKind::Lift;
             assert!(park.validate_track_draft_piece(spec).is_err());
-            view.track_editor.notice = format!(
-                "Height mismatch: {}",
-                park.validate_track_draft().unwrap_err()
-            );
+            view.track_editor.notice =
+                "Lift endpoint does not match.\nBridge blocks the hovered lift.".into();
             pos
         }
         Scene::TrackOccupied => {
@@ -67,7 +106,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             view.track_editor.kind = TrackBuildKind::Lift;
             view.track_editor.height = 9;
             view.track_editor.notice =
-                format!("Apply refused: {}", copy.apply_track_draft().unwrap_err());
+                track_tools::apply_error_message(copy.apply_track_draft().unwrap_err());
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackReady => {
@@ -77,6 +116,30 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
                 "Graded loop ready to apply.\nAll endpoint heights match.".into();
             TilePos { x: 11, y: 7 }
         }
+        Scene::TrackReplacement => {
+            view.track_editor.kind = TrackBuildKind::Brake;
+            view.track_editor.height = 11;
+            view.track_editor.notice =
+                "One straight becomes brakes.\n$5 refund toward $20 brakes.".into();
+            PAID_SITE
+        }
+        Scene::TrackUnaffordable => {
+            let mut copy = park.clone();
+            view.track_editor.notice =
+                track_tools::apply_error_message(copy.apply_track_draft().unwrap_err());
+            TilePos { x: 11, y: 7 }
+        }
+        Scene::TrackRefund => {
+            view.selected = Some(SurfaceId::Object(paid_object(park)));
+            view.path_notice =
+                Some("Inspect paid track, then Delete to remove and refund half.".into());
+            PAID_SITE
+        }
+        Scene::TrackFinance => {
+            view.path_notice =
+                Some("Paid replacement and rail demolition retained in coaster finances.".into());
+            PAID_SITE
+        }
         Scene::TrackBuilt => {
             view.path_notice = Some("Paying guests climb the new chain lift.".into());
             TilePos { x: 11, y: 7 }
@@ -85,8 +148,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             view.track_editor.kind = TrackBuildKind::Lift;
             view.track_editor.direction = TrackDirection::North;
             view.track_editor.height = 9;
-            view.track_editor.notice =
-                "14 graded pieces saved in the draft.\nMatch every endpoint before Apply.".into();
+            view.track_editor.notice = "14 draft pieces saved.\nJoin all ends before Apply.".into();
             TilePos { x: 15, y: 8 }
         }
         _ => unreachable!(),
@@ -138,6 +200,10 @@ mod tests {
             Scene::TrackReady,
             Scene::TrackBuilt,
             Scene::TrackOccupied,
+            Scene::TrackReplacement,
+            Scene::TrackUnaffordable,
+            Scene::TrackRefund,
+            Scene::TrackFinance,
         ] {
             let mut park = crate::demonstration_park();
             prepare_state(&mut park, scene);
