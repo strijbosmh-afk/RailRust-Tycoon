@@ -8,6 +8,8 @@ mod ride_operations;
 use ride_operations::VersionFifteenParkData;
 mod ride_dispatch;
 use ride_dispatch::VersionSixteenParkData;
+mod train_configuration;
+use train_configuration::VersionEighteenParkData;
 mod ride_appeal;
 use ride_appeal::VersionSeventeenParkData;
 mod track_construction;
@@ -35,8 +37,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 18;
-pub const CONTENT_VERSION: u32 = 18;
+pub const SCHEMA_VERSION: u32 = 19;
+pub const CONTENT_VERSION: u32 = 19;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -123,6 +125,7 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    coaster_cars: u8,
     #[serde(deserialize_with = "strict_object")]
     track_economy: crate::TrackEconomy,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
@@ -279,6 +282,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
@@ -439,6 +443,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
@@ -662,6 +667,7 @@ impl Park {
                 | 15
                 | 16
                 | 17
+                | 18
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -727,6 +733,9 @@ impl Park {
             legacy.park.migrate()
         } else if header.schema_version == 17 {
             let legacy: SaveEnvelope<VersionSeventeenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
+        } else if header.schema_version == 18 {
+            let legacy: SaveEnvelope<VersionEighteenParkData> = parse_save(bytes)?;
             legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
@@ -1406,6 +1415,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
@@ -1433,6 +1443,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
@@ -1463,6 +1474,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
@@ -1621,6 +1633,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
@@ -1742,6 +1755,7 @@ impl ParkData {
             carousels: park.carousels.clone(),
             ride_operating_settings: park.ride_operating_settings.clone(),
             ride_dispatch: park.ride_dispatch.clone(),
+            coaster_cars: park.coaster_cars,
         }
     }
 
@@ -1785,9 +1799,11 @@ impl ParkData {
             carousels: self.carousels,
             ride_operating_settings: self.ride_operating_settings,
             ride_dispatch: self.ride_dispatch,
+            coaster_cars: self.coaster_cars,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
         };
+        crate::train_configuration::validate_saved_configuration(&park).map_err(invalid)?;
         validate_counts(&park)?;
         crate::track_construction::validate_saved_draft(&park)
             .map_err(|error| invalid(error.to_string()))?;
@@ -2222,12 +2238,17 @@ mod tests {
         let mut old = value(&source);
         crate::finances::tests::strip_carousel_fields(&mut old);
         old["schema_version"] = json!(9);
+        old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(9);
         let bytes = serde_json::to_vec(&old).unwrap();
         let migrated = Park::from_save_bytes(&bytes).unwrap();
         let mut projection = value(&migrated);
         crate::finances::tests::strip_carousel_fields(&mut projection);
         projection["schema_version"] = json!(9);
+        projection["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("coaster_cars");
         projection["content_version"] = json!(9);
         assert_eq!(projection, old);
         assert!(migrated.carousels.is_empty());
@@ -2300,12 +2321,17 @@ mod tests {
         assert!(decode(&too_many).is_err());
         let mut mixed = base;
         mixed["schema_version"] = json!(9);
+        mixed["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("coaster_cars");
         assert!(decode(&mixed).is_err());
     }
 
     fn legacy_value(park: &Park) -> Value {
         let mut data = version_two_value(park);
         data["schema_version"] = json!(1);
+        data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(1);
         for object in data["park"]["objects"].as_array_mut().unwrap() {
             assert_eq!(object["path_slope"], json!("Flat"));
@@ -2322,6 +2348,7 @@ mod tests {
         let mut data = version_three_value(park);
         assert!(park.ride().is_none_or(|ride| ride.entrance.is_none()));
         data["schema_version"] = json!(2);
+        data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(2);
         data["park"].as_object_mut().unwrap().remove("ride");
         data["park"].as_object_mut().unwrap().remove("next_ride_id");
@@ -2335,6 +2362,7 @@ mod tests {
     fn version_three_value(park: &Park) -> Value {
         let mut data = version_four_value(park);
         data["schema_version"] = json!(3);
+        data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(3);
         for guest in data["park"]["guests"].as_array_mut().unwrap() {
             assert_eq!(guest["ride_visit"], Value::Null);
@@ -2359,6 +2387,7 @@ mod tests {
     fn version_four_value(park: &Park) -> Value {
         let mut data = version_five_value(park);
         data["schema_version"] = json!(4);
+        data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(4);
         for guest in data["park"]["guests"].as_array_mut().unwrap() {
             assert_eq!(guest["rides_completed"], json!(0));
@@ -2380,6 +2409,7 @@ mod tests {
     fn version_five_value(park: &Park) -> Value {
         let mut data = crate::experience::tests::strip_feedback(value(park));
         data["schema_version"] = json!(5);
+        data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(5);
         assert_eq!(
             data["park"]["cash_cents"],

@@ -8,6 +8,7 @@ use crate::{SaveAction, Simulation, ViewState, ui};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum OperatingField {
+    Cars,
     StationWait,
     LiftSpeed,
     BrakeSpeed,
@@ -27,7 +28,7 @@ impl OperatingField {
     pub(crate) fn supported(self, kind: RideKind) -> bool {
         match self {
             Self::StationWait | Self::MinimumPassengers | Self::MaxExtraWait => true,
-            Self::LiftSpeed | Self::BrakeSpeed => kind != RideKind::Carousel,
+            Self::Cars | Self::LiftSpeed | Self::BrakeSpeed => kind != RideKind::Carousel,
             Self::CycleDuration => kind == RideKind::Carousel,
         }
     }
@@ -74,7 +75,7 @@ impl OperatingField {
                     u32::from(park_sim::MAX_CAROUSEL_CYCLE_TICKS),
                 ) as u16;
             }
-            Self::MinimumPassengers | Self::MaxExtraWait => {}
+            Self::Cars | Self::MinimumPassengers | Self::MaxExtraWait => {}
         }
         value
     }
@@ -83,13 +84,17 @@ impl OperatingField {
         matches!(self, Self::MinimumPassengers | Self::MaxExtraWait)
     }
 
-    fn adjusted_policy(self, mut policy: RideDispatchPolicy, direction: i8) -> RideDispatchPolicy {
+    fn adjusted_policy(
+        self,
+        mut policy: RideDispatchPolicy,
+        direction: i8,
+        capacity: u8,
+    ) -> RideDispatchPolicy {
         match self {
             Self::MinimumPassengers => {
                 policy.minimum_passengers = (i16::from(policy.minimum_passengers)
                     + i16::from(direction))
-                .clamp(0, i16::from(park_sim::MAX_DISPATCH_PASSENGERS))
-                    as u8
+                .clamp(0, i16::from(capacity)) as u8
             }
             Self::MaxExtraWait => {
                 policy.maximum_extra_wait_ticks = (i32::from(policy.maximum_extra_wait_ticks)
@@ -103,6 +108,10 @@ impl OperatingField {
         }
         policy
     }
+}
+
+fn adjusted_cars(cars: u8, direction: i8) -> u8 {
+    (i16::from(cars) + i16::from(direction)).clamp(1, 3) as u8
 }
 
 pub(crate) fn queue(view: &mut ViewState, command: OperationCommand) {
@@ -151,15 +160,23 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: OperationC
         return false;
     };
     match command {
+        OperationCommand::Adjust(OperatingField::Cars, direction) => park
+            .coaster_car_count(id)
+            .is_some_and(|cars| adjusted_cars(cars, direction) != cars),
         OperationCommand::Adjust(field, direction) if field.dispatch() => {
-            field.adjusted_policy(policy, direction) != policy
+            field.adjusted_policy(policy, direction, park.ride_capacity(id).unwrap_or(0) as u8)
+                != policy
         }
         OperationCommand::Adjust(field, direction) => {
             park.ride_kind(id).is_some_and(|kind| field.supported(kind))
                 && field.adjusted(settings, direction) != settings
         }
         OperationCommand::ResetDefaults => {
-            settings != RideOperatingSettings::default() || policy != RideDispatchPolicy::default()
+            settings != RideOperatingSettings::default()
+                || policy != RideDispatchPolicy::default()
+                || park
+                    .coaster_car_count(id)
+                    .is_some_and(|cars| cars != park_sim::DEFAULT_COASTER_CARS)
         }
         OperationCommand::ToggleOpen => true,
     }
@@ -233,13 +250,36 @@ pub(crate) fn perform_command(
         view.ride_operating_notice = Some("Ride is unavailable. Settings are unchanged.".into());
         return false;
     };
+    if let OperationCommand::Adjust(OperatingField::Cars, direction) = command {
+        let Some(cars) = park.coaster_car_count(id) else {
+            view.ride_operating_notice = Some("Cars apply to the coaster.".into());
+            return false;
+        };
+        return match park.set_coaster_car_count(id, adjusted_cars(cars, direction)) {
+            Ok(changed) => {
+                view.ride_operating_notice = Some(format!(
+                    "{} cars / {} seats. Save to keep them.",
+                    park.coaster_car_count(id).unwrap(),
+                    park.ride_capacity(id).unwrap()
+                ));
+                changed
+            }
+            Err(error) => {
+                view.ride_operating_notice = Some(format!("Train unchanged: {error}"));
+                false
+            }
+        };
+    }
     if let OperationCommand::Adjust(field, direction) = command
         && field.dispatch()
     {
         let Some(policy) = park.ride_dispatch_policy(id) else {
             return false;
         };
-        return match park.set_ride_dispatch_policy(id, field.adjusted_policy(policy, direction)) {
+        return match park.set_ride_dispatch_policy(
+            id,
+            field.adjusted_policy(policy, direction, park.ride_capacity(id).unwrap_or(0) as u8),
+        ) {
             Ok(changed) => {
                 view.ride_operating_notice = Some(
                     if changed {
@@ -261,7 +301,12 @@ pub(crate) fn perform_command(
         let Some(policy) = park.ride_dispatch_policy(id) else {
             return false;
         };
-        if settings == RideOperatingSettings::default() && policy == RideDispatchPolicy::default() {
+        if settings == RideOperatingSettings::default()
+            && policy == RideDispatchPolicy::default()
+            && park
+                .coaster_car_count(id)
+                .is_none_or(|cars| cars == park_sim::DEFAULT_COASTER_CARS)
+        {
             view.ride_operating_notice = Some("Settings already match. No changes made.".into());
             return false;
         }
@@ -279,6 +324,10 @@ pub(crate) fn perform_command(
             .expect("fixed operating defaults and shared edit guard are validated");
         park.set_ride_dispatch_policy(id, RideDispatchPolicy::default())
             .expect("fixed dispatch defaults and shared edit guard are validated");
+        if park.coaster_car_count(id).is_some() {
+            park.set_coaster_car_count(id, park_sim::DEFAULT_COASTER_CARS)
+                .expect("three cars fit the default loading policy and shared edit guard");
+        }
         view.ride_operating_notice =
             Some("Operating settings and loading policy reset. Save to keep them.".into());
         return true;

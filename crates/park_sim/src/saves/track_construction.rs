@@ -64,6 +64,7 @@ pub(super) struct VersionTwelveParkData<O = SurfaceObject, G = Guest, R = crate:
 impl VersionTwelveParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
@@ -131,6 +132,7 @@ pub(super) struct VersionFourteenParkData<O = SurfaceObject, G = Guest, R = crat
 impl VersionFourteenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_economy: crate::TrackEconomy::default(),

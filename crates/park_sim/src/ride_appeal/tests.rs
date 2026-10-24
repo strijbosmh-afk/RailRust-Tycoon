@@ -580,6 +580,7 @@ fn version_seventeen_identity_migration_preserves_loading_state_and_new_engine_c
         let mut old = value(&park);
         let body = old["park"].clone();
         old["schema_version"] = json!(17);
+        old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(17);
         let source_bytes = serde_json::to_vec(&old).unwrap();
         let migrated = Park::from_save_bytes(&source_bytes).unwrap();
@@ -617,6 +618,12 @@ fn version_seventeen_stays_strict_and_derived_appeal_is_not_serialized() {
         let mut source = base.clone();
         source["schema_version"] = json!(version);
         source["content_version"] = json!(version);
+        if version < 19 {
+            source["park"]
+                .as_object_mut()
+                .unwrap()
+                .remove("coaster_cars");
+        }
         assert!(read(&source).is_ok());
         for (path, field) in [
             ("/park", "ride_appeal"),
@@ -648,7 +655,7 @@ fn version_seventeen_stays_strict_and_derived_appeal_is_not_serialized() {
         assert_ne!(text, duplicate);
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
     }
-    for pair in [(17, 18), (18, 17), (19, 19)] {
+    for pair in [(17, 18), (18, 17), (20, 20)] {
         let mut malformed = base.clone();
         malformed["schema_version"] = json!(pair.0);
         malformed["content_version"] = json!(pair.1);

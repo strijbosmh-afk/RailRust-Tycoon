@@ -177,6 +177,7 @@ fn free_schema_fourteen_track_gets_no_windfall_but_new_replacement_is_paid() {
         .remove("ride_operating_settings");
     old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["schema_version"] = json!(14);
+    old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(14);
     old["park"].as_object_mut().unwrap().remove("track_economy");
     let mut migrated = read(&old).unwrap();
@@ -217,6 +218,10 @@ fn free_schema_fourteen_track_gets_no_windfall_but_new_replacement_is_paid() {
         .unwrap()
         .remove("ride_dispatch");
     smuggled["schema_version"] = json!(14);
+    smuggled["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     smuggled["content_version"] = json!(14);
     smuggled["park"]
         .as_object_mut()

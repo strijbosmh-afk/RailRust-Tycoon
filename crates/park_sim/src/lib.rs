@@ -18,6 +18,11 @@ mod ride_access;
 mod ride_access_tests;
 mod ride_appeal;
 mod ride_choice;
+mod train_configuration;
+pub use train_configuration::{
+    DEFAULT_COASTER_CARS, MAX_COASTER_CARS, MIN_COASTER_CARS, SEATS_PER_COASTER_CAR,
+    TrainConfigurationError,
+};
 mod ride_dispatch;
 mod ride_operations;
 mod ride_testing;
@@ -220,6 +225,7 @@ pub struct Park {
     carousels: Vec<CarouselRide>,
     ride_operating_settings: Vec<ride_operations::RideOperatingSettingsRecord>,
     ride_dispatch: Vec<ride_dispatch::RideDispatchRecord>,
+    coaster_cars: u8,
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
@@ -251,6 +257,7 @@ impl PartialEq for Park {
             && self.carousels == other.carousels
             && self.ride_operating_settings == other.ride_operating_settings
             && self.ride_dispatch == other.ride_dispatch
+            && self.coaster_cars == other.coaster_cars
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
@@ -303,6 +310,7 @@ impl Park {
             carousels: Vec::new(),
             ride_operating_settings: Vec::new(),
             ride_dispatch: Vec::new(),
+            coaster_cars: DEFAULT_COASTER_CARS,
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),

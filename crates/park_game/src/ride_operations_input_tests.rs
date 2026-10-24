@@ -131,6 +131,107 @@ fn settings(app: &App, id: RideId) -> RideOperatingSettings {
 }
 
 #[test]
+fn car_buttons_change_visible_capacity_once_invalidate_tests_and_survive_save_load() {
+    let (mut app, _directory, coaster, carousel) = fixture();
+    let report = app
+        .world()
+        .resource::<Simulation>()
+        .0
+        .test_coaster()
+        .unwrap();
+    app.world_mut()
+        .resource_mut::<ViewState>()
+        .coaster_testing
+        .report = Some(report);
+    let command = OperationCommand::Adjust(OperatingField::Cars, -1);
+    frame(&mut app, &[ui::Action::RideOperating(command)], &[]);
+    app.update();
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(park.coaster_car_count(coaster), Some(2));
+    assert_eq!(park.ride_capacity(coaster), Some(4));
+    assert_eq!(park.train_cars().len(), 2);
+    assert_eq!(park.ride_capacity(carousel), Some(6));
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .coaster_testing
+            .report
+            .is_none()
+    );
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    frame(&mut app, &[ui::Action::Rides], &[]);
+    frame(&mut app, &[], &[]);
+    click(&mut app, command);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .coaster_car_count(coaster),
+        Some(1)
+    );
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F9]);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .coaster_car_count(coaster),
+        Some(2)
+    );
+    assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
+}
+
+#[test]
+fn minimum_load_blocks_car_removal_and_reset_restores_three_cars_atomically() {
+    let (mut app, _directory, coaster, carousel) = fixture();
+    click(&mut app, OperationCommand::Adjust(OperatingField::Cars, -1));
+    for _ in 0..4 {
+        click(
+            &mut app,
+            OperationCommand::Adjust(OperatingField::MinimumPassengers, 1),
+        );
+    }
+    let before = app.world().resource::<Simulation>().0.clone();
+    assert_eq!(
+        before
+            .ride_dispatch_policy(coaster)
+            .unwrap()
+            .minimum_passengers,
+        4
+    );
+    click(&mut app, OperationCommand::Adjust(OperatingField::Cars, -1));
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .ride_operating_notice
+            .as_ref()
+            .unwrap()
+            .contains("Lower minimum load")
+    );
+    click(&mut app, OperationCommand::ResetDefaults);
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(park.coaster_car_count(coaster), Some(3));
+    assert_eq!(
+        park.ride_dispatch_policy(coaster),
+        Some(RideDispatchPolicy::default())
+    );
+    assert_eq!(
+        park.ride_operating_settings(carousel),
+        before.ride_operating_settings(carousel)
+    );
+    frame(&mut app, &[], &[KeyCode::ArrowDown]);
+    assert!(!command_enabled(
+        &app.world().resource::<Simulation>().0,
+        app.world().resource::<ViewState>(),
+        OperationCommand::Adjust(OperatingField::Cars, -1)
+    ));
+}
+
+#[test]
 fn visible_settings_buttons_target_selected_ride_once_and_preserve_other_park_state() {
     let (mut app, _directory, coaster, carousel) = fixture();
     let mut expected = app.world().resource::<Simulation>().0.clone();
@@ -369,7 +470,9 @@ fn operating_rows_show_family_specific_units_and_panel_fits_minimum_window() {
                 || (!carousel
                     && matches!(
                         field.0,
-                        OperatingField::LiftSpeed | OperatingField::BrakeSpeed
+                        OperatingField::Cars
+                            | OperatingField::LiftSpeed
+                            | OperatingField::BrakeSpeed
                     ));
             assert_eq!(
                 node.display,

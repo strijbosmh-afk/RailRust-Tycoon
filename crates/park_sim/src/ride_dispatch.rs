@@ -108,6 +108,9 @@ impl Park {
             .ride_dispatch_policy(id)
             .ok_or(RideOperatingError::UnknownRide(id))?;
         policy.validate()?;
+        if usize::from(policy.minimum_passengers) > self.ride_capacity(id).unwrap_or(0) {
+            return Err(RideDispatchError::InvalidMinimumPassengers);
+        }
         if current == policy {
             return Ok(false);
         }
@@ -228,6 +231,11 @@ pub(crate) fn validate_saved_dispatch(park: &Park) -> Result<(), String> {
             .policy
             .validate()
             .map_err(|error| error.to_string())?;
+        if usize::from(record.policy.minimum_passengers)
+            > park.ride_capacity(record.ride).unwrap_or(0)
+        {
+            return Err("minimum load exceeds the configured ride capacity".into());
+        }
         if record.policy == RideDispatchPolicy::default() {
             return Err("default dispatch policies must not be stored as overrides".into());
         }
@@ -845,6 +853,7 @@ mod tests {
         assert_eq!(park.carousel(carousel).unwrap().cycles, 1);
         let mut old = value(&park);
         old["schema_version"] = json!(16);
+        old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(16);
         old["park"].as_object_mut().unwrap().remove("ride_dispatch");
         let mut migrated = read(&old).unwrap();
@@ -852,6 +861,10 @@ mod tests {
         assert!(migrated.ride_dispatch.is_empty());
         let mut projected = value(&migrated);
         projected["schema_version"] = json!(16);
+        projected["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("coaster_cars");
         projected["content_version"] = json!(16);
         projected["park"]
             .as_object_mut()

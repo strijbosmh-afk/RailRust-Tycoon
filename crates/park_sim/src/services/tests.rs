@@ -73,6 +73,10 @@ fn ledger(park: &Park) {
 pub(crate) fn strip_services(value: Value) -> Value {
     let mut value = crate::finances::tests::strip_finances(value);
     value["schema_version"] = json!(7);
+    value["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("coaster_cars");
     value["content_version"] = json!(7);
     assert!(value["park"]["services"].as_array().unwrap().is_empty());
     let park = value["park"].as_object_mut().unwrap();

@@ -1,5 +1,7 @@
 # Theme Park Simulation Development Plan
 
+**0.35.0 train configuration is in verification** on `codex/coaster-car-count`, based on 0.34.1. Coasters now support one train with 1–3 cars and 2–6 seats through guarded Operations controls. Current saves use 19/19 with explicit older-save migration. [TRAIN_CONFIGURATION_REPORT.md](docs/TRAIN_CONFIGURATION_REPORT.md) records scope and pending checks; the previous verified delivery below remains 0.34.1.
+
 Latest locally verified delivery: **0.34.1 exit path fix**, runtime `a9217be3e366033a9f04adc0576b64d5f67db01d` on `codex/exit-path-connection` in [draft PR #33](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/33). The helper routes around track and finds exposed path targets; the Access checklist separates the gate connection from the public return route. All **697 tests**, strict Clippy/build, ten packaged proof processes, four bidirectional compatibility processes and six inspected captures passed. Saves remain **18/18**. The functional checkpoint passed all 35 CI steps; the final hint-only revision has separate CI still running. [EXIT_PATH_FIX_REPORT.md](docs/EXIT_PATH_FIX_REPORT.md) records exact identities and scoped evidence.
 
 Build a complete, free Windows game in Rust that recreates the construction and management experience of classic RollerCoaster Tycoon 1 and 2. Development proceeds through playable milestones, each with a demonstrable completion condition. Distribution, save compatibility, and original content are part of the design from the beginning.
