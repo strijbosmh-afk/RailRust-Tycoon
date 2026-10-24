@@ -8,6 +8,17 @@ use park_sim::{TrackBuildKind, TrackDirection};
 
 const PAID_SITE: TilePos = TilePos { x: 14, y: 5 };
 
+fn is_editing_scene(scene: Scene) -> bool {
+    matches!(
+        scene,
+        Scene::TrackCopied
+            | Scene::TrackEdited
+            | Scene::TrackUndone
+            | Scene::TrackRedone
+            | Scene::TrackHistoryEmpty
+    )
+}
+
 fn paid_object(park: &Park) -> park_sim::ObjectId {
     park.track_economy()
         .paid_pieces
@@ -70,6 +81,57 @@ fn prepare_state(park: &mut Park, scene: Scene) {
         assert!(!park.track_construction_quote().unwrap().affordable());
         track_construction::reject_apply(park).unwrap();
     }
+    if is_editing_scene(scene) {
+        track_construction::apply(park).unwrap();
+        park.clear_track_draft();
+    }
+}
+
+fn prepare_editor(park: &mut Park, view: &mut ViewState, scene: Scene) {
+    if !is_editing_scene(scene) {
+        return;
+    }
+    use track_tools::TrackCommand;
+    view.track_editor = track_tools::TrackEditor {
+        active: true,
+        ..default()
+    };
+    let before = park.clone();
+    track_tools::apply_command(park, view, TrackCommand::CopyInstalled);
+    assert_eq!(view.track_editor.undo_len(), 1);
+    assert_eq!(park.track_draft(), park.circuit().unwrap().specs());
+    if !matches!(scene, Scene::TrackCopied | Scene::TrackHistoryEmpty) {
+        track_construction::edit_draft_piece(
+            park,
+            view,
+            TrackBuildKind::Brake,
+            PAID_SITE,
+            11,
+            TrackDirection::North,
+        )
+        .unwrap();
+        if matches!(scene, Scene::TrackUndone | Scene::TrackRedone) {
+            track_tools::apply_command(park, view, TrackCommand::Undo);
+        }
+        if matches!(scene, Scene::TrackRedone) {
+            track_tools::apply_command(park, view, TrackCommand::Redo);
+        }
+    }
+    if matches!(scene, Scene::TrackHistoryEmpty) {
+        // Session history is deliberately absent after a real save roundtrip.
+        *park = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+        view.track_editor = track_tools::TrackEditor {
+            active: true,
+            notice: "Loaded draft / history is empty.\nNew edits can be undone.".into(),
+            ..default()
+        };
+    }
+    let mut after = park.clone();
+    after.clear_track_draft();
+    assert_eq!(
+        after, before,
+        "editor capture preparation changed live track or money"
+    );
 }
 
 fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
@@ -84,14 +146,21 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
     view.hovered = None;
     view.path_tool = ToolState::default();
     view.path_notice = None;
-    view.track_editor = track_tools::TrackEditor {
-        active: !matches!(
-            scene,
-            Scene::TrackBuilt | Scene::TrackRefund | Scene::TrackFinance
-        ),
-        ..default()
-    };
+    if !is_editing_scene(scene) {
+        view.track_editor = track_tools::TrackEditor {
+            active: !matches!(
+                scene,
+                Scene::TrackBuilt | Scene::TrackRefund | Scene::TrackFinance
+            ),
+            ..default()
+        };
+    }
     let anchor = match scene {
+        Scene::TrackCopied
+        | Scene::TrackEdited
+        | Scene::TrackUndone
+        | Scene::TrackRedone
+        | Scene::TrackHistoryEmpty => PAID_SITE,
         Scene::TrackInvalid => {
             let pos = TilePos { x: 13, y: 10 };
             let spec = TrackBuildKind::Lift.spec(pos, 8, TrackDirection::East);
@@ -185,6 +254,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
 
 pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
     prepare_state(park, scene);
+    prepare_editor(park, view, scene);
     ride_choice::bytes(park).unwrap();
     present(park, view, scene);
 }
@@ -204,20 +274,31 @@ mod tests {
             Scene::TrackUnaffordable,
             Scene::TrackRefund,
             Scene::TrackFinance,
+            Scene::TrackCopied,
+            Scene::TrackEdited,
+            Scene::TrackUndone,
+            Scene::TrackRedone,
+            Scene::TrackHistoryEmpty,
         ] {
             let mut park = crate::demonstration_park();
             prepare_state(&mut park, scene);
-            let bytes = ride_choice::bytes(&park).unwrap();
             let mut view = ViewState {
                 capture_active: true,
                 ..default()
             };
+            prepare_editor(&mut park, &mut view, scene);
+            let bytes = ride_choice::bytes(&park).unwrap();
+            let counts = (view.track_editor.undo_len(), view.track_editor.redo_len());
             for rotation in 0..4 {
                 for mode in [ViewMode::Surface, ViewMode::Underground] {
                     view.rotation = rotation;
                     view.view_mode = mode;
                     present(&mut park, &mut view, scene);
                     assert_eq!(bytes, park.to_save_bytes().unwrap());
+                    assert_eq!(
+                        (view.track_editor.undo_len(), view.track_editor.redo_len()),
+                        counts
+                    );
                 }
             }
         }

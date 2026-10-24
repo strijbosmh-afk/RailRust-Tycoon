@@ -523,6 +523,47 @@ fn tick_simulation(
     }
 }
 
+/// Preserve modifier edges when a complete native chord arrives within one update.
+fn track_history_shortcut(keys: &ButtonInput<KeyCode>) -> Option<track_tools::TrackCommand> {
+    let held = |key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key);
+    if ![KeyCode::ControlLeft, KeyCode::ControlRight]
+        .into_iter()
+        .any(held)
+    {
+        return None;
+    }
+    if keys.just_pressed(KeyCode::KeyZ) {
+        let redo = [KeyCode::ShiftLeft, KeyCode::ShiftRight]
+            .into_iter()
+            .any(held);
+        Some(if redo {
+            track_tools::TrackCommand::Redo
+        } else {
+            track_tools::TrackCommand::Undo
+        })
+    } else if keys.just_pressed(KeyCode::KeyY) {
+        Some(track_tools::TrackCommand::Redo)
+    } else {
+        None
+    }
+}
+
+fn request_keyboard_save(keys: &ButtonInput<KeyCode>, view: &mut ViewState) {
+    if keys.just_pressed(KeyCode::F5) {
+        view.request_save(SaveAction::Save);
+    }
+    if keys.just_pressed(KeyCode::F9) {
+        let backup = [KeyCode::ShiftLeft, KeyCode::ShiftRight]
+            .into_iter()
+            .any(|key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key));
+        view.request_save(if backup {
+            SaveAction::Backup
+        } else {
+            SaveAction::Load
+        });
+    }
+}
+
 fn keyboard_input(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -571,6 +612,21 @@ fn keyboard_input(
         view.finance_page = 0;
         view.finance_page_pending = 0;
         view.set_modal(false, false, false, open);
+        return;
+    }
+    // Consume history chords before plain Y/Z can toggle a panel. Other modal
+    // transitions above still win, and loading wins over a same-frame edit.
+    if let Some(command) = track_history_shortcut(&keys) {
+        if !view.edits_blocked() {
+            request_keyboard_save(&keys, &mut view);
+            if keys.just_pressed(KeyCode::Escape) && view.track_editor.active {
+                view.track_editor.active = false;
+                view.track_editor.preview = None;
+            } else {
+                track_tools::queue(&mut view, command);
+            }
+        }
+        view.ui_pointer_consumed = true;
         return;
     }
     if keys.just_pressed(KeyCode::KeyY) {
@@ -765,22 +821,7 @@ fn keyboard_input(
     if keys.just_pressed(KeyCode::F7) {
         view.request_price_change(1);
     }
-    if keys.just_pressed(KeyCode::F5) {
-        view.request_save(SaveAction::Save);
-    }
-    if keys.just_pressed(KeyCode::F9) {
-        // Native events can press and release the entire chord before the
-        // next update, including Shift held since an earlier update. Preserve
-        // this update's modifier edges as well as held Shift.
-        let backup = [KeyCode::ShiftLeft, KeyCode::ShiftRight]
-            .into_iter()
-            .any(|key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key));
-        view.request_save(if backup {
-            SaveAction::Backup
-        } else {
-            SaveAction::Load
-        });
-    }
+    request_keyboard_save(&keys, &mut view);
     if keys.just_pressed(KeyCode::Home) {
         view.reset_camera();
     }
