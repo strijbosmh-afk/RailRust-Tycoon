@@ -489,7 +489,7 @@ pub(crate) fn perform_command(
                     view.track_editor.active = true;
                     view.track_editor.notice = if changed {
                         format!(
-                            "{} design pieces loaded.\nUndo restores the previous draft.",
+                            "{} design pieces loaded.\nUndo restores the old draft.",
                             specs.len()
                         )
                     } else {

@@ -41,7 +41,7 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, library: &mut DesignLibr
                     .unwrap();
                 track_tools::load_design_draft(park, view, &specs).unwrap();
                 view.track_editor.notice = format!(
-                    "{} design pieces loaded.\nUndo restores the previous draft.",
+                    "{} design pieces loaded.\nUndo restores the old draft.",
                     specs.len()
                 );
             }
