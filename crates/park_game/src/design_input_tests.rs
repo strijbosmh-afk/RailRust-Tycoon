@@ -325,11 +325,31 @@ fn text_editing_respects_modifier_edges_unicode_limit_and_backspace() {
     );
     frame(&mut app);
     assert_eq!(app.world().resource::<DesignLibrary>().name, "€");
+    // Windows reports AltGr as Ctrl+Alt. On a Polish layout AltGr+A is ą,
+    // not Select All; the following ordinary character must also append.
+    {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.press(KeyCode::ControlLeft);
+        keys.release(KeyCode::ControlLeft);
+        keys.press(KeyCode::AltRight);
+        keys.release(KeyCode::AltRight);
+    }
+    text(
+        &mut app,
+        window,
+        KeyCode::KeyA,
+        Key::Character("ą".into()),
+        Some("ą"),
+    );
+    frame(&mut app);
+    assert_eq!(app.world().resource::<DesignLibrary>().name, "€ą");
+    type_text(&mut app, window, "x");
+    assert_eq!(app.world().resource::<DesignLibrary>().name, "€ąx");
     text(&mut app, window, KeyCode::Enter, Key::Enter, None);
     frame(&mut app);
     assert!(!app.world().resource::<DesignLibrary>().name_focused);
     type_text(&mut app, window, "ignored");
-    assert_eq!(app.world().resource::<DesignLibrary>().name, "€");
+    assert_eq!(app.world().resource::<DesignLibrary>().name, "€ąx");
 }
 
 #[test]

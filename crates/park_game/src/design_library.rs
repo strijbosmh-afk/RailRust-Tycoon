@@ -233,12 +233,13 @@ pub(crate) fn keyboard_text(
         }
         let held = |key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key);
         let control = held(KeyCode::ControlLeft) || held(KeyCode::ControlRight);
-        if control && event.key_code == KeyCode::KeyA {
+        let alt = held(KeyCode::AltLeft) || held(KeyCode::AltRight);
+        if control && !alt && event.key_code == KeyCode::KeyA {
             library.select_all = true;
             continue;
         }
         // Ctrl shortcuts do not enter text; AltGr can produce ordinary Unicode.
-        if control && !(held(KeyCode::AltLeft) || held(KeyCode::AltRight)) {
+        if control && !alt {
             continue;
         }
         match event.logical_key {
