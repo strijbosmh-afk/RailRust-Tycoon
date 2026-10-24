@@ -29,6 +29,7 @@ const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
 
 mod admission_scenes;
 mod construction_scenes;
+mod design_scenes;
 mod economy_scenes;
 mod facility_construction_scenes;
 mod feedback_scenes;
@@ -157,9 +158,28 @@ enum Scene {
     TrackUndone,
     TrackRedone,
     TrackHistoryEmpty,
+    LibraryEmpty,
+    LibrarySaved,
+    LibraryTransformed,
+    LibraryConfirmUpdate,
+    LibraryConfirmDelete,
+    LibraryInvalid,
+    LoadedDesign,
 }
 
 impl Scene {
+    fn is_design(self) -> bool {
+        matches!(
+            self,
+            Self::LibraryEmpty
+                | Self::LibrarySaved
+                | Self::LibraryTransformed
+                | Self::LibraryConfirmUpdate
+                | Self::LibraryConfirmDelete
+                | Self::LibraryInvalid
+                | Self::LoadedDesign
+        )
+    }
     fn is_track_construction(self) -> bool {
         matches!(
             self,
@@ -506,6 +526,13 @@ pub(super) fn configure(app: &mut App) {
                 Some("track-undone") => Scene::TrackUndone,
                 Some("track-redone") => Scene::TrackRedone,
                 Some("track-history-empty") => Scene::TrackHistoryEmpty,
+                Some("library-empty") => Scene::LibraryEmpty,
+                Some("library-saved") => Scene::LibrarySaved,
+                Some("library-transformed") => Scene::LibraryTransformed,
+                Some("library-confirm-update") => Scene::LibraryConfirmUpdate,
+                Some("library-confirm-delete") => Scene::LibraryConfirmDelete,
+                Some("library-invalid") => Scene::LibraryInvalid,
+                Some("loaded-design") => Scene::LoadedDesign,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"
                 ),
@@ -589,6 +616,9 @@ pub(super) fn configure(app: &mut App) {
         std::process::id()
     ));
 
+    // The capture plugin owns the resources its optional design presets need.
+    // Existing in-memory state is preserved; initialization never opens files.
+    app.init_resource::<crate::design_library::DesignLibrary>();
     app.insert_resource(Capture {
         destination,
         temporary,
@@ -613,6 +643,8 @@ fn apply_preset(
     session: Res<SaveSession>,
     mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
+    // Non-design presets also run in minimal rendering apps without a library.
+    library: Option<ResMut<crate::design_library::DesignLibrary>>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
@@ -754,6 +786,10 @@ fn apply_preset(
     }
     if capture.scene.is_track_construction() {
         track_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_design() {
+        let mut library = library.expect("design capture configuration initializes the library");
+        design_scenes::prepare(&mut sim.0, &mut view, &mut library, capture.scene);
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);

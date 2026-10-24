@@ -1,6 +1,6 @@
 //! Opt-in cross-process continuation proof using the production save commands.
 //! All write modes require a new absolute directory. Verification modes
-//! never replace their saves. Current-version write/verify checks exact future
+//! never replace the writer's saves. Current-version write/verify checks exact future
 //! equality; verify-legacy preserves old fields at load and checks new-rule replay.
 
 use std::{ffi::OsString, fs, io::Write, path::Path};
@@ -15,6 +15,7 @@ use crate::{
 
 mod admission;
 pub(super) mod construction;
+mod designs;
 pub(super) mod economy;
 pub(super) mod facility_construction;
 pub(super) mod feedback;
@@ -42,7 +43,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -153,6 +154,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-facility-construction" => facility_construction::verify(&session)?,
             "write-track-construction" => track_construction::write(&session)?,
             "verify-track-construction" => track_construction::verify(&session)?,
+            "write-designs" => designs::write(&session)?,
+            "verify-designs" => designs::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

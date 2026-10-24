@@ -161,6 +161,16 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-track-construction --save-dir $trackConstructionDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process track construction continuation failed" }
           Get-Content -LiteralPath (Join-Path $trackConstructionDirectory "verification-track-construction.txt")
+      - name: Verify named track designs across fresh processes
+        shell: pwsh
+        run: |
+          $designDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound named designs proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-designs --save-dir $designDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Named designs writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-designs --save-dir $designDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process named designs verification failed" }
+          Get-Content -LiteralPath (Join-Path $designDirectory "writer-designs.txt")
+          Get-Content -LiteralPath (Join-Path $designDirectory "verification-designs.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

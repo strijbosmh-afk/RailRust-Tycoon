@@ -72,6 +72,7 @@ pub(super) fn apply_save_action(
         || view.services_open
         || view.finance_open
         || view.rides_open
+        || view.designs_open
         || view.modal_input_blocked
         || view.capture_active
     {
