@@ -656,8 +656,10 @@ pub(crate) fn validate_track_economy(park: &Park) -> Result<(), String> {
     let economy = &park.track_economy;
     if economy.paid_pieces.len() > crate::saves::MAX_OBJECTS
         || (park.ride.is_none() && *economy != TrackEconomy::default())
-        || economy.construction_cents % 500 != 0
-        || economy.refund_cents % 250 != 0
+        || !economy.construction_cents.is_multiple_of(500)
+        || !economy.refund_cents.is_multiple_of(250)
+        || (economy.construction_cents != 0 && economy.construction_cents < 1_000)
+        || (economy.refund_cents != 0 && economy.refund_cents < 500)
     {
         return Err("track economy owner, amounts or bounds are invalid".into());
     }

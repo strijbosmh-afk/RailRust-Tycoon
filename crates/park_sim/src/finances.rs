@@ -584,8 +584,10 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         if carousel.is_none() {
             if entry.construction_cents > basis
                 || entry.construction_cents % 500 != 0
+                || (entry.construction_cents != 0 && entry.construction_cents < 1_000)
                 || entry.demolition_refunds_cents > refund
                 || entry.demolition_refunds_cents % 250 != 0
+                || (entry.demolition_refunds_cents != 0 && entry.demolition_refunds_cents < 500)
                 || entry.demolition_refunds_cents > entry.construction_cents / 2
             {
                 return Err("archived track basis or refund is invalid".into());

@@ -1052,6 +1052,9 @@ pub(super) fn refresh(
                         } else {
                             "At / above ground"
                         };
+                        let track_visible = object.kind == ObjectKind::Track && crate::world::surface_center(&sim.0, SurfaceId::Object(id), view.rotation).is_some_and(|point| {
+                            crate::world::pick_surface(point, &sim.0, view.rotation, view.view_mode) == Some(SurfaceId::Object(id))
+                        });
                         if let Some(owner) = object.queue_owner {
                             let owned_access=sim.0.ride_access(owner);
                             let status=access_reason(owned_access.status);
@@ -1105,9 +1108,9 @@ pub(super) fn refresh(
                         }) {
                             let low = piece.samples.iter().map(|p| p.height).min().unwrap_or(0);
                             let high = piece.samples.iter().map(|p| p.height).max().unwrap_or(0);
-                            let refund = track_removal_details(&sim.0, id);
+                            let refund = track_removal_details(&sim.0, id, track_visible);
                             return format!(
-                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{refund}",
+                                "{} / Tile {}, {}\nRail height: {} - {} steps\n{state}\n{refund}",
                                 track_name(piece.kind),
                                 object.pos.x + 1,
                                 object.pos.y + 1,
@@ -1117,11 +1120,11 @@ pub(super) fn refresh(
                         }
                         if object.kind == ObjectKind::Track {
                             return format!(
-                                "Track / Tile {}, {}\nHeight: {} steps\n{}",
+                                "Track / Tile {}, {}\nHeight: {} steps\n{state}\n{}",
                                 object.pos.x + 1,
                                 object.pos.y + 1,
                                 object.height,
-                                track_removal_details(&sim.0, id),
+                                track_removal_details(&sim.0, id, track_visible),
                             );
                         }
                         if object.kind == ObjectKind::Path && object.path_slope != PathSlope::Flat {
@@ -1424,15 +1427,24 @@ pub(super) fn refresh(
     }
 }
 
-pub(super) fn track_removal_details(park: &park_sim::Park, id: park_sim::ObjectId) -> String {
+pub(super) fn track_removal_details(
+    park: &park_sim::Park,
+    id: park_sim::ObjectId,
+    visible: bool,
+) -> String {
     park.object_removal_block_reason(id).map_or_else(
         || {
             format!(
-                "Refund {} / Delete to remove\nOpens a gap; train will stop.",
-                money(park.track_demolition_refund_cents(id))
+                "Refund {} / {}",
+                money(park.track_demolition_refund_cents(id)),
+                if visible {
+                    "Delete to remove"
+                } else {
+                    "reveal first"
+                }
             )
         },
-        |_| "Removal blocked / passengers aboard\nLet everyone leave first.".into(),
+        |_| "Removal blocked: passengers".into(),
     )
 }
 

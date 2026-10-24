@@ -162,15 +162,16 @@ Public path appearance is retained. Owned queue paths use original blue procedur
 | Control | Current behavior |
 | --- | --- |
 | P / Path | Public path tool. |
-| Z / Rides → Edit coaster track | Open/close saved track draft tools. Station/Straight/Left curve/Right curve select pieces; Apply installs a complete safe loop; Clear removes only the draft. |
+| Z / Rides → Edit coaster track | Open/close saved track draft tools. Choose Station, Straight, Left/Right curve, Lift, Drop −1/−2 or Brake; Apply settles the visible quote for a complete safe loop; Clear removes only the free draft. |
 | Y / Rides | Select an active ride, edit coaster track, or start building the carousel. Up/Down browses. |
 | J / Queue | Blue queue tool owned by the selected ride (initially Meadow Flyer). |
 | I / Gate | Entrance tool for the selected ride, facing toward its station or carousel edge. |
 | K / Exit | Teal exit tool for the selected ride, facing toward its station or carousel edge; default South, independent of entrance facing. |
 | C / shape or facing button | Track editor: rotate incoming travel heading. Queue: cycle Flat/North/East/South/West. Gate/Exit/Service: rotate facing. Other construction modes retain their existing shape behavior. |
-| Page Up/Down / height buttons | Track/flat/gate height 0–30; service/carousel base 0–29; ramp low end 0–29. Default 8. |
+| Page Up/Down / height buttons | Track entry height: Lift 0–29, Drop −1 1–30, Drop −2 2–30, level pieces 0–30. Flat/gate 0–30; service/carousel base and ramp low end 0–29. Default 8. |
 | Left click | Place/replace or erase one draft track piece in the editor; otherwise inspect, build, remove or edit terrain according to the selected tool. Holding does not paint. |
 | X / Demolish | Track editor: erase the visible draft piece at its own height. Outside the editor: remove visible paths, gates, services or an empty carousel using existing protection/refund rules. |
+| Delete / Inspector Remove | Remove the selected visible path, track, gate or building; track and building refunds are shown before commitment. Occupied passengers block removal; hidden track must be revealed first. |
 | B / V | Raise/lower one visible dry terrain column by one within 0–32; Water and Underground reject. |
 | Escape | Close an open overlay first; otherwise leave the track editor while retaining its draft, or return to Inspect and clear selection. |
 | Inspect | Return to Inspect when no overlay is open; use the overlay's Close button to dismiss it. |
@@ -354,7 +355,7 @@ Current production scene names:
 
 | Family | `--capture-scene` values |
 | --- | --- |
-| Track editor | `track-draft`, `track-invalid`, `track-ready`, `track-built`, `track-occupied` |
+| Track editor | `track-draft`, `track-invalid`, `track-ready`, `track-built`, `track-occupied`, `track-replacement`, `track-unaffordable`, `track-refund`, `track-finance` |
 | Basic/overlap | `overview`, `help`, `selection`, `path`, `track` |
 | Crowd | `crowd`, `lost`, `recovered` |
 | Train | `train`, `train-lift`, `train-drop`, `train-brake`, `train-return`, `train-closed` |

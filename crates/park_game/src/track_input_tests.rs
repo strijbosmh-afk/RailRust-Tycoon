@@ -286,7 +286,8 @@ fn selected_track_delete_refunds_paid_basis_once_and_saves_fault_remnants() {
         let refund = park.track_demolition_refund_cents(id);
         assert_eq!(refund > 0, paid);
         assert!(
-            ui::track_removal_details(&park, id).contains(&format!("Refund {}", ui::money(refund)))
+            ui::track_removal_details(&park, id, true)
+                .contains(&format!("Refund {}", ui::money(refund)))
         );
         let old_cash = park.cash_cents();
         let (mut app, _) = persistence_input_app(
@@ -346,8 +347,8 @@ fn selected_occupied_paid_track_cannot_refund_or_remove_passengers() {
     park.apply_track_draft().unwrap();
     crate::save_check::track_construction::occupied(&mut park).unwrap();
     let id = visible_track(&park, true);
-    assert!(ui::track_removal_details(&park, id).contains("Removal blocked"));
-    assert!(!ui::track_removal_details(&park, id).contains("Refund"));
+    assert!(ui::track_removal_details(&park, id, true).contains("Removal blocked"));
+    assert!(!ui::track_removal_details(&park, id, true).contains("Refund"));
     let (mut app, _) = persistence_input_app(
         &directory,
         park.clone(),
@@ -377,6 +378,69 @@ fn selected_occupied_paid_track_cannot_refund_or_remove_passengers() {
             .unwrap()
             .contains("not removed")
     );
+}
+
+#[test]
+fn hiding_selected_track_keeps_buried_guidance_and_refund_without_offering_removal() {
+    for paid in [false, true] {
+        let directory = InputSaveDirectory::new();
+        let mut park = train_park();
+        park.set_train_open(false);
+        let pos = TilePos { x: 22, y: 21 };
+        let id = if paid {
+            complete_draft(&mut park);
+            park.apply_track_draft().unwrap();
+            park.objects()
+                .iter()
+                .find(|object| object.pos == pos && object.kind == ObjectKind::Track)
+                .unwrap()
+                .id
+        } else {
+            park.place_object(pos, ObjectKind::Track, park_sim::Axis::Y, 8, 2)
+                .unwrap()
+        };
+        park.set_terrain_height(pos, 16).unwrap();
+        assert!(park.is_underground(id));
+        let before = park.clone();
+        let (mut app, _) = persistence_input_app(
+            &directory,
+            park,
+            ViewState {
+                selected: Some(SurfaceId::Object(id)),
+                view_mode: world::ViewMode::Underground,
+                speed: Speed::Paused,
+                ..default()
+            },
+        );
+        app.add_systems(
+            Update,
+            apply_path_actions
+                .after(keyboard_input)
+                .before(pointer_input),
+        );
+        app.add_systems(Update, ui::refresh.after(apply_path_actions));
+        let label = app
+            .world_mut()
+            .spawn((ui::Label::SelectionDetails, Text::new("")))
+            .id();
+        frame(&mut app);
+        let details = &app.world().get::<Text>(label).unwrap().0;
+        assert!(details.contains("Underground"));
+        assert!(details.contains("Refund"));
+        assert!(details.contains("Delete to remove"));
+        persistence_key_frame(&mut app, &[KeyCode::KeyU]);
+        let details = &app.world().get::<Text>(label).unwrap().0;
+        assert!(details.contains("Buried / U to reveal"));
+        assert!(details.contains("Refund"));
+        assert!(details.contains("reveal first"));
+        assert!(!details.contains("Delete to remove"));
+        persistence_key_frame(&mut app, &[KeyCode::Delete]);
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+        assert_eq!(
+            app.world().resource::<ViewState>().selected,
+            Some(SurfaceId::Object(id))
+        );
+    }
 }
 
 #[test]

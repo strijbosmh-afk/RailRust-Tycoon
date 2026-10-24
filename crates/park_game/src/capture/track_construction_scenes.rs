@@ -97,10 +97,8 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             let spec = TrackBuildKind::Lift.spec(pos, 8, TrackDirection::East);
             view.track_editor.kind = TrackBuildKind::Lift;
             assert!(park.validate_track_draft_piece(spec).is_err());
-            view.track_editor.notice = format!(
-                "Height mismatch: {}",
-                park.validate_track_draft().unwrap_err()
-            );
+            view.track_editor.notice =
+                "Lift endpoint does not match.\nBridge blocks the hovered lift.".into();
             pos
         }
         Scene::TrackOccupied => {
@@ -108,7 +106,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             view.track_editor.kind = TrackBuildKind::Lift;
             view.track_editor.height = 9;
             view.track_editor.notice =
-                format!("Apply refused: {}", copy.apply_track_draft().unwrap_err());
+                track_tools::apply_error_message(copy.apply_track_draft().unwrap_err());
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackReady => {
@@ -127,10 +125,8 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
         }
         Scene::TrackUnaffordable => {
             let mut copy = park.clone();
-            view.track_editor.notice = format!(
-                "Apply refused: {}",
-                crate::track_tools::error_message(park, copy.apply_track_draft().unwrap_err())
-            );
+            view.track_editor.notice =
+                track_tools::apply_error_message(copy.apply_track_draft().unwrap_err());
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackRefund => {
@@ -152,8 +148,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             view.track_editor.kind = TrackBuildKind::Lift;
             view.track_editor.direction = TrackDirection::North;
             view.track_editor.height = 9;
-            view.track_editor.notice =
-                "14 graded pieces saved in the draft.\nMatch every endpoint before Apply.".into();
+            view.track_editor.notice = "14 draft pieces saved.\nJoin all ends before Apply.".into();
             TilePos { x: 15, y: 8 }
         }
         _ => unreachable!(),

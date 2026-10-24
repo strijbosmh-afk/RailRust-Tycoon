@@ -47,7 +47,7 @@ impl Default for TrackEditor {
             preview: None,
             revision: 0,
             pending: Vec::new(),
-            notice: "Drafting is free. Apply buys track.\nRemoved paid track refunds 50%.".into(),
+            notice: "Drafting and Clear are free.\nApply buys / 50% paid refund.".into(),
         }
     }
 }
@@ -92,8 +92,7 @@ pub(crate) fn begin(park: &Park, view: &mut ViewState) {
     view.track_editor.active = true;
     view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
     view.track_editor.preview = None;
-    view.track_editor.notice =
-        "Drafting is free. Apply buys track.\nRemoved paid track refunds 50%.".into();
+    view.track_editor.notice = "Drafting and Clear are free.\nApply buys / 50% paid refund.".into();
 }
 
 pub(crate) fn queue(view: &mut ViewState, command: TrackCommand) {
@@ -125,15 +124,9 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                     .track_editor
                     .height
                     .clamp(kind.min_height(), kind.max_height());
-                let guidance = match kind {
-                    TrackBuildKind::Lift => "Chain lift rises one step.",
-                    TrackBuildKind::Drop => "Drop descends one step.",
-                    TrackBuildKind::SteepDrop => "Drop descends two steps.",
-                    TrackBuildKind::Brake => "Level brakes slow the train.",
-                    _ => "Level track joins equal heights.",
-                };
                 view.track_editor.notice = format!(
-                    "{guidance}\nNew piece: {} / PgUp/Dn height.",
+                    "{} / new {}\nPgUp/Dn sets entry height.",
+                    kind_name(kind),
                     crate::ui::money(kind.cost_cents())
                 );
             }
@@ -157,7 +150,7 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                 sim.0.clear_track_draft();
                 view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
                 view.track_editor.notice =
-                    "Draft cleared. Start with a station.\nThe live coaster is unchanged.".into();
+                    "Draft cleared / no charge.\nLive coaster stays unchanged.".into();
             }
             TrackCommand::Apply => {
                 let quote = sim.0.track_construction_quote().ok();
@@ -188,10 +181,7 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                         view.track_editor.notice =
                             format!("{payment}\nCoaster closed; connect gates.");
                     }
-                    Err(error) => {
-                        view.track_editor.notice =
-                            format!("Apply refused: {}", error_message(&sim.0, error))
-                    }
+                    Err(error) => view.track_editor.notice = apply_error_message(error),
                 }
             }
             TrackCommand::Done => unreachable!(),
@@ -251,7 +241,7 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             Ok(()) => {
                 editor.revision = editor.revision.wrapping_add(1);
                 editor.notice = format!(
-                    "{} at {}, {} / {} to {}.\nMatch next entry to this exit.",
+                    "{} / {}, {} / {}-{}\nMatch next entry to this exit.",
                     kind_name(editor.kind),
                     pos.x + 1,
                     pos.y + 1,
@@ -261,6 +251,25 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             }
             Err(error) => editor.notice = error_message(park, error),
         }
+    }
+}
+
+pub(crate) fn apply_error_message(error: park_sim::TrackConstructionError) -> String {
+    use park_sim::TrackConstructionError as Error;
+    match error {
+        Error::CloseRide => "Apply refused: train active.\nClose it; wait for train stop.".into(),
+        Error::GuestsStillVisiting => {
+            "Apply refused: active guests.\nWait for everyone to leave.".into()
+        }
+        Error::InsufficientFunds {
+            required_cents,
+            available_cents,
+        } => format!(
+            "Apply refused: short {}\nCash {}. Draft kept.",
+            crate::ui::money(required_cents.saturating_sub(available_cents)),
+            crate::ui::money(available_cents)
+        ),
+        _ => "Apply refused: invalid draft.\nCheck joins and clearance.".into(),
     }
 }
 
@@ -335,17 +344,34 @@ pub(crate) fn error_message(park: &Park, error: park_sim::TrackConstructionError
                 },
             )
         }
-        Error::Track(TrainError::StationCount { count: 0 }) => {
-            "Add one station, then a closed loop.".into()
+        Error::Track(TrainError::EmptyCircuit | TrainError::StationCount { count: 0 }) => {
+            "Add one station.\nJoin track into a closed loop.".into()
         }
-        Error::Track(TrainError::StationCount { .. }) => {
-            "Keep exactly one station in the loop.".into()
-        }
+        Error::Track(TrainError::StationCount { .. }) => "Keep one station in the loop.".into(),
         Error::DisconnectedPieces => {
             "Join all pieces into one loop.\nErase disconnected pieces.".into()
         }
-        Error::UnsupportedPiece => {
-            "Use level track, lifts or drops.\nMatch each piece's height limits.".into()
+        Error::UnsupportedPiece => "Check piece height limits.\nLift +1 / drops -1 or -2.".into(),
+        Error::Track(TrainError::Placement(park_sim::PlacementError::Occupied { pos, .. })) => {
+            format!(
+                "Tile {}, {} is occupied.\nChange route or rail height.",
+                pos.x + 1,
+                pos.y + 1
+            )
+        }
+        Error::Track(TrainError::Placement(park_sim::PlacementError::TerrainIntersection {
+            pos,
+            ..
+        })) => format!(
+            "Tile {}, {} crosses land.\nChange land or rail height.",
+            pos.x + 1,
+            pos.y + 1
+        ),
+        Error::Track(TrainError::Placement(park_sim::PlacementError::HeightOutOfRange {
+            ..
+        })) => "Track exceeds height limit.\nLower this piece's entry.".into(),
+        Error::Track(TrainError::Placement(park_sim::PlacementError::OutOfBounds { .. })) => {
+            "Track must stay in the park.".into()
         }
         error => error.to_string(),
     }

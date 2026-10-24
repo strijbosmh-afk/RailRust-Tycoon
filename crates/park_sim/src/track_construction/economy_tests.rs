@@ -273,3 +273,32 @@ fn fixture_recovery_cannot_reinterpret_paid_brakes_as_free_straights() {
     // Restored diagnostic station is free; remaining paid pieces retain basis.
     assert_eq!(park.track_economy.paid_pieces.len(), 7);
 }
+
+#[test]
+fn forged_conserved_history_cannot_claim_a_purchase_below_the_cheapest_piece() {
+    let mut park = Park::new(32, 32);
+    park.install_train_circuit(&loop_specs(3, 3, 8)).unwrap();
+    let mut forged = json_value(&park);
+    // The arithmetic balances exactly, but no $5 piece/$2.50 refund exists.
+    forged["park"]["track_economy"]["construction_cents"] = json!(500);
+    forged["park"]["track_economy"]["refund_cents"] = json!(250);
+    forged["park"]["cash_cents"] = json!(99_750);
+    assert!(
+        read(&forged)
+            .unwrap_err()
+            .to_string()
+            .contains("track economy")
+    );
+    // A partial impossible refund also fails when a real live basis remains.
+    let paid = paid_loop();
+    let mut forged = json_value(&paid);
+    forged["park"]["track_economy"]["construction_cents"] = json!(19_500);
+    forged["park"]["track_economy"]["refund_cents"] = json!(250);
+    forged["park"]["cash_cents"] = json!(80_750);
+    assert!(
+        read(&forged)
+            .unwrap_err()
+            .to_string()
+            .contains("track economy")
+    );
+}
