@@ -188,7 +188,7 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
     {
         return Err("legacy service import invented paid construction or refunds".into());
     }
-    if !park.track_draft().is_empty() {
+    if version <= 12 && !park.track_draft().is_empty() {
         return Err("legacy import invented a construction draft".into());
     }
     super::finance::check(park)?;
@@ -314,12 +314,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=12).contains(&schema)
+        if !(1..=13).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version1..12 source slot".into(),
+                "verify-legacy requires an authentic strict version1..13 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -343,12 +343,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let modern_bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
         let modern: Value =
             serde_json::from_slice(&modern_bytes).map_err(|error| error.to_string())?;
-        if modern["schema_version"] != 13
-            || modern["content_version"] != 13
+        if modern["schema_version"] != 14
+            || modern["content_version"] != 14
             || (schema <= 7 && modern["park"]["next_service_id"] != 1)
         {
             return Err(
-                "migration did not produce strict13 state with correct service allocation".into(),
+                "migration did not produce strict14 state with correct service allocation".into(),
             );
         }
         require_old_fields(&old["park"], &modern["park"], "/park")?;
@@ -375,7 +375,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel/facility basis and actual demolition refunds stay zero: PASS\nLegacy opening baselines preserved; v9-v12 transactions, archives, expenses, paid ride/facility costs and source attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v13 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v13 continues under current needs/service/cost/ride-choice/track rules; legacy imports have an empty draft\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel/facility basis and actual demolition refunds stay zero: PASS\nLegacy opening baselines preserved; v9-v12 transactions, archives, expenses, paid ride/facility costs and source attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v14 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v14 continues under current needs/service/cost/ride-choice/track rules; v1-v12 imports have an empty draft; v13 retains its level draft\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

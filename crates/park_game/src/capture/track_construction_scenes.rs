@@ -14,11 +14,17 @@ fn prepare_state(park: &mut Park, scene: Scene) {
         "closed track capture",
     )
     .unwrap();
-    track_construction::draft(
-        park,
-        !matches!(scene, Scene::TrackDraft | Scene::TrackInvalid),
-    )
-    .unwrap();
+    track_construction::draft(park, !matches!(scene, Scene::TrackDraft)).unwrap();
+    if matches!(scene, Scene::TrackInvalid) {
+        park.set_track_draft_piece(TrackBuildKind::Lift.spec(
+            TilePos { x: 15, y: 8 },
+            10,
+            TrackDirection::North,
+        ))
+        .unwrap();
+        assert!(park.validate_track_draft().is_err());
+        track_construction::reject_apply(park).unwrap();
+    }
     if matches!(scene, Scene::TrackBuilt | Scene::TrackOccupied) {
         track_construction::apply(park).unwrap();
         track_construction::occupied(park).unwrap();
@@ -46,44 +52,51 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
     };
     let anchor = match scene {
         Scene::TrackInvalid => {
-            let pos = TilePos { x: 13, y: 16 };
-            let spec = TrackBuildKind::Straight.spec(pos, 8, TrackDirection::East);
-            view.track_editor.kind = TrackBuildKind::Straight;
+            let pos = TilePos { x: 13, y: 10 };
+            let spec = TrackBuildKind::Lift.spec(pos, 8, TrackDirection::East);
+            view.track_editor.kind = TrackBuildKind::Lift;
+            assert!(park.validate_track_draft_piece(spec).is_err());
             view.track_editor.notice = format!(
-                "Cannot place: {}",
-                park.validate_track_draft_piece(spec).unwrap_err()
+                "Height mismatch: {}",
+                park.validate_track_draft().unwrap_err()
             );
             pos
         }
         Scene::TrackOccupied => {
             let mut copy = park.clone();
+            view.track_editor.kind = TrackBuildKind::Lift;
+            view.track_editor.height = 9;
             view.track_editor.notice =
                 format!("Apply refused: {}", copy.apply_track_draft().unwrap_err());
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackReady => {
+            view.track_editor.kind = TrackBuildKind::SteepDrop;
+            view.track_editor.height = 10;
             view.track_editor.notice =
-                "28 pieces form one closed loop.\nApply installs the new track.".into();
+                "28 pieces: lifts, drops and brakes.\nHeights join in one closed loop.".into();
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackBuilt => {
-            view.path_notice = Some("New loop is carrying paying guests.".into());
+            view.path_notice = Some("Paying guests climb the new chain lift.".into());
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackDraft => {
-            view.track_editor.kind = TrackBuildKind::CurveRight;
-            view.track_editor.direction = TrackDirection::West;
+            view.track_editor.kind = TrackBuildKind::Lift;
+            view.track_editor.direction = TrackDirection::North;
+            view.track_editor.height = 9;
             view.track_editor.notice =
-                "14 pieces saved in the draft.\nComplete the gaps before Apply.".into();
-            TilePos { x: 14, y: 7 }
+                "14 graded pieces saved in the draft.\nMatch every endpoint before Apply.".into();
+            TilePos { x: 15, y: 8 }
         }
         _ => unreachable!(),
     };
     if matches!(scene, Scene::TrackDraft | Scene::TrackInvalid) {
+        let height = view.track_editor.height;
         let point = world::tile_center(anchor, park.width(), view.rotation)
-            + Vec2::Y * 8.0 * world::HEIGHT_STEP;
+            + Vec2::Y * f32::from(height) * world::HEIGHT_STEP;
         assert_eq!(
-            world::pick_track_plane(point, park, view.rotation, 8),
+            world::pick_track_plane(point, park, view.rotation, height),
             Some(anchor)
         );
         track_tools::point_at(park, view, point, false);

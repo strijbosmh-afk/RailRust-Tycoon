@@ -66,6 +66,18 @@ impl DraftGeometry {
             kind: SurfaceKind::Top,
         }
     }
+
+    fn sample(&self, fraction: f32) -> (Vec3, Vec3) {
+        let sample = fraction * (self.points.len() - 1) as f32;
+        let index = (sample as usize).min(self.points.len() - 2);
+        let within = sample - index as f32;
+        (
+            self.points[index].lerp(self.points[index + 1], within),
+            self.normals[index]
+                .lerp(self.normals[index + 1], within)
+                .normalize_or_zero(),
+        )
+    }
 }
 
 /// Erase follows the actual visible draft ribbons at their own heights. The
@@ -123,27 +135,28 @@ fn ghost(painter: &mut Painter, park: &Park, spec: TrackPieceSpec, rotation: u8,
         for side in [-0.18, 0.18] {
             painter.surface(strip(side - 0.035, side + 0.035), ink);
         }
-        if spec.kind == TrackKind::Station {
-            painter.surface(strip(-0.42, -0.35), ink);
-            painter.surface(strip(0.35, 0.42), ink);
+        match spec.kind {
+            TrackKind::Station => {
+                painter.surface(strip(-0.42, -0.35), ink);
+                painter.surface(strip(0.35, 0.42), ink);
+            }
+            TrackKind::Lift => painter.surface(strip(-0.035, 0.035), ink),
+            TrackKind::Brake => {
+                for side in [-0.085, 0.085] {
+                    painter.surface(strip(side - 0.025, side + 0.025), ink);
+                }
+            }
+            TrackKind::Drop | TrackKind::Curve | TrackKind::Straight => {}
         }
     }
     // An explicit travel arrow removes left/right ambiguity after camera turns.
-    let middle = points.len() / 2;
-    let center = if points.len() == 2 {
-        points[0].lerp(points[1], 0.55)
-    } else {
-        points[middle]
-    };
-    let side = geometry.normals[middle];
-    let heading = Vec3::new(side.y, -side.x, 0.0);
+    // Both ends follow the sampled grade, including a two-step drop; a level
+    // tangent at the midpoint would float above one end and cut into the other.
+    let (tip, _) = geometry.sample(0.69);
+    let (base, side) = geometry.sample(0.36);
     painter.triangle_3d(
-        [
-            center + heading * 0.19,
-            center - heading * 0.14 + side * 0.13,
-            center - heading * 0.14 - side * 0.13,
-        ]
-        .map(|point| projected(point, park, rotation) + Vec3::Z * DETAIL_BIAS),
+        [tip, base + side * 0.13, base - side * 0.13]
+            .map(|point| projected(point, park, rotation) + Vec3::Z * DETAIL_BIAS),
         ink,
     );
 }
@@ -179,6 +192,19 @@ mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
     use park_sim::{TrackBuildKind, TrackDirection};
+
+    const GRADED_PIECES: [TrackBuildKind; 4] = [
+        TrackBuildKind::Lift,
+        TrackBuildKind::Drop,
+        TrackBuildKind::SteepDrop,
+        TrackBuildKind::Brake,
+    ];
+    const DIRECTIONS: [TrackDirection; 4] = [
+        TrackDirection::North,
+        TrackDirection::East,
+        TrackDirection::South,
+        TrackDirection::West,
+    ];
 
     #[test]
     fn draft_curve_uses_sampled_arc_and_all_camera_rotations_pick_the_same_tile() {
@@ -247,6 +273,134 @@ mod tests {
                 pick_track_draft(point, &park, rotation, ViewMode::Surface),
                 Some(far)
             );
+        }
+    }
+
+    #[test]
+    fn graded_travel_arrows_stay_on_the_rails_in_every_direction_and_rotation() {
+        let park = Park::new(32, 32);
+        for kind in GRADED_PIECES {
+            for direction in DIRECTIONS {
+                let spec = kind.spec(TilePos { x: 10, y: 10 }, 8, direction);
+                let geometry = DraftGeometry::new(spec);
+                for rotation in 0..4 {
+                    let mut painter = Painter::default();
+                    ghost(&mut painter, &park, spec, rotation, [1.0; 4]);
+                    assert!(painter.positions.iter().flatten().all(|v| v.is_finite()));
+                    let [a, b, c, _] = geometry
+                        .strip(&park, rotation, 0, -geometry.half, geometry.half)
+                        .vertices;
+                    // Test the 3D plane even when a steep drop is edge-on in
+                    // screen space. Remove only the intentional detail bias.
+                    let normal = (b - a).cross(c - a).normalize();
+                    for vertex in painter.positions.iter().rev().take(3) {
+                        let point = Vec3::from_array(*vertex) - Vec3::Z * DETAIL_BIAS;
+                        assert!(
+                            (point - a).dot(normal).abs() < 0.0002,
+                            "arrow left {kind:?} rail plane: {direction:?}, rotation {rotation}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn graded_erase_uses_the_visible_ribbon_in_every_direction_and_rotation() {
+        for rotation in 0..4 {
+            for kind in GRADED_PIECES {
+                for direction in DIRECTIONS {
+                    let mut park = Park::new(32, 32);
+                    let far = kind.spec(unrotate(14, 17, 32, rotation), 8, direction);
+                    let near = kind.spec(unrotate(18, 21, 32, rotation), 16, direction);
+                    park.set_track_draft_piece(far).unwrap();
+                    park.set_track_draft_piece(near).unwrap();
+                    let geometry = DraftGeometry::new(near);
+                    let visible = geometry
+                        .strip(&park, rotation, 3, -geometry.half, geometry.half)
+                        .has_area();
+                    let point =
+                        projected(world_point(near.samples()[4]), &park, rotation).truncate();
+                    // Exactly edge-on ribbons render no filled target. They
+                    // must not intercept a click on the world behind them.
+                    assert_eq!(
+                        pick_track_draft(point, &park, rotation, ViewMode::Surface),
+                        visible.then_some(near),
+                        "{kind:?}, {direction:?}, rotation {rotation}"
+                    );
+                    let mut view = crate::ViewState {
+                        rotation,
+                        track_editor: TrackEditor {
+                            active: true,
+                            erase: true,
+                            height: 0,
+                            ..default()
+                        },
+                        ..default()
+                    };
+                    crate::track_tools::point_at(&mut park, &mut view, point, false);
+                    assert_eq!(
+                        view.track_editor.preview.map(|p| p.spec),
+                        visible.then_some(near)
+                    );
+                    assert_eq!(park.track_draft().len(), 2);
+                    crate::track_tools::point_at(&mut park, &mut view, point, true);
+                    if visible {
+                        assert_eq!(park.track_draft(), &[far]);
+                        assert_eq!(
+                            pick_track_draft(point, &park, rotation, ViewMode::Surface),
+                            Some(far)
+                        );
+                    } else {
+                        assert_eq!(park.track_draft(), &[far, near]);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn foreground_terrain_blocks_graded_erase_but_cutaway_restores_visible_targets() {
+        for rotation in 0..4 {
+            for kind in GRADED_PIECES {
+                for direction in DIRECTIONS {
+                    let mut park = Park::new(32, 32);
+                    let spec = kind.spec(unrotate(10, 10, 32, rotation), 8, direction);
+                    park.set_track_draft_piece(spec).unwrap();
+                    let geometry = DraftGeometry::new(spec);
+                    let visible = geometry
+                        .strip(&park, rotation, 3, -geometry.half, geometry.half)
+                        .has_area();
+                    let point =
+                        projected(world_point(spec.samples()[4]), &park, rotation).truncate();
+                    assert_eq!(
+                        pick_track_draft(point, &park, rotation, ViewMode::Surface),
+                        visible.then_some(spec)
+                    );
+                    park.set_terrain_height(unrotate(11, 11, 32, rotation), 12)
+                        .unwrap();
+                    assert_eq!(
+                        pick_track_draft(point, &park, rotation, ViewMode::Surface),
+                        None,
+                        "terrain must hide {kind:?}, {direction:?}, rotation {rotation}"
+                    );
+                    assert_eq!(
+                        pick_track_draft(point, &park, rotation, ViewMode::Underground),
+                        visible.then_some(spec)
+                    );
+                    let mut view = crate::ViewState {
+                        rotation,
+                        track_editor: TrackEditor {
+                            active: true,
+                            erase: true,
+                            ..default()
+                        },
+                        ..default()
+                    };
+                    crate::track_tools::point_at(&mut park, &mut view, point, true);
+                    assert_eq!(park.track_draft(), &[spec]);
+                }
+            }
         }
     }
 }

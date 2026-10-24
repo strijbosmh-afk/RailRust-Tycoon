@@ -36,7 +36,12 @@ fn press_action(app: &mut App, command: TrackCommand) {
 fn aim(app: &mut App, window: Entity, pos: TilePos, height: u8) {
     let view = app.world().resource::<ViewState>();
     let park = &app.world().resource::<Simulation>().0;
-    let point = track_tools::build_center(park, pos, height, view.rotation);
+    let editor = &view.track_editor;
+    let spec = editor.kind.spec(pos, height, editor.direction);
+    let midpoint_shift =
+        (f32::from(spec.exit.height) - f32::from(spec.entry.height)) * 0.5 * world::HEIGHT_STEP;
+    let point =
+        track_tools::build_center(park, pos, height, view.rotation) + Vec2::Y * midpoint_shift;
     let cursor = cursor_for_world(app, window, point);
     assert!(is_map_position(
         cursor,
@@ -282,4 +287,95 @@ fn selecting_another_ride_exits_track_tools_without_discarding_the_draft() {
     assert!(!view.track_editor.active);
     assert_eq!(view.selected_ride, Some(carousel));
     assert_eq!(park, before);
+}
+
+#[test]
+fn graded_piece_buttons_and_keyboard_height_limits_produce_valid_ports() {
+    let directory = InputSaveDirectory::new();
+    let (mut app, _) = persistence_input_app(&directory, train_park(), view(0));
+    add_commands(&mut app);
+    for (kind, low, high, grade) in [
+        (Kind::Lift, 0, 29, 1_i16),
+        (Kind::Drop, 1, 30, -1),
+        (Kind::SteepDrop, 2, 30, -2),
+        (Kind::Brake, 0, 30, 0),
+    ] {
+        app.world_mut()
+            .resource_mut::<ViewState>()
+            .track_editor
+            .height = 0;
+        press_action(&mut app, TrackCommand::Piece(kind));
+        assert_eq!(app.world().resource::<ViewState>().track_editor.height, low);
+        persistence_key_frame(&mut app, &[KeyCode::PageDown]);
+        assert_eq!(app.world().resource::<ViewState>().track_editor.height, low);
+        app.world_mut()
+            .resource_mut::<ViewState>()
+            .track_editor
+            .height = 30;
+        press_action(&mut app, TrackCommand::Piece(kind));
+        assert_eq!(
+            app.world().resource::<ViewState>().track_editor.height,
+            high
+        );
+        persistence_key_frame(&mut app, &[KeyCode::PageUp]);
+        let editor = &app.world().resource::<ViewState>().track_editor;
+        assert_eq!(editor.height, high);
+        let spec = editor
+            .kind
+            .spec(TilePos { x: 14, y: 17 }, editor.height, editor.direction);
+        assert_eq!(
+            i16::from(spec.exit.height) - i16::from(spec.entry.height),
+            grade
+        );
+        assert!(
+            app.world()
+                .resource::<Simulation>()
+                .0
+                .validate_track_draft_piece(spec)
+                .is_ok()
+        );
+    }
+    assert!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .track_draft()
+            .is_empty()
+    );
+}
+
+#[test]
+fn graded_pointer_build_and_save_preserve_each_selected_kind_and_world_heading() {
+    for rotation in 0..4 {
+        for kind in [Kind::Lift, Kind::Drop, Kind::SteepDrop, Kind::Brake] {
+            let directory = InputSaveDirectory::new();
+            let original = train_park();
+            let (mut app, window) =
+                persistence_input_app(&directory, original.clone(), view(rotation));
+            add_commands(&mut app);
+            press_action(&mut app, TrackCommand::Piece(kind));
+            persistence_key_frame(&mut app, &[KeyCode::KeyC]);
+            let pos = TilePos { x: 14, y: 17 };
+            aim(&mut app, window, pos, 8);
+            frame(&mut app);
+            let preview = app
+                .world()
+                .resource::<ViewState>()
+                .track_editor
+                .preview
+                .unwrap();
+            assert!(preview.valid);
+            assert_eq!(preview.spec, kind.spec(pos, 8, Direction::South));
+            assert_eq!(app.world().resource::<Simulation>().0, original);
+            app.world_mut()
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Left);
+            persistence_key_frame(&mut app, &[KeyCode::F5]);
+            let saved = &app.world().resource::<Simulation>().0;
+            assert_eq!(saved.track_draft(), &[preview.spec]);
+            assert_eq!(directory.store().load().unwrap(), *saved);
+            assert_eq!(saved.circuit(), original.circuit());
+            assert_eq!(saved.train(), original.train());
+        }
+    }
 }

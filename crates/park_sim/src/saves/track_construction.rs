@@ -1,5 +1,30 @@
-//! Explicit bounded schema-12 shape. Old files cannot smuggle a newer draft.
+//! Strict legacy track-plan shapes. Old files cannot smuggle newer draft kinds.
 use super::*;
+
+/// Schema 13 uses the same strict, bounded fields as 14, but its drafts only
+/// support level stations, straights and curves. Keep this narrower contract
+/// when migrating; an installed circuit may already contain lifts and drops.
+#[derive(Deserialize)]
+#[serde(transparent)]
+pub(super) struct VersionThirteenParkData(ParkData);
+
+impl VersionThirteenParkData {
+    pub(super) fn migrate(self) -> Result<ParkData, SaveError> {
+        for spec in &self.0.track_draft {
+            if spec.entry.height != spec.exit.height
+                || !matches!(
+                    spec.kind,
+                    TrackKind::Station | TrackKind::Straight | TrackKind::Curve
+                )
+            {
+                return Err(invalid(
+                    "schema 13 track drafts support only level stations, straights and curves",
+                ));
+            }
+        }
+        Ok(self.0)
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
