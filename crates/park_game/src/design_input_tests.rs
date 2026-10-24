@@ -563,3 +563,206 @@ fn invalid_placement_and_unreadable_design_leave_park_and_history_unchanged() {
         b"{broken"
     );
 }
+
+fn gallery_app(scratch: &Scratch, park: Park, view: ViewState) -> (App, Entity) {
+    let (mut app, window) = app(scratch, park, view);
+    app.add_systems(Startup, |mut commands: Commands| {
+        ui::designs::setup(&mut commands);
+    })
+    .add_systems(
+        Update,
+        ui::designs::refresh.after(persistence::apply_save_action),
+    );
+    (app, window)
+}
+
+fn save_gallery(scratch: &Scratch) {
+    for (index, name) in ["Alpha", "Bravo", "Charlie", "Delta", "Echo"]
+        .into_iter()
+        .enumerate()
+    {
+        scratch
+            .store()
+            .save_new(&TrackDesign::from_draft(name, &specs(10 + index as u32 * 2)).unwrap())
+            .unwrap();
+    }
+}
+
+fn gallery_cards(app: &mut App) -> Vec<(usize, Entity, Display, ui::Action, BorderColor)> {
+    let world = app.world_mut();
+    let mut cards = world.query::<(
+        Entity,
+        &ui::designs::DesignThumbnail,
+        &Node,
+        &ui::Action,
+        &BorderColor,
+    )>();
+    let mut result: Vec<_> = cards
+        .iter(world)
+        .map(|(entity, slot, node, action, border)| {
+            (slot.0, entity, node.display, *action, *border)
+        })
+        .collect();
+    result.sort_by_key(|card| card.0);
+    result
+}
+
+fn gallery_names(app: &mut App) -> Vec<String> {
+    let world = app.world_mut();
+    let mut labels = world.query::<(&ui::designs::ThumbnailLabel, &Text)>();
+    let mut values: Vec<_> = labels
+        .iter(world)
+        .map(|(slot, text)| (slot.0, text.0.clone()))
+        .collect();
+    values.sort_by_key(|(slot, _)| *slot);
+    values.into_iter().map(|(_, value)| value).collect()
+}
+
+fn press_widget(app: &mut App, entity: Entity) {
+    *app.world_mut().get_mut::<Interaction>(entity).unwrap() = Interaction::Pressed;
+    frame(app);
+    *app.world_mut().get_mut::<Interaction>(entity).unwrap() = Interaction::None;
+    frame(app);
+}
+
+fn press_gallery_control(app: &mut App, command: DesignCommand) {
+    let world = app.world_mut();
+    let mut buttons = world.query_filtered::<(Entity, &ui::Action), With<Button>>();
+    let entity = buttons
+        .iter(world)
+        .find_map(|(entity, action)| (*action == ui::Action::Design(command)).then_some(entity))
+        .expect("gallery setup must create the real requested control");
+    press_widget(app, entity);
+}
+
+#[test]
+fn real_gallery_cards_follow_selection_across_pages_and_close_without_editing() {
+    let scratch = Scratch::new();
+    save_gallery(&scratch);
+    let (park, view) = fixture();
+    let (mut app, _) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    let first = gallery_cards(&mut app);
+    assert_eq!(first.len(), 4);
+    for (index, card) in first.iter().enumerate() {
+        assert_eq!(card.2, Display::Flex);
+        assert!(card.3 == ui::Action::Design(DesignCommand::Select(index)));
+    }
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Alpha", "Bravo", "Charlie", "Delta"]
+    );
+    let selected_border = first[0].4;
+    let unselected_border = first[1].4;
+    assert_ne!(selected_border, unselected_border);
+    press_widget(&mut app, first[2].1);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(2));
+    let selected = gallery_cards(&mut app);
+    assert_eq!(selected[2].4, selected_border);
+    assert_eq!(selected[0].4, unselected_border);
+
+    press_gallery_control(&mut app, DesignCommand::Browse(1));
+    press_gallery_control(&mut app, DesignCommand::Browse(1));
+    let last = gallery_cards(&mut app);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(4));
+    assert_eq!(last[0].2, Display::Flex);
+    assert!(last[0].3 == ui::Action::Design(DesignCommand::Select(4)));
+    assert_eq!(last[0].4, selected_border);
+    assert_eq!(gallery_names(&mut app), ["Echo", "", "", ""]);
+    for card in &last[1..] {
+        assert_eq!(card.2, Display::None);
+        assert!(card.3 == ui::Action::Design(DesignCommand::Select(usize::MAX)));
+    }
+    // Selecting the actual last-page widget must dispatch Select(4), even
+    // though its physical gallery slot is zero.
+    {
+        let mut library = app.world_mut().resource_mut::<DesignLibrary>();
+        library.name = "Unsaved typing".into();
+        library.rotation = 3;
+    }
+    press_widget(&mut app, last[0].1);
+    let library = app.world().resource::<DesignLibrary>();
+    assert_eq!(library.selected, Some(4));
+    assert_eq!(library.name, "Echo");
+    assert_eq!(library.rotation, 0);
+    assert_eq!(library.anchor, TilePos { x: 18, y: 15 });
+    // Hidden cards have an invalid, disabled command even if a synthetic
+    // input event bypasses normal hit testing.
+    press_widget(&mut app, last[1].1);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(4));
+    press_gallery_control(&mut app, DesignCommand::Close);
+    assert!(!app.world().resource::<ViewState>().designs_open);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn real_gallery_refreshes_actions_names_and_selection_after_confirmed_changes() {
+    let scratch = Scratch::new();
+    save_gallery(&scratch);
+    let initial_disk = std::fs::read(scratch.store().catalog_path()).unwrap();
+    let (park, view) = fixture();
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    let initial = gallery_cards(&mut app);
+    let selected_border = initial[0].4;
+    let unselected_border = initial[1].4;
+    press_widget(&mut app, initial[1].1);
+    press_gallery_control(&mut app, DesignCommand::DeleteSelected);
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().confirmation,
+        Some(DesignCommand::DeleteSelected)
+    );
+    press_widget(&mut app, initial[2].1);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(1));
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        initial_disk
+    );
+    assert_eq!(gallery_cards(&mut app)[1].4, selected_border);
+    press_gallery_control(&mut app, DesignCommand::Cancel);
+
+    press_gallery_control(&mut app, DesignCommand::NameFocus);
+    type_text(&mut app, window, "Zulu renamed");
+    press_gallery_control(&mut app, DesignCommand::UpdateSelected);
+    press_gallery_control(&mut app, DesignCommand::Confirm);
+    let renamed = gallery_cards(&mut app);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(4));
+    assert_eq!(renamed[0].2, Display::Flex);
+    assert!(renamed[0].3 == ui::Action::Design(DesignCommand::Select(4)));
+    assert_eq!(renamed[0].4, selected_border);
+    assert_eq!(gallery_names(&mut app), ["Zulu renamed", "", "", ""]);
+    assert!(renamed[1..].iter().all(|card| card.2 == Display::None));
+    assert_eq!(
+        scratch.store().load("Zulu renamed").unwrap().pieces(),
+        park.track_draft()
+    );
+    assert!(scratch.store().load("Bravo").is_err());
+
+    press_gallery_control(&mut app, DesignCommand::DeleteSelected);
+    press_gallery_control(&mut app, DesignCommand::Confirm);
+    let remaining = gallery_cards(&mut app);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(0));
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Alpha", "Charlie", "Delta", "Echo"]
+    );
+    for (index, card) in remaining.iter().enumerate() {
+        assert_eq!(card.2, Display::Flex);
+        assert!(card.3 == ui::Action::Design(DesignCommand::Select(index)));
+        assert_eq!(
+            card.4,
+            if index == 0 {
+                selected_border
+            } else {
+                unselected_border
+            }
+        );
+    }
+    assert!(scratch.store().load("Zulu renamed").is_err());
+    press_gallery_control(&mut app, DesignCommand::Close);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}

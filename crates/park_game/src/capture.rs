@@ -164,6 +164,12 @@ enum Scene {
     LibraryConfirmUpdate,
     LibraryConfirmDelete,
     LibraryInvalid,
+    LibraryGallery,
+    LibraryGalleryLast,
+    LibraryPreviewReady,
+    LibraryPreviewBlocked,
+    LibraryPreviewIncomplete,
+    LibraryPreviewTall,
     LoadedDesign,
 }
 
@@ -177,6 +183,12 @@ impl Scene {
                 | Self::LibraryConfirmUpdate
                 | Self::LibraryConfirmDelete
                 | Self::LibraryInvalid
+                | Self::LibraryGallery
+                | Self::LibraryGalleryLast
+                | Self::LibraryPreviewReady
+                | Self::LibraryPreviewBlocked
+                | Self::LibraryPreviewIncomplete
+                | Self::LibraryPreviewTall
                 | Self::LoadedDesign
         )
     }
@@ -532,6 +544,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("library-confirm-update") => Scene::LibraryConfirmUpdate,
                 Some("library-confirm-delete") => Scene::LibraryConfirmDelete,
                 Some("library-invalid") => Scene::LibraryInvalid,
+                Some("library-gallery") => Scene::LibraryGallery,
+                Some("library-gallery-last") => Scene::LibraryGalleryLast,
+                Some("library-preview-ready") => Scene::LibraryPreviewReady,
+                Some("library-preview-blocked") => Scene::LibraryPreviewBlocked,
+                Some("library-preview-incomplete") => Scene::LibraryPreviewIncomplete,
+                Some("library-preview-tall") => Scene::LibraryPreviewTall,
                 Some("loaded-design") => Scene::LoadedDesign,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"

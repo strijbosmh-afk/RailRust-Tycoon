@@ -2,8 +2,8 @@
 use super::*;
 use crate::design_library::{DesignCommand, DesignLibrary};
 
-pub(crate) const PANEL_WIDTH: f32 = 560.0;
-pub(crate) const PANEL_HEIGHT: f32 = 560.0;
+pub(crate) const PANEL_WIDTH: f32 = 900.0;
+pub(crate) const PANEL_HEIGHT: f32 = 600.0;
 
 #[derive(Component)]
 pub(crate) struct DesignsPanel;
@@ -13,6 +13,18 @@ pub(crate) struct NameField;
 
 #[derive(Component)]
 pub(crate) struct ConfirmationRow;
+
+#[derive(Component, Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DesignImage {
+    Preview,
+    Thumbnail(usize),
+}
+
+#[derive(Component)]
+pub(crate) struct DesignThumbnail(pub(crate) usize);
+
+#[derive(Component)]
+pub(crate) struct ThumbnailLabel(pub(crate) usize);
 
 #[derive(Component)]
 pub(crate) enum DesignLabel {
@@ -25,6 +37,8 @@ pub(crate) enum DesignLabel {
     Height,
     Rotation,
     Notice,
+    PreviewStatus,
+    GalleryPage,
 }
 
 fn text(parent: &mut ChildSpawnerCommands, value: &str, size: f32, kind: DesignLabel) {
@@ -58,6 +72,111 @@ fn value_cell(parent: &mut ChildSpawnerCommands, width: f32, kind: DesignLabel) 
         .with_children(|p| text(p, "", 13.0, kind));
 }
 
+fn preview_column(parent: &mut ChildSpawnerCommands) {
+    parent
+        .spawn(Node {
+            width: px(320),
+            height: percent(100),
+            flex_shrink: 0.0,
+            flex_direction: FlexDirection::Column,
+            row_gap: px(6),
+            ..default()
+        })
+        .with_children(|p| {
+            label(p, "SELECTED DESIGN", 12.0, MUTED);
+            p.spawn((
+                DesignImage::Preview,
+                ImageNode::default(),
+                Node {
+                    width: px(320),
+                    height: px(180),
+                    flex_shrink: 0.0,
+                    border: UiRect::all(px(1)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb_u8(238, 242, 228)),
+                BorderColor::all(BORDER),
+                BorderRadius::all(px(6)),
+            ));
+            p.spawn(Node {
+                width: percent(100),
+                height: px(84),
+                flex_shrink: 0.0,
+                overflow: Overflow::clip(),
+                ..default()
+            })
+            .with_children(|p| text(p, "", 12.0, DesignLabel::PreviewStatus));
+            for row_index in 0..2 {
+                p.spawn(Node {
+                    width: percent(100),
+                    height: px(108),
+                    flex_shrink: 0.0,
+                    column_gap: px(8),
+                    ..row()
+                })
+                .with_children(|p| {
+                    for column_index in 0..2 {
+                        let slot = row_index * 2 + column_index;
+                        p.spawn((
+                            DesignThumbnail(slot),
+                            Button,
+                            Action::Design(DesignCommand::Select(usize::MAX)),
+                            Node {
+                                display: Display::None,
+                                width: px(156),
+                                height: px(108),
+                                flex_shrink: 0.0,
+                                flex_direction: FlexDirection::Column,
+                                row_gap: px(2),
+                                border: UiRect::all(px(1)),
+                                overflow: Overflow::clip(),
+                                ..default()
+                            },
+                            BackgroundColor(BUTTON),
+                            BorderColor::all(BORDER),
+                            BorderRadius::all(px(5)),
+                        ))
+                        .with_children(|p| {
+                            p.spawn((
+                                DesignImage::Thumbnail(slot),
+                                ImageNode::default(),
+                                Node {
+                                    width: percent(100),
+                                    height: px(70),
+                                    flex_shrink: 0.0,
+                                    ..default()
+                                },
+                            ));
+                            p.spawn(Node {
+                                width: percent(100),
+                                height: px(32),
+                                flex_shrink: 0.0,
+                                padding: UiRect::axes(px(4), px(0)),
+                                overflow: Overflow::clip(),
+                                ..default()
+                            })
+                            .with_children(|p| {
+                                p.spawn((
+                                    ThumbnailLabel(slot),
+                                    Text::new(""),
+                                    TextFont {
+                                        font_size: 11.0,
+                                        ..default()
+                                    },
+                                    TextLayout::new_with_linebreak(
+                                        bevy::text::LineBreak::AnyCharacter,
+                                    ),
+                                    TextColor(INK),
+                                ));
+                            });
+                        });
+                    }
+                });
+            }
+            text(p, "No saved designs yet", 11.0, DesignLabel::GalleryPage);
+        });
+}
+
 pub(crate) fn setup(commands: &mut Commands) {
     commands
         .spawn((
@@ -80,121 +199,132 @@ pub(crate) fn setup(commands: &mut Commands) {
                     width: px(PANEL_WIDTH),
                     height: px(PANEL_HEIGHT),
                     padding: UiRect::all(px(20)),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(6),
+                    flex_direction: FlexDirection::Row,
+                    column_gap: px(16),
                     ..default()
                 },
                 BackgroundColor(PAPER),
                 BorderRadius::all(px(10)),
             ))
             .with_children(|p| {
+                preview_column(p);
                 p.spawn(Node {
-                    height: px(30),
+                    width: px(520),
+                    height: percent(100),
                     flex_shrink: 0.0,
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..row()
-                })
-                .with_children(|p| {
-                    label(p, "Track designs", 23.0, INK);
-                    design_button(p, "Close [Esc]", DesignCommand::Close, 116.0);
-                });
-                label(
-                    p,
-                    "Save a draft for reuse. Load into the editor, then Apply to build.\nOpen from Track tools with Ctrl+D.",
-                    12.0,
-                    MUTED,
-                );
-                p.spawn((
-                    NameField,
-                    Button,
-                    Action::Design(DesignCommand::NameFocus),
-                    Node {
-                        width: percent(100),
-                        height: px(32),
-                        flex_shrink: 0.0,
-                        padding: UiRect::axes(px(9), px(5)),
-                        border: UiRect::all(px(1)),
-                        overflow: Overflow::clip(),
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(BUTTON),
-                    BorderColor::all(BORDER),
-                    BorderRadius::all(px(5)),
-                ))
-                .with_children(|p| text(p, "Design name (32 characters)", 13.0, DesignLabel::Name));
-                p.spawn(row()).with_children(|p| {
-                    design_button(p, "Save new", DesignCommand::SaveNew, 154.0);
-                    design_button(p, "Update selected", DesignCommand::UpdateSelected, 166.0);
-                    value_cell(p, 174.0, DesignLabel::Draft);
-                });
-                p.spawn(Node {
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..row()
-                })
-                .with_children(|p| {
-                    design_button(p, "< Previous", DesignCommand::Browse(-1), 100.0);
-                    text(p, "No saved designs", 13.0, DesignLabel::Selection);
-                    design_button(p, "Next >", DesignCommand::Browse(1), 100.0);
-                });
-                p.spawn(Node {
-                    height: px(42),
-                    width: percent(100),
-                    flex_shrink: 0.0,
-                    overflow: Overflow::clip(),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(6),
                     ..default()
                 })
-                .with_children(|p| text(p, "", 14.0, DesignLabel::Details));
-                label(
-                    p,
-                    "Anchor: first station (or first piece) / Use its entry height",
-                    12.0,
-                    MUTED,
-                );
-                p.spawn(row()).with_children(|p| {
-                    design_button(p, "-", DesignCommand::MoveX(-1), 32.0);
-                    value_cell(p, 172.0, DesignLabel::X);
-                    design_button(p, "+", DesignCommand::MoveX(1), 32.0);
-                    design_button(p, "-", DesignCommand::MoveY(-1), 32.0);
-                    value_cell(p, 172.0, DesignLabel::Y);
-                    design_button(p, "+", DesignCommand::MoveY(1), 32.0);
-                });
-                p.spawn(row()).with_children(|p| {
-                    design_button(p, "-", DesignCommand::Height(-1), 32.0);
-                    value_cell(p, 172.0, DesignLabel::Height);
-                    design_button(p, "+", DesignCommand::Height(1), 32.0);
+                .with_children(|p| {
+                    p.spawn(Node {
+                        height: px(30),
+                        flex_shrink: 0.0,
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..row()
+                    })
+                    .with_children(|p| {
+                        label(p, "Track designs", 23.0, INK);
+                        design_button(p, "Close [Esc]", DesignCommand::Close, 116.0);
+                    });
+                    label(
+                        p,
+                        "Save a draft for reuse. Load into the editor, then Apply to build.\nOpen from Track tools with Ctrl+D.",
+                        12.0,
+                        MUTED,
+                    );
                     p.spawn((
+                        NameField,
                         Button,
-                        Action::Design(DesignCommand::Turn),
+                        Action::Design(DesignCommand::NameFocus),
                         Node {
-                            width: px(253),
-                            height: px(30),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
+                            width: percent(100),
+                            height: px(32),
+                            flex_shrink: 0.0,
+                            padding: UiRect::axes(px(9), px(5)),
                             border: UiRect::all(px(1)),
+                            overflow: Overflow::clip(),
+                            align_items: AlignItems::Center,
                             ..default()
                         },
                         BackgroundColor(BUTTON),
                         BorderColor::all(BORDER),
                         BorderRadius::all(px(5)),
                     ))
-                    .with_children(|p| text(p, "Turn / 0 degrees", 13.0, DesignLabel::Rotation));
-                });
-                p.spawn(row()).with_children(|p| {
-                    design_button(p, "Load into draft", DesignCommand::LoadDraft, 253.0);
-                    design_button(p, "Delete selected", DesignCommand::DeleteSelected, 253.0);
-                });
-                p.spawn(Node {
-                    height: px(46),
-                    width: percent(100),
-                    flex_shrink: 0.0,
-                    overflow: Overflow::clip(),
-                    ..default()
-                })
-                .with_children(|p| text(p, "", 12.0, DesignLabel::Notice));
-                p.spawn((ConfirmationRow, row())).with_children(|p| {
-                    design_button(p, "Confirm", DesignCommand::Confirm, 253.0);
-                    design_button(p, "Cancel", DesignCommand::Cancel, 253.0);
+                    .with_children(|p| text(p, "Design name (32 characters)", 13.0, DesignLabel::Name));
+                    p.spawn(row()).with_children(|p| {
+                        design_button(p, "Save new", DesignCommand::SaveNew, 154.0);
+                        design_button(p, "Update selected", DesignCommand::UpdateSelected, 166.0);
+                        value_cell(p, 174.0, DesignLabel::Draft);
+                    });
+                    p.spawn(Node {
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..row()
+                    })
+                    .with_children(|p| {
+                        design_button(p, "< Previous", DesignCommand::Browse(-1), 100.0);
+                        text(p, "No saved designs", 13.0, DesignLabel::Selection);
+                        design_button(p, "Next >", DesignCommand::Browse(1), 100.0);
+                    });
+                    p.spawn(Node {
+                        height: px(42),
+                        width: percent(100),
+                        flex_shrink: 0.0,
+                        overflow: Overflow::clip(),
+                        ..default()
+                    })
+                    .with_children(|p| text(p, "", 14.0, DesignLabel::Details));
+                    label(
+                        p,
+                        "Anchor: first station (or first piece) / Use its entry height",
+                        12.0,
+                        MUTED,
+                    );
+                    p.spawn(row()).with_children(|p| {
+                        design_button(p, "-", DesignCommand::MoveX(-1), 32.0);
+                        value_cell(p, 172.0, DesignLabel::X);
+                        design_button(p, "+", DesignCommand::MoveX(1), 32.0);
+                        design_button(p, "-", DesignCommand::MoveY(-1), 32.0);
+                        value_cell(p, 172.0, DesignLabel::Y);
+                        design_button(p, "+", DesignCommand::MoveY(1), 32.0);
+                    });
+                    p.spawn(row()).with_children(|p| {
+                        design_button(p, "-", DesignCommand::Height(-1), 32.0);
+                        value_cell(p, 172.0, DesignLabel::Height);
+                        design_button(p, "+", DesignCommand::Height(1), 32.0);
+                        p.spawn((
+                            Button,
+                            Action::Design(DesignCommand::Turn),
+                            Node {
+                                width: px(253),
+                                height: px(30),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border: UiRect::all(px(1)),
+                                ..default()
+                            },
+                            BackgroundColor(BUTTON),
+                            BorderColor::all(BORDER),
+                            BorderRadius::all(px(5)),
+                        ))
+                        .with_children(|p| text(p, "Turn / 0 degrees", 13.0, DesignLabel::Rotation));
+                    });
+                    p.spawn(row()).with_children(|p| {
+                        design_button(p, "Load into draft", DesignCommand::LoadDraft, 253.0);
+                        design_button(p, "Delete selected", DesignCommand::DeleteSelected, 253.0);
+                    });
+                    p.spawn(Node {
+                        height: px(46),
+                        width: percent(100),
+                        flex_shrink: 0.0,
+                        overflow: Overflow::clip(),
+                        ..default()
+                    })
+                    .with_children(|p| text(p, "", 12.0, DesignLabel::Notice));
+                    p.spawn((ConfirmationRow, row())).with_children(|p| {
+                        design_button(p, "Confirm", DesignCommand::Confirm, 253.0);
+                        design_button(p, "Cancel", DesignCommand::Cancel, 253.0);
+                    });
                 });
             });
         });
@@ -248,18 +378,72 @@ fn notice(park: &park_sim::Park, library: &DesignLibrary) -> String {
     }
 }
 
+type DesignButtons<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static Action,
+        &'static Interaction,
+        &'static mut BackgroundColor,
+    ),
+    (With<Button>, Without<DesignThumbnail>),
+>;
+
+type ThumbnailButtons<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static DesignThumbnail,
+        &'static mut Node,
+        &'static mut Action,
+        &'static mut BorderColor,
+        &'static Interaction,
+        &'static mut BackgroundColor,
+    ),
+    (
+        Without<NameField>,
+        Without<DesignsPanel>,
+        Without<ConfirmationRow>,
+    ),
+>;
+
+type DesignPanels<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Node,
+    (
+        With<DesignsPanel>,
+        Without<ConfirmationRow>,
+        Without<DesignThumbnail>,
+    ),
+>;
+
+type ConfirmationRows<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Node,
+    (
+        With<ConfirmationRow>,
+        Without<DesignsPanel>,
+        Without<DesignThumbnail>,
+    ),
+>;
+
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct DesignControls<'w, 's> {
-    name_fields: Query<'w, 's, &'static mut BorderColor, With<NameField>>,
-    buttons: Query<
+    name_fields:
+        Query<'w, 's, &'static mut BorderColor, (With<NameField>, Without<DesignThumbnail>)>,
+    buttons: DesignButtons<'w, 's>,
+    thumbnails: ThumbnailButtons<'w, 's>,
+    thumbnail_labels: Query<
         'w,
         's,
         (
-            &'static Action,
-            &'static Interaction,
-            &'static mut BackgroundColor,
+            &'static ThumbnailLabel,
+            &'static mut Text,
+            &'static mut TextFont,
         ),
-        With<Button>,
+        Without<DesignLabel>,
     >,
 }
 
@@ -267,8 +451,8 @@ pub(crate) fn refresh(
     sim: Res<Simulation>,
     view: Res<ViewState>,
     library: Res<DesignLibrary>,
-    mut panels: Query<&mut Node, (With<DesignsPanel>, Without<ConfirmationRow>)>,
-    mut confirmation_rows: Query<&mut Node, (With<ConfirmationRow>, Without<DesignsPanel>)>,
+    mut panels: DesignPanels<'_, '_>,
+    mut confirmation_rows: ConfirmationRows<'_, '_>,
     mut controls: DesignControls,
     mut labels: Query<(&DesignLabel, &mut Text)>,
 ) {
@@ -281,6 +465,49 @@ pub(crate) fn refresh(
     }
     if !view.designs_open {
         return;
+    }
+    let page_start = crate::design_preview::page_start(&library);
+    for (slot, mut node, mut action, mut border, interaction, mut background) in
+        &mut controls.thumbnails
+    {
+        let index = page_start + slot.0;
+        let populated = index < library.entries.len();
+        node.display = if populated {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        let command = DesignCommand::Select(if populated { index } else { usize::MAX });
+        *action = Action::Design(command);
+        let selected = populated && library.selected == Some(index);
+        *border = BorderColor::all(if selected { GOLD } else { BORDER });
+        let enabled =
+            populated && crate::design_library::command_enabled(&sim.0, &library, command);
+        background.0 = if !enabled {
+            Color::srgb_u8(239, 240, 232)
+        } else if !view.capture_active && *interaction == Interaction::Pressed {
+            GOLD
+        } else if !view.capture_active && *interaction == Interaction::Hovered {
+            Color::srgb_u8(207, 220, 197)
+        } else if selected {
+            Color::srgb_u8(238, 232, 204)
+        } else {
+            BUTTON
+        };
+    }
+    for (slot, mut text, mut font) in &mut controls.thumbnail_labels {
+        let name = library
+            .entries
+            .get(page_start + slot.0)
+            .map_or("", |design| design.name());
+        if text.0 != name {
+            text.0 = name.into();
+        }
+        // Even 32 wide characters fit in two caption lines at the smaller size.
+        let size = if name.chars().count() > 26 { 9.0 } else { 11.0 };
+        if font.font_size != size {
+            font.font_size = size;
+        }
     }
     for (action, interaction, mut background) in &mut controls.buttons {
         let Action::Design(command) = action else {
@@ -336,6 +563,14 @@ pub(crate) fn refresh(
                 )
             }
             DesignLabel::Notice => notice(&sim.0, &library),
+            DesignLabel::PreviewStatus => crate::design_preview::status_text(&sim.0, &library),
+            DesignLabel::GalleryPage if library.entries.is_empty() => "No saved designs yet".into(),
+            DesignLabel::GalleryPage => format!(
+                "Designs {}-{} of {} / click a layout to select",
+                page_start + 1,
+                (page_start + crate::design_preview::PAGE_SIZE).min(library.entries.len()),
+                library.entries.len()
+            ),
         };
         if text.0 != value {
             text.0 = value;
