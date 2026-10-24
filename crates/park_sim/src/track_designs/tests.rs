@@ -368,8 +368,8 @@ fn design_is_independent_of_paid_state_and_reuse_defers_charges_to_apply() {
     target.apply_track_draft().unwrap();
     assert_eq!(target.cash_cents(), original.cash_cents() - required);
     let value: Value = serde_json::from_slice(&target.to_save_bytes().unwrap()).unwrap();
-    assert_eq!(value["schema_version"], 16);
-    assert_eq!(value["content_version"], 16);
+    assert_eq!(value["schema_version"], crate::SAVE_SCHEMA_VERSION);
+    assert_eq!(value["content_version"], crate::SAVE_CONTENT_VERSION);
 }
 
 #[test]

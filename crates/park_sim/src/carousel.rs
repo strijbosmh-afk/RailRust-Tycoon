@@ -221,6 +221,9 @@ impl Park {
                     };
                     c.dwell_ticks = if open { settings.station_wait_ticks } else { 0 };
                 }
+                if !open {
+                    self.reset_ride_dispatch_wait(id);
+                }
                 self.reconcile_ride_visits();
             }
         }
@@ -365,6 +368,7 @@ impl Park {
         c.progress = 0;
         c.dwell_ticks = 0;
         c.demolition_refund_cents = refund;
+        self.reset_ride_dispatch_wait(id);
         self.objects.retain(|o| !footprint.contains(&o.id));
         self.reconcile_ride_visits();
         self.record_ride_transaction(crate::FinanceKind::RideDemolitionRefund, id, refund);
@@ -428,6 +432,18 @@ impl Park {
         for id in ids {
             let hold = self.ride_holds(id);
             let settings = self.ride_operating_settings(id).unwrap_or_default();
+            let state = self.carousels.iter().find(|c| c.ride.id == id).unwrap();
+            // Carousel departure has always occurred on the final dwell tick;
+            // preserve that difference from the train's following-tick start.
+            let departure_due = state.phase != CarouselPhase::Running
+                && state.open
+                && !hold
+                && state.cycles < u64::MAX
+                && state.dwell_ticks <= 1;
+            let loading_hold = departure_due && self.hold_for_dispatch_load(id);
+            if departure_due && !loading_hold {
+                self.reset_ride_dispatch_wait(id);
+            }
             let c = self.carousels.iter_mut().find(|c| c.ride.id == id).unwrap();
             if c.phase == CarouselPhase::Running {
                 c.progress += 1;
@@ -447,7 +463,7 @@ impl Park {
                 }
             } else if c.open && !hold && c.cycles < u64::MAX {
                 c.dwell_ticks = c.dwell_ticks.saturating_sub(1);
-                if c.dwell_ticks == 0 {
+                if c.dwell_ticks == 0 && !loading_hold {
                     c.phase = CarouselPhase::Running;
                     c.progress = 0;
                 }
@@ -527,12 +543,21 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
             }
         }
         let settings = park.ride_operating_settings(c.ride.id).unwrap_or_default();
+        // A carousel normally departs on its final dwell tick. Remaining at
+        // zero dwell requires an actual loading hold, which accrues at least
+        // one extra tick; merely selecting a minimum cannot skip base dwell.
+        let has_loading_wait = park.ride_dispatch.iter().any(|record| {
+            record.ride == c.ride.id
+                && record.policy.minimum_passengers > 0
+                && record.extra_waited_ticks > 0
+        });
         if c.progress >= settings.cycle_ticks
             || c.dwell_ticks > settings.station_wait_ticks
             || (c.phase == CarouselPhase::Running && (c.dwell_ticks != 0 || c.cycles == u64::MAX))
             || (c.phase != CarouselPhase::Running && c.progress != 0)
             || (c.phase == CarouselPhase::Closed && (c.open || c.dwell_ticks != 0))
-            || (c.phase == CarouselPhase::Station && (!c.open || c.dwell_ticks == 0))
+            || (c.phase == CarouselPhase::Station
+                && (!c.open || (c.dwell_ticks == 0 && !has_loading_wait)))
             || u128::from(c.cycles)
                 * u128::from(crate::MIN_CAROUSEL_CYCLE_TICKS + crate::MIN_STATION_WAIT_TICKS)
                 + if c.phase == CarouselPhase::Running {

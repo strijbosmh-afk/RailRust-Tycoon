@@ -212,11 +212,11 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     check(park)?;
     let bytes = park.to_save_bytes().map_err(|e| e.to_string())?;
     let json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if json["schema_version"] != 16
-        || json["content_version"] != 16
+    if json["schema_version"] != park_sim::SAVE_SCHEMA_VERSION
+        || json["content_version"] != park_sim::SAVE_CONTENT_VERSION
         || Park::from_save_bytes(&bytes).map_err(|e| e.to_string())? != *park
     {
-        return Err("service strict16 roundtrip changed authoritative state".into());
+        return Err("service current-schema roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }

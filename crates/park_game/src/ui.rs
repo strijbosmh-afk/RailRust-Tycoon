@@ -67,6 +67,7 @@ pub(super) enum Action {
     BrowseRide(i8),
     RideOperating(crate::ride_operations::OperationCommand),
     RideAccess(crate::access_planning::AccessCommand),
+    CoasterTest(crate::coaster_testing::TestCommand),
     BuildCarousel,
     EditTrack,
     Track(crate::track_tools::TrackCommand),
@@ -852,6 +853,7 @@ pub(super) fn button_actions(
                     | Action::BrowseRide(_)
                     | Action::RideOperating(_)
                     | Action::RideAccess(_)
+                    | Action::CoasterTest(_)
             )
         {
             continue;
@@ -876,6 +878,7 @@ pub(super) fn button_actions(
                     | Action::ToggleService
                     | Action::RideOperating(_)
                     | Action::RideAccess(_)
+                    | Action::CoasterTest(_)
             )
         {
             continue;
@@ -918,6 +921,10 @@ pub(super) fn button_actions(
                 crate::access_planning::queue(&mut view, *command);
             }
             Action::RideAccess(_) => {}
+            Action::CoasterTest(command) if view.rides_open => {
+                crate::coaster_testing::queue(&mut view, *command);
+            }
+            Action::CoasterTest(_) => {}
             Action::Rides
             | Action::CloseRides
             | Action::BuildCarousel
@@ -1424,10 +1431,13 @@ pub(super) fn refresh(
             Action::ToggleTrain => ride_id.is_some_and(|id| !sim.0.ride_is_open(id)),
             Action::Rides => view.rides_open,
             Action::RideAccess(crate::access_planning::AccessCommand::ShowAccess) => {
-                view.ride_access_open
+                view.ride_tab == rides::RideTab::Access
             }
             Action::RideAccess(crate::access_planning::AccessCommand::ShowOperations) => {
-                !view.ride_access_open
+                view.ride_tab == rides::RideTab::Operations
+            }
+            Action::CoasterTest(crate::coaster_testing::TestCommand::Show) => {
+                view.ride_tab == rides::RideTab::Test
             }
             Action::Services => view.services_open,
             Action::Finance => view.finance_open,
@@ -1474,13 +1484,26 @@ pub(super) fn refresh(
             if !crate::ride_operations::command_enabled(&sim.0, &view, *command));
         let access_disabled = matches!(action, Action::RideAccess(command)
             if !crate::access_planning::command_enabled(&sim.0, &view, *command));
-        let color = if tool_disabled
+        let test_disabled = matches!(action, Action::CoasterTest(command)
+            if !crate::coaster_testing::command_enabled(&sim.0, &view, *command));
+        let selected_ride_tab = active
+            && matches!(
+                action,
+                Action::RideAccess(
+                    crate::access_planning::AccessCommand::ShowAccess
+                        | crate::access_planning::AccessCommand::ShowOperations
+                ) | Action::CoasterTest(crate::coaster_testing::TestCommand::Show)
+            );
+        let color = if selected_ride_tab {
+            GOLD
+        } else if tool_disabled
             || history_disabled
             || price_disabled
             || service_disabled
             || world_edit_disabled
             || operating_disabled
             || access_disabled
+            || test_disabled
         {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {

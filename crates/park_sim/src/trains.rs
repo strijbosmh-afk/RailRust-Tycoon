@@ -301,6 +301,9 @@ impl Park {
                 TrainPhase::Closed
             };
         }
+        if !open && let Some(id) = self.ride.as_ref().map(|ride| ride.id) {
+            self.reset_ride_dispatch_wait(id);
+        }
         self.reconcile_ride_visits();
     }
 
@@ -419,6 +422,9 @@ impl Park {
             departed: false,
         });
         candidate.circuit = Some(circuit);
+        if let Some(id) = candidate.ride.as_ref().map(|ride| ride.id) {
+            candidate.reset_ride_dispatch_wait(id);
+        }
         candidate.validate_train_circuit()?;
         *self = candidate;
         Ok(())
@@ -466,6 +472,9 @@ impl Park {
                 train.departed = false;
                 train.lap_progress = 0;
             }
+            if let Some(id) = self.ride.as_ref().map(|ride| ride.id) {
+                self.reset_ride_dispatch_wait(id);
+            }
         }
     }
 
@@ -473,6 +482,21 @@ impl Park {
         let settings = self.coaster_operating_settings();
         if self.ride_holds_train() {
             return;
+        }
+        // Base dwell and transfers retain their original timing. Only the
+        // otherwise eligible departure consumes an optional extra loading tick.
+        let departure_due = self.circuit.is_some()
+            && self.train.as_ref().is_some_and(|train| {
+                train.open
+                    && !train.departed
+                    && train.phase != TrainPhase::Fault
+                    && train.dwell_ticks == 0
+            });
+        if departure_due && let Some(id) = self.ride.as_ref().map(|ride| ride.id) {
+            if self.hold_for_dispatch_load(id) {
+                return;
+            }
+            self.reset_ride_dispatch_wait(id);
         }
         let (Some(circuit), Some(train)) = (&self.circuit, &mut self.train) else {
             return;

@@ -436,8 +436,8 @@ fn current_settings_are_required_strict_bounded_unique_and_owned() {
     )
     .unwrap();
     let base = value(&park);
-    assert_eq!(base["schema_version"], json!(16));
-    assert_eq!(base["content_version"], json!(16));
+    assert_eq!(base["schema_version"], json!(crate::SAVE_SCHEMA_VERSION));
+    assert_eq!(base["content_version"], json!(crate::SAVE_CONTENT_VERSION));
     let record = base["park"]["ride_operating_settings"][0].clone();
     let mut missing = base.clone();
     missing["park"]
@@ -557,6 +557,7 @@ fn schema_fifteen_preserves_every_prior_field_and_default_future_behavior() {
         .as_object_mut()
         .unwrap()
         .remove("ride_operating_settings");
+    old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     let mut migrated = read(&old).unwrap();
     assert_eq!(migrated, park);
     for ride in migrated.all_rides() {
@@ -572,6 +573,10 @@ fn schema_fifteen_preserves_every_prior_field_and_default_future_behavior() {
         .as_object_mut()
         .unwrap()
         .remove("ride_operating_settings");
+    projection["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("ride_dispatch");
     assert_eq!(projection, old);
     let mut smuggled = old.clone();
     smuggled["park"]["ride_operating_settings"] = json!([]);
@@ -628,6 +633,10 @@ fn timer_validation_uses_current_settings_but_legacy_keeps_original_counter_boun
         .as_object_mut()
         .unwrap()
         .remove("ride_operating_settings");
+    legacy["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("ride_dispatch");
     assert!(read(&legacy).is_ok());
     // A forged early completion passes the new minimum-duration bound but was
     // never possible under the fixed legacy cycle, so v15 must still reject it.

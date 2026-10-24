@@ -3,6 +3,7 @@
 mod access_planning;
 mod benchmark;
 mod capture;
+mod coaster_testing;
 mod design_file_dialog;
 #[cfg(test)]
 mod design_input_tests;
@@ -76,7 +77,8 @@ struct ViewState {
     ride_browse_pending: i32,
     ride_operating_commands: Vec<ride_operations::OperationCommand>,
     ride_operating_notice: Option<String>,
-    ride_access_open: bool,
+    ride_tab: ui::rides::RideTab,
+    coaster_testing: coaster_testing::CoasterTesting,
     ride_access_commands: Vec<access_planning::AccessCommand>,
     ride_access_plan: Option<park_sim::RideAccessPlan>,
     ride_access_notice: Option<String>,
@@ -140,7 +142,8 @@ impl Default for ViewState {
             ride_browse_pending: 0,
             ride_operating_commands: Vec::new(),
             ride_operating_notice: None,
-            ride_access_open: false,
+            ride_tab: default(),
+            coaster_testing: default(),
             ride_access_commands: Vec::new(),
             ride_access_plan: None,
             ride_access_notice: None,
@@ -270,7 +273,9 @@ impl ViewState {
         self.design_commands.clear();
         self.ride_operating_commands.clear();
         self.ride_operating_notice = None;
-        self.ride_access_open = false;
+        self.ride_tab = default();
+        self.coaster_testing.run_pending = false;
+        self.coaster_testing.show_pending = false;
         self.ride_access_commands.clear();
         self.ride_access_plan = None;
         self.ride_access_notice = None;
@@ -315,6 +320,7 @@ impl ViewState {
             self.price_notice = None;
             self.ride_operating_commands.clear();
             self.ride_operating_notice = None;
+            self.coaster_testing = default();
             self.ride_access_commands.clear();
             self.ride_access_plan = None;
             self.ride_access_notice = None;
@@ -456,6 +462,7 @@ fn main() -> AppExit {
                     apply_path_actions,
                     apply_train_actions,
                     apply_price_actions,
+                    coaster_testing::apply_commands,
                     access_planning::apply_commands,
                     ride_operations::apply_commands,
                     apply_service_actions,

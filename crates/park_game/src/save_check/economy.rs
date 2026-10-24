@@ -274,7 +274,9 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let envelope: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if envelope["schema_version"] != 16 || envelope["content_version"] != 16 {
+    if envelope["schema_version"] != park_sim::SAVE_SCHEMA_VERSION
+        || envelope["content_version"] != park_sim::SAVE_CONTENT_VERSION
+    {
         return Err("economy proof requires strict schema/content 15/15".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {

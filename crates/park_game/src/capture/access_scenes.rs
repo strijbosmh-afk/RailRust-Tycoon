@@ -19,7 +19,7 @@ pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
     view.finance_open = false;
     view.designs_open = false;
     view.rides_open = true;
-    view.ride_access_open = true;
+    view.ride_tab = crate::ui::rides::RideTab::Access;
     view.selected_ride = Some(id);
     view.ride_access_plan = Some(park.ride_access_plan(id).unwrap());
     view.ride_access_notice = None;
@@ -50,7 +50,7 @@ mod tests {
             };
             prepare(&mut park, &mut view, scene);
             let plan = view.ride_access_plan.as_ref().unwrap();
-            assert!(view.rides_open && view.ride_access_open);
+            assert!(view.rides_open && view.ride_tab == crate::ui::rides::RideTab::Access);
             assert_eq!(plan.available, !matches!(scene, Scene::AccessUnavailable));
             if matches!(scene, Scene::AccessReady) {
                 assert_eq!(plan.entrance.status, park_sim::RideAccessStatus::Ready);

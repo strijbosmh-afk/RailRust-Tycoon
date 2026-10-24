@@ -64,6 +64,8 @@ fn app(directory: &SaveDirectory, park: Park, view: ViewState) -> App {
             (
                 ui::button_actions,
                 keyboard_input,
+                crate::coaster_testing::apply_commands,
+                crate::access_planning::apply_commands,
                 apply_commands,
                 persistence::apply_save_action,
                 ui::rides::refresh,
@@ -358,8 +360,12 @@ fn operating_rows_show_family_specific_units_and_panel_fits_minimum_window() {
         }
         let mut rows = app.world_mut().query::<(&ui::rides::OperatingRow, &Node)>();
         for (field, node) in rows.iter(app.world()) {
-            let visible = field.0 == OperatingField::StationWait
-                || (carousel && field.0 == OperatingField::CycleDuration)
+            let visible = matches!(
+                field.0,
+                OperatingField::StationWait
+                    | OperatingField::MinimumPassengers
+                    | OperatingField::MaxExtraWait
+            ) || (carousel && field.0 == OperatingField::CycleDuration)
                 || (!carousel
                     && matches!(
                         field.0,
@@ -385,6 +391,12 @@ fn operating_rows_show_family_specific_units_and_panel_fits_minimum_window() {
                 ) => assert!(text.0.contains("tiles/s")),
                 ui::rides::RideLabel::OperatingValue(OperatingField::CycleDuration) => {
                     assert!(text.0.contains("24 s"))
+                }
+                ui::rides::RideLabel::OperatingValue(OperatingField::MinimumPassengers) => {
+                    assert!(text.0.contains("No minimum"))
+                }
+                ui::rides::RideLabel::OperatingValue(OperatingField::MaxExtraWait) => {
+                    assert!(text.0.contains("30 s") && text.0.contains("1-60 s"))
                 }
                 _ => {}
             }
@@ -451,4 +463,184 @@ fn faulted_coaster_open_control_refuses_without_false_success_notice() {
             .unwrap()
             .contains("Restore this ride")
     );
+}
+
+#[test]
+fn generated_loading_controls_target_each_ride_once_and_save_both_policy_fields() {
+    let (mut app, directory, coaster, carousel) = fixture();
+    let mut expected = app.world().resource::<Simulation>().0.clone();
+    let minimum = OperationCommand::Adjust(OperatingField::MinimumPassengers, 1);
+    let wait = OperationCommand::Adjust(OperatingField::MaxExtraWait, 1);
+    frame(&mut app, &[ui::Action::RideOperating(minimum)], &[]);
+    app.update();
+    frame(&mut app, &[], &[]);
+    click(&mut app, wait);
+    expected
+        .set_ride_dispatch_policy(
+            coaster,
+            RideDispatchPolicy {
+                minimum_passengers: 1,
+                maximum_extra_wait_ticks: 930,
+            },
+        )
+        .unwrap();
+    assert_eq!(app.world().resource::<Simulation>().0, expected);
+    frame(&mut app, &[], &[KeyCode::ArrowDown]);
+    click(&mut app, minimum);
+    expected
+        .set_ride_dispatch_policy(
+            carousel,
+            RideDispatchPolicy {
+                minimum_passengers: 1,
+                ..default()
+            },
+        )
+        .unwrap();
+    assert_eq!(app.world().resource::<Simulation>().0, expected);
+    frame(&mut app, &[], &[KeyCode::Escape]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    assert_eq!(directory.store().load().unwrap(), expected);
+}
+
+#[test]
+fn loading_control_bounds_disable_and_preserve_park_without_wrapping() {
+    for (policy, direction) in [
+        (
+            RideDispatchPolicy {
+                minimum_passengers: 0,
+                maximum_extra_wait_ticks: park_sim::MIN_EXTRA_WAIT_TICKS,
+            },
+            -1,
+        ),
+        (
+            RideDispatchPolicy {
+                minimum_passengers: park_sim::MAX_DISPATCH_PASSENGERS,
+                maximum_extra_wait_ticks: park_sim::MAX_EXTRA_WAIT_TICKS,
+            },
+            1,
+        ),
+    ] {
+        let (mut app, _directory, coaster, _) = fixture();
+        app.world_mut()
+            .resource_mut::<Simulation>()
+            .0
+            .set_ride_dispatch_policy(coaster, policy)
+            .unwrap();
+        frame(&mut app, &[], &[]);
+        let before = app.world().resource::<Simulation>().0.clone();
+        for field in [
+            OperatingField::MinimumPassengers,
+            OperatingField::MaxExtraWait,
+        ] {
+            let command = OperationCommand::Adjust(field, direction);
+            assert!(!command_enabled(
+                &before,
+                app.world().resource::<ViewState>(),
+                command
+            ));
+            click(&mut app, command);
+            assert_eq!(app.world().resource::<Simulation>().0, before);
+        }
+    }
+}
+
+#[test]
+fn combined_reset_is_atomic_while_open_or_moving_and_resets_both_domains_when_ready() {
+    let (mut app, _directory, coaster, _) = fixture();
+    {
+        let mut sim = app.world_mut().resource_mut::<Simulation>();
+        sim.0
+            .set_ride_operating_settings(
+                coaster,
+                RideOperatingSettings {
+                    station_wait_ticks: 30,
+                    ..default()
+                },
+            )
+            .unwrap();
+        sim.0
+            .set_ride_dispatch_policy(
+                coaster,
+                RideDispatchPolicy {
+                    minimum_passengers: 6,
+                    maximum_extra_wait_ticks: 30,
+                },
+            )
+            .unwrap();
+        sim.0.set_train_open(true);
+    }
+    let open = app.world().resource::<Simulation>().0.clone();
+    click(&mut app, OperationCommand::ResetDefaults);
+    assert_eq!(app.world().resource::<Simulation>().0, open);
+    {
+        let mut sim = app.world_mut().resource_mut::<Simulation>();
+        for _ in 0..2_000 {
+            if sim.0.ride_is_running(coaster) {
+                break;
+            }
+            sim.0.advance(Speed::Normal);
+        }
+        sim.0.set_train_open(false);
+        assert!(sim.0.ride_is_running(coaster));
+    }
+    let closing = app.world().resource::<Simulation>().0.clone();
+    click(&mut app, OperationCommand::ResetDefaults);
+    assert_eq!(app.world().resource::<Simulation>().0, closing);
+    {
+        let mut sim = app.world_mut().resource_mut::<Simulation>();
+        for _ in 0..10_000 {
+            if sim.0.ride_operating_settings_status(coaster).is_ok() {
+                break;
+            }
+            sim.0.advance(Speed::Normal);
+        }
+        assert!(sim.0.ride_operating_settings_status(coaster).is_ok());
+    }
+    let mut expected = app.world().resource::<Simulation>().0.clone();
+    expected
+        .set_ride_operating_settings(coaster, default())
+        .unwrap();
+    expected
+        .set_ride_dispatch_policy(coaster, default())
+        .unwrap();
+    click(&mut app, OperationCommand::ResetDefaults);
+    assert_eq!(app.world().resource::<Simulation>().0, expected);
+}
+
+#[test]
+fn tab_changes_and_load_intent_consume_loading_controls_before_any_policy_write() {
+    for action in [
+        ui::Action::RideAccess(crate::access_planning::AccessCommand::ShowAccess),
+        ui::Action::CoasterTest(crate::coaster_testing::TestCommand::Show),
+    ] {
+        let (mut app, _directory, _, _) = fixture();
+        let before = app.world().resource::<Simulation>().0.clone();
+        frame(
+            &mut app,
+            &[
+                action,
+                ui::Action::RideOperating(OperationCommand::Adjust(
+                    OperatingField::MinimumPassengers,
+                    1,
+                )),
+            ],
+            &[],
+        );
+        frame(&mut app, &[], &[]);
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+    }
+    for keys in [vec![KeyCode::F9], vec![KeyCode::ShiftLeft, KeyCode::F9]] {
+        let (mut app, _directory, _, _) = fixture();
+        let before = app.world().resource::<Simulation>().0.clone();
+        frame(
+            &mut app,
+            &[ui::Action::RideOperating(OperationCommand::Adjust(
+                OperatingField::MaxExtraWait,
+                -1,
+            ))],
+            &keys,
+        );
+        frame(&mut app, &[], &[]);
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+    }
 }
