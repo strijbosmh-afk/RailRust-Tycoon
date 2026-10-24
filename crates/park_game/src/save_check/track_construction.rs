@@ -305,7 +305,7 @@ pub(crate) fn apply(park: &mut Park) -> Result<(), String> {
     let old: Vec<_> = before
         .circuit()
         .into_iter()
-        .flat_map(|circuit| circuit.specs.iter().zip(&circuit.pieces))
+        .flat_map(|circuit| circuit.specs().iter().zip(&circuit.pieces))
         .map(|(spec, piece)| (*spec, piece.object))
         .collect();
     let retained: Vec<_> = old
@@ -372,7 +372,7 @@ pub(crate) fn apply(park: &mut Park) -> Result<(), String> {
     if removed.iter().any(|id| park.object(*id).is_some()) {
         return Err("replacement retained a removed rail object".into());
     }
-    for (spec, piece) in circuit.specs.iter().zip(&circuit.pieces) {
+    for (spec, piece) in circuit.specs().iter().zip(&circuit.pieces) {
         if let Some((_, old_id)) = retained.iter().find(|(old, _)| old == spec) {
             if piece.object != *old_id
                 || paid_refund(park, *old_id)? != paid_refund(&before, *old_id)?
@@ -396,7 +396,7 @@ pub(crate) fn apply(park: &mut Park) -> Result<(), String> {
         || park.carousels() != before.carousels()
         || park.track_draft() != before.track_draft()
         || park.path_cache_stats() != before.path_cache_stats()
-        || circuit.specs != planned
+        || circuit.specs() != planned
         || circuit
             .pieces
             .iter()
@@ -544,7 +544,7 @@ fn economics_side_cases() -> Result<(), String> {
     let installed: Vec<_> = park
         .circuit()
         .unwrap()
-        .specs
+        .specs()
         .iter()
         .zip(&park.circuit().unwrap().pieces)
         .map(|(spec, piece)| (*spec, piece.object))

@@ -116,6 +116,11 @@ pub struct TrainCircuit {
 }
 
 impl TrainCircuit {
+    /// Installed world specifications in traversal order, paired with `pieces`.
+    pub fn specs(&self) -> &[TrackPieceSpec] {
+        &self.specs
+    }
+
     /// Sample the authoritative polyline at a wrapping arc distance.
     pub fn sample(&self, distance: u32) -> TrackPoint {
         let (index, local) = self.locate(distance);
