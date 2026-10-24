@@ -578,3 +578,296 @@ fn intermediate_queue_and_public_path_buttons_arm_the_first_ranked_legal_tile() 
         park_sim::RideAccessStatus::Ready
     );
 }
+
+#[test]
+fn exit_return_route_can_be_built_with_generated_prepare_and_deliberate_pointer_clicks() {
+    use park_sim::{PathDirection, RideExitStatus};
+
+    for rotation in 0..4 {
+        let directory = Directory::new();
+        let mut park = crate::demonstration_park();
+        park.set_train_open(false);
+        let id = park.ride().unwrap().id;
+        park.place_ride_entrance(TilePos { x: 8, y: 11 }, 8, PathDirection::North, id)
+            .unwrap();
+        for y in 12..=15 {
+            park.place_queue_path(TilePos { x: 8, y }, 8, PathSlope::Flat, id)
+                .unwrap();
+        }
+        park.place_ride_exit(TilePos { x: 8, y: 9 }, 8, PathDirection::South, id)
+            .unwrap();
+        for x in 8..=13 {
+            park.place_path(TilePos { x, y: 8 }, 8).unwrap();
+        }
+        assert_eq!(
+            park.ride_exit_access(id).status,
+            RideExitStatus::PublicDisconnected
+        );
+        let (mut app, window) = test_app(
+            park,
+            ViewState {
+                rotation,
+                ..view(id)
+            },
+            &directory,
+        );
+        let prepare =
+            ui::Action::RideAccess(AccessCommand::Prepare(RideAccessBuildKind::PublicPath));
+        for step in 0..30 {
+            let before = app.world().resource::<Simulation>().0.clone();
+            if before.ride_exit_access(id).status == RideExitStatus::Ready {
+                break;
+            }
+            let suggestion = before
+                .ride_access_plan(id)
+                .unwrap()
+                .suggestions
+                .into_iter()
+                .find(|suggestion| suggestion.kind == RideAccessBuildKind::PublicPath)
+                .unwrap_or_else(|| panic!("no next path at rotation {rotation}, step {step}"));
+            if !app.world().resource::<ViewState>().rides_open {
+                frame(&mut app, &[ui::Action::Rides], &[], false);
+                frame(&mut app, &[], &[], false);
+                frame(
+                    &mut app,
+                    &[ui::Action::RideAccess(AccessCommand::ShowAccess)],
+                    &[],
+                    false,
+                );
+            }
+            app.world_mut()
+                .get_mut::<Window>(window)
+                .unwrap()
+                .set_cursor_position(Some(Vec2::new(650.0, 360.0)));
+            frame(&mut app, &[prepare], &[], true);
+            assert_eq!(app.world().resource::<Simulation>().0, before);
+            let state = app.world().resource::<ViewState>();
+            assert!(
+                state.prepared_access.is_some(),
+                "rotation {rotation}, step {step}: {:?}",
+                state.ride_access_notice
+            );
+            assert_eq!(state.path_tool.mode, PathTool::Build);
+            assert_eq!(state.path_tool.height, suggestion.height);
+            assert_eq!(state.path_tool.slope, suggestion.slope);
+            let ghost = state
+                .path_tool
+                .preview
+                .expect("prepared return path must have a visible ghost");
+            assert!(ghost.valid);
+            assert_eq!(ghost.pos, suggestion.pos);
+            let point = suggestion_point(&before, state, suggestion).unwrap();
+            assert_eq!(
+                state.pan,
+                point - Vec2::Y * f32::from(before.max_surface_height()) * world::HEIGHT_STEP * 0.5
+            );
+            assert!(!world::sloped_path_plane_occluded(
+                point,
+                &before,
+                rotation,
+                suggestion.height,
+                suggestion.slope,
+                state.view_mode
+            ));
+            if visible_suggestion_point(&before, rotation, world::ViewMode::Surface, suggestion)
+                .is_none()
+            {
+                assert_eq!(state.view_mode, world::ViewMode::Underground);
+            }
+            // The button's click, then another click at that unchanged pointer,
+            // must both leave construction and the paused simulation untouched.
+            frame(&mut app, &[], &[], false);
+            frame(&mut app, &[], &[], true);
+            assert_eq!(app.world().resource::<Simulation>().0, before);
+            frame(&mut app, &[], &[], false);
+            let cursor = cursor_for(&app, window, point);
+            assert!(crate::is_map_position(
+                cursor,
+                app.world().get::<Window>(window).unwrap(),
+                false
+            ));
+            app.world_mut()
+                .get_mut::<Window>(window)
+                .unwrap()
+                .set_cursor_position(Some(cursor));
+            frame(&mut app, &[], &[], false);
+            assert!(
+                app.world()
+                    .resource::<ViewState>()
+                    .prepared_access
+                    .is_none()
+            );
+            frame(&mut app, &[], &[], true);
+            let mut expected = before;
+            expected
+                .place_sloped_path(suggestion.pos, suggestion.height, suggestion.slope)
+                .unwrap();
+            assert_eq!(
+                app.world().resource::<Simulation>().0,
+                expected,
+                "rotation {rotation}, step {step}: {:?}",
+                app.world().resource::<ViewState>().path_notice
+            );
+            frame(&mut app, &[], &[], false);
+        }
+        assert_eq!(
+            app.world()
+                .resource::<Simulation>()
+                .0
+                .ride_exit_access(id)
+                .status,
+            RideExitStatus::Ready,
+            "rotation {rotation}"
+        );
+    }
+}
+
+#[test]
+fn access_plan_survives_simulation_ticks_and_refreshes_after_reopening() {
+    let directory = Directory::new();
+    let (mut park, id, _) = fixture();
+    park.set_train_open(true);
+    let (mut app, _) = test_app(park, view(id), &directory);
+    let initial = app
+        .world()
+        .resource::<ViewState>()
+        .ride_access_plan
+        .clone()
+        .unwrap();
+    assert!(!initial.ride_running);
+    {
+        let mut sim = app.world_mut().resource_mut::<Simulation>();
+        for _ in 0..2_000 {
+            sim.0.advance(Speed::Normal);
+            if sim.0.ride_is_running(id) {
+                break;
+            }
+        }
+        assert!(sim.0.ride_is_running(id));
+    }
+    frame(&mut app, &[], &[], false);
+    assert_eq!(
+        app.world()
+            .resource::<ViewState>()
+            .ride_access_plan
+            .as_ref(),
+        Some(&initial)
+    );
+    assert!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .ride_access_plan(id)
+            .unwrap()
+            .ride_running
+    );
+
+    frame(&mut app, &[ui::Action::CloseRides], &[], false);
+    frame(&mut app, &[], &[], false);
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .ride_access_plan
+            .is_none()
+    );
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .place_ride_entrance(
+            TilePos { x: 8, y: 11 },
+            8,
+            park_sim::PathDirection::North,
+            id,
+        )
+        .unwrap();
+    frame(&mut app, &[ui::Action::Rides], &[], false);
+    frame(&mut app, &[], &[], false);
+    frame(
+        &mut app,
+        &[ui::Action::RideAccess(AccessCommand::ShowAccess)],
+        &[],
+        false,
+    );
+    let refreshed = app
+        .world()
+        .resource::<ViewState>()
+        .ride_access_plan
+        .as_ref()
+        .unwrap();
+    assert!(refreshed.ride_running);
+    assert_eq!(
+        refreshed.entrance.status,
+        park_sim::RideAccessStatus::NoQueue
+    );
+    assert!(refreshed.entrance_candidates.is_empty());
+}
+
+#[test]
+fn track_occluded_path_center_has_an_exposed_target_that_real_pointer_can_build() {
+    let directory = Directory::new();
+    let mut park = Park::new(32, 32);
+    park.install_train_fixture().unwrap();
+    park.set_train_open(false);
+    // The height-16 rail at (17,10) projects over this empty height-8 tile.
+    // Its center is hidden, but the ordinary path deck has exposed sides.
+    let suggestion = RideAccessSuggestion {
+        kind: RideAccessBuildKind::PublicPath,
+        pos: TilePos { x: 13, y: 6 },
+        height: 8,
+        facing: park_sim::PathDirection::South,
+        slope: PathSlope::Flat,
+    };
+    park.validate_sloped_path(suggestion.pos, suggestion.height, suggestion.slope)
+        .unwrap();
+    let mut state = ViewState::default();
+    let center = world::path_build_center(suggestion.pos, &park, 0, 8, PathSlope::Flat).unwrap();
+    assert!(world::sloped_path_plane_occluded(
+        center,
+        &park,
+        0,
+        8,
+        PathSlope::Flat,
+        state.view_mode
+    ));
+    let Some(SurfaceId::Object(blocker)) = world::pick_surface(center, &park, 0, state.view_mode)
+    else {
+        panic!("track must cover the proposed tile center");
+    };
+    assert_eq!(
+        park.object(blocker).unwrap().kind,
+        park_sim::ObjectKind::Track
+    );
+    let point = suggestion_point(&park, &state, suggestion).expect("exposed path edge");
+    assert_ne!(point, center);
+    focus(&park, &mut state, point);
+    let before = park.clone();
+    let (mut app, window) = test_app(park, state, &directory);
+    frame(
+        &mut app,
+        &[ui::Action::SetPathTool(PathTool::Build)],
+        &[],
+        false,
+    );
+    frame(&mut app, &[], &[], false);
+    let cursor = cursor_for(&app, window, point);
+    app.world_mut()
+        .get_mut::<Window>(window)
+        .unwrap()
+        .set_cursor_position(Some(cursor));
+    frame(&mut app, &[], &[], false);
+    let preview = app
+        .world()
+        .resource::<ViewState>()
+        .path_tool
+        .preview
+        .unwrap();
+    assert!(preview.valid);
+    assert_eq!(preview.pos, suggestion.pos);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    frame(&mut app, &[], &[], true);
+    let mut expected = before;
+    expected
+        .place_sloped_path(suggestion.pos, suggestion.height, suggestion.slope)
+        .unwrap();
+    assert_eq!(app.world().resource::<Simulation>().0, expected);
+}

@@ -22,6 +22,9 @@ pub(crate) struct PreparedAccess {
     ride: RideId,
     suggestion: RideAccessSuggestion,
     cursor: Option<Vec2>,
+    point: Vec2,
+    rotation: u8,
+    view_mode: world::ViewMode,
 }
 
 pub(crate) fn queue(view: &mut ViewState, command: AccessCommand) {
@@ -143,18 +146,62 @@ fn tool(kind: RideAccessBuildKind) -> PathTool {
     }
 }
 
-fn suggestion_point(
+pub(crate) fn suggestion_point(
     park: &Park,
     view: &ViewState,
     suggestion: RideAccessSuggestion,
 ) -> Option<Vec2> {
-    world::path_build_center(
+    visible_suggestion_point(park, view.rotation, view.view_mode, suggestion)
+}
+
+fn visible_suggestion_point(
+    park: &Park,
+    rotation: u8,
+    mode: world::ViewMode,
+    suggestion: RideAccessSuggestion,
+) -> Option<Vec2> {
+    let center = world::path_build_center(
         suggestion.pos,
         park,
-        view.rotation,
+        rotation,
         suggestion.height,
         suggestion.slope,
-    )
+    )?;
+    // A rail, gate post or cliff may cover the middle of a legal path tile.
+    // Keep using the ordinary inverse projection and visibility rules, but
+    // consider its exposed edges before declaring the whole tile hidden.
+    if suggestion_point_visible(park, rotation, mode, suggestion, center) {
+        return Some(center);
+    }
+    let mut offsets: Vec<_> = (-24i32..=24)
+        .step_by(4)
+        .flat_map(|y| (-28i32..=28).step_by(4).map(move |x| (x, y)))
+        .filter(|&(x, y)| x != 0 || y != 0)
+        .collect();
+    offsets.sort_by_key(|&(x, y)| (x * x + y * y, y, x));
+    offsets
+        .into_iter()
+        .map(|(x, y)| center + Vec2::new(x as f32, y as f32))
+        .find(|point| suggestion_point_visible(park, rotation, mode, suggestion, *point))
+}
+
+fn suggestion_point_visible(
+    park: &Park,
+    rotation: u8,
+    mode: world::ViewMode,
+    suggestion: RideAccessSuggestion,
+    point: Vec2,
+) -> bool {
+    world::pick_sloped_path_plane(point, park, rotation, suggestion.height, suggestion.slope)
+        == Some(suggestion.pos)
+        && !world::sloped_path_plane_occluded(
+            point,
+            park,
+            rotation,
+            suggestion.height,
+            suggestion.slope,
+            mode,
+        )
 }
 
 pub(crate) fn perform_command(
@@ -234,7 +281,22 @@ pub(crate) fn perform_command(
         view.ride_access_notice = Some(plan.advice.into());
         return false;
     };
-    let Some(point) = suggestion_point(park, view, suggestion) else {
+    let visible = suggestion_point(park, view, suggestion)
+        .map(|point| (point, view.view_mode))
+        .or_else(|| {
+            visible_suggestion_point(
+                park,
+                view.rotation,
+                world::ViewMode::Underground,
+                suggestion,
+            )
+            .map(|point| (point, world::ViewMode::Underground))
+        });
+    let Some((point, mode)) = visible else {
+        view.ride_access_notice = Some(
+            "Suggested tile is hidden by another object. Rotate the view, then prepare again."
+                .into(),
+        );
         return false;
     };
     view.set_rides_modal(false);
@@ -252,22 +314,14 @@ pub(crate) fn perform_command(
         ride: id,
         suggestion,
         cursor: None,
-    });
-    // The ordinary preview validator also enforces visible build planes.
-    // Expose a suggested deck hidden by terrain using the existing view mode.
-    if world::sloped_path_plane_occluded(
         point,
-        park,
-        view.rotation,
-        suggestion.height,
-        suggestion.slope,
-        view.view_mode,
-    ) {
-        view.view_mode = world::ViewMode::Underground;
-    }
+        rotation: view.rotation,
+        view_mode: mode,
+    });
+    view.view_mode = mode;
     path_tools::point_at(park, view, point, false);
     view.path_notice = Some(format!(
-        "Suggested tile {}, {} / height {}.\nMove to the ghost and click to build; Y opens Rides again.",
+        "Tile {}, {} / height {}. Move to an exposed edge of the ghost, away from track, then click. Y: Rides.",
         suggestion.pos.x + 1,
         suggestion.pos.y + 1,
         suggestion.height
@@ -322,10 +376,33 @@ pub(crate) fn hold_prepared_preview(
         return false;
     }
     prepared.cursor = Some(cursor);
-    view.prepared_access = Some(prepared);
-    if let Some(point) = suggestion_point(park, view, suggestion) {
+    let point = if prepared.rotation == view.rotation
+        && prepared.view_mode == view.view_mode
+        && suggestion_point_visible(
+            park,
+            view.rotation,
+            view.view_mode,
+            suggestion,
+            prepared.point,
+        ) {
+        Some(prepared.point)
+    } else {
+        suggestion_point(park, view, suggestion)
+    };
+    if let Some(point) = point {
+        prepared.point = point;
+        prepared.rotation = view.rotation;
+        prepared.view_mode = view.view_mode;
         path_tools::point_at(park, view, point, false);
+    } else {
+        view.path_tool.preview = None;
+        view.path_tool.hint = "Suggested tile hidden.\nRotate the view to expose it.".into();
+        view.path_notice = Some("Suggestion hidden. Rotate the view and prepare it again.".into());
+        view.prepared_access = None;
+        view.hovered = None;
+        return true;
     }
+    view.prepared_access = Some(prepared);
     if click && !view.ui_pointer_consumed {
         view.path_notice = Some("Move to the suggested tile, then click to build.".into());
     }

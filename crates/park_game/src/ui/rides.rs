@@ -323,12 +323,15 @@ pub(crate) fn refresh(
     }
     let id = ids[index];
     view.coaster_testing.refresh(&sim.0, Some(id));
+    // Construction is blocked while this modal is open. Opening the modal,
+    // changing tabs/ride or loading clears this topology-only plan; ticking
+    // guests and trains must not repeat the bounded route search every frame.
+    // Commands re-plan and validate against the current park before preparing.
     if view.ride_tab == RideTab::Access
-        && (sim.is_changed()
-            || view
-                .ride_access_plan
-                .as_ref()
-                .is_none_or(|plan| plan.ride != id))
+        && view
+            .ride_access_plan
+            .as_ref()
+            .is_none_or(|plan| plan.ride != id)
     {
         view.ride_access_plan = sim.0.ride_access_plan(id).ok();
     }
@@ -436,25 +439,66 @@ fn access_checklist(park: &Park, id: RideId) -> String {
     let entrance = park.ride_access(id);
     let exit = park.ride_exit_access(id);
     let ready = entrance.status == RideAccessStatus::Ready && exit.status == RideExitStatus::Ready;
+    let gate_link = |exists: bool, station: bool| {
+        if !exists {
+            "missing"
+        } else if station {
+            "connected"
+        } else {
+            "not connected"
+        }
+    };
+    let queue = match entrance.status {
+        RideAccessStatus::Ready => "connected",
+        RideAccessStatus::RideUnavailable => "ride unavailable",
+        RideAccessStatus::NoEntrance => "build entrance first",
+        RideAccessStatus::StationDisconnected => "reconnect entrance first",
+        RideAccessStatus::NoQueue => "missing",
+        RideAccessStatus::Disconnected => "join disconnected pieces",
+        RideAccessStatus::Branch => "remove branch",
+        RideAccessStatus::Loop => "break loop",
+        RideAccessStatus::NoPublicEntry => "join public path at far end",
+        RideAccessStatus::MultiplePublicEntries => "keep one public entry",
+        RideAccessStatus::PublicEntryNotAtEnd => "move public entry to far end",
+        RideAccessStatus::ForeignQueue => "separate from other ride",
+    };
+    let next = match exit.status {
+        RideExitStatus::NoPublicExit => ride
+            .exit
+            .and_then(|gate| {
+                let object = park.object(gate.object)?;
+                let pos = gate.facing.opposite().neighbor(object.pos)?;
+                park.tile(pos)?;
+                Some(format!(
+                    "Public tile {}, {} / height {}",
+                    pos.x + 1,
+                    pos.y + 1,
+                    object.height
+                ))
+            })
+            .unwrap_or_else(|| "Public path: no room outside gate".into()),
+        RideExitStatus::PublicDisconnected => "Return route: not connected".into(),
+        RideExitStatus::Ready => "Return route: connected to queue entry".into(),
+        RideExitStatus::NoExit => "Return route: build exit first".into(),
+        RideExitStatus::StationDisconnected => "Return route: reconnect exit first".into(),
+        RideExitStatus::RideUnavailable => "Return route: restore ride first".into(),
+    };
     format!(
-        "{}\nEntrance gate: {} / Exit gate: {}\nQueue: {}\nExit path: {}",
+        "{}\nEntrance to ride: {}\nQueue: {}\nExit to ride: {}\nExit path: {}\n{}",
         if ready {
             "Access ready for guests"
         } else {
             "Access needs attention"
         },
-        if ride.entrance.is_some() {
-            "built"
-        } else {
-            "missing"
+        gate_link(ride.entrance.is_some(), entrance.station.is_some()),
+        queue,
+        gate_link(ride.exit.is_some(), exit.station.is_some()),
+        match exit.status {
+            RideExitStatus::Ready | RideExitStatus::PublicDisconnected => "connected to gate",
+            RideExitStatus::NoPublicExit => "missing outside gate",
+            _ => "not ready",
         },
-        if ride.exit.is_some() {
-            "built"
-        } else {
-            "missing"
-        },
-        entrance.status,
-        exit.status
+        next
     )
 }
 
@@ -501,5 +545,62 @@ fn operating_value(
             "Extra loading wait / {} s\n1-60 s; after mandatory station wait",
             seconds(policy.maximum_extra_wait_ticks)
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use park_sim::TilePos;
+
+    #[test]
+    fn checklist_distinguishes_station_link_landing_and_return_route() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(42).unwrap();
+        park.install_train_fixture().unwrap();
+        let id = park.ride().unwrap().id;
+        let missing = access_checklist(&park, id);
+        assert!(missing.contains("Exit to ride: missing"));
+        assert!(missing.contains("Return route: build exit first"));
+
+        park.place_ride_entrance(TilePos { x: 8, y: 11 }, 8, PathDirection::North, id)
+            .unwrap();
+        for y in 12..=15 {
+            park.place_queue_path(TilePos { x: 8, y }, 8, PathSlope::Flat, id)
+                .unwrap();
+        }
+        park.place_ride_exit(TilePos { x: 8, y: 9 }, 8, PathDirection::South, id)
+            .unwrap();
+        let no_path = access_checklist(&park, id);
+        assert!(no_path.contains("Entrance to ride: connected\nQueue: connected"));
+        assert!(no_path.contains("Exit to ride: connected\nExit path: missing outside gate"));
+        assert!(no_path.contains("Public tile 9, 9 / height 8"));
+        assert_eq!(no_path.lines().count(), 6);
+
+        park.place_path(TilePos { x: 8, y: 8 }, 8).unwrap();
+        let disconnected = access_checklist(&park, id);
+        assert!(disconnected.contains("Exit to ride: connected\nExit path: connected to gate"));
+        assert!(disconnected.contains("Return route: not connected"));
+        assert!(!disconnected.contains("Public tile"));
+        for x in 9..=13 {
+            park.place_path(TilePos { x, y: 8 }, 8).unwrap();
+        }
+        for y in 9..=11 {
+            park.place_path(TilePos { x: 13, y }, 8).unwrap();
+        }
+        let ready = access_checklist(&park, id);
+        assert!(ready.starts_with("Access ready for guests"));
+        assert!(ready.contains("Return route: connected to queue entry"));
+        assert_eq!(ready.lines().count(), 6);
+
+        let station = park.ride_exit_access(id).station.unwrap();
+        park.remove_object(station).unwrap();
+        let unavailable = access_checklist(&park, id);
+        assert!(unavailable.contains("Exit to ride: not connected"));
+        assert!(unavailable.contains("Return route: restore ride first"));
+        assert_eq!(
+            access_checklist(&park, RideId(u64::MAX)),
+            "Ride unavailable"
+        );
     }
 }

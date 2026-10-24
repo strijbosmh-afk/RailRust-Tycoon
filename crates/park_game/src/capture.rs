@@ -144,6 +144,9 @@ enum Scene {
     AccessNeeds,
     AccessReady,
     AccessUnavailable,
+    ExitPathMissing,
+    ExitPathDisconnected,
+    ExitPathPrepared,
     TestingReady,
     TestingComplete,
     TestingChanged,
@@ -594,6 +597,9 @@ pub(super) fn configure(app: &mut App) {
                 Some("access-needs") => Scene::AccessNeeds,
                 Some("access-ready") => Scene::AccessReady,
                 Some("access-unavailable") => Scene::AccessUnavailable,
+                Some("exit-path-missing") => Scene::ExitPathMissing,
+                Some("exit-path-disconnected") => Scene::ExitPathDisconnected,
+                Some("exit-path-prepared") => Scene::ExitPathPrepared,
                 Some("testing-ready") => Scene::TestingReady,
                 Some("testing-complete") => Scene::TestingComplete,
                 Some("testing-changed") => Scene::TestingChanged,
@@ -921,7 +927,12 @@ fn apply_preset(
     }
     if matches!(
         capture.scene,
-        Scene::AccessNeeds | Scene::AccessReady | Scene::AccessUnavailable
+        Scene::AccessNeeds
+            | Scene::AccessReady
+            | Scene::AccessUnavailable
+            | Scene::ExitPathMissing
+            | Scene::ExitPathDisconnected
+            | Scene::ExitPathPrepared
     ) {
         access_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
