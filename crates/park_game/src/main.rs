@@ -5,7 +5,9 @@ mod capture;
 #[cfg(test)]
 mod design_input_tests;
 mod design_library;
+mod design_preview;
 mod design_store;
+mod design_thumbnail;
 mod frame_probe;
 mod gpu_probe;
 #[cfg(test)]
@@ -435,6 +437,7 @@ fn main() -> AppExit {
                     ui::services::refresh,
                     ui::finance::refresh,
                     ui::track::refresh,
+                    design_preview::refresh_images,
                     ui::designs::refresh,
                 )
                     .chain(),

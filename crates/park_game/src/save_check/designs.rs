@@ -30,6 +30,31 @@ fn history(view: &ViewState) -> (usize, usize) {
     (view.track_editor.undo_len(), view.track_editor.redo_len())
 }
 
+/// Derived images never become part of the catalog. Reopening the exact saved
+/// geometry must recreate the same thumbnails and all four preview rotations.
+fn image_proof(directory: &Path, designs: &[TrackDesign], verify: bool) -> Result<(), String> {
+    use crate::design_preview::{PREVIEW_HEIGHT, PREVIEW_WIDTH, THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH};
+    for (index, design) in designs.iter().enumerate() {
+        for (kind, rotation, width, height) in
+            std::iter::once(("thumbnail", 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT))
+                .chain((0..4).map(|rotation| ("preview", rotation, PREVIEW_WIDTH, PREVIEW_HEIGHT)))
+        {
+            let image = crate::design_thumbnail::render(design, rotation, width, height);
+            let pixels = image.data.ok_or("missing derived image pixels")?;
+            let path = directory.join(format!("design-{index}-{kind}-{rotation}.rgba"));
+            if verify {
+                require(
+                    fs::read(path).map_err(|e| e.to_string())? == pixels,
+                    "reopened design preview differs from saved geometry's image",
+                )?;
+            } else {
+                write_new(&path, &pixels)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn live_bytes(park: &Park) -> Result<Vec<u8>, String> {
     let mut live = park.clone();
     live.clear_track_draft();
@@ -276,8 +301,9 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
         &save.directory().join("expected-library.json"),
         &catalog(&store)?,
     )?;
+    image_proof(save.directory(), &[original, revised], false)?;
     write_new(&save.directory().join("writer-designs.txt"), format!(
-        "Parkbound {}\nExact free save and duplicate refusal: PASS\nUpdate and rename only after confirmation: PASS\nUpdate/delete cancellation preserves catalog bytes: PASS\nConfirmed delete preserves the other designs: PASS\nCatalog commands preserve all park bytes and draft history: PASS\n",
+        "Parkbound {}\nExact free save and duplicate refusal: PASS\nUpdate and rename only after confirmation: PASS\nUpdate/delete cancellation preserves catalog bytes: PASS\nConfirmed delete preserves the other designs: PASS\nCatalog commands preserve all park bytes and draft history: PASS\nDerived thumbnail and four preview rotations recorded without changing catalog format: PASS\n",
         env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     Ok(())
@@ -293,6 +319,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     let original_store = DesignStore::new(save.directory().to_path_buf());
     let original = expected_design(save.directory(), "expected-original.track-design.json")?;
     let revised = expected_design(save.directory(), "expected-revised.track-design.json")?;
+    image_proof(save.directory(), &[original.clone(), revised.clone()], true)?;
     let primary = fs::read(save.save_path()).map_err(|e| e.to_string())?;
     let backup = fs::read(save.backup_path()).map_err(|e| e.to_string())?;
     let catalog_bytes = catalog(&original_store)?;
@@ -348,6 +375,19 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         DesignCommand::Open,
     )?;
     select(&store, &mut park, &mut view, &mut library, ORIGINAL)?;
+    let preview_before = bytes(&park)?;
+    let preview_history = history(&view);
+    let preview_quote = park
+        .track_construction_quote_for(original.pieces())
+        .map_err(|e| e.to_string())?;
+    require(
+        crate::design_preview::status_text(&park, &library).contains("Buy "),
+        "complete saved design has no preview quote",
+    )?;
+    require(
+        bytes(&park)? == preview_before && history(&view) == preview_history,
+        "preview replaced the current draft or live state",
+    )?;
     for command in [
         DesignCommand::MoveX(10),
         DesignCommand::MoveY(2),
@@ -443,6 +483,10 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     )?;
     let quote = park.track_construction_quote().map_err(|e| e.to_string())?;
     require(
+        quote == preview_quote,
+        "preview quote differed from the unchanged park's loaded design quote",
+    )?;
+    require(
         quote.construction_cents > 0 && quote.affordable(),
         "design Apply proof requires a paid affordable loop",
     )?;
@@ -471,7 +515,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         "verification changed the writer's original save slots or catalog",
     )?;
     write_new(&save.directory().join("verification-designs.txt"), format!(
-        "Parkbound {}\nFresh-process named library preserves exact ordered grades and Unicode-safe names: PASS\nProduction anchor, height and clockwise rotation controls load one undoable draft action: PASS\nLoad, Undo and Redo preserve live park bytes and money: PASS\nOut-of-bounds placement preserves draft and history: PASS\nSave/Load and Backup retain independent library; draft history resets: PASS\nOriginal valid design installs through normal paid Apply; history cannot reverse the purchase: PASS\nWriter's original primary, backup and catalog bytes remain unchanged: PASS\n",
+        "Parkbound {}\nFresh-process named library preserves exact ordered grades and Unicode-safe names: PASS\nProduction anchor, height and clockwise rotation controls load one undoable draft action: PASS\nLoad, Undo and Redo preserve live park bytes and money: PASS\nOut-of-bounds placement preserves draft and history: PASS\nSave/Load and Backup retain independent library; draft history resets: PASS\nOriginal valid design installs through normal paid Apply; history cannot reverse the purchase: PASS\nWriter's original primary, backup and catalog bytes remain unchanged: PASS\nFresh-process thumbnails and four rotation previews match exact saved geometry pixels: PASS\nRead-only preview keeps unrelated draft and matches later Apply quote: PASS\n",
         env!("CARGO_PKG_VERSION")
     ).as_bytes())?;
     Ok(())

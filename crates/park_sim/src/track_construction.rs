@@ -254,7 +254,17 @@ impl Park {
     pub fn track_construction_quote(
         &self,
     ) -> Result<TrackConstructionQuote, TrackConstructionError> {
-        let specs = self.validate_track_draft()?;
+        self.track_construction_quote_for(&self.track_draft)
+    }
+
+    /// Validate and quote a prospective draft without replacing the current one.
+    /// Geometry, clearance and capacity follow Apply's rules. Operating state
+    /// remains separate, so an open or occupied coaster can still be previewed.
+    pub fn track_construction_quote_for(
+        &self,
+        candidate: &[TrackPieceSpec],
+    ) -> Result<TrackConstructionQuote, TrackConstructionError> {
+        let specs = self.validate_track_candidate(candidate)?;
         Ok(self.quote_track_specs(&specs))
     }
 
@@ -373,9 +383,15 @@ impl Park {
     /// Order independently placed pieces from the unique station, following
     /// directed tile edges. Incomplete drafts remain editable and saveable.
     pub fn validate_track_draft(&self) -> Result<Vec<TrackPieceSpec>, TrackConstructionError> {
-        validate_saved_draft(self)?;
-        let stations: Vec<_> = self
-            .track_draft
+        self.validate_track_candidate(&self.track_draft)
+    }
+
+    fn validate_track_candidate(
+        &self,
+        candidate: &[TrackPieceSpec],
+    ) -> Result<Vec<TrackPieceSpec>, TrackConstructionError> {
+        validate_draft_structure(self, candidate)?;
+        let stations: Vec<_> = candidate
             .iter()
             .filter(|piece| piece.kind == TrackKind::Station)
             .collect();
@@ -385,13 +401,12 @@ impl Park {
             }
             .into());
         }
-        let by_tile: BTreeMap<_, _> = self
-            .track_draft
+        let by_tile: BTreeMap<_, _> = candidate
             .iter()
             .map(|piece| ((piece.pos.x, piece.pos.y), *piece))
             .collect();
         let start = *stations[0];
-        let mut ordered = Vec::with_capacity(self.track_draft.len());
+        let mut ordered = Vec::with_capacity(candidate.len());
         let mut current = start;
         loop {
             if ordered
@@ -424,7 +439,7 @@ impl Park {
             }
             current = next;
         }
-        if ordered.len() != self.track_draft.len() {
+        if ordered.len() != candidate.len() {
             return Err(TrackConstructionError::DisconnectedPieces);
         }
         crate::trains::validate_specs(self, &ordered)?;
@@ -465,17 +480,16 @@ impl Park {
         Ok(ordered)
     }
 
-    /// Commit only after full validation. Preserve the coaster identity,
-    /// historical statistics, finances, portals, guests, RNG and lap count.
-    /// A faulted train may be replaced, but unowned remnants are never claimed.
-    pub fn apply_track_draft(&mut self) -> Result<(), TrackConstructionError> {
+    /// Report the operating-state prerequisite for construction independently
+    /// of any draft's geometry or price. This never stops a train or its guests.
+    pub fn track_construction_operating_error(&self) -> Option<TrackConstructionError> {
         if self.train.as_ref().is_some_and(|train| {
             train.open
                 || train.departed
                 || train.speed != 0
                 || !matches!(train.phase, TrainPhase::Closed | TrainPhase::Fault)
         }) {
-            return Err(TrackConstructionError::CloseRide);
+            return Some(TrackConstructionError::CloseRide);
         }
         if self.ride.as_ref().is_some_and(|ride| {
             self.guests.iter().any(|guest| {
@@ -485,7 +499,17 @@ impl Park {
                     .is_some_and(|visit| visit.ride == ride.id)
             })
         }) {
-            return Err(TrackConstructionError::GuestsStillVisiting);
+            return Some(TrackConstructionError::GuestsStillVisiting);
+        }
+        None
+    }
+
+    /// Commit only after full validation. Preserve the coaster identity,
+    /// historical statistics, finances, portals, guests, RNG and lap count.
+    /// A faulted train may be replaced, but unowned remnants are never claimed.
+    pub fn apply_track_draft(&mut self) -> Result<(), TrackConstructionError> {
+        if let Some(error) = self.track_construction_operating_error() {
+            return Err(error);
         }
         let specs = self.validate_track_draft()?;
         let quote = self.quote_track_specs(&specs);
@@ -772,5 +796,7 @@ pub(crate) fn validate_track_economy(park: &Park) -> Result<(), String> {
 mod economy_tests;
 #[cfg(test)]
 mod editing_tests;
+#[cfg(test)]
+mod preview_tests;
 #[cfg(test)]
 mod tests;

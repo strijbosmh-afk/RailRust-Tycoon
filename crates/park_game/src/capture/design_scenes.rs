@@ -5,11 +5,21 @@ use crate::{
     save_check::track_construction,
     track_tools::{self, TrackCommand},
 };
-use park_sim::TrackDesign;
+use park_sim::{TrackBuildKind, TrackDesign, TrackDirection};
 
 const NAME: &str = "Woodland Lift and Drop Circuit 1";
 
 fn prepare_state(park: &mut Park, view: &mut ViewState, library: &mut DesignLibrary, scene: Scene) {
+    if matches!(
+        scene,
+        Scene::LibraryPreviewReady | Scene::LibraryPreviewBlocked
+    ) {
+        *park = Park::new(32, 32);
+        if matches!(scene, Scene::LibraryPreviewBlocked) {
+            let station = track_construction::specs()[0];
+            park.place_path(station.pos, station.entry.height).unwrap();
+        }
+    }
     let live = {
         let mut clone = park.clone();
         clone.clear_track_draft();
@@ -60,7 +70,65 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, library: &mut DesignLibr
             library.notice =
                 format!("Design does not fit: {error}\nAdjust position, height or rotation.");
         }
-        Scene::LibrarySaved => {}
+        Scene::LibraryGallery
+        | Scene::LibraryGalleryLast
+        | Scene::LibraryPreviewIncomplete
+        | Scene::LibraryPreviewTall => {
+            let installed =
+                TrackDesign::from_draft("Meadow station circuit", park.track_draft()).unwrap();
+            let unfinished = TrackDesign::from_draft(
+                "Station and sweeping bend",
+                &[
+                    TrackBuildKind::Station.spec(TilePos { x: 15, y: 15 }, 8, TrackDirection::East),
+                    TrackBuildKind::CurveRight.spec(
+                        TilePos { x: 16, y: 15 },
+                        8,
+                        TrackDirection::East,
+                    ),
+                ],
+            )
+            .unwrap();
+            let tall = TrackDesign::from_draft(
+                "Tall chain lift study",
+                &(0..16)
+                    .map(|i| {
+                        TrackBuildKind::Lift.spec(
+                            TilePos { x: 20, y: 24 - i },
+                            8 + i as u8,
+                            TrackDirection::North,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+            let descent = TrackDesign::from_draft(
+                "Steep drop and brakes",
+                &[
+                    TrackBuildKind::SteepDrop.spec(
+                        TilePos { x: 15, y: 15 },
+                        12,
+                        TrackDirection::East,
+                    ),
+                    TrackBuildKind::Drop.spec(TilePos { x: 16, y: 15 }, 10, TrackDirection::East),
+                    TrackBuildKind::Brake.spec(TilePos { x: 17, y: 15 }, 9, TrackDirection::East),
+                ],
+            )
+            .unwrap();
+            library
+                .entries
+                .extend([installed, unfinished, tall, descent]);
+            let index = match scene {
+                Scene::LibraryGalleryLast => 4,
+                Scene::LibraryPreviewIncomplete => 2,
+                Scene::LibraryPreviewTall => 3,
+                _ => 0,
+            };
+            library.selected = Some(index);
+            library.name = library.entries[index].name().into();
+            (library.anchor, library.height) = library.entries[index].anchor();
+            library.notice = "Choose a thumbnail to preview a saved design.\nLoad into draft when you are ready to edit.".into();
+        }
+        Scene::LibrarySaved | Scene::LibraryPreviewReady | Scene::LibraryPreviewBlocked => {}
         _ => unreachable!(),
     }
     let mut after = park.clone();
@@ -142,6 +210,12 @@ mod tests {
             Scene::LibraryConfirmUpdate,
             Scene::LibraryConfirmDelete,
             Scene::LibraryInvalid,
+            Scene::LibraryGallery,
+            Scene::LibraryGalleryLast,
+            Scene::LibraryPreviewReady,
+            Scene::LibraryPreviewBlocked,
+            Scene::LibraryPreviewIncomplete,
+            Scene::LibraryPreviewTall,
             Scene::LoadedDesign,
         ] {
             let mut park = crate::demonstration_park();
