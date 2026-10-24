@@ -1,6 +1,6 @@
 # Coaster testing and loading policies — 0.33.0
 
-This milestone starts from 0.32 checkpoint `303cd66a0e1789cb0bf4b3d3365233440efefebb` / PR #30 on `codex/coaster-tests-and-dispatch`. It advances RID-04/RID-05/RID-06 with bounded mechanics testing and loading policies. Source integration compiles; broader verification is in progress and no 0.33 delivery is claimed yet. [RIDE_ACCESS_ASSISTANCE_REPORT.md](RIDE_ACCESS_ASSISTANCE_REPORT.md) preserves the locally verified 0.32 package; its push CI [40108342235](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40108342235) passed all 32 steps and 634 tests.
+This milestone starts from 0.32 checkpoint `303cd66a0e1789cb0bf4b3d3365233440efefebb` / PR #30 on `codex/coaster-tests-and-dispatch`. It advances RID-04/RID-05/RID-06 with bounded mechanics testing and loading policies. The bounded 0.33 implementation is locally verified: 674 release tests, strict source/build checks, production continuation, inspected captures and fresh package checks passed. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI is pending. [RIDE_ACCESS_ASSISTANCE_REPORT.md](RIDE_ACCESS_ASSISTANCE_REPORT.md) preserves the locally verified 0.32 package; its push CI [40108342235](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40108342235) passed all 32 steps and 634 tests.
 
 ## Coaster tests
 
@@ -33,18 +33,27 @@ Explicit readers for versions 1–16 preserve original fields and initialize no-
 | Check | Current result |
 | --- | --- |
 | `cargo check --release --workspace --locked` | Passed on the integrated source |
-| Release tests | Passed: **670 tests (401 game / 269 simulation)**; receipt `tests-final.log` |
-| Formatting, strict release Clippy and production build | Pending |
-| Separate coaster-testing and dispatch writer/verifier processes | Pending |
-| Retained access, operations, track and design proofs | Pending |
-| Authentic version-16 migration and unchanged-slot refusal by 0.32 | Pending |
-| Minimum-window capture inspection | Pending |
+| Release tests | Passed: **674 tests (403 game / 271 simulation)**; receipt `tests-delivery.log` |
+| Formatting, strict release Clippy and production build | Passed; `clippy-delivery.log`; production build 47.48 seconds |
+| Separate coaster-testing and dispatch writer/verifier processes | Passed — four extracted-executable processes |
+| Retained access, operations, track-construction and design-transfer proofs | Passed — eight extracted-executable processes |
+| Authentic version-16 migration and unchanged-slot refusal by 0.32 | Passed — seven processes; six legacy slots each preserve original fields/source bytes through 3,600 current-rule ticks, and all four new dispatch slots remain unchanged after old-reader refusal |
+| Minimum-window capture inspection | Passed — all thirteen 1024 × 680 PNGs directly inspected, readable without clipping or overlap |
 | Exact-source Windows CI | Pending |
-| Archive/payload/current-guide integrity and fresh relocated runtime checks | Pending |
+| Archive/payload/current-guide integrity and fresh relocated runtime checks | Passed — **48 payload hashes / 39 current guides**, twelve proof processes and thirteen captures |
+| Dependency/runtime/notices comparison with 0.32 | Passed — **291 dependency entries / five unchanged files** |
 | Physical native gestures and clean-PC/offline standard-user acceptance | Not verified |
 | Representative hardware performance | Open; this development PC is not a reference |
 
-Use isolated absolute save directories for all proof modes. `write-coaster-testing` / `verify-coaster-testing` check independent tuned/default saved states, deterministic report reproduction, stale-result invalidation and load-time cache clearing without changing source slots. `write-dispatch` / `verify-dispatch` exercise persisted waits, timeout and occupied/paying operation. Final receipts will identify the exact source and executable. Controlled images establish rendering, not physical pointer interaction.
+Use isolated absolute save directories for all proof modes. `write-coaster-testing` / `verify-coaster-testing` check independent tuned/default saved states, deterministic report reproduction, stale-result invalidation and load-time cache clearing without changing source slots. `write-dispatch` / `verify-dispatch` exercise persisted waits, timeout and occupied/paying operation. The receipts below identify the exact source and executable. Controlled images establish rendering, not physical pointer interaction.
+
+The locally verified runtime source is **`b4523bb8eab5365947759a6643241a3da83400a4`** in [draft PR #31](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/31), based on PR #30. The final executable is **49,667,584 bytes**, SHA-256 **`77e4cb7c8f5ce70608e7e434bbe479c0bfe60ae0ff5a66347805c1ec01625532`**. Local receipts are under `artifacts/coaster-testing-dispatch-0.33.0/`, including `tests-delivery.log`, `clippy-delivery.log`, `notices.txt` and `visual-review.txt`. Earlier 670/672-test passes and preliminary packages are superseded by this executable and the 674-test pass.
+
+Fresh extraction to `C:\Users\strij\AppData\Local\Temp\Parkbound 0.33 verified delivery é`, launched from `C:\Windows`, validated all payloads and current guides before running twelve proof processes: testing, dispatch, access, operations, design-transfer and track-construction writer/verifier pairs. All thirteen extracted-executable captures passed direct inspection; `visual-review.txt` records their hashes. The portable archive is `dist/Parkbound-0.33.0-windows-x64.zip`. Refresh guides, manifest and archive after documentation edits while preserving the verified executable, then recheck a fresh extraction. Its adjacent `.zip.sha256` identifies the mutable ZIP.
+
+Seven separate migration/refusal processes passed, recorded in `artifacts/coaster-testing-dispatch-0.33.0/migration-final.log` and `migration-final/migration.txt`. Authentic 0.32 operations primary/backup slots and track-construction main plus editing-session primary/backups cover **six legacy slots**. Each preserves every original field and source byte through **3,600 current-rule ticks**. The 0.32 reader rejects confirmed schema/content **17/17** with its exact `Save version is unsupported` message; all **four new dispatch slots** stay unchanged. Both old/current executable hashes remain unchanged. This is current-rule migration continuity, not a claim that new dispatch rules reproduce an older build's future.
+
+Exact-source push [Windows CI 40110125468](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40110125468) is still pending. Native physical gestures, clean-PC/offline/standard-user acceptance and representative-hardware performance remain open; this PC is not a performance reference.
 
 ## Following work
 
