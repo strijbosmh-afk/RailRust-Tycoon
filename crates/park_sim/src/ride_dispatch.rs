@@ -739,7 +739,7 @@ mod tests {
         park.set_ride_open(carousel, true).unwrap();
         advance(&mut park, 45);
         let base = value(&park);
-        assert_eq!(base["schema_version"], json!(17));
+        assert_eq!(base["schema_version"], json!(crate::SAVE_SCHEMA_VERSION));
         let mut missing = base.clone();
         missing["park"]
             .as_object_mut()

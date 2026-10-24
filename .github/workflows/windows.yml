@@ -217,6 +217,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-dispatch --save-dir $dispatchDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process dispatch verification failed" }
           Get-Content -LiteralPath (Join-Path $dispatchDirectory "verification-dispatch.txt")
+      - name: Verify ride appeal and guest choice across fresh processes
+        shell: pwsh
+        run: |
+          $appealDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound appeal é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-appeal --save-dir $appealDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Ride appeal writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-appeal --save-dir $appealDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride appeal verification failed" }
+          Get-Content -LiteralPath (Join-Path $appealDirectory "verification-appeal.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

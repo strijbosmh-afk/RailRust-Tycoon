@@ -30,6 +30,7 @@ const DEFAULT_CAPTURE_TICKS: u32 = 600;
 
 mod access_scenes;
 mod admission_scenes;
+mod appeal_scenes;
 mod construction_scenes;
 mod design_scenes;
 mod dispatch_scenes;
@@ -150,6 +151,11 @@ enum Scene {
     TestingCarousel,
     DispatchWaiting,
     DispatchPaid,
+    AppealUnrated,
+    AppealReviewed,
+    AppealGuest,
+    AppealChoiceLow,
+    AppealChoiceGraded,
     RideClosed,
     RideFinance,
     CarouselRebuilt,
@@ -201,7 +207,20 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_testing() || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
+        self.is_testing()
+            || self.is_appeal()
+            || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
+    }
+
+    fn is_appeal(self) -> bool {
+        matches!(
+            self,
+            Self::AppealUnrated
+                | Self::AppealReviewed
+                | Self::AppealGuest
+                | Self::AppealChoiceLow
+                | Self::AppealChoiceGraded
+        )
     }
 
     fn is_testing(self) -> bool {
@@ -582,6 +601,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("testing-carousel") => Scene::TestingCarousel,
                 Some("dispatch-waiting") => Scene::DispatchWaiting,
                 Some("dispatch-paid") => Scene::DispatchPaid,
+                Some("appeal-unrated") => Scene::AppealUnrated,
+                Some("appeal-reviewed") => Scene::AppealReviewed,
+                Some("appeal-guest") => Scene::AppealGuest,
+                Some("appeal-choice-low") => Scene::AppealChoiceLow,
+                Some("appeal-choice-graded") => Scene::AppealChoiceGraded,
                 Some("ride-closed") => Scene::RideClosed,
                 Some("ride-finance") => Scene::RideFinance,
                 Some("carousel-rebuilt") => Scene::CarouselRebuilt,
@@ -891,6 +915,9 @@ fn apply_preset(
     }
     if matches!(capture.scene, Scene::DispatchWaiting | Scene::DispatchPaid) {
         dispatch_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_appeal() {
+        appeal_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if matches!(
         capture.scene,
@@ -1318,6 +1345,30 @@ mod tests {
         }
         assert_eq!(app.world().resource::<Simulation>().0, expected);
         assert_eq!(expected.ticks(), u64::from(DEFAULT_CAPTURE_TICKS));
+    }
+
+    #[test]
+    fn appeal_captures_use_real_fixtures_through_default_startup() {
+        let mut moving = crate::demonstration_park();
+        for _ in 0..DEFAULT_CAPTURE_TICKS {
+            moving.advance(Speed::Normal);
+        }
+        for scene in [
+            Scene::AppealUnrated,
+            Scene::AppealReviewed,
+            Scene::AppealGuest,
+            Scene::AppealChoiceLow,
+            Scene::AppealChoiceGraded,
+        ] {
+            let app = preset_at_startup(scene, moving.clone());
+            let park = &app.world().resource::<Simulation>().0;
+            let view = app.world().resource::<ViewState>();
+            appeal_scenes::assert_scene(park, view, scene);
+            assert_eq!(
+                Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+                *park
+            );
+        }
     }
 
     #[test]

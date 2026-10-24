@@ -221,12 +221,14 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
     {
         return Err("legacy import invented non-default ride settings".into());
     }
-    if park.all_rides().any(|ride| {
-        park.ride_dispatch_policy(ride.id) != Some(park_sim::RideDispatchPolicy::default())
-            || park
-                .ride_dispatch_progress(ride.id)
-                .is_none_or(|progress| progress.extra_waited_ticks != 0)
-    }) {
+    if version <= 16
+        && park.all_rides().any(|ride| {
+            park.ride_dispatch_policy(ride.id) != Some(park_sim::RideDispatchPolicy::default())
+                || park
+                    .ride_dispatch_progress(ride.id)
+                    .is_none_or(|progress| progress.extra_waited_ticks != 0)
+        })
+    {
         return Err("legacy import invented loading policies or elapsed loading wait".into());
     }
     super::finance::check(park)?;
@@ -352,12 +354,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=16).contains(&schema)
+        if !(1..=17).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version 1..16 source slot".into(),
+                "verify-legacy requires an authentic strict version 1..17 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -414,7 +416,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel/facility basis and actual demolition refunds stay zero: PASS\nLegacy opening baselines preserved; v9-v12 transactions, archives, expenses, paid ride/facility costs and source attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated current-schema roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v17 continues under current needs/service/cost/ride-choice/track/dispatch rules; v1-v12 imports have an empty draft; v13 retains its level draft and v14 retains graded drafts; v1-v14 imported track basis and refunds stay zero; v15-v16 paid track basis and transactions are preserved; v1-v15 ride settings default to original timings; v16 operating settings are preserved; v1-v16 loading policies default to no minimum and zero elapsed extra wait\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel/facility basis and actual demolition refunds stay zero: PASS\nLegacy opening baselines preserved; v9-v12 transactions, archives, expenses, paid ride/facility costs and source attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated current-schema roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; imported parks continue under current needs/service/cost/ride-choice/track/dispatch/appeal rules; v1-v12 imports have an empty draft; v13 retains its level draft and v14 retains graded drafts; v1-v14 imported track basis and refunds stay zero; v15-v17 paid track basis and transactions are preserved; v1-v15 ride settings default to original timings; v16-v17 operating settings are preserved; v1-v16 loading policies default to no minimum and zero elapsed extra wait; v17 loading policies and elapsed waits are preserved; schema 17 body fields are unchanged and new appeal traits are derived without RNG draws\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
@@ -422,6 +424,65 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn legacy_v17_waiting_and_paid_dispatch_states_preserve_every_field() {
+        for paid in [false, true] {
+            let directory = std::env::temp_dir().join(format!(
+                "Parkbound legacy dispatch é {} {} {paid}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            fs::create_dir(&directory).unwrap();
+            let mut park = demonstration_park();
+            let owners = if paid {
+                let owners = super::super::dispatch::install_paid(&mut park).unwrap();
+                super::super::dispatch::open_paid(&mut park, owners).unwrap();
+                owners
+            } else {
+                let owners = super::super::dispatch::install_empty(&mut park).unwrap();
+                super::super::dispatch::open_empty_wait(&mut park, owners).unwrap();
+                owners
+            };
+            for id in owners {
+                let progress = park.ride_dispatch_progress(id).unwrap();
+                assert!(progress.minimum_passengers > 0);
+                if paid {
+                    assert!(super::super::ride_choice::paid_running(&park, id));
+                } else {
+                    assert!(progress.waiting_for_load && progress.extra_waited_ticks > 0);
+                }
+            }
+            // Schema 17 has exactly the current body shape. Project only the
+            // headers; the external process proof also uses genuine 0.33 files.
+            let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+            old["schema_version"] = json!(17);
+            old["content_version"] = json!(17);
+            let bytes = serde_json::to_vec(&old).unwrap();
+            assert_eq!(Park::from_save_bytes(&bytes).unwrap(), park);
+            for name in ["park.park.json", "park.park.json.bak"] {
+                fs::write(directory.join(name), &bytes).unwrap();
+            }
+            assert_eq!(
+                run(vec![
+                    "--save-check".into(),
+                    "verify-legacy".into(),
+                    "--save-dir".into(),
+                    directory.clone().into_os_string()
+                ]),
+                Some(AppExit::Success)
+            );
+            for name in ["park.park.json", "park.park.json.bak"] {
+                assert_eq!(fs::read(directory.join(name)).unwrap(), bytes);
+            }
+            assert!(directory.is_absolute() && directory.starts_with(std::env::temp_dir()));
+            fs::remove_dir_all(directory).unwrap();
+        }
+    }
+
     #[test]
     fn legacy_v16_variable_operating_settings_survive_dispatch_migration() {
         let directory = std::env::temp_dir().join(format!(

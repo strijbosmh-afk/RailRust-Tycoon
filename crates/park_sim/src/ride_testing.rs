@@ -193,7 +193,7 @@ impl Park {
     }
 }
 
-fn layout_metrics(specs: &[TrackPieceSpec]) -> (u8, u8, CoasterLayoutMetrics) {
+pub(crate) fn layout_metrics(specs: &[TrackPieceSpec]) -> (u8, u8, CoasterLayoutMetrics) {
     let station = specs
         .iter()
         .position(|spec| spec.kind == TrackKind::Station)

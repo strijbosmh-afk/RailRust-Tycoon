@@ -401,7 +401,7 @@ fn live_detail_distinguishes_preference_from_wallet_and_unrated_from_zero_stars(
             kind,
             ui::guests::GuestLabel::Demand
         ))
-        .contains("Can pay: yes / Willing to pay: no\nInterested now: no")
+        .contains("Can pay: yes / Willing to pay: no\nCurrent ride challenge:")
     );
     assert!(
         text_for(&mut app, |kind| matches!(
@@ -428,9 +428,166 @@ fn live_detail_distinguishes_preference_from_wallet_and_unrated_from_zero_stars(
             kind,
             ui::guests::GuestLabel::Demand
         ))
-        .contains("Can pay: yes / Willing to pay: yes\nInterested now: yes")
+        .contains("Can pay: yes / Willing to pay: yes\nCurrent ride challenge:")
     );
     assert_eq!(app.world().resource::<Simulation>().0.ticks(), ticks);
+}
+
+#[test]
+fn current_ride_fit_is_readonly_follows_selection_and_clears_unavailable_profiles() {
+    let directory = InputSaveDirectory::new();
+    let mut park = train_park();
+    let coaster = park.ride().unwrap().id;
+    let carousel = park.place_carousel(TilePos { x: 19, y: 22 }, 8).unwrap();
+    let guest = park.guests()[0].id;
+    let preferred = park.guest_preferred_challenge(guest).unwrap();
+    let before = park.clone();
+    let (mut app, _) = guest_app(
+        &directory,
+        park,
+        ViewState {
+            guests_open: true,
+            selected_guest: Some(guest),
+            selected_ride: Some(coaster),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    for ride in [coaster, carousel] {
+        app.world_mut().resource_mut::<ViewState>().selected_ride = Some(ride);
+        frame(&mut app);
+        let profile = before.ride_appeal_profile(ride).unwrap();
+        let details = text_for(&mut app, |kind| {
+            matches!(kind, ui::guests::GuestLabel::Details)
+        });
+        assert!(details.contains(&format!(
+            "Preferred challenge: {preferred}/100 (soft preference)"
+        )));
+        let demand = text_for(&mut app, |kind| {
+            matches!(kind, ui::guests::GuestLabel::Demand)
+        });
+        assert!(demand.contains(&format!(
+            "Current ride challenge: {}/100",
+            profile.layout_challenge
+        )));
+        assert!(demand.contains(if profile.layout_challenge <= preferred {
+            "Current fit: within preferred challenge"
+        } else {
+            "Current fit: above preferred challenge"
+        }));
+        assert!(demand.contains("Choice reputation: 3.0/5 (starts neutral)"));
+        assert!(
+            !demand.contains("Interested now")
+                && !demand.contains("penalty")
+                && !demand.contains("chosen because")
+        );
+        assert!(
+            text_for(&mut app, |kind| matches!(
+                kind,
+                ui::guests::GuestLabel::Summary
+            ))
+            .contains("Unrated from 0 opinions")
+        );
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+    }
+    let rail = before.circuit().unwrap().pieces[3].object;
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .remove_object(rail)
+        .unwrap();
+    app.world_mut().resource_mut::<ViewState>().selected_ride = Some(coaster);
+    frame(&mut app);
+    let demand = text_for(&mut app, |kind| {
+        matches!(kind, ui::guests::GuestLabel::Demand)
+    });
+    assert!(demand.contains("Current ride challenge: unavailable\nCurrent fit: unavailable\nChoice reputation: unavailable"));
+    app.world_mut().resource_mut::<ViewState>().selected_ride = Some(park_sim::RideId(u64::MAX));
+    frame(&mut app);
+    assert_eq!(
+        text_for(&mut app, |kind| matches!(
+            kind,
+            ui::guests::GuestLabel::Demand
+        )),
+        "No ride is available to consider."
+    );
+}
+
+#[test]
+fn completed_trip_review_stays_separate_from_choice_reputation() {
+    use park_sim::{PathDirection, PathSlope};
+    let directory = InputSaveDirectory::new();
+    let mut park = train_park();
+    let ride = park.ride().unwrap().id;
+    park.set_ride_ticket_price(ride, 200).unwrap();
+    for (y, height, slope) in [
+        (12, 8, PathSlope::Flat),
+        (13, 8, PathSlope::South),
+        (14, 9, PathSlope::Flat),
+        (15, 8, PathSlope::North),
+    ] {
+        park.place_queue_path(TilePos { x: 8, y }, height, slope, ride)
+            .unwrap();
+    }
+    park.place_ride_entrance(TilePos { x: 8, y: 11 }, 8, PathDirection::North, ride)
+        .unwrap();
+    for x in 8..=13 {
+        park.place_path(TilePos { x, y: 8 }, 8).unwrap();
+    }
+    for y in 9..=11 {
+        park.place_path(TilePos { x: 13, y }, 8).unwrap();
+    }
+    park.place_ride_exit(TilePos { x: 8, y: 9 }, 8, PathDirection::South, ride)
+        .unwrap();
+    for _ in 0..18_000 {
+        if park.ride_experience_stats(ride).rating_count > 0 {
+            break;
+        }
+        park.advance(Speed::Normal);
+    }
+    let stats = park.ride_experience_stats(ride);
+    assert!(stats.rating_count > 0);
+    let profile = park.ride_appeal_profile(ride).unwrap();
+    let guest = park
+        .guests()
+        .iter()
+        .find(|guest| guest.ratings_given > 0)
+        .unwrap()
+        .id;
+    let before = park.clone();
+    let (mut app, _) = guest_app(
+        &directory,
+        park,
+        ViewState {
+            guests_open: true,
+            selected_guest: Some(guest),
+            selected_ride: Some(ride),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    let summary = text_for(&mut app, |kind| {
+        matches!(kind, ui::guests::GuestLabel::Summary)
+    });
+    assert!(summary.contains(&format!(
+        "reviews: {} from {} opinions",
+        ui::guests::rating_label(stats.average_rating_tenths),
+        stats.rating_count
+    )));
+    let demand = text_for(&mut app, |kind| {
+        matches!(kind, ui::guests::GuestLabel::Demand)
+    });
+    assert!(demand.contains(&format!(
+        "Choice reputation: {} (starts neutral)",
+        ui::guests::rating_label(Some(profile.reputation_rating_tenths))
+    )));
+    assert!(
+        !demand.contains("recent")
+            && !demand.contains("will choose")
+            && !demand.contains("chosen because")
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
 }
 
 #[test]

@@ -16,6 +16,7 @@ mod path_geometry;
 mod ride_access;
 #[cfg(test)]
 mod ride_access_tests;
+mod ride_appeal;
 mod ride_choice;
 mod ride_dispatch;
 mod ride_operations;
@@ -62,6 +63,7 @@ pub use path_geometry::{
     paths_connect,
 };
 pub use ride_access::{Ride, RideAccess, RideAccessError, RideAccessStatus, RideEntrance, RideId};
+pub use ride_appeal::{GuestRideAppeal, RideAppealProfile};
 pub use ride_dispatch::{
     EXTRA_WAIT_STEP_TICKS, MAX_DISPATCH_PASSENGERS, MAX_EXTRA_WAIT_TICKS, MIN_EXTRA_WAIT_TICKS,
     RideDispatchError, RideDispatchPolicy, RideDispatchProgress,

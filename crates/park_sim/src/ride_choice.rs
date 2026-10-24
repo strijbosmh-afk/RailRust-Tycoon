@@ -17,10 +17,20 @@ impl Park {
             .iter()
             .filter_map(|(&id, access)| {
                 let ride = self.ride_by_id(id)?;
-                (self.admission_eligible(id, access)
-                    && !ride.draining
-                    && ride.next_queue_ticket < u64::MAX)
-                    .then_some((ride, access, self.ride_queue_stats(id).queueing))
+                if !self.admission_eligible(id, access)
+                    || ride.draining
+                    || ride.next_queue_ticket == u64::MAX
+                {
+                    return None;
+                }
+                // Static geometry is scanned once per eligible ride, never
+                // once per guest and never by running a mechanics test lap.
+                Some((
+                    ride,
+                    access,
+                    self.ride_queue_stats(id).queueing,
+                    self.ride_appeal_profile(id)?,
+                ))
             })
             .collect();
         let mut choices = BTreeMap::new();
@@ -37,12 +47,15 @@ impl Park {
                 continue;
             };
             let preferred = preference(self.crowd_seed.unwrap_or(0), guest.id);
+            let preferred_challenge =
+                crate::ride_appeal::preferred_challenge(self.crowd_seed.unwrap_or(0), guest.id);
             let selected = eligible
                 .iter()
-                .filter_map(|(ride, access, queue)| {
+                .filter_map(|(ride, access, queue, appeal)| {
                     let route = graph.route(current, access.public_entry?)?;
                     // First prefer affordable, acceptable fares, then balance travel,
-                    // line length, price, personal taste and previous ride count.
+                    // line length, price, personal taste, previous ride count,
+                    // layout challenge and cumulative review reputation.
                     let refused = guest.wallet_cents < ride.ticket_price_cents
                         || !guest.willing_to_pay(ride.ticket_price_cents);
                     let history = guest
@@ -54,7 +67,8 @@ impl Park {
                         + *queue as u128 * 10
                         + u128::from(ride.ticket_price_cents / 25)
                         + u128::from(self.ride_kind(ride.id) != Some(preferred)) * 80
-                        + u128::from(history) * 20;
+                        + u128::from(history) * 20
+                        + u128::from(appeal.for_preference(preferred_challenge).total_penalty);
                     Some((refused, score, ride.id))
                 })
                 .min();
