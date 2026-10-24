@@ -74,7 +74,7 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             view.track_editor.kind = TrackBuildKind::SteepDrop;
             view.track_editor.height = 10;
             view.track_editor.notice =
-                "28 pieces: lifts, drops and brakes.\nHeights join in one closed loop.".into();
+                "Graded loop ready to apply.\nAll endpoint heights match.".into();
             TilePos { x: 11, y: 7 }
         }
         Scene::TrackBuilt => {

@@ -64,7 +64,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 padding: UiRect::all(px(12)),
                 border: UiRect::all(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(3),
+                row_gap: px(2),
                 ..default()
             },
             BackgroundColor(PAPER),
@@ -139,7 +139,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 })
                 .with_children(|p| {
                     p.spawn((
-                        Text::new("In 8 → Out 8"),
+                        Text::new("In 8 / Out 8"),
                         TextFont {
                             font_size: 11.0,
                             ..default()
@@ -160,7 +160,7 @@ pub(super) fn setup(commands: &mut Commands) {
             });
             for (kind, color, height) in [
                 (TrackLabel::Status, INK, 40.0),
-                (TrackLabel::Notice, MUTED, 40.0),
+                (TrackLabel::Notice, MUTED, 54.0),
             ] {
                 p.spawn(Node {
                     height: px(height),
@@ -231,7 +231,7 @@ pub(crate) fn refresh(
                     editor.height,
                     editor.direction,
                 );
-                format!("In {} → Out {}", spec.entry.height, spec.exit.height)
+                format!("In {} / Out {}", spec.entry.height, spec.exit.height)
             }
             TrackLabel::Status => cached_status
                 .as_ref()

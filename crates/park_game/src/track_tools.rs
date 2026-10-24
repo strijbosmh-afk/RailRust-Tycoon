@@ -248,7 +248,7 @@ pub(crate) fn status(park: &Park) -> String {
         Ok(pieces) => {
             let count_kind = |kind| pieces.iter().filter(|piece| piece.kind == kind).count();
             format!(
-                "{count} pieces / complete loop\nLift {} / Drop {} / Brake {}\nClose coaster; wait until empty.",
+                "{count} pieces / complete loop\nLift {} / Drop {} / Brake {}\nClose and empty before Apply.",
                 count_kind(park_sim::TrackKind::Lift),
                 count_kind(park_sim::TrackKind::Drop),
                 count_kind(park_sim::TrackKind::Brake)
