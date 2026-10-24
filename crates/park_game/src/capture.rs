@@ -170,6 +170,10 @@ enum Scene {
     LibraryPreviewBlocked,
     LibraryPreviewIncomplete,
     LibraryPreviewTall,
+    LibraryImported,
+    LibraryExported,
+    LibraryImportRefused,
+    LibraryTransferCancelled,
     LoadedDesign,
 }
 
@@ -189,6 +193,10 @@ impl Scene {
                 | Self::LibraryPreviewBlocked
                 | Self::LibraryPreviewIncomplete
                 | Self::LibraryPreviewTall
+                | Self::LibraryImported
+                | Self::LibraryExported
+                | Self::LibraryImportRefused
+                | Self::LibraryTransferCancelled
                 | Self::LoadedDesign
         )
     }
@@ -550,6 +558,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("library-preview-blocked") => Scene::LibraryPreviewBlocked,
                 Some("library-preview-incomplete") => Scene::LibraryPreviewIncomplete,
                 Some("library-preview-tall") => Scene::LibraryPreviewTall,
+                Some("library-imported") => Scene::LibraryImported,
+                Some("library-exported") => Scene::LibraryExported,
+                Some("library-import-refused") => Scene::LibraryImportRefused,
+                Some("library-transfer-cancelled") => Scene::LibraryTransferCancelled,
                 Some("loaded-design") => Scene::LoadedDesign,
                 _ => panic!(
                     "unknown --capture-scene; see the capture scenes in RESUME_DEVELOPMENT.md"

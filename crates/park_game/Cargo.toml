@@ -20,3 +20,10 @@ bevy = { version = "=0.17.3", default-features = false, features = [
     "bevy_sprite", "bevy_sprite_render", "bevy_text", "bevy_ui",
     "bevy_ui_render", "bevy_input_focus", "default_font", "png",
 ] }
+
+[target.'cfg(windows)'.dependencies]
+raw-window-handle = "=0.6.2"
+windows = { version = "=0.61.3", features = [
+    "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging", "Win32_System_Threading",
+] }

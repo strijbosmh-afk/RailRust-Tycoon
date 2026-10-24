@@ -257,6 +257,16 @@ pub(crate) fn setup(commands: &mut Commands) {
                         design_button(p, "Update selected", DesignCommand::UpdateSelected, 166.0);
                         value_cell(p, 174.0, DesignLabel::Draft);
                     });
+                    p.spawn(row()).with_children(|p| {
+                        design_button(p, "Import file", DesignCommand::Import, 253.0);
+                        design_button(p, "Export selected", DesignCommand::Export, 253.0);
+                    });
+                    label(
+                        p,
+                        "Share .parktrack.json files; duplicate imports get numbered names.\nImport adds to the library; it never loads or builds track.",
+                        11.0,
+                        MUTED,
+                    );
                     p.spawn(Node {
                         justify_content: JustifyContent::SpaceBetween,
                         ..row()

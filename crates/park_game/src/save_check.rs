@@ -15,6 +15,7 @@ use crate::{
 
 mod admission;
 pub(super) mod construction;
+mod design_transfer;
 mod designs;
 pub(super) mod economy;
 pub(super) mod facility_construction;
@@ -43,7 +44,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -156,6 +157,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-track-construction" => track_construction::verify(&session)?,
             "write-designs" => designs::write(&session)?,
             "verify-designs" => designs::verify(&session)?,
+            "write-design-transfer" => design_transfer::write(&session)?,
+            "verify-design-transfer" => design_transfer::verify(&session)?,
             _ => unreachable!(),
         }
         Ok(())

@@ -70,6 +70,30 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, library: &mut DesignLibr
             library.notice =
                 format!("Design does not fit: {error}\nAdjust position, height or rotation.");
         }
+        Scene::LibraryImported => {
+            // This is presentation data only. The actual import workflow is
+            // tested separately against isolated files, never from captures.
+            library.entries = ["Woodland loop", "Woodland loop (2)"]
+                .into_iter()
+                .map(|name| TrackDesign::from_draft(name, design.pieces()).unwrap())
+                .collect();
+            library.selected = Some(1);
+            library.name = "Woodland loop (2)".into();
+            library.notice =
+                "Imported \"Woodland loop (2)\".\nSelect Load into draft when ready to edit."
+                    .into();
+        }
+        Scene::LibraryExported => {
+            library.notice =
+                format!("Exported \"{NAME}\".\nThe saved design and draft are unchanged.");
+        }
+        Scene::LibraryImportRefused => {
+            library.notice = "Import refused: Design file is invalid or unsupported.\nSaved designs and the draft are unchanged.".into();
+        }
+        Scene::LibraryTransferCancelled => {
+            library.notice =
+                "File choice cancelled.\nSaved designs and the draft are unchanged.".into();
+        }
         Scene::LibraryGallery
         | Scene::LibraryGalleryLast
         | Scene::LibraryPreviewIncomplete
@@ -197,6 +221,7 @@ mod tests {
             &library.notice,
             format!("{:?}", library.confirmation),
             library.available,
+            library.transfer_pending,
         ))
         .unwrap()
     }
@@ -216,6 +241,10 @@ mod tests {
             Scene::LibraryPreviewBlocked,
             Scene::LibraryPreviewIncomplete,
             Scene::LibraryPreviewTall,
+            Scene::LibraryImported,
+            Scene::LibraryExported,
+            Scene::LibraryImportRefused,
+            Scene::LibraryTransferCancelled,
             Scene::LoadedDesign,
         ] {
             let mut park = crate::demonstration_park();

@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-Updated 24 October 2026 for **0.29.0 track design previews and thumbnails**, on `codex/track-design-previews` from the 0.28 checkpoint `bf003fdb10da371e66099700f4a7a8e51f35bcf3` / [PR #26](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/26). The gallery adds four clickable thumbnails per page, a larger rotating shape preview and an immutable candidate build quote/readiness check. Exact-source CI passed 575 tests and all 29 steps; production proofs, 14 final captures and relocated package checks passed. The latest verified delivery is 0.29; section 10 and the [design previews report](docs/TRACK_DESIGN_PREVIEWS_REPORT.md) separate current evidence from historical receipts. Native input, clean-PC and representative performance acceptance remain open.
+Updated 24 October 2026 for **0.30.0 track design import and export**, on `codex/track-design-transfer` from checkpoint `8439032fe36126f87d412e7c38f0a29f0f2a0189` / [PR #27](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/27). Native Windows pickers import individual designs without overwriting existing library entries and export the selected saved snapshot with overwrite confirmation. Exact source, CI, runtime, captures, package and notices verification are pending. The latest verified delivery remains 0.29; section 10 and the [design transfer report](docs/TRACK_DESIGN_TRANSFER_REPORT.md) separate current work from historical receipts. Native input, clean-PC and representative performance acceptance remain open.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>. **Parkbound** is a temporary title for an original Rust theme park simulation inspired by classic RCT1/RCT2. The user chose Windows-only free distribution with all functionality included, developed in playable stages. It is not yet a complete management game. **No reference PC is selected; this development PC is explicitly excluded.** Its measurements remain local diagnostics, not hardware requirements or 60 FPS acceptance.
 
@@ -26,7 +26,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/track-design-previews`, based on `codex/named-track-designs` at `bf003fdb10da371e66099700f4a7a8e51f35bcf3` / [PR #26](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/26). The 0.28 branch began at `f33b96e99bd5ad1790348b526581a03940b9034e` / [PR #25](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/25). The prior 0.27 branch began at the 0.26 checkpoint `925bae82076a95098aafa582b3d7a936fd6ddd28` / [PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24). Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/track-design-transfer`, based on `codex/track-design-previews` at `8439032fe36126f87d412e7c38f0a29f0f2a0189` / [PR #27](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/27). The prior 0.29 branch was based on `codex/named-track-designs` at `bf003fdb10da371e66099700f4a7a8e51f35bcf3` / [PR #26](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/26). The 0.28 branch began at `f33b96e99bd5ad1790348b526581a03940b9034e` / [PR #25](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/25). The prior 0.27 branch began at the 0.26 checkpoint `925bae82076a95098aafa582b3d7a936fd6ddd28` / [PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24). Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -50,10 +50,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/track-design-previews
+git switch --track origin/codex/track-design-transfer
 ```
 
-If the branch already exists locally, use `git switch codex/track-design-previews` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/track-design-transfer` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -67,13 +67,14 @@ Retain historical reports, raw benchmark data, evidence paths and notices. In pa
 
 ## 2. Read the project records
 
-Start with [TRACK_DESIGN_PREVIEWS_REPORT.md](docs/TRACK_DESIGN_PREVIEWS_REPORT.md), [TRACK_DESIGN_LIBRARY_REPORT.md](docs/TRACK_DESIGN_LIBRARY_REPORT.md), [TRACK_DRAFT_HISTORY_REPORT.md](docs/TRACK_DRAFT_HISTORY_REPORT.md), [TRACK_ECONOMY_REPORT.md](docs/TRACK_ECONOMY_REPORT.md), [SLOPED_TRACK_REPORT.md](docs/SLOPED_TRACK_REPORT.md), [TRACK_CONSTRUCTION_REPORT.md](docs/TRACK_CONSTRUCTION_REPORT.md), [SERVICE_CONSTRUCTION_REPORT.md](docs/SERVICE_CONSTRUCTION_REPORT.md), [RIDE_CONSTRUCTION_REPORT.md](docs/RIDE_CONSTRUCTION_REPORT.md), [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md), [SERVICE_FINANCE_REPORT.md](docs/SERVICE_FINANCE_REPORT.md), [GUEST_SERVICES_REPORT.md](docs/GUEST_SERVICES_REPORT.md), [GUEST_EXPERIENCE_REPORT.md](docs/GUEST_EXPERIENCE_REPORT.md), [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
+Start with [TRACK_DESIGN_TRANSFER_REPORT.md](docs/TRACK_DESIGN_TRANSFER_REPORT.md), [TRACK_DESIGN_PREVIEWS_REPORT.md](docs/TRACK_DESIGN_PREVIEWS_REPORT.md), [TRACK_DESIGN_LIBRARY_REPORT.md](docs/TRACK_DESIGN_LIBRARY_REPORT.md), [TRACK_DRAFT_HISTORY_REPORT.md](docs/TRACK_DRAFT_HISTORY_REPORT.md), [TRACK_ECONOMY_REPORT.md](docs/TRACK_ECONOMY_REPORT.md), [SLOPED_TRACK_REPORT.md](docs/SLOPED_TRACK_REPORT.md), [TRACK_CONSTRUCTION_REPORT.md](docs/TRACK_CONSTRUCTION_REPORT.md), [SERVICE_CONSTRUCTION_REPORT.md](docs/SERVICE_CONSTRUCTION_REPORT.md), [RIDE_CONSTRUCTION_REPORT.md](docs/RIDE_CONSTRUCTION_REPORT.md), [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md), [SERVICE_FINANCE_REPORT.md](docs/SERVICE_FINANCE_REPORT.md), [GUEST_SERVICES_REPORT.md](docs/GUEST_SERVICES_REPORT.md), [GUEST_EXPERIENCE_REPORT.md](docs/GUEST_EXPERIENCE_REPORT.md), [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
 
 Historical reports retain exact source, test, capture, native, CI, package, and checksum evidence without duplicating it all here:
 
 | Version | Retained report |
 | --- | --- |
-| 0.29 | [Design gallery and previews: current work and verification status](docs/TRACK_DESIGN_PREVIEWS_REPORT.md) |
+| 0.30 | [Design import/export: current work and pending verification](docs/TRACK_DESIGN_TRANSFER_REPORT.md) |
+| 0.29 | [Design gallery and previews: verified delivery](docs/TRACK_DESIGN_PREVIEWS_REPORT.md) |
 | 0.28 | [Named track designs: historical verification](docs/TRACK_DESIGN_LIBRARY_REPORT.md) |
 | 0.27 | [Copy installed track and draft history: historical verification](docs/TRACK_DRAFT_HISTORY_REPORT.md) |
 | 0.26 | [Track economics: historical verification](docs/TRACK_ECONOMY_REPORT.md) |
@@ -152,6 +153,7 @@ Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (
 | `park_sim/src/economy.rs` | Integer-cent wallets, fare validation/locking, departure payments, affordability and conserved revenue/cash. |
 | `park_sim/src/track_construction.rs`, `trains.rs`, `saves/track_construction.rs` | Exact installed-to-draft copying, structural snapshot restoration, entry-height bounds, graded drafts, atomic paid circuit replacement, per-piece cost basis/refunds and strict legacy 1–14 migration. |
 | `park_game/src/design_thumbnail.rs`, `design_preview.rs` | Deterministic sampled-rail raster images, bounded derived image cache, four-card gallery pages and immutable current-world candidate quote/readiness presentation. |
+| `park_game/src/design_transfer.rs`, `design_transfer_file.rs`, `design_file_dialog.rs` | Native Windows file pickers, selected-snapshot exports, strict bounded file import, atomic file export and transfer lifecycle; `design_store.rs` chooses unused import names under the catalog lock. |
 | `park_sim/src/track_designs.rs`, `park_game/src/design_store.rs`, `design_library.rs`, `ui/designs.rs` | Strict portable geometry, separate locked design catalog, confirmed updates/deletion, name input and undoable transformed draft loading. |
 | `park_game/src/track_tools.rs`, `ui/track.rs`, `world/track_preview.rs` | Eight editor choices, incoming-heading/height controls, graded previews, direction arrows, visible-height erase, live purchase/refund/cash quotes and transient 64-edit draft Undo/Redo. |
 | `park_game/src/main.rs`, `path_tools.rs`, `path_tools/entrance.rs`, `path_tools/service.rs`, `terrain_tools.rs` | Input ordering, tool state, immutable preview validation, commit/gating, pause/view and scene refresh. |
@@ -240,7 +242,17 @@ Guest choice considers eligible reachable rides using distance, queue length, fa
 
 Core additions are `park_sim/src/carousel.rs` (atomic construction, runtime, samples, validation) and `ride_choice.rs` (candidate scoring). Existing `ride()`/`train()` explicitly mean the original coaster; use `all_rides`, `ride_by_id`, `ride_kind`, `object_ride`, `set_ride_open` and owner-specific stats for general behavior. The game adds `ui/rides.rs`, `world/carousel_render.rs`, `path_tools/carousel.rs`, `save_check/ride_choice.rs` and matching controlled scenes. Moving carousel geometry shares the existing dynamic ride mesh; static footprint geometry uses the existing landscape chunks.
 
-### 0.29 design gallery and placement previews
+### Current 0.30 design import and export
+
+Open Designs and choose **Import file** to select one individual `.parktrack.json` file through the native Windows picker. The strict version-1 design codec validates UTF-8, JSON fields, geometry and the 128 KiB bound; park saves and library catalogs are not accepted as designs. Absolute regular-file paths are required, and symlinks/reparse points are refused. Import rereads the catalog while locked, preserves the source name when free and otherwise chooses the first unused numbered suffix, truncating by Unicode characters to stay within 32. Existing entries are never overwritten; a full, corrupt or locked library refuses the import without changing its existing bytes.
+
+**Export selected** freezes the selected saved design for the native Windows Save picker. It exports that design's name and exact ordered geometry, independent of the current draft or placement X/Y, height and rotation. The suggested basename is sanitized for Windows. The final path must end in `.parktrack.json`; the picker confirms destination overwrite before the exporter writes and flushes a unique sibling temporary file and atomically replaces the destination. Failed replacement preserves the prior destination and cleans its own temporary file; detailed file errors go to logs with concise library notices.
+
+Successful import changes only the design library. Export, cancellation and refused transfers preserve the catalog, active draft/history and park. **Load into draft** remains the action that replaces the draft as one free Undo step when changed; **Apply** alone constructs rails and settles the current purchase/refund quote. Park schema/content remain 15/15 and catalog/design formats remain version 1; no migration is introduced.
+
+Native dialog integration adds direct Windows dependencies `windows` 0.61.3 and `raw-window-handle` 0.6.2, already present at those versions in the locked graph. No package version is added; distribution metadata/notices must still be regenerated and checked. New controlled scenes are `library-imported`, `library-exported`, `library-import-refused` and `library-transfer-cancelled`. Exact-source tests, production proofs, captures, native picker gestures, CI and package/notices verification are pending in [TRACK_DESIGN_TRANSFER_REPORT.md](docs/TRACK_DESIGN_TRANSFER_REPORT.md).
+
+### Retained 0.29 design gallery and placement previews
 
 The 900 × 600 library modal displays four clickable 156 × 70 thumbnails per page and a selected 320 × 180 isometric preview. Previous/Next follows the selection across page boundaries. The renderer uses `TrackPieceSpec::samples()` for actual rail centerlines and grades, including gold stations, distinct lift/drop/brake colors and an anchor travel arrow. Turn rotates the selected image clockwise. Its shape is centered independently of world location and absolute height, including rotations that would not fit at the current map edge; X/Y, entry-height controls and placement status describe where it would actually load.
 
@@ -258,7 +270,7 @@ Browse a saved design, adjust its X/Y anchor and entry height, and turn it clock
 
 The library lives under `<save-directory>\track-designs`, independently of `park.park.json`, its backup and transient draft history. Park Load/Backup and application restart retain the library; `--save-dir` isolates it. The strict design format has its own version 1; park schema/content stay 15/15. Names are never filenames. A strict, bounded catalog uses locked writes, flushed same-directory temporary files and a previous-catalog backup. Corruption is reported rather than overwritten or automatically recovered. With every game instance closed, use the reported path to restore `track-designs.json.bak` manually; remove a crash-left `track-designs.json.lock` only after closing all instances. Preserve both files before manual recovery.
 
-All 560 local release tests and strict Clippy passed at parent `34b9d25292823aaf34a1aeb20a4f20e58a13305b`. Final-source Windows CI passed all 29 steps with the same test count; its exact executable passed the separate design-library proof, retained track proof, two-way schema-15 continuation and authentic schema-14 migration. All ten final captures and relocated-package checks passed, including 43 payload hashes, 34 guides, the named-design proof and byte-identical loaded-design rendering. See [TRACK_DESIGN_LIBRARY_REPORT.md](docs/TRACK_DESIGN_LIBRARY_REPORT.md). The verified 0.28 CI executable is the latest delivery; the 0.27 report retains its historical identities and receipts.
+All 560 local release tests and strict Clippy passed at parent `34b9d25292823aaf34a1aeb20a4f20e58a13305b`. Final-source Windows CI passed all 29 steps with the same test count; its exact executable passed the separate design-library proof, retained track proof, two-way schema-15 continuation and authentic schema-14 migration. All ten final captures and relocated-package checks passed, including 43 payload hashes, 34 guides, the named-design proof and byte-identical loaded-design rendering. See [TRACK_DESIGN_LIBRARY_REPORT.md](docs/TRACK_DESIGN_LIBRARY_REPORT.md). The verified 0.28 CI executable is a historical delivery; the 0.27 report also retains its own historical identities and receipts.
 
 For an isolated production proof, run `--save-check write-designs --save-dir <new-absolute-directory>` and then `--save-check verify-designs --save-dir <same-directory>` in a separate process. Capture scenes are `library-empty`, `library-saved`, `library-transformed`, `library-confirm-update`, `library-confirm-delete`, `library-invalid` and `loaded-design`; their in-memory fixtures never access the player library.
 
@@ -398,6 +410,9 @@ Current production scene names:
 
 | Family | `--capture-scene` values |
 | --- | --- |
+| Design transfer | `library-imported`, `library-exported`, `library-import-refused`, `library-transfer-cancelled` |
+| Design gallery | `library-gallery`, `library-gallery-last`, `library-preview-ready`, `library-preview-blocked`, `library-preview-incomplete`, `library-preview-tall` |
+| Design library | `library-empty`, `library-saved`, `library-transformed`, `library-confirm-update`, `library-confirm-delete`, `library-invalid`, `loaded-design` |
 | Track editor | `track-draft`, `track-invalid`, `track-ready`, `track-built`, `track-occupied`, `track-replacement`, `track-unaffordable`, `track-refund`, `track-finance`, `track-copied`, `track-edited`, `track-undone`, `track-redone`, `track-history-empty` |
 | Basic/overlap | `overview`, `help`, `selection`, `path`, `track` |
 | Crowd | `crowd`, `lost`, `recovered` |
@@ -457,9 +472,11 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 ## 10. Current verification and remaining checks
 
+Current 0.30 work is on `codex/track-design-transfer` from `8439032fe36126f87d412e7c38f0a29f0f2a0189` / PR #27. Exact runtime identity, source checks, CI, fresh-process file transfer, captures, package relocation and refreshed notices verification are pending in [TRACK_DESIGN_TRANSFER_REPORT.md](docs/TRACK_DESIGN_TRANSFER_REPORT.md). No 0.30 delivery result is claimed. The completed 0.29 evidence below remains the latest verified delivery.
+
 ### Latest verified delivery: 0.29
 
-Current work on `codex/track-design-previews` starts from `bf003fdb10da371e66099700f4a7a8e51f35bcf3` / PR #26. Runtime source `4c1cf5a400601f6c0d7b1b69ba267417a90778a2` is pushed in [draft PR #27](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/27), based on PR #26. [Exact-source Windows CI 40083995176](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40083995176), job **120843096557**, passed all **29 steps**, including **575 release tests (336 game / 239 simulation)**, formatting, strict all-target release Clippy, the production build and all retained fresh-process proofs.
+The verified 0.29 branch `codex/track-design-previews` starts from `bf003fdb10da371e66099700f4a7a8e51f35bcf3` / PR #26. Runtime source `4c1cf5a400601f6c0d7b1b69ba267417a90778a2` is pushed in [draft PR #27](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/27), based on PR #26. [Exact-source Windows CI 40083995176](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40083995176), job **120843096557**, passed all **29 steps**, including **575 release tests (336 game / 239 simulation)**, formatting, strict all-target release Clippy, the production build and all retained fresh-process proofs.
 
 The exact CI executable is **49,041,408 bytes**, SHA-256 **`72a3c4c44822579b6e48dc7663103b3f66b1a4dfbe54c1846f6ddf361327de2a`**. It passed separate named-design writer/verifier processes, including **ten recreated pixel files** and an immutable preview quote checked against the subsequently loaded draft, plus the retained **7,200-tick** track/history proof. Ordinary schema-15 continuation passed **0.28 → 0.29 and 0.29 → 0.28**, for **3,600 ticks plus commands and backup checks** each. Authentic schema-14 primary and backup migration passed **3,600 ticks per slot** with unchanged source bytes. These distinct checks preserve the existing draft, history, accounting and compatibility contracts.
 
@@ -653,6 +670,6 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Current milestone and next steps
 
-The completed 0.29 milestone adds gallery thumbnails, a rotating shape preview and candidate placement quotes to the named design library, with exact-source tests, production pixel recreation, visual checks, CI and relocated packaging verified. Preserve immutable preview behavior, bounded image-cache ownership and all paid-basis/Undo boundaries. The completed 0.27 history and 0.28 library milestones retain their own evidence. Choose one cohesive extension such as additional track geometry or adjustable ride operations; multiple coasters, broader ride families, realistic physics and full ratings remain later work. General construction, RID-08, MOD-05 and broad GST-03/MGT-01/MGT-02 remain incomplete; native and clean-PC acceptance checks stay open.
+The current 0.30 milestone adds native design import/export to the verified 0.29 gallery. Finish exact-source tests, separate-process file roundtrips, immutable catalog/draft/park checks, transfer captures, native picker checks, CI and relocated package/notices verification. Preserve selected-snapshot export, collision-safe import, immutable previews, bounded image-cache ownership and all paid-basis/Undo boundaries. The completed 0.27–0.29 milestones retain their own evidence. Further geometry or adjustable ride operations can follow; multiple coasters, broader ride families, realistic physics and full ratings remain later work. General construction, RID-08, MOD-05 and broad GST-03/MGT-01/MGT-02 remain incomplete; native and clean-PC acceptance checks stay open.
 
-For the next session: read this guide and the design previews report; verify branch/source, local edits and remote state; inspect the acceptance checklist; complete one cohesive stage with matching source/runtime evidence. Update source, guides and the portable package together. Preserve map/save caps, original-content requirements and all three recorded local paths. No development PC is designated as performance reference.
+For the next session: read this guide and the design transfer report; verify branch/source, local edits and remote state; inspect the acceptance checklist; complete one cohesive stage with matching source/runtime evidence. Update source, guides and the portable package together. Preserve map/save caps, original-content requirements and all three recorded local paths. No development PC is designated as performance reference.
