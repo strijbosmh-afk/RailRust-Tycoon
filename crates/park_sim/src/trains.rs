@@ -533,15 +533,7 @@ pub(crate) fn validate_specs(
         if park.tile(spec.pos).is_none() {
             return Err(PlacementError::OutOfBounds { pos: spec.pos }.into());
         }
-        let straight = spec.entry.edge.opposite() == spec.exit.edge;
-        let grade = i16::from(spec.exit.height) - i16::from(spec.entry.height);
-        let valid = match spec.kind {
-            TrackKind::Curve => !straight && spec.entry.edge != spec.exit.edge && grade == 0,
-            TrackKind::Lift => straight && grade == 1,
-            TrackKind::Drop => straight && (-2..=-1).contains(&grade),
-            TrackKind::Station | TrackKind::Brake | TrackKind::Straight => straight && grade == 0,
-        };
-        if !valid {
+        if !valid_piece_ports(*spec) {
             return Err(TrainError::InvalidPiece { index });
         }
         geometry.push(piece_samples(*spec));
@@ -558,6 +550,17 @@ pub(crate) fn validate_specs(
         }
     }
     Ok(geometry)
+}
+
+pub(crate) fn valid_piece_ports(spec: TrackPieceSpec) -> bool {
+    let straight = spec.entry.edge.opposite() == spec.exit.edge;
+    let grade = i16::from(spec.exit.height) - i16::from(spec.entry.height);
+    match spec.kind {
+        TrackKind::Curve => !straight && spec.entry.edge != spec.exit.edge && grade == 0,
+        TrackKind::Lift => straight && grade == 1,
+        TrackKind::Drop => straight && (-2..=-1).contains(&grade),
+        TrackKind::Station | TrackKind::Brake | TrackKind::Straight => straight && grade == 0,
+    }
 }
 
 pub(crate) fn envelope(spec: TrackPieceSpec) -> (Axis, u8, u8) {

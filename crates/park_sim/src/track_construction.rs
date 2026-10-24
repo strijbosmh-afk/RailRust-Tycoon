@@ -1,4 +1,4 @@
-//! Persistent, uncommitted level-track plans and atomic single-coaster replacement.
+//! Persistent, uncommitted track plans and atomic single-coaster replacement.
 use std::collections::BTreeMap;
 
 use crate::{
@@ -14,14 +14,42 @@ pub enum TrackBuildKind {
     Straight,
     CurveLeft,
     CurveRight,
+    Lift,
+    Drop,
+    SteepDrop,
+    Brake,
 }
 
 impl TrackBuildKind {
-    /// Direction is the incoming direction of travel, not the entry edge.
+    /// Lowest entry height that preserves this piece's complete grade.
+    pub const fn min_height(self) -> u8 {
+        match self {
+            Self::Drop => 1,
+            Self::SteepDrop => 2,
+            _ => 0,
+        }
+    }
+
+    /// Highest entry height with two steps of clearance above both endpoints.
+    pub const fn max_height(self) -> u8 {
+        match self {
+            Self::Lift => crate::MAX_TERRAIN_HEIGHT - 3,
+            _ => crate::MAX_TERRAIN_HEIGHT - 2,
+        }
+    }
+
+    /// Height is the entry height. Direction is incoming travel, not the entry
+    /// edge. Out-of-range grades produce invalid specs for preview validation;
+    /// they never flatten or shorten into a different supported piece.
     pub fn spec(self, pos: TilePos, height: u8, direction: TrackDirection) -> TrackPieceSpec {
         use TrackDirection::{East, North, South, West};
         let exit = match self {
-            Self::Station | Self::Straight => direction,
+            Self::Station
+            | Self::Straight
+            | Self::Lift
+            | Self::Drop
+            | Self::SteepDrop
+            | Self::Brake => direction,
             Self::CurveLeft => match direction {
                 North => West,
                 West => South,
@@ -41,12 +69,23 @@ impl TrackBuildKind {
                 Self::Station => TrackKind::Station,
                 Self::Straight => TrackKind::Straight,
                 Self::CurveLeft | Self::CurveRight => TrackKind::Curve,
+                Self::Lift => TrackKind::Lift,
+                Self::Drop | Self::SteepDrop => TrackKind::Drop,
+                Self::Brake => TrackKind::Brake,
             },
             entry: TrackPort {
                 edge: direction.opposite(),
                 height,
             },
-            exit: TrackPort { edge: exit, height },
+            exit: TrackPort {
+                edge: exit,
+                height: match self {
+                    Self::Lift => height.saturating_add(1),
+                    Self::Drop => height.checked_sub(1).unwrap_or(u8::MAX),
+                    Self::SteepDrop => height.checked_sub(2).unwrap_or(u8::MAX),
+                    _ => height,
+                },
+            },
         }
     }
 }
@@ -85,7 +124,7 @@ impl std::fmt::Display for TrackConstructionError {
                 write!(f, "draft tile ({}, {}) contains two pieces", pos.x, pos.y)
             }
             Self::UnsupportedPiece => {
-                f.write_str("use level stations, straights, and quarter-turn curves")
+                f.write_str("use level stations, straights, curves and brakes, one-step lifts, or one/two-step drops")
             }
             Self::IncompleteLoop(pos) => {
                 write!(f, "connect the track leaving ({}, {})", pos.x, pos.y)
@@ -354,8 +393,8 @@ impl Park {
         let tile = self
             .tile(spec.pos)
             .expect("shape validation checks tile bounds");
-        let height = spec.entry.height;
-        let top = u16::from(height) + 2;
+        let (_, height, clearance) = crate::trains::envelope(spec);
+        let top = u16::from(height) + u16::from(clearance);
         if height < tile.height && top > u16::from(tile.height) {
             return Err(PlacementError::TerrainIntersection {
                 pos: spec.pos,
@@ -383,22 +422,16 @@ fn validate_piece_shape(park: &Park, spec: TrackPieceSpec) -> Result<(), TrackCo
     if park.tile(spec.pos).is_none() {
         return Err(PlacementError::OutOfBounds { pos: spec.pos }.into());
     }
-    if spec.entry.height > crate::MAX_TERRAIN_HEIGHT - 2 {
+    let highest = spec.entry.height.max(spec.exit.height);
+    if highest > crate::MAX_TERRAIN_HEIGHT - 2 {
         return Err(PlacementError::HeightOutOfRange {
-            height: spec.entry.height,
+            height: highest,
             clearance: 2,
             max: crate::MAX_TERRAIN_HEIGHT,
         }
         .into());
     }
-    let straight = spec.entry.edge.opposite() == spec.exit.edge;
-    if spec.entry.height != spec.exit.height
-        || !match spec.kind {
-            TrackKind::Station | TrackKind::Straight => straight,
-            TrackKind::Curve => !straight && spec.entry.edge != spec.exit.edge,
-            _ => false,
-        }
-    {
+    if !crate::trains::valid_piece_ports(spec) {
         return Err(TrackConstructionError::UnsupportedPiece);
     }
     Ok(())

@@ -28,6 +28,37 @@ fn loop_specs(x: u32, y: u32, height: u8) -> Vec<TrackPieceSpec> {
     })
     .collect()
 }
+
+fn graded_loop_specs() -> Vec<TrackPieceSpec> {
+    use TrackBuildKind::{Brake, CurveRight, Drop, Lift, Station, SteepDrop, Straight};
+    use TrackDirection::{East, North, South, West};
+    [
+        (5, 4, Station, East, 8),
+        (6, 4, Lift, East, 8),
+        (7, 4, Lift, East, 9),
+        (8, 4, Lift, East, 10),
+        (9, 4, Straight, East, 11),
+        (10, 4, CurveRight, East, 11),
+        (10, 5, Straight, South, 11),
+        (10, 6, Drop, South, 11),
+        (10, 7, Straight, South, 10),
+        (10, 8, CurveRight, South, 10),
+        (9, 8, SteepDrop, West, 10),
+        (8, 8, Brake, West, 8),
+        (7, 8, Straight, West, 8),
+        (6, 8, Straight, West, 8),
+        (5, 8, Straight, West, 8),
+        (4, 8, CurveRight, West, 8),
+        (4, 7, Straight, North, 8),
+        (4, 6, Straight, North, 8),
+        (4, 5, Straight, North, 8),
+        (4, 4, CurveRight, North, 8),
+    ]
+    .into_iter()
+    .map(|(x, y, kind, heading, height)| kind.spec(TilePos { x, y }, height, heading))
+    .collect()
+}
+
 fn draft(park: &mut Park, specs: &[TrackPieceSpec]) {
     for spec in specs.iter().rev() {
         park.set_track_draft_piece(*spec).unwrap();
@@ -70,6 +101,228 @@ fn rotation_and_curve_handedness_match_exact_sample_endpoints() {
                 .iter()
                 .all(|point| point.height == 8 * crate::TRACK_UNITS)
         );
+    }
+}
+
+#[test]
+fn graded_piece_directions_heights_and_samples_match_the_selected_piece() {
+    let park = Park::new(32, 32);
+    let pos = TilePos { x: 8, y: 8 };
+    for heading in [
+        TrackDirection::North,
+        TrackDirection::East,
+        TrackDirection::South,
+        TrackDirection::West,
+    ] {
+        for (kind, track_kind, exit_height) in [
+            (TrackBuildKind::Lift, TrackKind::Lift, 9),
+            (TrackBuildKind::Drop, TrackKind::Drop, 7),
+            (TrackBuildKind::SteepDrop, TrackKind::Drop, 6),
+            (TrackBuildKind::Brake, TrackKind::Brake, 8),
+        ] {
+            let spec = kind.spec(pos, 8, heading);
+            assert_eq!(park.validate_track_draft_piece(spec), Ok(()));
+            assert_eq!(spec.kind, track_kind);
+            assert_eq!(
+                spec.entry,
+                TrackPort {
+                    edge: heading.opposite(),
+                    height: 8
+                }
+            );
+            assert_eq!(
+                spec.exit,
+                TrackPort {
+                    edge: heading,
+                    height: exit_height
+                }
+            );
+            let samples = spec.samples();
+            assert_eq!(
+                samples.first(),
+                TrackBuildKind::Straight
+                    .spec(pos, 8, heading)
+                    .samples()
+                    .first()
+            );
+            assert_eq!(
+                samples.last(),
+                TrackBuildKind::Straight
+                    .spec(pos, exit_height, heading)
+                    .samples()
+                    .last()
+            );
+            assert!(samples.windows(2).all(|pair| {
+                match kind {
+                    TrackBuildKind::Lift => pair[0].height < pair[1].height,
+                    TrackBuildKind::Drop | TrackBuildKind::SteepDrop => {
+                        pair[0].height > pair[1].height
+                    }
+                    _ => pair[0].height == pair[1].height,
+                }
+            }));
+        }
+    }
+}
+
+#[test]
+fn every_entry_height_respects_kind_bounds_without_saturating_grades() {
+    let mut park = Park::new(32, 32);
+    let pos = TilePos { x: 5, y: 5 };
+    for kind in [
+        TrackBuildKind::Station,
+        TrackBuildKind::Straight,
+        TrackBuildKind::CurveLeft,
+        TrackBuildKind::CurveRight,
+        TrackBuildKind::Lift,
+        TrackBuildKind::Drop,
+        TrackBuildKind::SteepDrop,
+        TrackBuildKind::Brake,
+    ] {
+        for height in 0..=u8::MAX {
+            let spec = kind.spec(pos, height, TrackDirection::East);
+            let expected = (kind.min_height()..=kind.max_height()).contains(&height);
+            let before = park.clone();
+            assert_eq!(
+                park.set_track_draft_piece(spec).is_ok(),
+                expected,
+                "{kind:?} at {height}"
+            );
+            if expected {
+                assert_eq!(park.track_draft(), [spec]);
+                park.clear_track_draft();
+            } else {
+                assert_eq!(park, before);
+            }
+        }
+    }
+}
+
+#[test]
+fn graded_clearance_covers_low_end_and_space_above_high_end() {
+    let pos = TilePos { x: 5, y: 5 };
+    for (kind, entry, lowest, highest) in [
+        (TrackBuildKind::Lift, 8, 8, 9),
+        (TrackBuildKind::Drop, 9, 8, 9),
+        (TrackBuildKind::SteepDrop, 10, 8, 10),
+    ] {
+        let spec = kind.spec(pos, entry, TrackDirection::East);
+        for obstacle_height in lowest..highest + 2 {
+            let mut park = Park::new(32, 32);
+            park.place_object(pos, ObjectKind::Track, Axis::X, obstacle_height, 1)
+                .unwrap();
+            let before = park.clone();
+            assert!(matches!(
+                park.set_track_draft_piece(spec),
+                Err(TrackConstructionError::Track(TrainError::Placement(
+                    PlacementError::Occupied { .. }
+                )))
+            ));
+            assert_eq!(park, before);
+        }
+        for terrain_height in lowest + 1..highest + 2 {
+            let mut park = Park::new(32, 32);
+            park.set_terrain_height(pos, terrain_height).unwrap();
+            let before = park.clone();
+            assert!(matches!(
+                park.set_track_draft_piece(spec),
+                Err(TrackConstructionError::Track(TrainError::Placement(
+                    PlacementError::TerrainIntersection { .. }
+                )))
+            ));
+            assert_eq!(park, before);
+        }
+        let mut boundaries = Park::new(32, 32);
+        boundaries.set_terrain_height(pos, lowest).unwrap();
+        boundaries
+            .place_object(pos, ObjectKind::Track, Axis::X, highest + 2, 1)
+            .unwrap();
+        assert_eq!(boundaries.validate_track_draft_piece(spec), Ok(()));
+        let mut underground = Park::new(32, 32);
+        underground.set_terrain_height(pos, highest + 2).unwrap();
+        assert_eq!(underground.validate_track_draft_piece(spec), Ok(()));
+    }
+}
+
+#[test]
+fn graded_draft_builds_matching_envelopes_and_runs_after_save_reload() {
+    let mut park = Park::new(32, 32);
+    let specs = graded_loop_specs();
+    draft(&mut park, &specs);
+    assert_eq!(park.validate_track_draft().unwrap(), specs);
+    roundtrip(&park);
+    park.apply_track_draft().unwrap();
+    for (spec, piece) in specs.iter().zip(&park.circuit().unwrap().pieces) {
+        let object = park.object(piece.object).unwrap();
+        assert_eq!(object.height, spec.entry.height.min(spec.exit.height));
+        assert_eq!(
+            object.clearance,
+            spec.entry.height.abs_diff(spec.exit.height) + 2
+        );
+        assert_eq!(piece.samples, spec.samples());
+    }
+    let built = park.clone();
+    park.apply_track_draft().unwrap();
+    assert_eq!(park, built);
+    park.set_train_open(true);
+    let mut loaded = roundtrip(&park);
+    let mut seen = [false; 4];
+    for _ in 0..6000 {
+        park.advance(Speed::Normal);
+        loaded.advance(Speed::Normal);
+        assert_eq!(park, loaded);
+        let train = park.train().unwrap();
+        assert_ne!(train.phase, TrainPhase::Fault);
+        let spec = specs[train.piece_index];
+        let index = match train.phase {
+            TrainPhase::Lift => Some(0),
+            TrainPhase::Drop if spec.entry.height - spec.exit.height == 1 => Some(1),
+            TrainPhase::Drop => Some(2),
+            TrainPhase::Brake => Some(3),
+            _ => None,
+        };
+        if let Some(index) = index.filter(|index| !seen[*index]) {
+            loaded = roundtrip(&park);
+            seen[index] = true;
+        }
+        if train.laps >= 2 {
+            break;
+        }
+    }
+    assert_eq!(seen, [true; 4]);
+    assert!(park.train().unwrap().laps >= 2);
+    roundtrip(&park);
+}
+
+#[test]
+fn blocked_or_disconnected_graded_replacement_is_atomic() {
+    let mut park = Park::new(32, 32);
+    park.install_train_fixture().unwrap();
+    park.set_train_open(false);
+    draft(&mut park, &graded_loop_specs());
+    let steep = park
+        .track_draft
+        .iter()
+        .find(|spec| spec.entry.height.abs_diff(spec.exit.height) == 2)
+        .copied()
+        .unwrap();
+    let mut blocked = park.clone();
+    blocked
+        .place_object(steep.pos, ObjectKind::Track, Axis::X, steep.exit.height, 1)
+        .unwrap();
+    let mut disconnected = park.clone();
+    disconnected
+        .set_track_draft_piece(TrackBuildKind::Drop.spec(
+            steep.pos,
+            steep.entry.height,
+            TrackDirection::West,
+        ))
+        .unwrap();
+    for mut invalid in [blocked, disconnected] {
+        let before = invalid.clone();
+        assert!(invalid.apply_track_draft().is_err());
+        assert_eq!(invalid, before);
+        roundtrip(&invalid);
     }
 }
 
@@ -422,7 +675,7 @@ fn allocator_and_object_capacity_failures_leave_complete_state_unchanged() {
 }
 
 #[test]
-fn schema_thirteen_requires_strict_bounded_drafts_and_migrates_twelve_without_rewriting_state() {
+fn schema_fourteen_requires_strict_bounded_drafts_and_migrates_twelve_without_rewriting_state() {
     let mut park = Park::new(32, 32);
     park.install_train_fixture().unwrap();
     park.place_service(
@@ -433,7 +686,7 @@ fn schema_thirteen_requires_strict_bounded_drafts_and_migrates_twelve_without_re
     )
     .unwrap();
     let base = json_value(&park);
-    assert_eq!(base["schema_version"], json!(13));
+    assert_eq!(base["schema_version"], json!(14));
     let mut old = base.clone();
     old["schema_version"] = json!(12);
     old["content_version"] = json!(12);
@@ -479,4 +732,83 @@ fn schema_thirteen_requires_strict_bounded_drafts_and_migrates_twelve_without_re
     unknown["park"]["track_draft"][0]["unknown"] = json!(0);
     assert!(read(&unknown).is_err());
     roundtrip(&park);
+}
+
+#[test]
+fn schema_thirteen_migration_preserves_level_drafts_and_rejects_new_piece_kinds() {
+    let mut park = Park::new(32, 32);
+    park.install_crowd_fixture(42).unwrap();
+    park.install_train_fixture().unwrap();
+    draft(&mut park, &loop_specs(24, 2, 8));
+    park.remove_track_draft_piece(TilePos { x: 24, y: 2 });
+    for _ in 0..240 {
+        park.advance(Speed::Normal);
+    }
+    let mut old = json_value(&park);
+    old["schema_version"] = json!(13);
+    old["content_version"] = json!(13);
+    let mut migrated = read(&old).unwrap();
+    assert_eq!(migrated, park);
+    assert_eq!(json_value(&migrated)["schema_version"], json!(14));
+    assert_eq!(json_value(&migrated)["content_version"], json!(14));
+    for _ in 0..300 {
+        park.advance(Speed::Normal);
+        migrated.advance(Speed::Normal);
+        assert_eq!(migrated, park);
+    }
+    for kind in [
+        TrackBuildKind::Lift,
+        TrackBuildKind::Drop,
+        TrackBuildKind::SteepDrop,
+        TrackBuildKind::Brake,
+    ] {
+        let mut forged = old.clone();
+        let piece = kind.spec(TilePos { x: 24, y: 2 }, 8, TrackDirection::East);
+        forged["park"]["track_draft"] = json!([piece]);
+        assert!(read(&forged).is_err(), "schema 13 accepted {kind:?}");
+        forged["schema_version"] = json!(14);
+        forged["content_version"] = json!(14);
+        assert_eq!(read(&forged).unwrap().track_draft(), [piece]);
+    }
+    let mut missing = old.clone();
+    missing["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("track_draft");
+    assert!(read(&missing).is_err());
+    let mut unknown = old;
+    unknown["park"]["track_draft"][0]["future_field"] = json!(0);
+    assert!(read(&unknown).is_err());
+}
+
+#[test]
+fn schema_fourteen_rejects_bad_grades_and_ports_without_mutating_drafts() {
+    let mut park = Park::new(32, 32);
+    draft(&mut park, &graded_loop_specs());
+    let base = json_value(&park);
+    let pos = TilePos { x: 3, y: 3 };
+    for (kind, exit_height, exit_edge) in [
+        (TrackBuildKind::Lift, 10, TrackDirection::East),
+        (TrackBuildKind::Drop, 9, TrackDirection::East),
+        (TrackBuildKind::Drop, 5, TrackDirection::East),
+        (TrackBuildKind::Brake, 7, TrackDirection::East),
+        (TrackBuildKind::CurveRight, 7, TrackDirection::South),
+        (TrackBuildKind::Lift, 9, TrackDirection::South),
+        (TrackBuildKind::Drop, 7, TrackDirection::West),
+    ] {
+        let mut piece = kind.spec(pos, 8, TrackDirection::East);
+        piece.exit = TrackPort {
+            edge: exit_edge,
+            height: exit_height,
+        };
+        let before = park.clone();
+        assert_eq!(
+            park.set_track_draft_piece(piece),
+            Err(TrackConstructionError::UnsupportedPiece)
+        );
+        assert_eq!(park, before);
+        let mut forged = base.clone();
+        forged["park"]["track_draft"][0] = json!(piece);
+        assert!(read(&forged).is_err());
+    }
 }

@@ -68,6 +68,10 @@ pub(crate) fn kind_name(kind: TrackBuildKind) -> &'static str {
         TrackBuildKind::Straight => "Straight",
         TrackBuildKind::CurveLeft => "Left curve",
         TrackBuildKind::CurveRight => "Right curve",
+        TrackBuildKind::Lift => "Chain lift",
+        TrackBuildKind::Drop => "Drop -1",
+        TrackBuildKind::SteepDrop => "Drop -2",
+        TrackBuildKind::Brake => "Brakes",
     }
 }
 
@@ -118,6 +122,18 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
             TrackCommand::Piece(kind) => {
                 view.track_editor.kind = kind;
                 view.track_editor.erase = false;
+                view.track_editor.height = view
+                    .track_editor
+                    .height
+                    .clamp(kind.min_height(), kind.max_height());
+                let guidance = match kind {
+                    TrackBuildKind::Lift => "Chain lift rises one step.",
+                    TrackBuildKind::Drop => "Drop descends one step.",
+                    TrackBuildKind::SteepDrop => "Drop descends two steps.",
+                    TrackBuildKind::Brake => "Level brakes slow the train.",
+                    _ => "Level track joins equal heights.",
+                };
+                view.track_editor.notice = format!("{guidance}\nPgUp/Dn sets entry height.");
             }
             TrackCommand::Turn => {
                 view.track_editor.direction = match view.track_editor.direction {
@@ -129,8 +145,10 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
             }
             TrackCommand::Height(delta) => {
                 view.track_editor.height = (i16::from(view.track_editor.height) + i16::from(delta))
-                    .clamp(0, i16::from(park_sim::MAX_TERRAIN_HEIGHT - 2))
-                    as u8;
+                    .clamp(
+                        i16::from(view.track_editor.kind.min_height()),
+                        i16::from(view.track_editor.kind.max_height()),
+                    ) as u8;
             }
             TrackCommand::Erase => view.track_editor.erase = true,
             TrackCommand::Clear => {
@@ -182,7 +200,21 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         }
         return;
     }
-    let Some(pos) = world::pick_track_plane(point, park, view.rotation, editor.height) else {
+    // Anchor the tile grid at the piece's midpoint height. Entry-height picking
+    // shifts a two-step drop's visible center onto the next diagonal tile.
+    let ports = editor.kind.spec(
+        park_sim::TilePos { x: 0, y: 0 },
+        editor.height,
+        editor.direction,
+    );
+    let plane_shift =
+        (f32::from(ports.entry.height) - f32::from(ports.exit.height)) * 0.5 * world::HEIGHT_STEP;
+    let Some(pos) = world::pick_track_plane(
+        point + Vec2::Y * plane_shift,
+        park,
+        view.rotation,
+        editor.height,
+    ) else {
         return;
     };
     let spec = editor.kind.spec(pos, editor.height, editor.direction);
@@ -197,11 +229,12 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             Ok(()) => {
                 editor.revision = editor.revision.wrapping_add(1);
                 editor.notice = format!(
-                    "{} at {}, {} / height {}.\nJoin arrows into one closed loop.",
+                    "{} at {}, {} / {} to {}.\nMatch next entry to this exit.",
                     kind_name(editor.kind),
                     pos.x + 1,
                     pos.y + 1,
-                    editor.height
+                    spec.entry.height,
+                    spec.exit.height
                 );
             }
             Err(error) => editor.notice = error_message(park, error),
@@ -212,9 +245,15 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
 pub(crate) fn status(park: &Park) -> String {
     let count = park.track_draft().len();
     match park.validate_track_draft() {
-        Ok(_) => format!(
-            "{count} pieces / complete loop\nClose coaster; wait until empty.\nTrack building is free."
-        ),
+        Ok(pieces) => {
+            let count_kind = |kind| pieces.iter().filter(|piece| piece.kind == kind).count();
+            format!(
+                "{count} pieces / complete loop\nLift {} / Drop {} / Brake {}\nClose and empty before Apply.",
+                count_kind(park_sim::TrackKind::Lift),
+                count_kind(park_sim::TrackKind::Drop),
+                count_kind(park_sim::TrackKind::Brake)
+            )
+        }
         Err(error) => format!("{count} draft pieces\n{}", error_message(park, error)),
     }
 }
@@ -246,6 +285,9 @@ pub(crate) fn error_message(park: &Park, error: park_sim::TrackConstructionError
         Error::DisconnectedPieces => {
             "Join all pieces into one loop.\nErase disconnected pieces.".into()
         }
+        Error::UnsupportedPiece => {
+            "Use level track, lifts or drops.\nMatch each piece's height limits.".into()
+        }
         error => error.to_string(),
     }
 }
@@ -255,4 +297,80 @@ pub(crate) fn error_message(park: &Park, error: park_sim::TrackConstructionError
 pub(crate) fn build_center(park: &Park, pos: park_sim::TilePos, height: u8, rotation: u8) -> Vec2 {
     world::tile_center(pos, park.width(), rotation)
         + Vec2::Y * (f32::from(height) + 0.3) * world::HEIGHT_STEP
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use park_sim::{TRACK_UNITS, TilePos};
+
+    #[test]
+    fn actual_sampled_midpoints_build_and_replace_the_same_tile_for_all_grades_and_rotations() {
+        for rotation in 0..4 {
+            for kind in [
+                TrackBuildKind::Station,
+                TrackBuildKind::Straight,
+                TrackBuildKind::CurveLeft,
+                TrackBuildKind::CurveRight,
+                TrackBuildKind::Lift,
+                TrackBuildKind::Drop,
+                TrackBuildKind::SteepDrop,
+                TrackBuildKind::Brake,
+            ] {
+                for direction in [
+                    TrackDirection::North,
+                    TrackDirection::East,
+                    TrackDirection::South,
+                    TrackDirection::West,
+                ] {
+                    let mut park = Park::new(32, 32);
+                    let expected = kind.spec(TilePos { x: 14, y: 17 }, 8, direction);
+                    let samples = expected.samples();
+                    let midpoint = samples[samples.len() / 2];
+                    let x = midpoint.x as f32 / TRACK_UNITS as f32;
+                    let y = midpoint.y as f32 / TRACK_UNITS as f32;
+                    let height = midpoint.height as f32 / TRACK_UNITS as f32;
+                    let last = park.width().saturating_sub(1) as f32;
+                    let (u, v) = match rotation {
+                        0 => (x, y),
+                        1 => (last - y, x),
+                        2 => (last - x, last - y),
+                        _ => (y, last - x),
+                    };
+                    let point = Vec2::new(
+                        (u - v) * world::TILE_WIDTH * 0.5,
+                        -(u + v - last) * world::TILE_HEIGHT * 0.5
+                            + (height + 0.3) * world::HEIGHT_STEP,
+                    );
+                    let mut view = ViewState {
+                        rotation,
+                        track_editor: TrackEditor {
+                            active: true,
+                            kind,
+                            direction,
+                            height: 8,
+                            ..default()
+                        },
+                        ..default()
+                    };
+                    let before = park.clone();
+                    point_at(&mut park, &mut view, point, false);
+                    assert_eq!(park, before);
+                    assert_eq!(
+                        view.track_editor.preview,
+                        Some(TrackPreview {
+                            spec: expected,
+                            valid: true,
+                            erase: false,
+                        }),
+                        "{kind:?}, {direction:?}, rotation {rotation}"
+                    );
+                    point_at(&mut park, &mut view, point, true);
+                    assert_eq!(park.track_draft(), &[expected]);
+                    point_at(&mut park, &mut view, point, true);
+                    assert_eq!(park.track_draft(), &[expected]);
+                }
+            }
+        }
+    }
 }

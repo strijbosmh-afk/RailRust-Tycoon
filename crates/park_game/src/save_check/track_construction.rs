@@ -1,4 +1,4 @@
-//! Player-built level circuits, persisted drafts and paid passenger continuation.
+//! Player-built graded circuits, persisted drafts and paid passenger continuation.
 use super::*;
 use park_sim::{
     PathDirection, PathSlope, RideId, TrackBuildKind, TrackDirection, TrackKind, TrackPieceSpec,
@@ -7,38 +7,57 @@ use park_sim::{
 
 const REPLAY_TICKS: u64 = 7_200;
 
-/// One station, both curve directions and a small inward notch. The original
-/// station position remains compatible with its entrance and exit portals.
+/// One station, both curve directions, three chain lifts, both descending
+/// grades and brakes. The station keeps its original entrance and exit portals.
 pub(crate) fn specs() -> Vec<TrackPieceSpec> {
-    use TrackBuildKind::{CurveLeft, CurveRight, Station, Straight};
+    use TrackBuildKind::{Brake, CurveLeft, CurveRight, Drop, Lift, Station, SteepDrop, Straight};
     use TrackDirection::{East, North, South, West};
     let mut pieces = Vec::new();
-    let mut add = |x, y, kind: TrackBuildKind, direction| {
-        pieces.push(kind.spec(TilePos { x, y }, 8, direction));
+    let mut add = |x, y, kind: TrackBuildKind, height, direction| {
+        pieces.push(kind.spec(TilePos { x, y }, height, direction));
     };
-    add(8, 10, Station, East);
+    add(8, 10, Station, 8, East);
     for x in 9..=14 {
-        add(x, 10, Straight, East);
+        add(x, 10, Straight, 8, East);
     }
-    add(15, 10, CurveLeft, East);
-    for y in (8..=9).rev() {
-        add(15, y, Straight, North);
+    add(15, 10, CurveLeft, 8, East);
+    add(15, 9, Lift, 8, North);
+    add(15, 8, Lift, 9, North);
+    add(15, 7, CurveLeft, 10, North);
+    add(14, 7, CurveRight, 10, West);
+    add(14, 6, Lift, 10, North);
+    add(14, 5, Straight, 11, North);
+    add(14, 4, CurveLeft, 11, North);
+    add(13, 4, Drop, 11, West);
+    add(12, 4, SteepDrop, 10, West);
+    add(11, 4, Brake, 8, West);
+    for x in (8..=10).rev() {
+        add(x, 4, Straight, 8, West);
     }
-    add(15, 7, CurveLeft, North);
-    add(14, 7, CurveRight, West);
-    for y in (5..=6).rev() {
-        add(14, y, Straight, North);
-    }
-    add(14, 4, CurveLeft, North);
-    for x in (8..=13).rev() {
-        add(x, 4, Straight, West);
-    }
-    add(7, 4, CurveLeft, West);
+    add(7, 4, CurveLeft, 8, West);
     for y in 5..=9 {
-        add(7, y, Straight, South);
+        add(7, y, Straight, 8, South);
     }
-    add(7, 10, CurveLeft, South);
+    add(7, 10, CurveLeft, 8, South);
     pieces
+}
+
+/// Change the drop profile and move its brake without moving the station,
+/// public crossing or height at either end of the rebuilt stretch.
+fn replacement_specs() -> Vec<TrackPieceSpec> {
+    specs()
+        .into_iter()
+        .map(|piece| {
+            let (kind, height) = match (piece.pos.x, piece.pos.y) {
+                (13, 4) => (TrackBuildKind::SteepDrop, 11),
+                (12, 4) => (TrackBuildKind::Drop, 9),
+                (11, 4) => (TrackBuildKind::Straight, 8),
+                (10, 4) => (TrackBuildKind::Brake, 8),
+                _ => return piece,
+            };
+            kind.spec(piece.pos, height, TrackDirection::West)
+        })
+        .collect()
 }
 
 pub(crate) fn install_access(park: &mut Park) -> Result<RideId, String> {
@@ -58,7 +77,7 @@ pub(crate) fn install_access(park: &mut Park) -> Result<RideId, String> {
     }
     park.place_ride_entrance(TilePos { x: 8, y: 11 }, 8, PathDirection::North, id)
         .map_err(|e| e.to_string())?;
-    // A public bridge crosses above the new level track without overlapping it.
+    // A public bridge crosses above the level southern track without overlap.
     // This also fits below the original graded circuit before its replacement.
     for pos in [TilePos { x: 8, y: 8 }, TilePos { x: 8, y: 7 }]
         .into_iter()
@@ -159,7 +178,38 @@ fn invalid_plans(park: &mut Park) -> Result<(), String> {
     {
         return Err("overlapping public-path track changed the draft or live world".into());
     }
+    // A level rail fits under this bridge; a one-step lift at the same entry
+    // height occupies its upper span and must be rejected before mutation.
+    let under_bridge = TilePos { x: 13, y: 10 };
+    park.validate_track_draft_piece(TrackBuildKind::Straight.spec(
+        under_bridge,
+        8,
+        TrackDirection::East,
+    ))
+    .map_err(|e| format!("level rail no longer fits under the proof bridge: {e}"))?;
+    let blocked_lift = TrackBuildKind::Lift.spec(under_bridge, 8, TrackDirection::East);
+    if park.validate_track_draft_piece(blocked_lift).is_ok()
+        || park.set_track_draft_piece(blocked_lift).is_ok()
+        || *park != before
+    {
+        return Err("upper lift clearance failed to protect the public bridge atomically".into());
+    }
     draft(park, true)?;
+    // Every piece is geometrically legal, but one high endpoint cannot join
+    // its lower neighbor. Such an incomplete height transition is saveable.
+    let slope = specs()
+        .into_iter()
+        .find(|piece| piece.pos == (TilePos { x: 15, y: 8 }))
+        .unwrap();
+    park.set_track_draft_piece(TrackBuildKind::Lift.spec(slope.pos, 10, TrackDirection::North))
+        .map_err(|e| e.to_string())?;
+    if park.validate_track_draft().is_ok() {
+        return Err("mismatched slope endpoint was accepted as a complete circuit".into());
+    }
+    super::ride_choice::bytes(park)?;
+    reject_apply(park)?;
+    park.set_track_draft_piece(slope)
+        .map_err(|e| e.to_string())?;
     // A valid independent spare piece must not disappear silently at Apply.
     let spare = TrackBuildKind::Straight.spec(TilePos { x: 2, y: 2 }, 8, TrackDirection::East);
     park.set_track_draft_piece(spare)
@@ -172,8 +222,12 @@ fn invalid_plans(park: &mut Park) -> Result<(), String> {
         .into_iter()
         .find(|piece| piece.pos == (TilePos { x: 14, y: 7 }))
         .unwrap();
-    park.set_track_draft_piece(TrackBuildKind::CurveLeft.spec(corner.pos, 8, TrackDirection::West))
-        .map_err(|e| e.to_string())?;
+    park.set_track_draft_piece(TrackBuildKind::CurveLeft.spec(
+        corner.pos,
+        corner.entry.height,
+        TrackDirection::West,
+    ))
+    .map_err(|e| e.to_string())?;
     reject_apply(park)?;
     park.set_track_draft_piece(corner)
         .map_err(|e| e.to_string())?;
@@ -264,13 +318,73 @@ pub(crate) fn occupied(park: &mut Park) -> Result<(), String> {
     park.set_train_open(true);
     super::ride_choice::seek(
         park,
-        |p| super::ride_choice::paid_running(p, ride),
-        "paid departure on constructed track",
+        |p| {
+            super::ride_choice::paid_running(p, ride)
+                && p.train().is_some_and(|t| {
+                    let height = p.circuit().unwrap().sample(t.distance).height;
+                    t.phase == TrainPhase::Lift
+                        && t.speed == 24
+                        && height % park_sim::TRACK_UNITS > park_sim::TRACK_UNITS / 3
+                        && height % park_sim::TRACK_UNITS < 2 * park_sim::TRACK_UNITS / 3
+                })
+        },
+        "paid passengers climbing a constructed chain lift",
     )?;
     if park.circuit().unwrap().pieces.len() != 28 {
         return Err("proof is still on the original fixed circuit".into());
     }
     Ok(())
+}
+
+#[derive(Default)]
+struct MotionEvidence {
+    lift: bool,
+    drop: bool,
+    brake: bool,
+}
+
+impl MotionEvidence {
+    fn observe(&mut self, park: &mut Park) -> Result<(), String> {
+        let train = park.train().ok_or("constructed circuit lost its train")?;
+        let kind = park.circuit().unwrap().pieces[train.piece_index].kind;
+        let newly_seen = match kind {
+            TrackKind::Lift if train.phase == TrainPhase::Lift && train.speed == 24 => {
+                let first = !self.lift;
+                self.lift = true;
+                first
+            }
+            TrackKind::Drop if train.phase == TrainPhase::Drop && train.speed > 24 => {
+                let first = !self.drop;
+                self.drop = true;
+                first
+            }
+            TrackKind::Brake if train.phase == TrainPhase::Brake && train.speed == 20 => {
+                let first = !self.brake;
+                self.brake = true;
+                first
+            }
+            _ => false,
+        };
+        if newly_seen {
+            let restored = Park::from_save_bytes(&super::ride_choice::bytes(park)?)
+                .map_err(|e| e.to_string())?;
+            if restored != *park {
+                return Err("mid-lift/drop/brake roundtrip changed the complete park".into());
+            }
+            *park = restored;
+        }
+        Ok(())
+    }
+
+    fn require_complete(&self) -> Result<(), String> {
+        if !self.lift || !self.drop || !self.brake {
+            return Err(format!(
+                "constructed operation missing lift/drop/brake evidence: {}/{}/{}",
+                self.lift, self.drop, self.brake
+            ));
+        }
+        Ok(())
+    }
 }
 
 fn replay(park: &mut Park) -> Result<(), String> {
@@ -281,35 +395,31 @@ fn replay(park: &mut Park) -> Result<(), String> {
     }
     let original_laps = park.train().unwrap().laps;
     let completed = park.ride().unwrap().completed;
+    let mut original_motion = MotionEvidence::default();
+    original_motion.observe(park)?;
     reject_apply(park)?;
     park.set_train_open(false);
     reject_apply(park)?;
-    super::ride_choice::seek(
-        park,
-        |p| {
-            p.train().is_some_and(|t| t.phase == TrainPhase::Closed)
-                && p.guests()
-                    .iter()
-                    .all(|g| g.ride_visit.as_ref().is_none_or(|v| v.ride != ride))
-        },
-        "closed constructed train with all guests safely returned",
-    )?;
+    while !(park.train().is_some_and(|t| t.phase == TrainPhase::Closed)
+        && park
+            .guests()
+            .iter()
+            .all(|g| g.ride_visit.as_ref().is_none_or(|v| v.ride != ride)))
+    {
+        if park.ticks() >= start + REPLAY_TICKS {
+            return Err("constructed train failed to close after returning every guest".into());
+        }
+        super::ride_choice::advance_checked(park)?;
+        original_motion.observe(park)?;
+    }
+    original_motion.require_complete()?;
     if park.train().unwrap().laps <= original_laps || park.ride().unwrap().completed <= completed {
         return Err("constructed circuit did not complete a paid lap and return guests".into());
     }
     // Perform a genuinely different replacement after earning money/reviews.
-    // Reversing every directed port retains station sides and all public access.
+    // Change both descending grades and move the brake, retaining public access.
     let before_draft = park.clone();
-    let reversed: Vec<_> = park
-        .track_draft()
-        .iter()
-        .map(|piece| TrackPieceSpec {
-            entry: piece.exit,
-            exit: piece.entry,
-            ..*piece
-        })
-        .collect();
-    for piece in reversed {
+    for piece in replacement_specs() {
         park.set_track_draft_piece(piece)
             .map_err(|e| e.to_string())?;
     }
@@ -318,23 +428,26 @@ fn replay(park: &mut Park) -> Result<(), String> {
     let rebuilt_laps = park.train().unwrap().laps;
     let rebuilt_completed = park.ride().unwrap().completed;
     let rebuilt_revenue = park.ride().unwrap().revenue_cents;
+    let mut rebuilt_motion = MotionEvidence::default();
     park.set_train_open(true);
     if park.ticks() >= start + REPLAY_TICKS {
         return Err("constructed journey exceeded its bounded continuation".into());
     }
     while park.ticks() < start + REPLAY_TICKS {
         super::ride_choice::advance_checked(park)?;
+        rebuilt_motion.observe(park)?;
         if (park.ticks() - start).is_multiple_of(997) {
             *park = Park::from_save_bytes(&super::ride_choice::bytes(park)?)
                 .map_err(|e| e.to_string())?;
         }
     }
+    rebuilt_motion.require_complete()?;
     if park.train().unwrap().laps <= rebuilt_laps
         || park.ride().unwrap().completed <= rebuilt_completed
         || park.ride().unwrap().revenue_cents <= rebuilt_revenue
     {
         return Err(
-            "reversed replacement did not earn another departure and complete a guest journey"
+            "regraded replacement did not earn another departure and complete a guest journey"
                 .into(),
         );
     }
@@ -427,7 +540,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("track verification changed an original save slot".into());
     }
-    write_new(&store.directory().join("verification-track-construction.txt"), format!("Parkbound {}\nArbitrary-order station, straights, left/right curves and exact directed loop: PASS\nIncomplete persisted draft changes no live objects, IDs, money, RNG or path cache: PASS\nIncomplete, disconnected, reversed-corner and occupied-path rejection preserve full state: PASS\nClosed Apply retains coaster identity, portals, guests, finances, history and laps: PASS\nChanged reverse-direction replacement preserves earned revenue/reviews/laps, allocates fresh track IDs and completes another paid journey: PASS\nRepeated Apply preserves existing piece IDs: PASS\nMoving paid primary, safe occupied refusal, complete lap and public guest return: PASS\nFresh-process exact continuation: PASS ({REPLAY_TICKS} ticks)\nStrict13 roundtrips, paused incomplete-draft backup and resumed construction: PASS\nOriginal primary and backup bytes unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-track-construction.txt"), format!("Parkbound {}\nArbitrary-order station, curves, chain lifts, one/two-step drops and brakes form an exact directed height-matched loop: PASS\nIncomplete persisted draft changes no live objects, IDs, money, RNG or path cache: PASS\nIncomplete, disconnected, mismatched-height, reversed-corner and occupied-path rejection preserve full state: PASS\nWhole lift envelope protects the public bridge where a level rail still fits: PASS\nClosed Apply retains coaster identity, portals, guests, finances, history and laps: PASS\nChanged drop/brake profile preserves earned revenue/reviews/laps, allocates fresh track IDs and completes another paid journey: PASS\nRepeated Apply preserves existing piece IDs: PASS\nPaid mid-lift primary, safe occupied refusal, complete lap and public guest return: PASS\nBoth built profiles show fixed-speed lifting, downhill acceleration and brake speed: PASS\nExact mid-lift/drop/brake roundtrips and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nStrict14 roundtrips, paused incomplete-draft backup and resumed construction: PASS\nOriginal primary and backup bytes unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
@@ -435,7 +548,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
-    fn constructed_track_preserves_drafts_and_continues_paid_complete_journeys() {
+    fn graded_track_preserves_drafts_and_continues_paid_complete_journeys() {
         let directory = std::env::temp_dir().join(format!(
             "Parkbound track construction é {} {}",
             std::process::id(),

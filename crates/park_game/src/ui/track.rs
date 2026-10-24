@@ -22,7 +22,8 @@ fn small_button(parent: &mut ChildSpawnerCommands, text: &str, command: TrackCom
             Action::Track(command),
             Node {
                 width: px(width),
-                height: px(26),
+                height: px(24),
+                flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(px(1)),
@@ -63,7 +64,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 padding: UiRect::all(px(12)),
                 border: UiRect::all(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(4),
+                row_gap: px(2),
                 ..default()
             },
             BackgroundColor(PAPER),
@@ -100,6 +101,34 @@ pub(super) fn setup(commands: &mut Commands) {
                     100.0,
                 );
             });
+            p.spawn(row()).with_children(|p| {
+                small_button(
+                    p,
+                    "Chain lift +1",
+                    TrackCommand::Piece(TrackBuildKind::Lift),
+                    100.0,
+                );
+                small_button(
+                    p,
+                    "Brakes",
+                    TrackCommand::Piece(TrackBuildKind::Brake),
+                    100.0,
+                );
+            });
+            p.spawn(row()).with_children(|p| {
+                small_button(
+                    p,
+                    "Drop -1",
+                    TrackCommand::Piece(TrackBuildKind::Drop),
+                    100.0,
+                );
+                small_button(
+                    p,
+                    "Drop -2",
+                    TrackCommand::Piece(TrackBuildKind::SteepDrop),
+                    100.0,
+                );
+            });
             small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
             p.spawn(row()).with_children(|p| {
                 small_button(p, "-", TrackCommand::Height(-1), 32.0);
@@ -110,7 +139,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 })
                 .with_children(|p| {
                     p.spawn((
-                        Text::new("Height 8 / PgUp-Dn"),
+                        Text::new("In 8 / Out 8"),
                         TextFont {
                             font_size: 11.0,
                             ..default()
@@ -130,7 +159,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 small_button(p, "Done [Esc]", TrackCommand::Done, 100.0);
             });
             for (kind, color, height) in [
-                (TrackLabel::Status, INK, 54.0),
+                (TrackLabel::Status, INK, 40.0),
                 (TrackLabel::Notice, MUTED, 54.0),
             ] {
                 p.spawn(Node {
@@ -195,7 +224,15 @@ pub(crate) fn refresh(
                 "Heading {} [C]",
                 track_tools::direction_name(view.track_editor.direction)
             ),
-            TrackLabel::Height => format!("Height {} / PgUp-Dn", view.track_editor.height),
+            TrackLabel::Height => {
+                let editor = &view.track_editor;
+                let spec = editor.kind.spec(
+                    park_sim::TilePos { x: 0, y: 0 },
+                    editor.height,
+                    editor.direction,
+                );
+                format!("In {} / Out {}", spec.entry.height, spec.exit.height)
+            }
             TrackLabel::Status => cached_status
                 .as_ref()
                 .expect("status cached above")

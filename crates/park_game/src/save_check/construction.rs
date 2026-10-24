@@ -333,7 +333,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("paused verification changed park or original save slots".into());
     }
-    write_new(&store.directory().join("verification-construction.txt"), format!("Parkbound {}\nExact paid-body backup and occupied primary: PASS\nFresh-process continuation: PASS ({REPLAY_TICKS} ticks)\n$300 construction / $150 single refund / fresh-ID rebuilding: PASS\nPrecommit quotes, occupied protection and insufficient-funds atomic rejection: PASS\nBody/gate removal with retained queue, revenue and review history: PASS\nIndependent owner transaction amounts, wallet isolation and running balances: PASS\nConstruction/refund archive rollover and saved paid basis: PASS\nPaused/reset strict13 loading and unchanged source slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-construction.txt"), format!("Parkbound {}\nExact paid-body backup and occupied primary: PASS\nFresh-process continuation: PASS ({REPLAY_TICKS} ticks)\n$300 construction / $150 single refund / fresh-ID rebuilding: PASS\nPrecommit quotes, occupied protection and insufficient-funds atomic rejection: PASS\nBody/gate removal with retained queue, revenue and review history: PASS\nIndependent owner transaction amounts, wallet isolation and running balances: PASS\nConstruction/refund archive rollover and saved paid basis: PASS\nPaused/reset strict14 loading and unchanged source slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 
 mod track_construction;
-use track_construction::VersionTwelveParkData;
+use track_construction::{VersionThirteenParkData, VersionTwelveParkData};
 mod construction;
 use construction::{LegacyFinanceKind, VersionTenFinanceTotals, VersionTenParkData};
 mod service_construction;
@@ -29,8 +29,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 13;
-const CONTENT_VERSION: u32 = 13;
+const SCHEMA_VERSION: u32 = 14;
+const CONTENT_VERSION: u32 = 14;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -628,7 +628,7 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | SCHEMA_VERSION
+            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
@@ -679,6 +679,9 @@ impl Park {
         } else if header.schema_version == 12 {
             let legacy: SaveEnvelope<VersionTwelveParkData> = parse_save(bytes)?;
             legacy.park.migrate()
+        } else if header.schema_version == 13 {
+            let legacy: SaveEnvelope<VersionThirteenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()?
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park
@@ -2354,8 +2357,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(13));
-            assert_eq!(modern["content_version"], json!(13));
+            assert_eq!(modern["schema_version"], json!(14));
+            assert_eq!(modern["content_version"], json!(14));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -2679,7 +2682,9 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (14, 14),
+            (15, 15),
+            (13, 14),
+            (14, 13),
             (10, 9),
             (9, 10),
             (7, 6),
@@ -2911,8 +2916,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":13",
-            "\"schema_version\":13,\"schema_version\":13",
+            "\"schema_version\":14",
+            "\"schema_version\":14,\"schema_version\":14",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
