@@ -312,7 +312,7 @@ pub(crate) fn quote_text(park: &Park) -> String {
             )
         }
         Err(_) => format!(
-            "Complete a loop for its quote.\nDraft edits and clearing are free.\nCash {}",
+            "Complete a loop for its quote.\nDraft changes are free.\nCash {}",
             money(park.cash_cents())
         ),
     }
