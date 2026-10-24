@@ -120,6 +120,10 @@ pub(crate) fn strip_construction_fields(value: &mut Value) {
     }
 }
 pub(crate) fn strip_service_construction_fields(value: &mut Value) {
+    value["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("ride_operating_settings");
     value["park"].as_object_mut().unwrap().remove("track_draft");
     value["park"]
         .as_object_mut()

@@ -1,7 +1,7 @@
 //! Design captures use an in-memory catalog and never read or write a player's files.
 use super::*;
 use crate::{
-    design_library::{DesignCommand, DesignLibrary},
+    design_library::{DesignCommand, DesignLibrary, DesignSort},
     save_check::track_construction,
     track_tools::{self, TrackCommand},
 };
@@ -96,6 +96,9 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, library: &mut DesignLibr
         }
         Scene::LibraryGallery
         | Scene::LibraryGalleryLast
+        | Scene::LibrarySearch
+        | Scene::LibraryNoResults
+        | Scene::LibrarySorted
         | Scene::LibraryPreviewIncomplete
         | Scene::LibraryPreviewTall => {
             let installed =
@@ -142,15 +145,34 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, library: &mut DesignLibr
                 .entries
                 .extend([installed, unfinished, tall, descent]);
             let index = match scene {
-                Scene::LibraryGalleryLast => 4,
+                Scene::LibraryGalleryLast => 0,
                 Scene::LibraryPreviewIncomplete => 2,
                 Scene::LibraryPreviewTall => 3,
-                _ => 0,
+                _ => 1,
             };
             library.selected = Some(index);
             library.name = library.entries[index].name().into();
             (library.anchor, library.height) = library.entries[index].anchor();
             library.notice = "Choose a thumbnail to preview a saved design.\nLoad into draft when you are ready to edit.".into();
+            match scene {
+                Scene::LibrarySearch => {
+                    library.search = "station".into();
+                    library.search_focused = true;
+                    library.selected = Some(1);
+                }
+                Scene::LibraryNoResults => {
+                    library.search = "Alpine express".into();
+                    library.search_focused = true;
+                    library.selected = None;
+                }
+                Scene::LibrarySorted => {
+                    library.sort = DesignSort::Pieces;
+                    library.selected = Some(2);
+                    library.name = library.entries[2].name().into();
+                    (library.anchor, library.height) = library.entries[2].anchor();
+                }
+                _ => {}
+            }
         }
         Scene::LibrarySaved | Scene::LibraryPreviewReady | Scene::LibraryPreviewBlocked => {}
         _ => unreachable!(),
@@ -222,6 +244,11 @@ mod tests {
             format!("{:?}", library.confirmation),
             library.available,
             library.transfer_pending,
+            (
+                &library.search,
+                library.search_focused,
+                format!("{:?}", library.sort),
+            ),
         ))
         .unwrap()
     }
@@ -237,6 +264,9 @@ mod tests {
             Scene::LibraryInvalid,
             Scene::LibraryGallery,
             Scene::LibraryGalleryLast,
+            Scene::LibrarySearch,
+            Scene::LibraryNoResults,
+            Scene::LibrarySorted,
             Scene::LibraryPreviewReady,
             Scene::LibraryPreviewBlocked,
             Scene::LibraryPreviewIncomplete,

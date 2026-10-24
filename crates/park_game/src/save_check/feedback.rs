@@ -220,8 +220,8 @@ fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let value: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if value["schema_version"] != 15
-        || value["content_version"] != 15
+    if value["schema_version"] != 16
+        || value["content_version"] != 16
         || Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park
     {
         return Err("feedback strict v15 roundtrip changed authoritative state".into());
@@ -457,7 +457,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("feedback verification rewrote primary or backup".into());
     }
-    write_new(&store.directory().join("verification-feedback.txt"), format!("Parkbound {}\nExact reviewed primary and active-wait backup: PASS\nCurrent-version continuation: PASS ({REPLAY_TICKS} ticks + cancellation, value refusal, price recovery and completed reviews)\nIndependent locked-fare, frozen-wait review and satisfaction deltas: PASS\nStable preferences, event thoughts, money conservation and strict15 roundtrips: PASS\nPaused load and guest-overlay reset: PASS\nCancelled queue produces no review: PASS\nBoth source slots unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-feedback.txt"), format!("Parkbound {}\nExact reviewed primary and active-wait backup: PASS\nCurrent-version continuation: PASS ({REPLAY_TICKS} ticks + cancellation, value refusal, price recovery and completed reviews)\nIndependent locked-fare, frozen-wait review and satisfaction deltas: PASS\nStable preferences, event thoughts, money conservation and strict16 roundtrips: PASS\nPaused load and guest-overlay reset: PASS\nCancelled queue produces no review: PASS\nBoth source slots unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

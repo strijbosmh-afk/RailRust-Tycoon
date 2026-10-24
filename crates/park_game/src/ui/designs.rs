@@ -1,6 +1,6 @@
 //! Named track designs share the editor's draft and never build live rails here.
 use super::*;
-use crate::design_library::{DesignCommand, DesignLibrary};
+use crate::design_library::{DesignCommand, DesignLibrary, DesignSort};
 
 pub(crate) const PANEL_WIDTH: f32 = 900.0;
 pub(crate) const PANEL_HEIGHT: f32 = 600.0;
@@ -10,6 +10,9 @@ pub(crate) struct DesignsPanel;
 
 #[derive(Component)]
 pub(crate) struct NameField;
+
+#[derive(Component)]
+pub(crate) struct SearchField;
 
 #[derive(Component)]
 pub(crate) struct ConfirmationRow;
@@ -29,6 +32,8 @@ pub(crate) struct ThumbnailLabel(pub(crate) usize);
 #[derive(Component)]
 pub(crate) enum DesignLabel {
     Name,
+    Search,
+    Sort,
     Draft,
     Selection,
     Details,
@@ -229,7 +234,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                     });
                     label(
                         p,
-                        "Save a draft for reuse. Load into the editor, then Apply to build.\nOpen from Track tools with Ctrl+D.",
+                        "Save a draft for reuse. Load into the editor, then Apply to build.\nShare .parktrack.json files; duplicate imports get numbered names.",
                         12.0,
                         MUTED,
                     );
@@ -261,12 +266,44 @@ pub(crate) fn setup(commands: &mut Commands) {
                         design_button(p, "Import file", DesignCommand::Import, 253.0);
                         design_button(p, "Export selected", DesignCommand::Export, 253.0);
                     });
-                    label(
-                        p,
-                        "Share .parktrack.json files; duplicate imports get numbered names.\nImport adds to the library; it never loads or builds track.",
-                        11.0,
-                        MUTED,
-                    );
+                    p.spawn(row()).with_children(|p| {
+                        p.spawn((
+                            SearchField,
+                            Button,
+                            Action::Design(DesignCommand::SearchFocus),
+                            Node {
+                                width: px(300),
+                                height: px(30),
+                                flex_shrink: 0.0,
+                                padding: UiRect::axes(px(9), px(5)),
+                                border: UiRect::all(px(1)),
+                                overflow: Overflow::clip(),
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            BackgroundColor(BUTTON),
+                            BorderColor::all(BORDER),
+                            BorderRadius::all(px(5)),
+                        ))
+                        .with_children(|p| text(p, "Search saved names", 12.0, DesignLabel::Search));
+                        design_button(p, "Clear", DesignCommand::ClearSearch, 66.0);
+                        p.spawn((
+                            Button,
+                            Action::Design(DesignCommand::Sort),
+                            Node {
+                                width: px(140),
+                                height: px(30),
+                                align_items: AlignItems::Center,
+                                justify_content: JustifyContent::Center,
+                                border: UiRect::all(px(1)),
+                                ..default()
+                            },
+                            BackgroundColor(BUTTON),
+                            BorderColor::all(BORDER),
+                            BorderRadius::all(px(5)),
+                        ))
+                        .with_children(|p| text(p, "Sort: Name", 13.0, DesignLabel::Sort));
+                    });
                     p.spawn(Node {
                         justify_content: JustifyContent::SpaceBetween,
                         ..row()
@@ -342,7 +379,12 @@ pub(crate) fn setup(commands: &mut Commands) {
 
 fn selection_details(library: &DesignLibrary) -> String {
     let Some(design) = library.selected.and_then(|i| library.entries.get(i)) else {
-        return "Save the current draft to start your library.".into();
+        return if library.entries.is_empty() {
+            "Save or import a design to start your library."
+        } else {
+            "No designs match. Clear search to see every saved design."
+        }
+        .into();
     };
     let pieces = design.pieces();
     let min_x = pieces.iter().map(|piece| piece.pos.x).min().unwrap_or(0);
@@ -412,6 +454,7 @@ type ThumbnailButtons<'w, 's> = Query<
     ),
     (
         Without<NameField>,
+        Without<SearchField>,
         Without<DesignsPanel>,
         Without<ConfirmationRow>,
     ),
@@ -439,10 +482,32 @@ type ConfirmationRows<'w, 's> = Query<
     ),
 >;
 
+type NameFieldBorders<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut BorderColor,
+    (
+        With<NameField>,
+        Without<SearchField>,
+        Without<DesignThumbnail>,
+    ),
+>;
+
+type SearchFieldBorders<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut BorderColor,
+    (
+        With<SearchField>,
+        Without<NameField>,
+        Without<DesignThumbnail>,
+    ),
+>;
+
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct DesignControls<'w, 's> {
-    name_fields:
-        Query<'w, 's, &'static mut BorderColor, (With<NameField>, Without<DesignThumbnail>)>,
+    name_fields: NameFieldBorders<'w, 's>,
+    search_fields: SearchFieldBorders<'w, 's>,
     buttons: DesignButtons<'w, 's>,
     thumbnails: ThumbnailButtons<'w, 's>,
     thumbnail_labels: Query<
@@ -477,19 +542,20 @@ pub(crate) fn refresh(
         return;
     }
     let page_start = crate::design_preview::page_start(&library);
+    let visible = library.visible_indices();
     for (slot, mut node, mut action, mut border, interaction, mut background) in
         &mut controls.thumbnails
     {
-        let index = page_start + slot.0;
-        let populated = index < library.entries.len();
+        let index = visible.get(page_start + slot.0).copied();
+        let populated = index.is_some();
         node.display = if populated {
             Display::Flex
         } else {
             Display::None
         };
-        let command = DesignCommand::Select(if populated { index } else { usize::MAX });
+        let command = DesignCommand::Select(index.unwrap_or(usize::MAX));
         *action = Action::Design(command);
-        let selected = populated && library.selected == Some(index);
+        let selected = populated && library.selected == index;
         *border = BorderColor::all(if selected { GOLD } else { BORDER });
         let enabled =
             populated && crate::design_library::command_enabled(&sim.0, &library, command);
@@ -506,9 +572,9 @@ pub(crate) fn refresh(
         };
     }
     for (slot, mut text, mut font) in &mut controls.thumbnail_labels {
-        let name = library
-            .entries
+        let name = visible
             .get(page_start + slot.0)
+            .and_then(|&index| library.entries.get(index))
             .map_or("", |design| design.name());
         if text.0 != name {
             text.0 = name.into();
@@ -544,6 +610,9 @@ pub(crate) fn refresh(
     for mut border in &mut controls.name_fields {
         *border = BorderColor::all(if library.name_focused { GOLD } else { BORDER });
     }
+    for mut border in &mut controls.search_fields {
+        *border = BorderColor::all(if library.search_focused { GOLD } else { BORDER });
+    }
     for (kind, mut text) in &mut labels {
         let value = match kind {
             DesignLabel::Name if library.name.is_empty() && !library.name_focused => {
@@ -554,14 +623,31 @@ pub(crate) fn refresh(
                 library.name,
                 if library.name_focused { " |" } else { "" }
             ),
+            DesignLabel::Search if library.search.is_empty() && !library.search_focused => {
+                "Search saved names".into()
+            }
+            DesignLabel::Search => format!(
+                "{}{}",
+                library.search,
+                if library.search_focused { " |" } else { "" }
+            ),
+            DesignLabel::Sort => match library.sort {
+                DesignSort::Name => "Sort: Name",
+                DesignSort::Pieces => "Sort: Pieces",
+            }
+            .into(),
             DesignLabel::Draft => format!("Draft: {} pieces", sim.0.track_draft().len()),
-            DesignLabel::Selection => library
-                .selected
-                .filter(|index| *index < library.entries.len())
-                .map_or_else(
-                    || "No saved designs".into(),
-                    |index| format!("Design {} / {}", index + 1, library.entries.len()),
-                ),
+            DesignLabel::Selection => library.selected_visible_position().map_or_else(
+                || {
+                    if library.entries.is_empty() {
+                        "No saved designs"
+                    } else {
+                        "No matches"
+                    }
+                    .into()
+                },
+                |index| format!("Design {} / {}", index + 1, visible.len()),
+            ),
             DesignLabel::Details => selection_details(&library),
             DesignLabel::X => format!("X: {}", library.anchor.x + 1),
             DesignLabel::Y => format!("Y: {}", library.anchor.y + 1),
@@ -575,10 +661,14 @@ pub(crate) fn refresh(
             DesignLabel::Notice => notice(&sim.0, &library),
             DesignLabel::PreviewStatus => crate::design_preview::status_text(&sim.0, &library),
             DesignLabel::GalleryPage if library.entries.is_empty() => "No saved designs yet".into(),
+            DesignLabel::GalleryPage if visible.is_empty() => {
+                format!("0 matches / {} saved designs", library.entries.len())
+            }
             DesignLabel::GalleryPage => format!(
-                "Designs {}-{} of {} / click a layout to select",
+                "Matches {}-{} of {} / {} saved designs",
                 page_start + 1,
-                (page_start + crate::design_preview::PAGE_SIZE).min(library.entries.len()),
+                (page_start + crate::design_preview::PAGE_SIZE).min(visible.len()),
+                visible.len(),
                 library.entries.len()
             ),
         };

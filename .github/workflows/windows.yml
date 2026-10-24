@@ -181,6 +181,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process design transfer verification failed" }
           Get-Content -LiteralPath (Join-Path $transferDirectory "writer-design-transfer.txt")
           Get-Content -LiteralPath (Join-Path $transferDirectory "verification-design-transfer.txt")
+      - name: Verify ride operating settings across fresh processes
+        shell: pwsh
+        run: |
+          $operationsDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound operations é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-operations --save-dir $operationsDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Ride operations writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-operations --save-dir $operationsDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride operations verification failed" }
+          Get-Content -LiteralPath (Join-Path $operationsDirectory "verification-operations.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -234,6 +234,10 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
     old["content_version"] = 11.into();
     old["park"].as_object_mut().unwrap().remove("track_draft");
     old["park"].as_object_mut().unwrap().remove("track_economy");
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("ride_operating_settings");
     old["park"]["cash_cents"] = cash.into();
     old["park"]["finances"] = ledger;
     for service in old["park"]["services"].as_array_mut().unwrap() {

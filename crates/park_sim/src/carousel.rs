@@ -201,6 +201,7 @@ impl Park {
                 || self.train.as_ref().is_some_and(|t| t.speed == 0))
     }
     pub fn set_ride_open(&mut self, id: RideId, open: bool) -> Result<(), RideAccessError> {
+        let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id).ok_or(RideAccessError::UnknownRide(id))? {
             RideKind::Coaster => self.set_train_open(open),
             RideKind::Carousel => {
@@ -218,7 +219,7 @@ impl Park {
                     } else {
                         CarouselPhase::Closed
                     };
-                    c.dwell_ticks = if open { crate::STATION_DWELL_TICKS } else { 0 };
+                    c.dwell_ticks = if open { settings.station_wait_ticks } else { 0 };
                 }
                 self.reconcile_ride_visits();
             }
@@ -226,19 +227,20 @@ impl Park {
         Ok(())
     }
     pub(crate) fn reset_ride_dwell(&mut self, id: RideId) {
+        let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id) {
             Some(RideKind::Coaster) => {
                 if let Some(t) = &mut self.train
                     && t.open
                 {
-                    t.dwell_ticks = crate::STATION_DWELL_TICKS;
+                    t.dwell_ticks = settings.station_wait_ticks;
                 }
             }
             Some(RideKind::Carousel) => {
                 if let Some(c) = self.carousels.iter_mut().find(|c| c.ride.id == id)
                     && c.open
                 {
-                    c.dwell_ticks = crate::STATION_DWELL_TICKS;
+                    c.dwell_ticks = settings.station_wait_ticks;
                 }
             }
             None => {}
@@ -374,7 +376,7 @@ impl Park {
         };
         // Six seats follow a symmetric 16-edge circle approximation. Integer
         // interpolation avoids platform-specific trigonometry and returns to
-        // precisely the same boarding positions after 720 complete ticks.
+        // precisely the same boarding positions after a complete cycle.
         const RING: [(i32, i32); 16] = [
             (60, 0),
             (55, 23),
@@ -395,7 +397,12 @@ impl Park {
         ];
         (0..CAROUSEL_SEATS)
             .map(|seat| {
-                let phase = (usize::from(c.progress)
+                let cycle_ticks = self
+                    .ride_operating_settings(id)
+                    .unwrap_or_default()
+                    .cycle_ticks;
+                let phase = (usize::from(c.progress) * usize::from(CAROUSEL_RUN_TICKS)
+                    / usize::from(cycle_ticks)
                     + seat * usize::from(CAROUSEL_RUN_TICKS) / CAROUSEL_SEATS)
                     % usize::from(CAROUSEL_RUN_TICKS);
                 let index = phase / 45;
@@ -420,10 +427,11 @@ impl Park {
         ids.sort_unstable();
         for id in ids {
             let hold = self.ride_holds(id);
+            let settings = self.ride_operating_settings(id).unwrap_or_default();
             let c = self.carousels.iter_mut().find(|c| c.ride.id == id).unwrap();
             if c.phase == CarouselPhase::Running {
                 c.progress += 1;
-                if c.progress == CAROUSEL_RUN_TICKS {
+                if c.progress == settings.cycle_ticks {
                     c.progress = 0;
                     c.cycles += 1;
                     c.phase = if c.open {
@@ -432,7 +440,7 @@ impl Park {
                         CarouselPhase::Closed
                     };
                     c.dwell_ticks = if c.open {
-                        crate::STATION_DWELL_TICKS
+                        settings.station_wait_ticks
                     } else {
                         0
                     };
@@ -518,15 +526,17 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
                 }
             }
         }
-        if c.progress >= CAROUSEL_RUN_TICKS
-            || c.dwell_ticks > crate::STATION_DWELL_TICKS
+        let settings = park.ride_operating_settings(c.ride.id).unwrap_or_default();
+        if c.progress >= settings.cycle_ticks
+            || c.dwell_ticks > settings.station_wait_ticks
             || (c.phase == CarouselPhase::Running && (c.dwell_ticks != 0 || c.cycles == u64::MAX))
             || (c.phase != CarouselPhase::Running && c.progress != 0)
             || (c.phase == CarouselPhase::Closed && (c.open || c.dwell_ticks != 0))
             || (c.phase == CarouselPhase::Station && (!c.open || c.dwell_ticks == 0))
-            || u128::from(c.cycles) * u128::from(CAROUSEL_RUN_TICKS + crate::STATION_DWELL_TICKS)
+            || u128::from(c.cycles)
+                * u128::from(crate::MIN_CAROUSEL_CYCLE_TICKS + crate::MIN_STATION_WAIT_TICKS)
                 + if c.phase == CarouselPhase::Running {
-                    u128::from(crate::STATION_DWELL_TICKS) + u128::from(c.progress)
+                    u128::from(crate::MIN_STATION_WAIT_TICKS) + u128::from(c.progress)
                 } else {
                     0
                 }
@@ -546,7 +556,7 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 mod construction_tests;

@@ -164,11 +164,11 @@ pub(crate) fn bytes(park: &Park) -> Result<Vec<u8>, String> {
     check(park)?;
     let bytes = park.to_save_bytes().map_err(|e| e.to_string())?;
     let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if value["schema_version"] != 15
-        || value["content_version"] != 15
+    if value["schema_version"] != 16
+        || value["content_version"] != 16
         || Park::from_save_bytes(&bytes).map_err(|e| e.to_string())? != *park
     {
-        return Err("dual-ride strict15 roundtrip changed authoritative state".into());
+        return Err("dual-ride strict16 roundtrip changed authoritative state".into());
     }
     Ok(bytes)
 }
@@ -618,7 +618,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("paused verification changed park or save files".into());
     }
-    write_new(&store.directory().join("verification-rides.txt"), format!("Parkbound {}\nExact dual occupied primary and carousel boarding backup: PASS\nContinuation: PASS ({REPLAY_TICKS} ticks, two independent runtimes)\nOwner-specific actual departure fares, locked quotes, reviews and ledger attribution: PASS\nReachable guest choice changes with price/availability: PASS\nClose/reopen and occupied demolition isolation: PASS\nIdle demolition retains history; rebuilt carousel uses fresh IDs and earns new income: PASS\nPaused load, ride selection reset, strict15 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-rides.txt"), format!("Parkbound {}\nExact dual occupied primary and carousel boarding backup: PASS\nContinuation: PASS ({REPLAY_TICKS} ticks, two independent runtimes)\nOwner-specific actual departure fares, locked quotes, reviews and ledger attribution: PASS\nReachable guest choice changes with price/availability: PASS\nClose/reopen and occupied demolition isolation: PASS\nIdle demolition retains history; rebuilt carousel uses fresh IDs and earns new income: PASS\nPaused load, ride selection reset, strict16 roundtrips and unchanged slots: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

@@ -35,6 +35,7 @@ mod facility_construction_scenes;
 mod feedback_scenes;
 mod finance_scenes;
 mod journey_scenes;
+mod operations_scenes;
 mod queue_scenes;
 mod ride_choice_scenes;
 mod service_scenes;
@@ -131,6 +132,10 @@ enum Scene {
     DualRiding,
     RideChoice,
     Rides,
+    OperationsCoaster,
+    OperationsCarousel,
+    OperationsRunning,
+    OperationsLimits,
     RideClosed,
     RideFinance,
     CarouselRebuilt,
@@ -166,6 +171,9 @@ enum Scene {
     LibraryInvalid,
     LibraryGallery,
     LibraryGalleryLast,
+    LibrarySearch,
+    LibraryNoResults,
+    LibrarySorted,
     LibraryPreviewReady,
     LibraryPreviewBlocked,
     LibraryPreviewIncomplete,
@@ -178,6 +186,15 @@ enum Scene {
 }
 
 impl Scene {
+    fn is_operations(self) -> bool {
+        matches!(
+            self,
+            Self::OperationsCoaster
+                | Self::OperationsCarousel
+                | Self::OperationsRunning
+                | Self::OperationsLimits
+        )
+    }
     fn is_design(self) -> bool {
         matches!(
             self,
@@ -189,6 +206,9 @@ impl Scene {
                 | Self::LibraryInvalid
                 | Self::LibraryGallery
                 | Self::LibraryGalleryLast
+                | Self::LibrarySearch
+                | Self::LibraryNoResults
+                | Self::LibrarySorted
                 | Self::LibraryPreviewReady
                 | Self::LibraryPreviewBlocked
                 | Self::LibraryPreviewIncomplete
@@ -519,6 +539,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("dual-riding") => Scene::DualRiding,
                 Some("ride-choice") => Scene::RideChoice,
                 Some("rides") => Scene::Rides,
+                Some("operations-coaster") => Scene::OperationsCoaster,
+                Some("operations-carousel") => Scene::OperationsCarousel,
+                Some("operations-running") => Scene::OperationsRunning,
+                Some("operations-limits") => Scene::OperationsLimits,
                 Some("ride-closed") => Scene::RideClosed,
                 Some("ride-finance") => Scene::RideFinance,
                 Some("carousel-rebuilt") => Scene::CarouselRebuilt,
@@ -554,6 +578,9 @@ pub(super) fn configure(app: &mut App) {
                 Some("library-invalid") => Scene::LibraryInvalid,
                 Some("library-gallery") => Scene::LibraryGallery,
                 Some("library-gallery-last") => Scene::LibraryGalleryLast,
+                Some("library-search") => Scene::LibrarySearch,
+                Some("library-no-results") => Scene::LibraryNoResults,
+                Some("library-sorted") => Scene::LibrarySorted,
                 Some("library-preview-ready") => Scene::LibraryPreviewReady,
                 Some("library-preview-blocked") => Scene::LibraryPreviewBlocked,
                 Some("library-preview-incomplete") => Scene::LibraryPreviewIncomplete,
@@ -807,6 +834,9 @@ fn apply_preset(
     }
     if capture.scene.is_ride_choice() {
         ride_choice_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_operations() {
+        operations_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_construction() {
         construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
