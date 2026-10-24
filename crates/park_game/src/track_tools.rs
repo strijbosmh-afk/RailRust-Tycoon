@@ -278,7 +278,7 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
                     view.track_editor.record_change(before, park.track_draft());
                     view.track_editor.notice = if changed {
                         format!(
-                            "{} installed pieces copied.\nEdit freely; Apply buys changes.",
+                            "{} installed pieces copied.\nApply buys your changes.",
                             park.track_draft().len()
                         )
                     } else {
