@@ -2753,7 +2753,9 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (16, 16),
+            (u32::MAX, u32::MAX),
+            (16, 15),
+            (15, 16),
             (13, 14),
             (14, 13),
             (10, 9),

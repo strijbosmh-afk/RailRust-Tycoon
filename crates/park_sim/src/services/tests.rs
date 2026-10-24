@@ -655,7 +655,15 @@ fn malformed_service_references_quotes_histories_and_missing_fields_are_rejected
             assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
         }
     }
-    for (schema, content) in [(16, 16), (10, 9), (9, 10), (8, 7), (7, 8)] {
+    for (schema, content) in [
+        (u32::MAX, u32::MAX),
+        (16, 15),
+        (15, 16),
+        (10, 9),
+        (9, 10),
+        (8, 7),
+        (7, 8),
+    ] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(schema);
         forged["content_version"] = json!(content);

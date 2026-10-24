@@ -568,7 +568,15 @@ fn strict_finance_metadata_rejects_forged_chronology_balances_sources_and_costs(
         .unwrap()
         .remove("service");
     assert!(Park::from_save_bytes(&serde_json::to_vec(&missing_source).unwrap()).is_err());
-    for (schema, content) in [(16, 16), (10, 9), (9, 10), (9, 8), (8, 9)] {
+    for (schema, content) in [
+        (u32::MAX, u32::MAX),
+        (16, 15),
+        (15, 16),
+        (10, 9),
+        (9, 10),
+        (9, 8),
+        (8, 9),
+    ] {
         let mut bad = base.clone();
         bad["schema_version"] = json!(schema);
         bad["content_version"] = json!(content);

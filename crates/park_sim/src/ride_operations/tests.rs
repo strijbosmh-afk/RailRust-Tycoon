@@ -186,6 +186,26 @@ fn changes_preserve_other_state_and_settings_survive_track_repair_and_carousel_t
         Err(RideOperatingError::Unavailable)
     );
     assert_eq!(park, faulted);
+    // Faulted legacy remnants are deliberately unowned by draft construction.
+    // Use the existing fixture recovery path; a draft must not claim them.
+    assert!(matches!(
+        park.apply_track_draft(),
+        Err(crate::TrackConstructionError::Track(
+            crate::TrainError::Placement(crate::PlacementError::Occupied { .. })
+        ))
+    ));
+    assert_eq!(park, faulted);
+    park.install_train_fixture().unwrap();
+    assert_eq!(park.ride_operating_settings(coaster), Some(custom));
+    roundtrip(&park);
+    // A subsequent real replacement must retain the same ride settings too.
+    let mut brake = *park
+        .track_draft()
+        .iter()
+        .find(|spec| spec.kind == TrackKind::Straight)
+        .unwrap();
+    brake.kind = TrackKind::Brake;
+    park.set_track_draft_piece(brake).unwrap();
     park.apply_track_draft().unwrap();
     assert_eq!(park.ride_operating_settings(coaster), Some(custom));
     roundtrip(&park);
