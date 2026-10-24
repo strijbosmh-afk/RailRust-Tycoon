@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod access_planning;
 mod benchmark;
 mod capture;
 mod design_file_dialog;
@@ -75,6 +76,11 @@ struct ViewState {
     ride_browse_pending: i32,
     ride_operating_commands: Vec<ride_operations::OperationCommand>,
     ride_operating_notice: Option<String>,
+    ride_access_open: bool,
+    ride_access_commands: Vec<access_planning::AccessCommand>,
+    ride_access_plan: Option<park_sim::RideAccessPlan>,
+    ride_access_notice: Option<String>,
+    prepared_access: Option<access_planning::PreparedAccess>,
     finance_page: usize,
     finance_page_pending: i32,
     selected_service: Option<park_sim::ServiceId>,
@@ -134,6 +140,11 @@ impl Default for ViewState {
             ride_browse_pending: 0,
             ride_operating_commands: Vec::new(),
             ride_operating_notice: None,
+            ride_access_open: false,
+            ride_access_commands: Vec::new(),
+            ride_access_plan: None,
+            ride_access_notice: None,
+            prepared_access: None,
             finance_page: 0,
             finance_page_pending: 0,
             selected_service: None,
@@ -259,6 +270,11 @@ impl ViewState {
         self.design_commands.clear();
         self.ride_operating_commands.clear();
         self.ride_operating_notice = None;
+        self.ride_access_open = false;
+        self.ride_access_commands.clear();
+        self.ride_access_plan = None;
+        self.ride_access_notice = None;
+        self.prepared_access = None;
         self.modal_input_blocked = true;
         self.ui_pointer_consumed = true;
         self.dragging = false;
@@ -299,6 +315,10 @@ impl ViewState {
             self.price_notice = None;
             self.ride_operating_commands.clear();
             self.ride_operating_notice = None;
+            self.ride_access_commands.clear();
+            self.ride_access_plan = None;
+            self.ride_access_notice = None;
+            self.prepared_access = None;
         }
     }
 
@@ -436,6 +456,7 @@ fn main() -> AppExit {
                     apply_path_actions,
                     apply_train_actions,
                     apply_price_actions,
+                    access_planning::apply_commands,
                     ride_operations::apply_commands,
                     apply_service_actions,
                     track_tools::apply_commands,
@@ -1176,6 +1197,15 @@ fn pointer_input(
     // and would make dragging dependent on DPI and device acceleration.
     let movement = previous_cursor.map_or(Vec2::ZERO, |previous| cursor - previous);
     *previous_cursor = Some(cursor);
+    if access_planning::hold_prepared_preview(
+        &mut sim.bypass_change_detection().0,
+        &mut view,
+        cursor,
+        buttons.just_pressed(MouseButton::Left),
+        buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Middle),
+    ) {
+        return;
+    }
     let over_map = is_map_position(
         cursor,
         window,

@@ -3,6 +3,7 @@
 //! Rendering, input, and wall-clock time belong to the application. Keeping those
 //! concerns outside this crate makes the simulation usable in headless tests.
 
+mod access_planning;
 mod admission;
 mod carousel;
 mod crowds;
@@ -26,6 +27,10 @@ mod track_construction;
 mod track_designs;
 mod trains;
 
+pub use access_planning::{
+    RideAccessBuildKind, RideAccessConnection, RideAccessPlan, RideAccessSuggestion,
+    RideGateCandidate,
+};
 pub use admission::{
     QUEUE_PATIENCE_TICKS, RIDE_COOLDOWN_TICKS, RideQueueStats, RideVisit, RideVisitPhase,
 };

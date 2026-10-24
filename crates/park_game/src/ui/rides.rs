@@ -1,7 +1,9 @@
 //! Stable ride selection and the build entry point; no extra permanent panels.
 use super::*;
+use crate::access_planning::AccessCommand;
 use crate::ride_operations::{OperatingField, OperationCommand};
 use park_sim::{CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, Park, RideId, RideKind};
+use park_sim::{RideAccessBuildKind, RideAccessStatus, RideExitStatus};
 
 pub(crate) const PANEL_WIDTH: f32 = 820.0;
 pub(crate) const PANEL_HEIGHT: f32 = 540.0;
@@ -67,10 +69,46 @@ pub(crate) enum RideLabel {
     OperatingStatus,
     OperatingNotice,
     ToggleOpen,
+    AccessChecklist,
+    AccessAdvice,
+    AccessNotice,
+    AccessGate(bool),
 }
 
 #[derive(Component)]
 pub(crate) struct OperatingRow(pub(crate) OperatingField);
+
+#[derive(Component)]
+pub(crate) struct RideSection(pub(crate) bool);
+
+#[derive(Component)]
+pub(crate) struct AccessGate(pub(crate) bool);
+
+fn gate_button(parent: &mut ChildSpawnerCommands, exit: bool) {
+    parent
+        .spawn((
+            Button,
+            AccessGate(exit),
+            Action::RideAccess(AccessCommand::Prepare(if exit {
+                RideAccessBuildKind::Exit
+            } else {
+                RideAccessBuildKind::Entrance
+            })),
+            Node {
+                width: px(356),
+                height: px(30),
+                flex_shrink: 0.0,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(px(1)),
+                ..default()
+            },
+            BackgroundColor(BUTTON),
+            BorderColor::all(BORDER),
+            BorderRadius::all(px(5)),
+        ))
+        .with_children(|p| operating_label(p, RideLabel::AccessGate(exit), 13.0, INK));
+}
 
 fn operating_label(parent: &mut ChildSpawnerCommands, kind: RideLabel, size: f32, color: Color) {
     parent.spawn((
@@ -147,6 +185,11 @@ pub(super) fn setup(commands: &mut Commands) {
                 label(p,"After closing this panel: O open/close / F find\nF6-F7 ticket / J queue / I entrance / K exit\nSpace pauses from this panel or the park.",12.0,MUTED);
             });
             p.spawn(Node { width: px(356), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
+                p.spawn(row()).with_children(|p| {
+                    button(p, "Operations", Action::RideAccess(AccessCommand::ShowOperations), 174.0);
+                    button(p, "Access", Action::RideAccess(AccessCommand::ShowAccess), 175.0);
+                });
+                p.spawn((RideSection(false), Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(6), ..default() })).with_children(|p| {
                 label(p, "Operating settings", 17.0, INK);
                 p.spawn((Button, Action::RideOperating(OperationCommand::ToggleOpen), Node {
                     width: percent(100), height: px(30), flex_shrink: 0.0, align_items: AlignItems::Center,
@@ -162,16 +205,46 @@ pub(super) fn setup(commands: &mut Commands) {
                 button(p, "Reset operating defaults", Action::RideOperating(OperationCommand::ResetDefaults), 356.0);
                 p.spawn(Node { height: px(44), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingNotice, 12.0, MUTED));
+                });
+                p.spawn((RideSection(true), Node { display: Display::None, width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(6), ..default() })).with_children(|p| {
+                    label(p, "Station and paths", 17.0, INK);
+                    p.spawn(Node { height: px(105), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::AccessChecklist, 13.0, INK));
+                    gate_button(p, false);
+                    gate_button(p, true);
+                    button(p, "Prepare suggested queue tile", Action::RideAccess(AccessCommand::Prepare(RideAccessBuildKind::Queue)), 356.0);
+                    button(p, "Prepare suggested public path", Action::RideAccess(AccessCommand::Prepare(RideAccessBuildKind::PublicPath)), 356.0);
+                    p.spawn(Node { height: px(60), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::AccessAdvice, 12.0, MUTED));
+                    p.spawn(Node { height: px(36), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::AccessNotice, 12.0, MUTED));
+                });
             });
         });
     }); });
 }
 
+type OperatingRows<'w, 's> = Query<
+    'w,
+    's,
+    (&'static OperatingRow, &'static mut Node),
+    (Without<RidesPanel>, Without<RideSection>),
+>;
+
+type RideSections<'w, 's> = Query<
+    'w,
+    's,
+    (&'static RideSection, &'static mut Node),
+    (Without<RidesPanel>, Without<OperatingRow>),
+>;
+
 pub(crate) fn refresh(
     sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
     mut panels: Query<&mut Node, With<RidesPanel>>,
-    mut operating_rows: Query<(&OperatingRow, &mut Node), Without<RidesPanel>>,
+    mut operating_rows: OperatingRows<'_, '_>,
+    mut sections: RideSections<'_, '_>,
+    mut gates: Query<(&AccessGate, &mut Action)>,
     mut labels: Query<(&RideLabel, &mut Text)>,
 ) {
     for mut node in &mut panels {
@@ -201,6 +274,44 @@ pub(crate) fn refresh(
         return;
     }
     let id = ids[index];
+    if view.ride_access_open
+        && (sim.is_changed()
+            || view
+                .ride_access_plan
+                .as_ref()
+                .is_none_or(|plan| plan.ride != id))
+    {
+        view.ride_access_plan = sim.0.ride_access_plan(id).ok();
+    }
+    for (section, mut node) in &mut sections {
+        node.display = if section.0 == view.ride_access_open {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+    for (exit, mut action) in &mut gates {
+        let exists = sim.0.ride_by_id(id).is_some_and(|ride| {
+            if exit.0 {
+                ride.exit.is_some()
+            } else {
+                ride.entrance.is_some()
+            }
+        });
+        *action = Action::RideAccess(if exists {
+            if exit.0 {
+                AccessCommand::FindExit
+            } else {
+                AccessCommand::FindEntrance
+            }
+        } else {
+            AccessCommand::Prepare(if exit.0 {
+                RideAccessBuildKind::Exit
+            } else {
+                RideAccessBuildKind::Entrance
+            })
+        });
+    }
     let journey = sim.0.ride_journey_stats(id);
     let access = sim.0.ride_access(id);
     let economy = sim.0.ride_economy_stats(id);
@@ -250,11 +361,47 @@ pub(crate) fn refresh(
                 "Open ride"
             }
             .into(),
+            RideLabel::AccessChecklist => access_checklist(&sim.0, id),
+            RideLabel::AccessAdvice => view.ride_access_plan.as_ref().filter(|plan| plan.ride == id).map_or("Choose Access to inspect this ride.".into(), |plan| plan.advice.into()),
+            RideLabel::AccessNotice => view.ride_access_notice.clone().unwrap_or_else(|| "Prepare selects a tool and shows a ghost.\nMove to it and click to build one tile.".into()),
+            RideLabel::AccessGate(exit) => {
+                let exists = sim.0.ride_by_id(id).is_some_and(|ride| if *exit { ride.exit.is_some() } else { ride.entrance.is_some() });
+                format!("{} {}", if exists { "Find existing" } else { "Prepare suggested" }, if *exit { "exit" } else { "entrance" })
+            }
         };
         if text.0 != value {
             text.0 = value;
         }
     }
+}
+
+fn access_checklist(park: &Park, id: RideId) -> String {
+    let Some(ride) = park.ride_by_id(id) else {
+        return "Ride unavailable".into();
+    };
+    let entrance = park.ride_access(id);
+    let exit = park.ride_exit_access(id);
+    let ready = entrance.status == RideAccessStatus::Ready && exit.status == RideExitStatus::Ready;
+    format!(
+        "{}\nEntrance gate: {} / Exit gate: {}\nQueue: {}\nExit path: {}",
+        if ready {
+            "Access ready for guests"
+        } else {
+            "Access needs attention"
+        },
+        if ride.entrance.is_some() {
+            "built"
+        } else {
+            "missing"
+        },
+        if ride.exit.is_some() {
+            "built"
+        } else {
+            "missing"
+        },
+        entrance.status,
+        exit.status
+    )
 }
 
 fn operating_value(field: OperatingField, settings: park_sim::RideOperatingSettings) -> String {

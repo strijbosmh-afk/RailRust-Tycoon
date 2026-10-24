@@ -190,6 +190,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-operations --save-dir $operationsDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride operations verification failed" }
           Get-Content -LiteralPath (Join-Path $operationsDirectory "verification-operations.txt")
+      - name: Verify ride access assistance across fresh processes
+        shell: pwsh
+        run: |
+          $accessDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound access é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-access --save-dir $accessDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Ride access writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-access --save-dir $accessDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride access verification failed" }
+          Get-Content -LiteralPath (Join-Path $accessDirectory "verification-access.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

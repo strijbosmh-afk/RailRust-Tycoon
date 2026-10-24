@@ -83,6 +83,7 @@ pub(crate) fn queue(view: &mut ViewState, command: OperationCommand) {
 
 fn input_blocked(view: &ViewState) -> bool {
     !view.rides_open
+        || view.ride_access_open
         || view.help
         || view.guests_open
         || view.services_open
