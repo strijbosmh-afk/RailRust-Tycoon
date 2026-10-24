@@ -1,6 +1,8 @@
 //! Deliberate, selected-ride operating changes. Simulation owns validation.
 use bevy::prelude::*;
-use park_sim::{Park, RideId, RideKind, RideOperatingError, RideOperatingSettings};
+use park_sim::{
+    Park, RideDispatchPolicy, RideId, RideKind, RideOperatingError, RideOperatingSettings,
+};
 
 use crate::{SaveAction, Simulation, ViewState, ui};
 
@@ -10,6 +12,8 @@ pub(crate) enum OperatingField {
     LiftSpeed,
     BrakeSpeed,
     CycleDuration,
+    MinimumPassengers,
+    MaxExtraWait,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -22,7 +26,7 @@ pub(crate) enum OperationCommand {
 impl OperatingField {
     pub(crate) fn supported(self, kind: RideKind) -> bool {
         match self {
-            Self::StationWait => true,
+            Self::StationWait | Self::MinimumPassengers | Self::MaxExtraWait => true,
             Self::LiftSpeed | Self::BrakeSpeed => kind != RideKind::Carousel,
             Self::CycleDuration => kind == RideKind::Carousel,
         }
@@ -70,8 +74,34 @@ impl OperatingField {
                     u32::from(park_sim::MAX_CAROUSEL_CYCLE_TICKS),
                 ) as u16;
             }
+            Self::MinimumPassengers | Self::MaxExtraWait => {}
         }
         value
+    }
+
+    fn dispatch(self) -> bool {
+        matches!(self, Self::MinimumPassengers | Self::MaxExtraWait)
+    }
+
+    fn adjusted_policy(self, mut policy: RideDispatchPolicy, direction: i8) -> RideDispatchPolicy {
+        match self {
+            Self::MinimumPassengers => {
+                policy.minimum_passengers = (i16::from(policy.minimum_passengers)
+                    + i16::from(direction))
+                .clamp(0, i16::from(park_sim::MAX_DISPATCH_PASSENGERS))
+                    as u8
+            }
+            Self::MaxExtraWait => {
+                policy.maximum_extra_wait_ticks = (i32::from(policy.maximum_extra_wait_ticks)
+                    + i32::from(direction) * i32::from(park_sim::EXTRA_WAIT_STEP_TICKS))
+                .clamp(
+                    i32::from(park_sim::MIN_EXTRA_WAIT_TICKS),
+                    i32::from(park_sim::MAX_EXTRA_WAIT_TICKS),
+                ) as u16
+            }
+            _ => {}
+        }
+        policy
     }
 }
 
@@ -83,7 +113,7 @@ pub(crate) fn queue(view: &mut ViewState, command: OperationCommand) {
 
 fn input_blocked(view: &ViewState) -> bool {
     !view.rides_open
-        || view.ride_access_open
+        || view.ride_tab != ui::rides::RideTab::Operations
         || view.help
         || view.guests_open
         || view.services_open
@@ -117,12 +147,20 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: OperationC
     if park.ride_operating_settings_status(id).is_err() {
         return false;
     }
+    let Some(policy) = park.ride_dispatch_policy(id) else {
+        return false;
+    };
     match command {
+        OperationCommand::Adjust(field, direction) if field.dispatch() => {
+            field.adjusted_policy(policy, direction) != policy
+        }
         OperationCommand::Adjust(field, direction) => {
             park.ride_kind(id).is_some_and(|kind| field.supported(kind))
                 && field.adjusted(settings, direction) != settings
         }
-        OperationCommand::ResetDefaults => settings != RideOperatingSettings::default(),
+        OperationCommand::ResetDefaults => {
+            settings != RideOperatingSettings::default() || policy != RideDispatchPolicy::default()
+        }
         OperationCommand::ToggleOpen => true,
     }
 }
@@ -195,6 +233,56 @@ pub(crate) fn perform_command(
         view.ride_operating_notice = Some("Ride is unavailable. Settings are unchanged.".into());
         return false;
     };
+    if let OperationCommand::Adjust(field, direction) = command
+        && field.dispatch()
+    {
+        let Some(policy) = park.ride_dispatch_policy(id) else {
+            return false;
+        };
+        return match park.set_ride_dispatch_policy(id, field.adjusted_policy(policy, direction)) {
+            Ok(changed) => {
+                view.ride_operating_notice = Some(
+                    if changed {
+                        "Loading policy updated. Save the park to keep it."
+                    } else {
+                        "Loading policy already matches. No changes made."
+                    }
+                    .into(),
+                );
+                changed
+            }
+            Err(error) => {
+                view.ride_operating_notice = Some(format!("Settings unchanged: {error}"));
+                false
+            }
+        };
+    }
+    if command == OperationCommand::ResetDefaults {
+        let Some(policy) = park.ride_dispatch_policy(id) else {
+            return false;
+        };
+        if settings == RideOperatingSettings::default() && policy == RideDispatchPolicy::default() {
+            view.ride_operating_notice = Some("Settings already match. No changes made.".into());
+            return false;
+        }
+        // Both domains accept these fixed defaults for every ride family and
+        // share the same guard. Validate both before either write; neither
+        // setter changes eligibility and no simulation tick runs between them.
+        if let Err(error) = park
+            .ride_operating_settings_status(id)
+            .and_then(|()| park.ride_dispatch_policy_status(id))
+        {
+            view.ride_operating_notice = Some(format!("Settings unchanged: {error}"));
+            return false;
+        }
+        park.set_ride_operating_settings(id, RideOperatingSettings::default())
+            .expect("fixed operating defaults and shared edit guard are validated");
+        park.set_ride_dispatch_policy(id, RideDispatchPolicy::default())
+            .expect("fixed dispatch defaults and shared edit guard are validated");
+        view.ride_operating_notice =
+            Some("Operating settings and loading policy reset. Save to keep them.".into());
+        return true;
+    }
     let requested = match command {
         OperationCommand::Adjust(field, direction) => {
             if !park.ride_kind(id).is_some_and(|kind| field.supported(kind)) {

@@ -1,6 +1,6 @@
 # Ride access assistance — 0.32.0
 
-Version **0.32.0 is locally verified** on `codex/ride-access-assistance`, from verified 0.31 checkpoint `04720f9b916a90c7ef8be994cb2c65dd88ee46fd`. The bounded implementation advances BLD-02, BLD-03 and UI-02. Source/build checks, all **634 release tests (381 game / 253 simulation; zero doc tests)**, production proofs, visual inspection and fresh portable-package verification passed. **Exact-source CI is pending.** Version 0.31 remains the last CI-verified delivery, with evidence preserved in [RIDE_OPERATIONS_REPORT.md](RIDE_OPERATIONS_REPORT.md).
+Version **0.32.0 is locally verified** on `codex/ride-access-assistance`, from verified 0.31 checkpoint `04720f9b916a90c7ef8be994cb2c65dd88ee46fd`. The bounded implementation advances BLD-02, BLD-03 and UI-02. Source/build checks, all **634 release tests (381 game / 253 simulation; zero doc tests)**, production proofs, visual inspection and fresh portable-package verification passed. **Exact-source Windows CI passed** for checkpoint `303cd66a0e1789cb0bf4b3d3365233440efefebb`: [run 40108342235](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40108342235), all 32 steps and 634 tests. Historical version-0.31 evidence remains preserved in [RIDE_OPERATIONS_REPORT.md](RIDE_OPERATIONS_REPORT.md).
 
 ## Player behavior
 
@@ -22,13 +22,14 @@ The Operations tab retains per-ride settings and Open/Close controls. Park saves
 | Separate production access/operations/design-transfer/track-construction proofs | PASS — eight extracted-executable processes |
 | Bidirectional 0.31 ↔ 0.32 compatibility | PASS — four processes; 7,200-tick operations replay plus backup in each direction |
 | Controlled capture inspection | PASS — seven 1024 × 680 images from the extracted executable |
-| Exact-source Windows CI and artifact identity | Pending |
+| Exact-source Windows CI | PASS — run 40108342235, job 120914620244, all 32 steps and 634 tests for source `303cd66a0e1789cb0bf4b3d3365233440efefebb` |
+| CI artifact 12565218742 | Identified only; not downloaded or executed |
 | Fresh portable extraction, payload/current-guide checks and relocated proofs | PASS — 47 payload hashes / 38 guides |
 | Dependency/runtime/notice comparison with 0.31 | PASS — 291 dependencies and five unchanged files |
 | Native Access/Find/Prepare gestures | Not verified |
 | Clean-PC/offline/standard-user and representative performance acceptance | Not verified |
 
-The local production executable is **49,516,544 bytes**, SHA-256 **`b4bb18c338bfb08b7957e7adef42898d4b4106deaa4954022f38162a746932bc`**. Source receipts are `artifacts/ride-access-0.32.0/clippy-final.log`, `tests.log` and `build.log`. CI run/artifact identities are pending; no 0.32 CI pass is claimed.
+The delivered local production executable is **49,516,544 bytes**, SHA-256 **`b4bb18c338bfb08b7957e7adef42898d4b4106deaa4954022f38162a746932bc`**. Source receipts are `artifacts/ride-access-0.32.0/clippy-final.log`, `tests.log` and `build.log`. [Exact-source Windows CI 40108342235](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40108342235), job **120914620244**, passed all **32 steps** and **634 tests** for head **`303cd66a0e1789cb0bf4b3d3365233440efefebb`**. CI receipts are `artifacts/ride-access-0.32.0/ci-push-40108342235-*`. Artifact **12565218742** was identified but not downloaded or executed; no CI-artifact hash, runtime or pixel-equivalence claim is made. The existing 0.32 package and locally verified executable remain unchanged.
 
 Fresh extraction to `C:\Users\strij\AppData\Local\Temp\Parkbound 0.32 access delivery é`, launched from `C:\Windows`, verified every payload and current guide before executing the eight proof processes. Its receipt is `verification.txt` in that directory. `artifacts/ride-access-0.32.0/compatibility/compatibility.txt` records both compatibility directions, unchanged source slots and unchanged old/current executable hashes. `notices.txt` records the dependency/runtime comparison. The current archive is `dist/Parkbound-0.32.0-windows-x64.zip`; refresh guides and integrity checks after documentation edits, keeping its mutable checksum in the adjacent sidecar.
 

@@ -629,6 +629,7 @@ impl Park {
         candidate.track_economy.construction_cents += quote.construction_cents;
         candidate.track_economy.refund_cents += quote.refund_cents;
         let owner = candidate.ride.as_ref().expect("circuit has owner").id;
+        candidate.reset_ride_dispatch_wait(owner);
         candidate.record_ride_transaction(
             crate::FinanceKind::TrackRefund,
             owner,

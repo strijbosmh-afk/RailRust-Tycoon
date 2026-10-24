@@ -54,6 +54,7 @@ fn test_app(park: Park, view: ViewState, directory: &Directory) -> (App, Entity)
             (
                 ui::button_actions,
                 keyboard_input,
+                crate::coaster_testing::apply_commands,
                 apply_commands,
                 ride_operations::apply_commands,
                 pointer_input,
@@ -105,7 +106,7 @@ fn frame(app: &mut App, actions: &[ui::Action], keys: &[KeyCode], click: bool) {
 fn view(id: RideId) -> ViewState {
     ViewState {
         rides_open: true,
-        ride_access_open: true,
+        ride_tab: ui::rides::RideTab::Access,
         selected_ride: Some(id),
         speed: Speed::Paused,
         ..default()
@@ -201,7 +202,7 @@ fn tabs_own_their_controls_and_browsing_cannot_redirect_an_access_command() {
     let (mut app, _) = test_app(
         park.clone(),
         ViewState {
-            ride_access_open: false,
+            ride_tab: ui::rides::RideTab::Operations,
             ..view(coaster)
         },
         &directory,
@@ -216,7 +217,10 @@ fn tabs_own_their_controls_and_browsing_cannot_redirect_an_access_command() {
         &[],
         false,
     );
-    assert!(app.world().resource::<ViewState>().ride_access_open);
+    assert_eq!(
+        app.world().resource::<ViewState>().ride_tab,
+        ui::rides::RideTab::Access
+    );
     assert_eq!(app.world().resource::<Simulation>().0, park);
     frame(&mut app, &[tune], &[], false);
     assert_eq!(
@@ -242,7 +246,10 @@ fn tabs_own_their_controls_and_browsing_cannot_redirect_an_access_command() {
         &[],
         false,
     );
-    assert!(!app.world().resource::<ViewState>().ride_access_open);
+    assert_eq!(
+        app.world().resource::<ViewState>().ride_tab,
+        ui::rides::RideTab::Operations
+    );
     frame(
         &mut app,
         &[ui::Action::RideAccess(AccessCommand::Prepare(
@@ -328,7 +335,7 @@ fn close_load_capture_and_stale_selection_preempt_access_preparation() {
             // Reopen this fixture before testing the simultaneous transition.
             let mut state = app.world_mut().resource_mut::<ViewState>();
             state.rides_open = true;
-            state.ride_access_open = true;
+            state.ride_tab = ui::rides::RideTab::Access;
             state.prepared_access = None;
             state.modal_transition_pending = false;
             queue(

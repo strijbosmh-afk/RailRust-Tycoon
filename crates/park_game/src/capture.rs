@@ -26,11 +26,13 @@ use crate::{
 const WARMUP_FRAMES: u32 = 90;
 const WARMUP_TIME: Duration = Duration::from_secs(2);
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(120);
+const DEFAULT_CAPTURE_TICKS: u32 = 600;
 
 mod access_scenes;
 mod admission_scenes;
 mod construction_scenes;
 mod design_scenes;
+mod dispatch_scenes;
 mod economy_scenes;
 mod facility_construction_scenes;
 mod feedback_scenes;
@@ -42,6 +44,7 @@ mod ride_choice_scenes;
 mod service_scenes;
 mod slope_scenes;
 mod terrain_scenes;
+mod testing_scenes;
 mod track_construction_scenes;
 
 #[derive(Clone, Copy)]
@@ -140,6 +143,13 @@ enum Scene {
     AccessNeeds,
     AccessReady,
     AccessUnavailable,
+    TestingReady,
+    TestingComplete,
+    TestingChanged,
+    TestingOperating,
+    TestingCarousel,
+    DispatchWaiting,
+    DispatchPaid,
     RideClosed,
     RideFinance,
     CarouselRebuilt,
@@ -190,6 +200,21 @@ enum Scene {
 }
 
 impl Scene {
+    fn uses_fresh_ride_fixture(self) -> bool {
+        self.is_testing() || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
+    }
+
+    fn is_testing(self) -> bool {
+        matches!(
+            self,
+            Self::TestingReady
+                | Self::TestingComplete
+                | Self::TestingChanged
+                | Self::TestingOperating
+                | Self::TestingCarousel
+        )
+    }
+
     fn is_operations(self) -> bool {
         matches!(
             self,
@@ -550,6 +575,13 @@ pub(super) fn configure(app: &mut App) {
                 Some("access-needs") => Scene::AccessNeeds,
                 Some("access-ready") => Scene::AccessReady,
                 Some("access-unavailable") => Scene::AccessUnavailable,
+                Some("testing-ready") => Scene::TestingReady,
+                Some("testing-complete") => Scene::TestingComplete,
+                Some("testing-changed") => Scene::TestingChanged,
+                Some("testing-operating") => Scene::TestingOperating,
+                Some("testing-carousel") => Scene::TestingCarousel,
+                Some("dispatch-waiting") => Scene::DispatchWaiting,
+                Some("dispatch-paid") => Scene::DispatchPaid,
                 Some("ride-closed") => Scene::RideClosed,
                 Some("ride-finance") => Scene::RideFinance,
                 Some("carousel-rebuilt") => Scene::CarouselRebuilt,
@@ -665,7 +697,7 @@ pub(super) fn configure(app: &mut App) {
                 .filter(|value| *value <= 36_000)
                 .expect("--capture-ticks must be an integer between 0 and 36000")
         })
-        .unwrap_or(600);
+        .unwrap_or(DEFAULT_CAPTURE_TICKS);
 
     let directory = destination
         .parent()
@@ -714,6 +746,13 @@ fn apply_preset(
 ) {
     view.capture_active = true;
     view.set_speed(Speed::Paused);
+    // These controlled scenes build their own stopped, waiting or paid state.
+    // Generic pre-roll would start the demonstration train before its closed
+    // settings can be edited, and would make the ready test scene ineligible.
+    // Keep all other captures' historical pre-roll behavior unchanged.
+    if capture.scene.uses_fresh_ride_fixture() {
+        sim.0 = crate::demonstration_park();
+    }
     view.terrain_profile = capture.terrain_profile;
     sim.0
         .try_apply_terrain_profile(capture.terrain_profile)
@@ -722,8 +761,10 @@ fn apply_preset(
     view.view_mode = capture.view_mode;
     view.scene_dirty = true;
     view.help = matches!(capture.scene, Scene::Help);
-    for _ in 0..capture.ticks {
-        sim.0.advance(Speed::Normal);
+    if !capture.scene.uses_fresh_ride_fixture() {
+        for _ in 0..capture.ticks {
+            sim.0.advance(Speed::Normal);
+        }
     }
     if capture.scene.is_train() {
         prepare_train_scene(&mut sim.0, capture.scene);
@@ -844,6 +885,12 @@ fn apply_preset(
     }
     if capture.scene.is_operations() {
         operations_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_testing() {
+        testing_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if matches!(capture.scene, Scene::DispatchWaiting | Scene::DispatchPaid) {
+        dispatch_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if matches!(
         capture.scene,
@@ -1163,6 +1210,115 @@ mod tests {
     use super::*;
     use crate::render_scene::{CameraPreset, RenderScene};
     use park_sim::diagnostics::DiagnosticCase;
+
+    fn preset_at_startup(scene: Scene, park: Park) -> App {
+        let mut app = App::new();
+        app.insert_resource(Simulation(park))
+            .insert_resource(ViewState::default())
+            .insert_resource(SaveSession::from_arguments([
+                OsString::from("--save-dir"),
+                std::env::temp_dir()
+                    .join("Parkbound capture startup no file operations")
+                    .into_os_string(),
+            ]))
+            .insert_resource(Capture {
+                // Exercise the production PostStartup boundary and default
+                // pre-roll without installing screenshot or file systems.
+                destination: PathBuf::new(),
+                temporary: PathBuf::new(),
+                scene,
+                rotation: None,
+                terrain_profile: TerrainProfile::Terraced,
+                view_mode: ViewMode::Surface,
+                small_window: false,
+                ticks: DEFAULT_CAPTURE_TICKS,
+                started: Instant::now(),
+                frames: 0,
+                requested: false,
+                captured_size: None,
+                finished: false,
+            })
+            .add_systems(PostStartup, apply_preset);
+        app.update();
+        app
+    }
+
+    #[test]
+    fn new_ride_captures_construct_their_required_states_through_actual_startup() {
+        let mut moving_source = crate::demonstration_park();
+        for _ in 0..DEFAULT_CAPTURE_TICKS {
+            moving_source.advance(Speed::Normal);
+        }
+        assert!(moving_source.ride_is_running(moving_source.ride().unwrap().id));
+        for scene in [
+            Scene::TestingReady,
+            Scene::TestingComplete,
+            Scene::TestingChanged,
+            Scene::TestingOperating,
+            Scene::TestingCarousel,
+            Scene::DispatchWaiting,
+            Scene::DispatchPaid,
+        ] {
+            let app = preset_at_startup(scene, moving_source.clone());
+            let park = &app.world().resource::<Simulation>().0;
+            let view = app.world().resource::<ViewState>();
+            let id = view.selected_ride.unwrap();
+            assert!(view.capture_active && view.rides_open);
+            assert_eq!(view.speed, Speed::Paused);
+            if scene.is_testing() {
+                assert_eq!(view.ride_tab, crate::ui::rides::RideTab::Test);
+                assert_eq!(
+                    crate::coaster_testing::can_run(park, Some(id)).is_ok(),
+                    !matches!(scene, Scene::TestingOperating | Scene::TestingCarousel)
+                );
+                assert_eq!(
+                    view.coaster_testing.report.is_some(),
+                    matches!(scene, Scene::TestingComplete)
+                );
+                if let Some(report) = &view.coaster_testing.report {
+                    assert!(report.input.matches(park));
+                    assert!(report.moving_ticks > 0);
+                }
+                if matches!(
+                    scene,
+                    Scene::TestingReady | Scene::TestingComplete | Scene::TestingChanged
+                ) {
+                    assert_eq!(park.ticks(), 0);
+                }
+            } else {
+                assert_eq!(view.ride_tab, crate::ui::rides::RideTab::Operations);
+                for owner in [park.ride().unwrap().id, park.carousels()[0].ride.id] {
+                    let progress = park.ride_dispatch_progress(owner).unwrap();
+                    if matches!(scene, Scene::DispatchWaiting) {
+                        assert!(progress.waiting_for_load);
+                        assert!(progress.extra_waited_ticks > 0);
+                        assert!(progress.extra_waited_ticks < progress.maximum_extra_wait_ticks);
+                        assert_eq!(progress.seated_passengers, 0);
+                        assert!(!park.ride_is_running(owner));
+                    } else {
+                        assert!(crate::save_check::ride_choice::paid_running(park, owner));
+                        assert_eq!(progress.minimum_passengers, 1);
+                        assert_eq!(progress.extra_waited_ticks, 0);
+                    }
+                }
+            }
+            assert_eq!(
+                Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+                *park
+            );
+        }
+    }
+
+    #[test]
+    fn historical_overview_capture_keeps_default_preroll_through_startup() {
+        let mut expected = crate::demonstration_park();
+        let app = preset_at_startup(Scene::Overview, expected.clone());
+        for _ in 0..DEFAULT_CAPTURE_TICKS {
+            expected.advance(Speed::Normal);
+        }
+        assert_eq!(app.world().resource::<Simulation>().0, expected);
+        assert_eq!(expected.ticks(), u64::from(DEFAULT_CAPTURE_TICKS));
+    }
 
     #[test]
     fn large_render_capture_overrides_survive_post_startup_and_refresh_the_first_frame() {

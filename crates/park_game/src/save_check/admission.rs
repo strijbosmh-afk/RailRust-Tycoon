@@ -133,7 +133,9 @@ fn roundtrip(park: &Park) -> Result<Vec<u8>, String> {
     let bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
     let json: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
-    if json["schema_version"] != 16 || json["content_version"] != 16 {
+    if json["schema_version"] != park_sim::SAVE_SCHEMA_VERSION
+        || json["content_version"] != park_sim::SAVE_CONTENT_VERSION
+    {
         return Err("admission proof requires strict schema/content 15/15".into());
     }
     if Park::from_save_bytes(&bytes).map_err(|error| error.to_string())? != *park {

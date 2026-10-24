@@ -205,7 +205,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("verification changed source slots".into());
     }
-    write_new(&store.directory().join("verification-operations.txt"), format!("Parkbound {}\nProduction controls, exact increments and independent settings: PASS\nSettings leave money, guests, draft and ride history unchanged: PASS\nOccupied adjustment refused atomically: PASS\nClose, empty, reset one ride, retune and reopen: PASS\nFresh-process continuation: PASS (bounded close/empty plus {REPLAY_TICKS} ticks, repeated strict16 roundtrips, paid journeys on both rides)\nIndependent exact backup and paused load clearing stale controls: PASS\nOriginal primary and backup unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-operations.txt"), format!("Parkbound {}\nProduction controls, exact increments and independent settings: PASS\nSettings leave money, guests, draft and ride history unchanged: PASS\nOccupied adjustment refused atomically: PASS\nClose, empty, reset one ride, retune and reopen: PASS\nFresh-process continuation: PASS (bounded close/empty plus {REPLAY_TICKS} ticks, repeated current-schema roundtrips, paid journeys on both rides)\nIndependent exact backup and paused load clearing stale controls: PASS\nOriginal primary and backup unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

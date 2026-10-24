@@ -194,6 +194,7 @@ pub(super) struct VersionTenParkData {
 impl VersionTenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             track_draft: Vec::new(),

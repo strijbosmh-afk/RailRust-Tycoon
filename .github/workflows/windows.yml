@@ -199,6 +199,24 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-access --save-dir $accessDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Fresh-process ride access verification failed" }
           Get-Content -LiteralPath (Join-Path $accessDirectory "verification-access.txt")
+      - name: Verify isolated coaster testing across fresh processes
+        shell: pwsh
+        run: |
+          $coasterTestingDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound coaster testing é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-coaster-testing --save-dir $coasterTestingDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Coaster testing writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-coaster-testing --save-dir $coasterTestingDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process coaster testing verification failed" }
+          Get-Content -LiteralPath (Join-Path $coasterTestingDirectory "verification-coaster-testing.txt")
+      - name: Verify passenger loading policies across fresh processes
+        shell: pwsh
+        run: |
+          $dispatchDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound dispatch é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-dispatch --save-dir $dispatchDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Dispatch writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-dispatch --save-dir $dispatchDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Fresh-process dispatch verification failed" }
+          Get-Content -LiteralPath (Join-Path $dispatchDirectory "verification-dispatch.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -56,7 +56,7 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: AccessComm
     ) {
         return true;
     }
-    if !view.ride_access_open {
+    if view.ride_tab != ui::rides::RideTab::Access {
         return false;
     }
     let Some(id) = ui::rides::selected_id(park, view) else {
@@ -101,13 +101,18 @@ pub(crate) fn apply_commands(
             AccessCommand::ShowAccess | AccessCommand::ShowOperations
         )
     }) {
-        view.ride_access_open = *command == AccessCommand::ShowAccess;
+        view.ride_tab = if *command == AccessCommand::ShowAccess {
+            ui::rides::RideTab::Access
+        } else {
+            ui::rides::RideTab::Operations
+        };
+        view.coaster_testing.run_pending = false;
         view.ride_access_plan = None;
         view.ride_operating_commands.clear();
         view.ride_access_notice = None;
         return;
     }
-    if !view.ride_access_open {
+    if view.ride_tab != ui::rides::RideTab::Access {
         return;
     }
     let Some(id) = ui::rides::selected_id(&sim.0, &view) else {
@@ -162,7 +167,12 @@ pub(crate) fn perform_command(
         command,
         AccessCommand::ShowAccess | AccessCommand::ShowOperations
     ) {
-        view.ride_access_open = command == AccessCommand::ShowAccess;
+        view.ride_tab = if command == AccessCommand::ShowAccess {
+            ui::rides::RideTab::Access
+        } else {
+            ui::rides::RideTab::Operations
+        };
+        view.coaster_testing.run_pending = false;
         view.ride_access_plan = None;
         view.ride_operating_commands.clear();
         return true;

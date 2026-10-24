@@ -8,6 +8,14 @@ use park_sim::{RideAccessBuildKind, RideAccessStatus, RideExitStatus};
 pub(crate) const PANEL_WIDTH: f32 = 820.0;
 pub(crate) const PANEL_HEIGHT: f32 = 540.0;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum RideTab {
+    #[default]
+    Operations,
+    Access,
+    Test,
+}
+
 pub(crate) fn active_ids(park: &Park) -> Vec<RideId> {
     let mut ids: Vec<_> = park
         .all_rides()
@@ -73,13 +81,17 @@ pub(crate) enum RideLabel {
     AccessAdvice,
     AccessNotice,
     AccessGate(bool),
+    TestStatus,
+    TestMetrics,
+    TestRatings,
+    TestNotice,
 }
 
 #[derive(Component)]
 pub(crate) struct OperatingRow(pub(crate) OperatingField);
 
 #[derive(Component)]
-pub(crate) struct RideSection(pub(crate) bool);
+pub(crate) struct RideSection(pub(crate) RideTab);
 
 #[derive(Component)]
 pub(crate) struct AccessGate(pub(crate) bool);
@@ -128,7 +140,7 @@ fn operating_row(parent: &mut ChildSpawnerCommands, field: OperatingField) {
             OperatingRow(field),
             Node {
                 width: percent(100),
-                height: px(44),
+                height: px(36),
                 flex_shrink: 0.0,
                 ..row()
             },
@@ -186,27 +198,30 @@ pub(super) fn setup(commands: &mut Commands) {
             });
             p.spawn(Node { width: px(356), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
                 p.spawn(row()).with_children(|p| {
-                    button(p, "Operations", Action::RideAccess(AccessCommand::ShowOperations), 174.0);
-                    button(p, "Access", Action::RideAccess(AccessCommand::ShowAccess), 175.0);
+                    button(p, "Operations", Action::RideAccess(AccessCommand::ShowOperations), 114.0);
+                    button(p, "Access", Action::RideAccess(AccessCommand::ShowAccess), 114.0);
+                    button(p, "Test", Action::CoasterTest(crate::coaster_testing::TestCommand::Show), 114.0);
                 });
-                p.spawn((RideSection(false), Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(6), ..default() })).with_children(|p| {
+                p.spawn((RideSection(RideTab::Operations), Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(4), ..default() })).with_children(|p| {
                 label(p, "Operating settings", 17.0, INK);
                 p.spawn((Button, Action::RideOperating(OperationCommand::ToggleOpen), Node {
                     width: percent(100), height: px(30), flex_shrink: 0.0, align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center, border: UiRect::all(px(1)), ..default()
                 }, BackgroundColor(BUTTON), BorderColor::all(BORDER), BorderRadius::all(px(5))))
                 .with_children(|p| operating_label(p, RideLabel::ToggleOpen, 13.0, INK));
-                p.spawn(Node { height: px(42), flex_shrink: 0.0, ..default() })
+                p.spawn(Node { height: px(30), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingStatus, 12.0, MUTED));
                 operating_row(p, OperatingField::StationWait);
                 operating_row(p, OperatingField::LiftSpeed);
                 operating_row(p, OperatingField::BrakeSpeed);
                 operating_row(p, OperatingField::CycleDuration);
+                operating_row(p, OperatingField::MinimumPassengers);
+                operating_row(p, OperatingField::MaxExtraWait);
                 button(p, "Reset operating defaults", Action::RideOperating(OperationCommand::ResetDefaults), 356.0);
-                p.spawn(Node { height: px(44), flex_shrink: 0.0, ..default() })
+                p.spawn(Node { height: px(32), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingNotice, 12.0, MUTED));
                 });
-                p.spawn((RideSection(true), Node { display: Display::None, width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(6), ..default() })).with_children(|p| {
+                p.spawn((RideSection(RideTab::Access), Node { display: Display::None, width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(6), ..default() })).with_children(|p| {
                     label(p, "Station and paths", 17.0, INK);
                     p.spawn(Node { height: px(105), flex_shrink: 0.0, ..default() })
                         .with_children(|p| operating_label(p, RideLabel::AccessChecklist, 13.0, INK));
@@ -218,6 +233,19 @@ pub(super) fn setup(commands: &mut Commands) {
                         .with_children(|p| operating_label(p, RideLabel::AccessAdvice, 12.0, MUTED));
                     p.spawn(Node { height: px(36), flex_shrink: 0.0, ..default() })
                         .with_children(|p| operating_label(p, RideLabel::AccessNotice, 12.0, MUTED));
+                });
+                p.spawn((RideSection(RideTab::Test), Node { display: Display::None, width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(6), ..default() })).with_children(|p| {
+                    label(p, "Installed coaster test", 17.0, INK);
+                    button(p, "Run one isolated lap", Action::CoasterTest(crate::coaster_testing::TestCommand::Run), 356.0);
+                    p.spawn(Node { height: px(30), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::TestStatus, 12.0, MUTED));
+                    p.spawn(Node { height: px(140), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::TestMetrics, 12.0, INK));
+                    p.spawn(Node { height: px(34), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::TestRatings, 12.0, INK));
+                    label(p, park_sim::COASTER_TEST_LIMITATIONS, 11.0, MUTED);
+                    p.spawn(Node { height: px(34), flex_shrink: 0.0, ..default() })
+                        .with_children(|p| operating_label(p, RideLabel::TestNotice, 12.0, MUTED));
                 });
             });
         });
@@ -274,7 +302,8 @@ pub(crate) fn refresh(
         return;
     }
     let id = ids[index];
-    if view.ride_access_open
+    view.coaster_testing.refresh(&sim.0, Some(id));
+    if view.ride_tab == RideTab::Access
         && (sim.is_changed()
             || view
                 .ride_access_plan
@@ -284,7 +313,7 @@ pub(crate) fn refresh(
         view.ride_access_plan = sim.0.ride_access_plan(id).ok();
     }
     for (section, mut node) in &mut sections {
-        node.display = if section.0 == view.ride_access_open {
+        node.display = if section.0 == view.ride_tab {
             Display::Flex
         } else {
             Display::None
@@ -318,6 +347,7 @@ pub(crate) fn refresh(
     let experience = sim.0.ride_experience_stats(id);
     let ride_kind = sim.0.ride_kind(id).unwrap_or(RideKind::Coaster);
     let settings = sim.0.ride_operating_settings(id).unwrap_or_default();
+    let policy = sim.0.ride_dispatch_policy(id).unwrap_or_default();
     for (field, mut node) in &mut operating_rows {
         node.display = if field.0.supported(ride_kind) {
             Display::Flex
@@ -346,11 +376,10 @@ pub(crate) fn refresh(
                 compact_count(experience.rating_count),
                 construction_details(&sim.0, id)
             ),
-            RideLabel::OperatingValue(field) => operating_value(*field, settings),
-            RideLabel::OperatingStatus => sim.0.ride_operating_settings_status(id).map_or_else(
-                |error| error.to_string(),
-                |()| "Ready to tune. Open the ride when ready.".into(),
-            ),
+            RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
+            RideLabel::OperatingStatus => sim.0.ride_dispatch_progress(id).filter(|progress| progress.waiting_for_load).map_or_else(
+                || sim.0.ride_operating_settings_status(id).map_or_else(|error| error.to_string(), |()| "Ready to tune. Open the ride when ready.".into()),
+                |progress| format!("Loading {}/{} / extra wait {:.1}/{:.0} s\nClose and empty the ride before tuning.", progress.seated_passengers, progress.minimum_passengers, f64::from(progress.extra_waited_ticks) / TICKS_PER_SECOND as f64, f64::from(progress.maximum_extra_wait_ticks) / TICKS_PER_SECOND as f64)),
             RideLabel::OperatingNotice => view
                 .ride_operating_notice
                 .clone()
@@ -368,6 +397,10 @@ pub(crate) fn refresh(
                 let exists = sim.0.ride_by_id(id).is_some_and(|ride| if *exit { ride.exit.is_some() } else { ride.entrance.is_some() });
                 format!("{} {}", if exists { "Find existing" } else { "Prepare suggested" }, if *exit { "exit" } else { "entrance" })
             }
+            RideLabel::TestStatus => crate::coaster_testing::status_text(&sim.0, &view.coaster_testing, Some(id)),
+            RideLabel::TestMetrics => crate::coaster_testing::metrics_text(&view.coaster_testing),
+            RideLabel::TestRatings => crate::coaster_testing::ratings_text(&view.coaster_testing),
+            RideLabel::TestNotice => view.coaster_testing.notice.clone().unwrap_or_else(|| "Testing leaves time, guests and money unchanged.".into()),
         };
         if text.0 != value {
             text.0 = value;
@@ -404,7 +437,11 @@ fn access_checklist(park: &Park, id: RideId) -> String {
     )
 }
 
-fn operating_value(field: OperatingField, settings: park_sim::RideOperatingSettings) -> String {
+fn operating_value(
+    field: OperatingField,
+    settings: park_sim::RideOperatingSettings,
+    policy: park_sim::RideDispatchPolicy,
+) -> String {
     let seconds = |ticks| u64::from(ticks) / TICKS_PER_SECOND;
     // Track positions use 1,024 distance units per tile. Show game distance,
     // not physical metres or the simulation's fixed-point representation.
@@ -430,6 +467,18 @@ fn operating_value(field: OperatingField, settings: park_sim::RideOperatingSetti
         OperatingField::CycleDuration => format!(
             "Cycle duration / {} s\n12-60 s; step 6 s",
             seconds(settings.cycle_ticks)
+        ),
+        OperatingField::MinimumPassengers => format!(
+            "Minimum load / {}\n0-6 passengers; 0 keeps original dispatch",
+            if policy.minimum_passengers == 0 {
+                "No minimum".into()
+            } else {
+                format!("{} of 6", policy.minimum_passengers)
+            }
+        ),
+        OperatingField::MaxExtraWait => format!(
+            "Extra loading wait / {} s\n1-60 s; after mandatory station wait",
+            seconds(policy.maximum_extra_wait_ticks)
         ),
     }
 }

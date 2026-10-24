@@ -17,7 +17,9 @@ mod ride_access;
 #[cfg(test)]
 mod ride_access_tests;
 mod ride_choice;
+mod ride_dispatch;
 mod ride_operations;
+mod ride_testing;
 mod saves;
 mod services;
 #[cfg(test)]
@@ -60,13 +62,24 @@ pub use path_geometry::{
     paths_connect,
 };
 pub use ride_access::{Ride, RideAccess, RideAccessError, RideAccessStatus, RideEntrance, RideId};
+pub use ride_dispatch::{
+    EXTRA_WAIT_STEP_TICKS, MAX_DISPATCH_PASSENGERS, MAX_EXTRA_WAIT_TICKS, MIN_EXTRA_WAIT_TICKS,
+    RideDispatchError, RideDispatchPolicy, RideDispatchProgress,
+};
 pub use ride_operations::{
     BRAKE_SPEED_STEP, CAROUSEL_CYCLE_STEP_TICKS, EQUIPMENT_SPEED_STEP, LIFT_SPEED_STEP,
     MAX_BRAKE_SPEED, MAX_CAROUSEL_CYCLE_TICKS, MAX_LIFT_SPEED, MAX_STATION_WAIT_TICKS,
     MIN_BRAKE_SPEED, MIN_CAROUSEL_CYCLE_TICKS, MIN_LIFT_SPEED, MIN_STATION_WAIT_TICKS,
     RideOperatingError, RideOperatingSettings, STATION_WAIT_STEP_TICKS,
 };
-pub use saves::{MAX_SAVE_BYTES, SaveError};
+pub use ride_testing::{
+    COASTER_TEST_LIMITATIONS, CoasterLayoutMetrics, CoasterLayoutRatings, CoasterTestError,
+    CoasterTestInput, CoasterTestReport, MAX_COASTER_TEST_TICKS,
+};
+pub use saves::{
+    CONTENT_VERSION as SAVE_CONTENT_VERSION, MAX_SAVE_BYTES, SCHEMA_VERSION as SAVE_SCHEMA_VERSION,
+    SaveError,
+};
 pub use services::{
     GuestNeeds, GuestNeedsSummary, MAX_SERVICE_PRICE_CENTS, MAX_SERVICES, NEED_CRITICAL_THRESHOLD,
     NEED_SEEK_THRESHOLD, SERVICE_COOLDOWN_TICKS, SERVICE_PRICE_STEP_CENTS, SERVICE_REFUND_PERCENT,
@@ -204,6 +217,7 @@ pub struct Park {
     ride: Option<Ride>,
     carousels: Vec<CarouselRide>,
     ride_operating_settings: Vec<ride_operations::RideOperatingSettingsRecord>,
+    ride_dispatch: Vec<ride_dispatch::RideDispatchRecord>,
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
@@ -234,6 +248,7 @@ impl PartialEq for Park {
             && self.ride == other.ride
             && self.carousels == other.carousels
             && self.ride_operating_settings == other.ride_operating_settings
+            && self.ride_dispatch == other.ride_dispatch
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
@@ -285,6 +300,7 @@ impl Park {
             ride: None,
             carousels: Vec::new(),
             ride_operating_settings: Vec::new(),
+            ride_dispatch: Vec::new(),
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),

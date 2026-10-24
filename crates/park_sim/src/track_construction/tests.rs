@@ -689,13 +689,14 @@ fn schema_fourteen_requires_strict_bounded_drafts_and_migrates_twelve_without_re
     )
     .unwrap();
     let base = json_value(&park);
-    assert_eq!(base["schema_version"], json!(16));
+    assert_eq!(base["schema_version"], json!(crate::SAVE_SCHEMA_VERSION));
     let mut old = base.clone();
     old["park"].as_object_mut().unwrap().remove("track_economy");
     old["park"]
         .as_object_mut()
         .unwrap()
         .remove("ride_operating_settings");
+    old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["schema_version"] = json!(12);
     old["content_version"] = json!(12);
     old["park"].as_object_mut().unwrap().remove("track_draft");
@@ -758,12 +759,19 @@ fn schema_thirteen_migration_preserves_level_drafts_and_rejects_new_piece_kinds(
         .as_object_mut()
         .unwrap()
         .remove("ride_operating_settings");
+    old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["schema_version"] = json!(13);
     old["content_version"] = json!(13);
     let mut migrated = read(&old).unwrap();
     assert_eq!(migrated, park);
-    assert_eq!(json_value(&migrated)["schema_version"], json!(16));
-    assert_eq!(json_value(&migrated)["content_version"], json!(16));
+    assert_eq!(
+        json_value(&migrated)["schema_version"],
+        json!(crate::SAVE_SCHEMA_VERSION)
+    );
+    assert_eq!(
+        json_value(&migrated)["content_version"],
+        json!(crate::SAVE_CONTENT_VERSION)
+    );
     for _ in 0..300 {
         park.advance(Speed::Normal);
         migrated.advance(Speed::Normal);

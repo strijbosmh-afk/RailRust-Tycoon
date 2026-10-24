@@ -213,11 +213,21 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
     {
         return Err("free imported track has a positive demolition quote".into());
     }
-    if park.all_rides().any(|ride| {
-        park.ride_operating_settings(ride.id)
-            .is_some_and(|settings| settings != park_sim::RideOperatingSettings::default())
-    }) {
+    if version <= 15
+        && park.all_rides().any(|ride| {
+            park.ride_operating_settings(ride.id)
+                .is_some_and(|settings| settings != park_sim::RideOperatingSettings::default())
+        })
+    {
         return Err("legacy import invented non-default ride settings".into());
+    }
+    if park.all_rides().any(|ride| {
+        park.ride_dispatch_policy(ride.id) != Some(park_sim::RideDispatchPolicy::default())
+            || park
+                .ride_dispatch_progress(ride.id)
+                .is_none_or(|progress| progress.extra_waited_ticks != 0)
+    }) {
+        return Err("legacy import invented loading policies or elapsed loading wait".into());
     }
     super::finance::check(park)?;
     if old["schema_version"].as_u64().unwrap() <= 6
@@ -342,12 +352,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=15).contains(&schema)
+        if !(1..=16).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version1..15 source slot".into(),
+                "verify-legacy requires an authentic strict version 1..16 source slot".into(),
             );
         }
         let mut park = demonstration_park();
@@ -371,12 +381,13 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let modern_bytes = park.to_save_bytes().map_err(|error| error.to_string())?;
         let modern: Value =
             serde_json::from_slice(&modern_bytes).map_err(|error| error.to_string())?;
-        if modern["schema_version"] != 16
-            || modern["content_version"] != 16
+        if modern["schema_version"] != park_sim::SAVE_SCHEMA_VERSION
+            || modern["content_version"] != park_sim::SAVE_CONTENT_VERSION
             || (schema <= 7 && modern["park"]["next_service_id"] != 1)
         {
             return Err(
-                "migration did not produce strict16 state with correct service allocation".into(),
+                "migration did not produce current-schema state with correct service allocation"
+                    .into(),
             );
         }
         require_old_fields(&old["park"], &modern["park"], "/park")?;
@@ -403,7 +414,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
             return Err("legacy verification changed an original slot".into());
         }
     }
-    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel/facility basis and actual demolition refunds stay zero: PASS\nLegacy opening baselines preserved; v9-v12 transactions, archives, expenses, paid ride/facility costs and source attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated v16 roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v16 continues under current needs/service/cost/ride-choice/track rules; v1-v12 imports have an empty draft; v13 retains its level draft and v14 retains graded drafts; v1-v14 imported track basis and refunds stay zero; v15 paid track basis and transactions are preserved; v1-v15 ride settings default to original timings\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-legacy.txt"), format!("Parkbound {}\nOriginal primary/backup schemas: {versions:?}\nEvery original park field preserved at load (including RNG, IDs, money, needs/services and active journeys): PASS\nOnly newly added defaults initialized; original feedback/services preserved: PASS\nLegacy free carousel/facility basis and actual demolition refunds stay zero: PASS\nLegacy opening baselines preserved; v9-v12 transactions, archives, expenses, paid ride/facility costs and source attribution preserved: PASS\nProduction loads paused/Inspect with guest panel reset: PASS\nDeterministic current-version continuation: PASS ({CONTINUATION_TICKS} ticks per slot, commands and repeated current-schema roundtrips)\nOriginal primary and backup bytes unchanged: PASS\nLegacy future equivalence: NOT CLAIMED; v17 continues under current needs/service/cost/ride-choice/track/dispatch rules; v1-v12 imports have an empty draft; v13 retains its level draft and v14 retains graded drafts; v1-v14 imported track basis and refunds stay zero; v15-v16 paid track basis and transactions are preserved; v1-v15 ride settings default to original timings; v16 operating settings are preserved; v1-v16 loading policies default to no minimum and zero elapsed extra wait\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 
@@ -411,6 +422,60 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn legacy_v16_variable_operating_settings_survive_dispatch_migration() {
+        let directory = std::env::temp_dir().join(format!(
+            "Parkbound legacy operations é {} {}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let mut park = demonstration_park();
+        let (coaster, carousel) = super::super::operations::install(&mut park).unwrap();
+        for id in [coaster, carousel] {
+            park.set_ride_open(id, true).unwrap();
+        }
+        super::super::ride_choice::seek(
+            &mut park,
+            |p| {
+                super::super::ride_choice::paid_running(p, coaster)
+                    && super::super::ride_choice::paid_running(p, carousel)
+            },
+            "both legacy tuned rides carry paid passengers",
+        )
+        .unwrap();
+        let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        old["schema_version"] = json!(16);
+        old["content_version"] = json!(16);
+        old["park"].as_object_mut().unwrap().remove("ride_dispatch");
+        assert!(
+            !old["park"]["ride_operating_settings"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let bytes = serde_json::to_vec(&old).unwrap();
+        for name in ["park.park.json", "park.park.json.bak"] {
+            fs::write(directory.join(name), &bytes).unwrap();
+        }
+        assert_eq!(
+            run(vec![
+                "--save-check".into(),
+                "verify-legacy".into(),
+                "--save-dir".into(),
+                directory.clone().into_os_string()
+            ]),
+            Some(AppExit::Success)
+        );
+        for name in ["park.park.json", "park.park.json.bak"] {
+            assert_eq!(fs::read(directory.join(name)).unwrap(), bytes);
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn legacy_v15_paid_track_keeps_its_basis_and_passengers_during_continuation() {
         let directory = std::env::temp_dir().join(format!(
@@ -432,6 +497,7 @@ mod tests {
         let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = json!(15);
         old["content_version"] = json!(15);
+        old["park"].as_object_mut().unwrap().remove("ride_dispatch");
         old["park"]
             .as_object_mut()
             .unwrap()
@@ -456,6 +522,10 @@ mod tests {
     }
 
     fn strip_ride_choices(value: &mut Value) {
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ride_dispatch");
         value["park"]
             .as_object_mut()
             .unwrap()
