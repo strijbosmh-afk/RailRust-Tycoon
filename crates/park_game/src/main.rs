@@ -19,6 +19,7 @@ mod measurement;
 mod path_tools;
 mod persistence;
 mod render_scene;
+mod ride_operations;
 mod save_check;
 mod save_store;
 mod static_landscape;
@@ -72,6 +73,8 @@ struct ViewState {
     design_commands: Vec<design_library::DesignCommand>,
     selected_ride: Option<park_sim::RideId>,
     ride_browse_pending: i32,
+    ride_operating_commands: Vec<ride_operations::OperationCommand>,
+    ride_operating_notice: Option<String>,
     finance_page: usize,
     finance_page_pending: i32,
     selected_service: Option<park_sim::ServiceId>,
@@ -129,6 +132,8 @@ impl Default for ViewState {
             design_commands: Vec::new(),
             selected_ride: None,
             ride_browse_pending: 0,
+            ride_operating_commands: Vec::new(),
+            ride_operating_notice: None,
             finance_page: 0,
             finance_page_pending: 0,
             selected_service: None,
@@ -252,6 +257,8 @@ impl ViewState {
         self.rides_open = false;
         self.designs_open = false;
         self.design_commands.clear();
+        self.ride_operating_commands.clear();
+        self.ride_operating_notice = None;
         self.modal_input_blocked = true;
         self.ui_pointer_consumed = true;
         self.dragging = false;
@@ -290,6 +297,8 @@ impl ViewState {
             self.track_editor.preview = None;
             self.path_tool.clear_pointer();
             self.price_notice = None;
+            self.ride_operating_commands.clear();
+            self.ride_operating_notice = None;
         }
     }
 
@@ -427,6 +436,7 @@ fn main() -> AppExit {
                     apply_path_actions,
                     apply_train_actions,
                     apply_price_actions,
+                    ride_operations::apply_commands,
                     apply_service_actions,
                     track_tools::apply_commands,
                     pointer_input,

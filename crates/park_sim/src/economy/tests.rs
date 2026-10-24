@@ -684,7 +684,17 @@ fn malformed_money_and_missing_v6_fields_are_rejected_without_mutation() {
             "accepted absent {field}"
         );
     }
-    for (schema, content) in [(16, 16), (8, 7), (7, 8), (7, 6), (6, 7), (6, 5), (5, 6)] {
+    for (schema, content) in [
+        (u32::MAX, u32::MAX),
+        (16, 15),
+        (15, 16),
+        (8, 7),
+        (7, 8),
+        (7, 6),
+        (6, 7),
+        (6, 5),
+        (5, 6),
+    ] {
         let mut invalid = base.clone();
         invalid["schema_version"] = json!(schema);
         invalid["content_version"] = json!(content);

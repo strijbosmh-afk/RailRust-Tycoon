@@ -1,7 +1,7 @@
 //! Production input ordering with isolated design files; no native window backend.
 use super::*;
 use crate::{
-    design_library::{DesignCommand, DesignLibrary},
+    design_library::{DesignCommand, DesignLibrary, DesignSort},
     design_store::DesignStore,
     design_transfer::{self, TransferRequest},
     design_transfer_file,
@@ -635,6 +635,413 @@ fn press_gallery_control(app: &mut App, command: DesignCommand) {
         .find_map(|(entity, action)| (*action == ui::Action::Design(command)).then_some(entity))
         .expect("gallery setup must create the real requested control");
     press_widget(app, entity);
+}
+
+fn gallery_label(app: &mut App, matches: impl Fn(&ui::designs::DesignLabel) -> bool) -> String {
+    let world = app.world_mut();
+    let mut labels = world.query::<(&ui::designs::DesignLabel, &Text)>();
+    labels
+        .iter(world)
+        .find_map(|(label, text)| matches(label).then(|| text.0.clone()))
+        .expect("gallery must contain the requested label")
+}
+
+fn search_gallery(app: &mut App, window: Entity, query: &str) {
+    press_gallery_control(app, DesignCommand::SearchFocus);
+    type_text(app, window, query);
+}
+
+#[test]
+fn real_search_field_filters_unicode_names_and_recovers_from_no_matches_without_editing() {
+    let scratch = Scratch::new();
+    for name in ["Delta", "Éclair Loop", "Éclair Short"] {
+        scratch
+            .store()
+            .save_new(&TrackDesign::from_draft(name, &specs(10)).unwrap())
+            .unwrap();
+    }
+    let catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    let (park, view) = fixture();
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    app.init_resource::<Assets<Image>>().add_systems(
+        Update,
+        crate::design_preview::refresh_images.after(ui::designs::refresh),
+    );
+    let before_history = history(&app);
+    open(&mut app);
+    search_gallery(&mut app, window, "  éCLAir  ");
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(library.search_focused && !library.name_focused);
+    assert_eq!(library.selected_design().unwrap().name(), "Éclair Loop");
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Éclair Loop", "Éclair Short", "", ""]
+    );
+    assert_eq!(
+        gallery_label(&mut app, |label| matches!(
+            label,
+            ui::designs::DesignLabel::GalleryPage
+        )),
+        "Matches 1-2 of 2 / 3 saved designs"
+    );
+
+    press_gallery_control(&mut app, DesignCommand::NameFocus);
+    type_text(&mut app, window, "Name edit only");
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(library.name_focused && !library.search_focused);
+    assert_eq!(library.search, "  éCLAir  ");
+    search_gallery(&mut app, window, "absent");
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().name,
+        "Name edit only"
+    );
+    assert!(app.world().resource::<DesignLibrary>().selected.is_none());
+    assert_eq!(gallery_names(&mut app), ["", "", "", ""]);
+    assert_eq!(
+        gallery_label(&mut app, |label| matches!(
+            label,
+            ui::designs::DesignLabel::GalleryPage
+        )),
+        "0 matches / 3 saved designs"
+    );
+    assert!(
+        gallery_label(&mut app, |label| matches!(
+            label,
+            ui::designs::DesignLabel::PreviewStatus
+        ))
+        .starts_with("No saved designs match")
+    );
+    for card in gallery_cards(&mut app) {
+        assert_eq!(card.2, Display::None);
+        press_widget(&mut app, card.1);
+    }
+    for command in [
+        DesignCommand::LoadDraft,
+        DesignCommand::Export,
+        DesignCommand::Browse(1),
+    ] {
+        press_gallery_control(&mut app, command);
+    }
+    assert_no_transfer(&app);
+    assert!(app.world().resource::<DesignLibrary>().selected.is_none());
+    {
+        let world = app.world_mut();
+        let mut images = world.query::<(&ui::designs::DesignImage, &ImageNode)>();
+        assert!(
+            images
+                .iter(world)
+                .all(|(_, node)| node.color == Color::NONE)
+        );
+    }
+
+    // Ctrl+A applies to the search, while Backspace and the character limit
+    // count Unicode characters rather than UTF-8 bytes.
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::ControlRight);
+    text(
+        &mut app,
+        window,
+        KeyCode::KeyA,
+        Key::Character("a".into()),
+        Some("a"),
+    );
+    frame(&mut app);
+    text(&mut app, window, KeyCode::Backspace, Key::Backspace, None);
+    frame(&mut app);
+    assert!(app.world().resource::<DesignLibrary>().search.is_empty());
+    type_text(&mut app, window, &"é".repeat(40));
+    assert_eq!(
+        app.world()
+            .resource::<DesignLibrary>()
+            .search
+            .chars()
+            .count(),
+        32
+    );
+    text(&mut app, window, KeyCode::Backspace, Key::Backspace, None);
+    frame(&mut app);
+    assert_eq!(
+        app.world()
+            .resource::<DesignLibrary>()
+            .search
+            .chars()
+            .count(),
+        31
+    );
+    text(&mut app, window, KeyCode::Enter, Key::Enter, None);
+    frame(&mut app);
+    type_text(&mut app, window, "not entered");
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().search,
+        "é".repeat(31)
+    );
+    press_gallery_control(&mut app, DesignCommand::ClearSearch);
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Delta", "Éclair Loop", "Éclair Short", ""]
+    );
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(!library.search_focused && !library.name_focused);
+    assert_eq!(library.selected_design().unwrap().name(), "Delta");
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        catalog
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn filtered_sorting_pages_actions_and_images_use_catalog_indices_and_keep_placement() {
+    let scratch = Scratch::new();
+    for (name, count) in [
+        ("Alpine", 5),
+        ("Birch", 2),
+        ("Cedar loop", 3),
+        ("dune Loop", 2),
+        ("Elm", 2),
+        ("Fir LOOP", 2),
+        ("Grove loop", 4),
+        ("hazel loop", 2),
+    ] {
+        let pieces: Vec<_> = (0..count)
+            .map(|index| {
+                let kind = if index == 0 {
+                    TrackBuildKind::Station
+                } else {
+                    TrackBuildKind::Straight
+                };
+                kind.spec(
+                    TilePos {
+                        x: 10 + index,
+                        y: 15,
+                    },
+                    8,
+                    TrackDirection::East,
+                )
+            })
+            .collect();
+        scratch
+            .store()
+            .save_new(&TrackDesign::from_draft(name, &pieces).unwrap())
+            .unwrap();
+    }
+    let catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    let (park, view) = fixture();
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    app.init_resource::<Assets<Image>>().add_systems(
+        Update,
+        crate::design_preview::refresh_images.after(ui::designs::refresh),
+    );
+    let before_history = history(&app);
+    open(&mut app);
+    search_gallery(&mut app, window, "LOOP");
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Cedar loop", "dune Loop", "Fir LOOP", "Grove loop"]
+    );
+    for _ in 0..4 {
+        press_gallery_control(&mut app, DesignCommand::Browse(1));
+    }
+    assert_eq!(gallery_names(&mut app), ["hazel loop", "", "", ""]);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(7));
+    press_gallery_control(&mut app, DesignCommand::Turn);
+    press_gallery_control(&mut app, DesignCommand::MoveX(1));
+    press_gallery_control(&mut app, DesignCommand::Height(1));
+    press_gallery_control(&mut app, DesignCommand::Sort);
+    let library = app.world().resource::<DesignLibrary>();
+    assert_eq!(library.sort, DesignSort::Pieces);
+    assert_eq!(library.selected, Some(7));
+    assert_eq!(
+        (library.anchor, library.height, library.rotation),
+        (TilePos { x: 11, y: 15 }, 9, 1)
+    );
+    assert_eq!(
+        gallery_names(&mut app),
+        ["dune Loop", "Fir LOOP", "hazel loop", "Cedar loop"]
+    );
+    let cards = gallery_cards(&mut app);
+    for (card, index) in cards.iter().zip([3, 5, 7, 2]) {
+        assert!(card.3 == ui::Action::Design(DesignCommand::Select(index)));
+    }
+    // Check rendered pixels, not just the new captions: cached images remain
+    // attached to the saved design even when its visible slot changes.
+    let rendered: Vec<_> = {
+        let world = app.world_mut();
+        let mut nodes = world.query::<(&ui::designs::DesignImage, &ImageNode)>();
+        nodes
+            .iter(world)
+            .filter_map(|(kind, node)| match kind {
+                ui::designs::DesignImage::Thumbnail(slot) => Some((*slot, node.image.clone())),
+                _ => None,
+            })
+            .collect()
+    };
+    for (slot, handle) in rendered {
+        let design = &app.world().resource::<DesignLibrary>().entries[[3, 5, 7, 2][slot]];
+        let expected = crate::design_thumbnail::render(
+            design,
+            0,
+            crate::design_preview::THUMBNAIL_WIDTH,
+            crate::design_preview::THUMBNAIL_HEIGHT,
+        );
+        assert_eq!(
+            app.world()
+                .resource::<Assets<Image>>()
+                .get(&handle)
+                .unwrap()
+                .data,
+            expected.data
+        );
+    }
+    press_widget(&mut app, cards[0].1);
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(3));
+    command(&mut app, DesignCommand::Select(1)); // Birch is hidden by the search.
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(3));
+    press_gallery_control(&mut app, DesignCommand::Browse(-1));
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(6));
+    assert_eq!(gallery_names(&mut app), ["Grove loop", "", "", ""]);
+    press_gallery_control(&mut app, DesignCommand::Sort);
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().sort,
+        DesignSort::Name
+    );
+    assert_eq!(app.world().resource::<DesignLibrary>().selected, Some(6));
+    press_gallery_control(&mut app, DesignCommand::Sort);
+    press_gallery_control(&mut app, DesignCommand::Close);
+    open(&mut app);
+    let library = app.world().resource::<DesignLibrary>();
+    assert_eq!(
+        (&*library.search, library.sort, library.selected),
+        ("LOOP", DesignSort::Pieces, Some(6))
+    );
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        catalog
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn search_controls_respect_confirmation_and_transfer_barriers_and_delete_refreshes_matches() {
+    let scratch = Scratch::new();
+    save_gallery(&scratch);
+    let catalog = std::fs::read(scratch.store().catalog_path()).unwrap();
+    let (park, view) = fixture();
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    search_gallery(&mut app, window, "a");
+    press_gallery_control(&mut app, DesignCommand::DeleteSelected);
+    for command in [
+        DesignCommand::SearchFocus,
+        DesignCommand::ClearSearch,
+        DesignCommand::Sort,
+    ] {
+        press_gallery_control(&mut app, command);
+        type_text(&mut app, window, "blocked");
+    }
+    let library = app.world().resource::<DesignLibrary>();
+    assert_eq!(
+        (&*library.search, library.sort, library.selected),
+        ("a", DesignSort::Name, Some(0))
+    );
+    assert!(!library.search_focused);
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        catalog
+    );
+    actions(
+        &mut app,
+        [
+            DesignCommand::Confirm,
+            DesignCommand::ClearSearch,
+            DesignCommand::Sort,
+        ]
+        .map(ui::Action::Design),
+    );
+    let library = app.world().resource::<DesignLibrary>();
+    assert_eq!((&*library.search, library.sort), ("a", DesignSort::Name));
+    assert_eq!(library.selected_design().unwrap().name(), "Bravo");
+    assert_eq!(gallery_names(&mut app), ["Bravo", "Charlie", "Delta", ""]);
+    let after_delete = std::fs::read(scratch.store().catalog_path()).unwrap();
+
+    press_gallery_control(&mut app, DesignCommand::Import);
+    for command in [
+        DesignCommand::SearchFocus,
+        DesignCommand::ClearSearch,
+        DesignCommand::Sort,
+    ] {
+        press_gallery_control(&mut app, command);
+        type_text(&mut app, window, "blocked");
+    }
+    assert_eq!(app.world().resource::<DesignLibrary>().search, "a");
+    assert_eq!(
+        app.world().resource::<DesignLibrary>().sort,
+        DesignSort::Name
+    );
+    assert!(!complete_test_transfer(&mut app, &scratch, Ok(None)));
+    assert_eq!(
+        std::fs::read(scratch.store().catalog_path()).unwrap(),
+        after_delete
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
+fn save_rename_and_import_reveal_the_result_while_matching_imports_keep_search() {
+    let scratch = Scratch::new();
+    save_gallery(&scratch);
+    let imported = TrackDesign::from_draft("Shared loop", &specs(20)).unwrap();
+    let file = scratch.0.join("Shared.parktrack.json");
+    design_transfer_file::write_design(&file, &imported).unwrap();
+    let (park, view) = fixture();
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    search_gallery(&mut app, window, "absent");
+    press_gallery_control(&mut app, DesignCommand::NameFocus);
+    type_text(&mut app, window, "New design");
+    press_gallery_control(&mut app, DesignCommand::SaveNew);
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(library.search.is_empty());
+    assert_eq!(library.selected_design().unwrap().name(), "New design");
+
+    search_gallery(&mut app, window, "New");
+    press_gallery_control(&mut app, DesignCommand::NameFocus);
+    type_text(&mut app, window, "Renamed");
+    press_gallery_control(&mut app, DesignCommand::UpdateSelected);
+    press_gallery_control(&mut app, DesignCommand::Confirm);
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(library.search.is_empty());
+    assert_eq!(library.selected_design().unwrap().name(), "Renamed");
+    assert!(scratch.store().load("New design").is_err());
+
+    search_gallery(&mut app, window, "Alpha");
+    press_gallery_control(&mut app, DesignCommand::Import);
+    assert!(complete_test_transfer(
+        &mut app,
+        &scratch,
+        Ok(Some(file.clone()))
+    ));
+    let library = app.world().resource::<DesignLibrary>();
+    assert!(library.search.is_empty());
+    assert_eq!(library.selected_design().unwrap().name(), "Shared loop");
+    search_gallery(&mut app, window, "sHaReD");
+    press_gallery_control(&mut app, DesignCommand::Import);
+    assert!(complete_test_transfer(&mut app, &scratch, Ok(Some(file))));
+    let library = app.world().resource::<DesignLibrary>();
+    assert_eq!(library.search, "sHaReD");
+    assert_eq!(library.selected_design().unwrap().name(), "Shared loop (2)");
+    assert_eq!(
+        gallery_names(&mut app),
+        ["Shared loop", "Shared loop (2)", "", ""]
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
 }
 
 #[test]

@@ -16,6 +16,7 @@ mod ride_access;
 #[cfg(test)]
 mod ride_access_tests;
 mod ride_choice;
+mod ride_operations;
 mod saves;
 mod services;
 #[cfg(test)]
@@ -54,6 +55,12 @@ pub use path_geometry::{
     paths_connect,
 };
 pub use ride_access::{Ride, RideAccess, RideAccessError, RideAccessStatus, RideEntrance, RideId};
+pub use ride_operations::{
+    BRAKE_SPEED_STEP, CAROUSEL_CYCLE_STEP_TICKS, EQUIPMENT_SPEED_STEP, LIFT_SPEED_STEP,
+    MAX_BRAKE_SPEED, MAX_CAROUSEL_CYCLE_TICKS, MAX_LIFT_SPEED, MAX_STATION_WAIT_TICKS,
+    MIN_BRAKE_SPEED, MIN_CAROUSEL_CYCLE_TICKS, MIN_LIFT_SPEED, MIN_STATION_WAIT_TICKS,
+    RideOperatingError, RideOperatingSettings, STATION_WAIT_STEP_TICKS,
+};
 pub use saves::{MAX_SAVE_BYTES, SaveError};
 pub use services::{
     GuestNeeds, GuestNeedsSummary, MAX_SERVICE_PRICE_CENTS, MAX_SERVICES, NEED_CRITICAL_THRESHOLD,
@@ -191,6 +198,7 @@ pub struct Park {
     train: Option<Train>,
     ride: Option<Ride>,
     carousels: Vec<CarouselRide>,
+    ride_operating_settings: Vec<ride_operations::RideOperatingSettingsRecord>,
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
@@ -220,6 +228,7 @@ impl PartialEq for Park {
             && self.train == other.train
             && self.ride == other.ride
             && self.carousels == other.carousels
+            && self.ride_operating_settings == other.ride_operating_settings
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
@@ -270,6 +279,7 @@ impl Park {
             train: None,
             ride: None,
             carousels: Vec::new(),
+            ride_operating_settings: Vec::new(),
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),

@@ -12,8 +12,8 @@ use crate::{Axis, ObjectId, ObjectKind, Park, PlacementError, TilePos};
 pub const TRACK_UNITS: i32 = 1024;
 pub const STATION_DWELL_TICKS: u16 = 90;
 pub(crate) const MAX_SPEED: u32 = 96;
-const LIFT_SPEED: u32 = 24;
-const BRAKE_SPEED: u32 = 20;
+pub(crate) const LIFT_SPEED: u32 = 24;
+pub(crate) const BRAKE_SPEED: u32 = 20;
 const CAR_SPACING: u32 = 320;
 const CAR_HALF_LENGTH: u32 = 120;
 const SAMPLES_PER_PIECE: i64 = 8;
@@ -284,6 +284,7 @@ impl Park {
     /// this lap. Reopening a parked train begins a fresh full dwell. Commands
     /// work while globally paused, but no distance or dwell time elapses.
     pub fn set_train_open(&mut self, open: bool) {
+        let wait_ticks = self.coaster_operating_settings().station_wait_ticks;
         let Some(train) = &mut self.train else {
             return;
         };
@@ -293,7 +294,7 @@ impl Park {
         train.open = open;
         if !train.departed {
             train.speed = 0;
-            train.dwell_ticks = if open { STATION_DWELL_TICKS } else { 0 };
+            train.dwell_ticks = if open { wait_ticks } else { 0 };
             train.phase = if open {
                 TrainPhase::Station
             } else {
@@ -408,7 +409,11 @@ impl Park {
             speed: 0,
             distance: station_stop,
             laps,
-            dwell_ticks: if restoring { 0 } else { STATION_DWELL_TICKS },
+            dwell_ticks: if restoring {
+                0
+            } else {
+                candidate.coaster_operating_settings().station_wait_ticks
+            },
             piece_index: circuit.locate(station_stop).0,
             lap_progress: 0,
             departed: false,
@@ -465,6 +470,7 @@ impl Park {
     }
 
     pub(crate) fn step_train(&mut self) {
+        let settings = self.coaster_operating_settings();
         if self.ride_holds_train() {
             return;
         }
@@ -480,13 +486,15 @@ impl Park {
                 return;
             }
             train.departed = true;
-            train.speed = BRAKE_SPEED;
+            train.speed = settings.brake_speed;
         }
         let kind = circuit.pieces[train.piece_index].kind;
         train.speed = match kind {
-            TrackKind::Lift => LIFT_SPEED,
+            TrackKind::Lift => settings.lift_speed,
             TrackKind::Drop => (train.speed + 3).min(MAX_SPEED),
-            TrackKind::Brake | TrackKind::Station => train.speed.saturating_sub(5).max(BRAKE_SPEED),
+            TrackKind::Brake | TrackKind::Station => {
+                train.speed.saturating_sub(5).max(settings.brake_speed)
+            }
             TrackKind::Curve | TrackKind::Straight => {
                 if train.speed > 32 {
                     train.speed - 1
@@ -506,7 +514,11 @@ impl Park {
             train.speed = 0;
             train.lap_progress = 0;
             train.departed = false;
-            train.dwell_ticks = if train.open { STATION_DWELL_TICKS } else { 0 };
+            train.dwell_ticks = if train.open {
+                settings.station_wait_ticks
+            } else {
+                0
+            };
             train.phase = if train.open {
                 TrainPhase::Station
             } else {

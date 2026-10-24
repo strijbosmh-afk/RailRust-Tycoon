@@ -4,6 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::marker::PhantomData;
 
+mod ride_operations;
+use ride_operations::VersionFifteenParkData;
 mod track_construction;
 use track_construction::{VersionFourteenParkData, VersionThirteenParkData, VersionTwelveParkData};
 mod construction;
@@ -29,8 +31,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-const SCHEMA_VERSION: u32 = 15;
-const CONTENT_VERSION: u32 = 15;
+const SCHEMA_VERSION: u32 = 16;
+const CONTENT_VERSION: u32 = 16;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,6 +121,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     #[serde(deserialize_with = "strict_object")]
     track_economy: crate::TrackEconomy,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
+    ride_operating_settings: Vec<crate::ride_operations::RideOperatingSettingsRecord>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_TRACK_DRAFT_PIECES }>")]
     track_draft: Vec<TrackPieceSpec>,
     width: u32,
@@ -269,6 +273,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             width: self.width,
@@ -427,6 +432,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             width: self.width,
@@ -632,7 +638,7 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | SCHEMA_VERSION
+            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
@@ -689,6 +695,9 @@ impl Park {
         } else if header.schema_version == 14 {
             let legacy: SaveEnvelope<VersionFourteenParkData> = parse_save(bytes)?;
             legacy.park.migrate()
+        } else if header.schema_version == 15 {
+            let legacy: SaveEnvelope<VersionFifteenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park
@@ -711,7 +720,11 @@ impl Park {
         if header.schema_version <= 9 {
             data.initialize_ride_history()?;
         }
-        data.into_park()
+        let park = data.into_park()?;
+        if header.schema_version < SCHEMA_VERSION {
+            validate_legacy_operation_counters(&park)?;
+        }
+        Ok(park)
     }
 }
 
@@ -1363,6 +1376,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             width: self.width,
@@ -1388,6 +1402,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             width: self.width,
@@ -1416,6 +1431,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             width: self.width,
@@ -1572,6 +1588,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            ride_operating_settings: Vec::new(),
             track_draft: Vec::new(),
             track_economy: crate::TrackEconomy::default(),
             width: self.width,
@@ -1689,6 +1706,7 @@ impl ParkData {
             next_service_id: park.next_service_id,
             finances: park.finances.clone(),
             carousels: park.carousels.clone(),
+            ride_operating_settings: park.ride_operating_settings.clone(),
         }
     }
 
@@ -1730,6 +1748,7 @@ impl ParkData {
             next_service_id: self.next_service_id,
             finances: self.finances,
             carousels: self.carousels,
+            ride_operating_settings: self.ride_operating_settings,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
         };
@@ -1741,6 +1760,7 @@ impl ParkData {
         park.circuit = circuit_data
             .map(|data| rebuild_circuit(&park, &objects, data))
             .transpose()?;
+        crate::ride_operations::validate_saved_settings(&park).map_err(invalid)?;
         validate_train(&park)?;
         crate::track_construction::validate_track_economy(&park).map_err(invalid)?;
         crate::carousel::validate_carousels(&park).map_err(invalid)?;
@@ -1761,7 +1781,8 @@ impl ParkData {
 }
 
 fn validate_counts(park: &Park) -> Result<(), SaveError> {
-    if park.tiles.len() > MAX_TILES
+    if park.ride_operating_settings.len() > crate::MAX_RIDE_RECORDS
+        || park.tiles.len() > MAX_TILES
         || park.objects.len() > MAX_OBJECTS
         || park.guests.len() > MAX_GUESTS
         || park
@@ -2008,6 +2029,25 @@ fn rebuild_circuit(
     })
 }
 
+// Legacy files only ever used the original cycle and station wait. Keep their
+// original counter bound, even though current saves may include earlier cycles
+// completed under different settings and need the minimum possible duration.
+fn validate_legacy_operation_counters(park: &Park) -> Result<(), SaveError> {
+    for carousel in &park.carousels {
+        let elapsed = u128::from(carousel.cycles)
+            * u128::from(crate::CAROUSEL_RUN_TICKS + STATION_DWELL_TICKS)
+            + if carousel.phase == crate::CarouselPhase::Running {
+                u128::from(STATION_DWELL_TICKS) + u128::from(carousel.progress)
+            } else {
+                0
+            };
+        if elapsed > u128::from(park.ticks) {
+            return Err(invalid("legacy carousel operation counters are invalid"));
+        }
+    }
+    Ok(())
+}
+
 fn validate_train(park: &Park) -> Result<(), SaveError> {
     let (circuit, train) = match (&park.circuit, &park.train) {
         (None, None) => return Ok(()),
@@ -2035,7 +2075,7 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
         || train.piece_index >= circuit.pieces.len()
         || circuit.locate(train.distance).0 != train.piece_index
         || train.speed > crate::trains::MAX_SPEED
-        || train.dwell_ticks > STATION_DWELL_TICKS
+        || train.dwell_ticks > park.coaster_operating_settings().station_wait_ticks
     {
         return Err(invalid(
             "train position, piece index, speed or dwell is out of range",
@@ -2051,7 +2091,12 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
         };
         if train.phase != expected_phase
             || train.dwell_ticks != 0
-            || train.speed < 20
+            || train.speed
+                < park
+                    .coaster_operating_settings()
+                    .lift_speed
+                    .min(park.coaster_operating_settings().brake_speed)
+                    .min(32)
             || train.lap_progress == 0
             || train.distance != (circuit.station_stop + train.lap_progress) % circuit.total_length
         {
@@ -2383,8 +2428,8 @@ mod tests {
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
             assert_eq!(migrated, original);
             let modern = value(&migrated);
-            assert_eq!(modern["schema_version"], json!(15));
-            assert_eq!(modern["content_version"], json!(15));
+            assert_eq!(modern["schema_version"], json!(16));
+            assert_eq!(modern["content_version"], json!(16));
             assert_eq!(serde_json::to_vec(&old_data).unwrap(), old_bytes);
             for index in 0..600 {
                 let speed = [Speed::Paused, Speed::Normal, Speed::Fast, Speed::Fastest][index % 4];
@@ -2708,7 +2753,9 @@ mod tests {
         let modern = value(&park);
         for (schema, content) in [
             (0, 0),
-            (16, 16),
+            (u32::MAX, u32::MAX),
+            (16, 15),
+            (15, 16),
             (13, 14),
             (14, 13),
             (10, 9),
@@ -2942,8 +2989,8 @@ mod tests {
         }
         let text = String::from_utf8(bytes.clone()).unwrap();
         let duplicate = text.replacen(
-            "\"schema_version\":15",
-            "\"schema_version\":15,\"schema_version\":15",
+            "\"schema_version\":16",
+            "\"schema_version\":16,\"schema_version\":16",
             1,
         );
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());

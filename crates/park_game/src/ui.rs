@@ -65,6 +65,7 @@ pub(super) enum Action {
     Rides,
     CloseRides,
     BrowseRide(i8),
+    RideOperating(crate::ride_operations::OperationCommand),
     BuildCarousel,
     EditTrack,
     Track(crate::track_tools::TrackCommand),
@@ -843,7 +844,12 @@ pub(super) fn button_actions(
             continue;
         }
         view.ui_pointer_consumed = true;
-        if view.rides_open && !matches!(action, Action::Pause | Action::BrowseRide(_)) {
+        if view.rides_open
+            && !matches!(
+                action,
+                Action::Pause | Action::BrowseRide(_) | Action::RideOperating(_)
+            )
+        {
             continue;
         }
         if view.help && !matches!(action, Action::CloseHelp | Action::Help) {
@@ -864,6 +870,7 @@ pub(super) fn button_actions(
                     | Action::BrowseService(_)
                     | Action::ServicePrice(_)
                     | Action::ToggleService
+                    | Action::RideOperating(_)
             )
         {
             continue;
@@ -898,6 +905,10 @@ pub(super) fn button_actions(
                 view.ride_browse_pending =
                     view.ride_browse_pending.saturating_add(i32::from(*delta));
             }
+            Action::RideOperating(command) if view.rides_open => {
+                crate::ride_operations::queue(&mut view, *command);
+            }
+            Action::RideOperating(_) => {}
             Action::Rides
             | Action::CloseRides
             | Action::BuildCarousel
@@ -1444,11 +1455,14 @@ pub(super) fn refresh(
                 action,
                 Action::RemovePath | Action::RestorePaths | Action::Terrain
             );
+        let operating_disabled = matches!(action, Action::RideOperating(command)
+            if !crate::ride_operations::command_enabled(&sim.0, &view, *command));
         let color = if tool_disabled
             || history_disabled
             || price_disabled
             || service_disabled
             || world_edit_disabled
+            || operating_disabled
         {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {

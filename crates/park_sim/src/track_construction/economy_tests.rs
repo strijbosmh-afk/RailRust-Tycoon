@@ -171,6 +171,10 @@ fn free_schema_fourteen_track_gets_no_windfall_but_new_replacement_is_paid() {
     park.set_train_open(false);
     draft(&mut park, &specs);
     let mut old = json_value(&park);
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("ride_operating_settings");
     old["schema_version"] = json!(14);
     old["content_version"] = json!(14);
     old["park"].as_object_mut().unwrap().remove("track_economy");
@@ -203,6 +207,10 @@ fn free_schema_fourteen_track_gets_no_windfall_but_new_replacement_is_paid() {
     hybrid["park"]["track_economy"] = json!(TrackEconomy::default());
     assert!(read(&hybrid).is_err());
     let mut smuggled = json_value(&migrated);
+    smuggled["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("ride_operating_settings");
     smuggled["schema_version"] = json!(14);
     smuggled["content_version"] = json!(14);
     smuggled["park"]

@@ -176,8 +176,8 @@ fn restoring_a_blocked_or_incomplete_snapshot_is_allowed_but_apply_revalidates()
     park.replace_track_draft(&specs[..3]).unwrap();
     assert!(park.validate_track_draft().is_err());
     let json = json_value(&park);
-    assert_eq!(json["schema_version"], 15);
-    assert_eq!(json["content_version"], 15);
+    assert_eq!(json["schema_version"], 16);
+    assert_eq!(json["content_version"], 16);
     assert_eq!(json["park"]["track_draft"].as_array().unwrap().len(), 3);
     roundtrip(&park);
 }

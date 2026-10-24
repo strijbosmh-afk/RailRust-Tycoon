@@ -19,6 +19,9 @@ pub(crate) enum DesignCommand {
     Select(usize),
     Browse(i8),
     NameFocus,
+    SearchFocus,
+    ClearSearch,
+    Sort,
     SaveNew,
     UpdateSelected,
     DeleteSelected,
@@ -33,12 +36,22 @@ pub(crate) enum DesignCommand {
     Turn,
 }
 
+#[derive(Clone, Copy, Default, Debug, Eq, PartialEq)]
+pub(crate) enum DesignSort {
+    #[default]
+    Name,
+    Pieces,
+}
+
 #[derive(Resource)]
 pub(crate) struct DesignLibrary {
     pub entries: Vec<TrackDesign>,
     pub selected: Option<usize>,
     pub name: String,
     pub name_focused: bool,
+    pub search: String,
+    pub search_focused: bool,
+    pub sort: DesignSort,
     pub anchor: TilePos,
     pub height: u8,
     pub rotation: u8,
@@ -48,6 +61,7 @@ pub(crate) struct DesignLibrary {
     pub transfer_pending: bool,
     pub(crate) transfer_request: Option<crate::design_transfer::TransferRequest>,
     select_all: bool,
+    search_select_all: bool,
     confirmed_target: Option<TrackDesign>,
     confirmed_replacement: Option<TrackDesign>,
 }
@@ -59,6 +73,9 @@ impl Default for DesignLibrary {
             selected: None,
             name: String::new(),
             name_focused: false,
+            search: String::new(),
+            search_focused: false,
+            sort: DesignSort::default(),
             anchor: TilePos { x: 0, y: 0 },
             height: 8,
             rotation: 0,
@@ -68,6 +85,7 @@ impl Default for DesignLibrary {
             transfer_pending: false,
             transfer_request: None,
             select_all: false,
+            search_select_all: false,
             confirmed_target: None,
             confirmed_replacement: None,
         }
@@ -75,6 +93,52 @@ impl Default for DesignLibrary {
 }
 
 impl DesignLibrary {
+    /// Presentation order only: actions and cached images retain catalog indices.
+    pub(crate) fn visible_indices(&self) -> Vec<usize> {
+        let query = self.search.trim().to_lowercase();
+        let mut indices: Vec<_> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, design)| design.name().to_lowercase().contains(&query))
+            .map(|(index, _)| index)
+            .collect();
+        indices.sort_by_cached_key(|&index| {
+            let design = &self.entries[index];
+            (
+                if self.sort == DesignSort::Pieces {
+                    design.pieces().len()
+                } else {
+                    0
+                },
+                design.name().to_lowercase(),
+                design.name().to_owned(),
+            )
+        });
+        indices
+    }
+
+    pub(crate) fn selected_visible_position(&self) -> Option<usize> {
+        let selected = self.selected?;
+        self.visible_indices()
+            .iter()
+            .position(|&index| index == selected)
+    }
+
+    fn reconcile_selection(&mut self) {
+        let visible = self.visible_indices();
+        if self.selected.is_some_and(|index| visible.contains(&index)) {
+            return;
+        }
+        if let Some(&index) = visible.first() {
+            let focus = (self.search_focused, self.search_select_all);
+            self.select(index);
+            (self.search_focused, self.search_select_all) = focus;
+        } else {
+            self.selected = None;
+        }
+    }
+
     pub(crate) fn selected_design(&self) -> Option<&TrackDesign> {
         self.selected.and_then(|index| self.entries.get(index))
     }
@@ -88,7 +152,9 @@ impl DesignLibrary {
         (self.anchor, self.height) = design.anchor();
         self.rotation = 0;
         self.name_focused = false;
+        self.search_focused = false;
         self.select_all = false;
+        self.search_select_all = false;
         self.cancel_confirmation();
     }
 
@@ -104,11 +170,17 @@ impl DesignLibrary {
                 self.entries = entries;
                 self.available = true;
                 self.selected = None;
-                if !self.entries.is_empty() {
-                    let index = preferred
-                        .and_then(|name| self.entries.iter().position(|d| d.name() == name))
-                        .unwrap_or(0);
+                if let Some(index) =
+                    preferred.and_then(|name| self.entries.iter().position(|d| d.name() == name))
+                {
+                    // A newly saved, renamed or imported design must be visible.
+                    // Keep the user's search whenever that design already matches.
+                    if !self.visible_indices().contains(&index) {
+                        self.search.clear();
+                    }
                     self.select(index);
+                } else {
+                    self.reconcile_selection();
                 }
                 true
             }
@@ -164,8 +236,10 @@ pub(crate) fn command_enabled(
         }
         DeleteSelected | LoadDraft | Turn | Export => selected,
         Import => library.entries.len() < crate::design_store::MAX_TRACK_DESIGNS,
-        Browse(_) => library.entries.len() > 1,
-        Select(index) => index < library.entries.len(),
+        Browse(_) => library.visible_indices().len() > 1,
+        Select(index) => library.visible_indices().contains(&index),
+        ClearSearch => !library.search.is_empty(),
+        Sort => library.entries.len() > 1,
         MoveX(delta) => {
             selected
                 && if delta < 0 {
@@ -220,6 +294,7 @@ fn close(view: &mut ViewState, library: &mut DesignLibrary) {
     view.set_modal(false, false, false, false);
     view.modal_transition_pending = true;
     library.name_focused = false;
+    library.search_focused = false;
     library.cancel_confirmation();
     library.transfer_pending = false;
     library.transfer_request = None;
@@ -237,7 +312,7 @@ pub(crate) fn keyboard_text(
             || view.diagnostic_case.is_some()
             || view.modal_input_blocked
             || view.modal_transition_pending
-            || !library.name_focused
+            || !(library.name_focused || library.search_focused)
             || library.confirmation.is_some()
             || library.transfer_pending
             || event.state != ButtonState::Pressed
@@ -248,37 +323,56 @@ pub(crate) fn keyboard_text(
         let control = held(KeyCode::ControlLeft) || held(KeyCode::ControlRight);
         let alt = held(KeyCode::AltLeft) || held(KeyCode::AltRight);
         if control && !alt && event.key_code == KeyCode::KeyA {
-            library.select_all = true;
+            if library.search_focused {
+                library.search_select_all = true;
+            } else {
+                library.select_all = true;
+            }
             continue;
         }
         // Ctrl shortcuts do not enter text; AltGr can produce ordinary Unicode.
         if control && !alt {
             continue;
         }
+        if matches!(event.logical_key, Key::Enter | Key::Tab) {
+            library.name_focused = false;
+            library.search_focused = false;
+            continue;
+        }
+        let searching = library.search_focused;
+        let previous_search = library.search.clone();
+        let library = &mut *library;
+        let (value, select_all) = if searching {
+            (&mut library.search, &mut library.search_select_all)
+        } else {
+            (&mut library.name, &mut library.select_all)
+        };
         match event.logical_key {
             Key::Backspace => {
-                if library.select_all {
-                    library.name.clear();
+                if *select_all {
+                    value.clear();
                 } else {
-                    library.name.pop();
+                    value.pop();
                 }
-                library.select_all = false;
+                *select_all = false;
             }
-            Key::Enter | Key::Tab => library.name_focused = false,
             _ => {
                 if let Some(text) = event.text.as_deref() {
                     let text: String = text.chars().filter(|c| !c.is_control()).collect();
                     if !text.is_empty() {
-                        if library.select_all {
-                            library.name.clear();
+                        if *select_all {
+                            value.clear();
                         }
-                        library.select_all = false;
-                        let remaining = MAX_TRACK_DESIGN_NAME_CHARS
-                            .saturating_sub(library.name.chars().count());
-                        library.name.extend(text.chars().take(remaining));
+                        *select_all = false;
+                        let remaining =
+                            MAX_TRACK_DESIGN_NAME_CHARS.saturating_sub(value.chars().count());
+                        value.extend(text.chars().take(remaining));
                     }
                 }
             }
+        }
+        if searching && library.search != previous_search {
+            library.reconcile_selection();
         }
     }
 }
@@ -377,16 +471,41 @@ pub(crate) fn perform_command(
         }
         Select(index) => library.select(index),
         Browse(delta) => {
-            if !library.entries.is_empty() {
-                let index = (library.selected.unwrap_or(0) as i64 + i64::from(delta))
-                    .rem_euclid(library.entries.len() as i64) as usize;
-                perform_command(store, park, view, library, Select(index));
+            let visible = library.visible_indices();
+            if !visible.is_empty() {
+                let position = (library.selected_visible_position().unwrap_or(0) as i64
+                    + i64::from(delta))
+                .rem_euclid(visible.len() as i64) as usize;
+                perform_command(store, park, view, library, Select(visible[position]));
             }
         }
         NameFocus => {
             library.name_focused = true;
+            library.search_focused = false;
             library.select_all = true;
             library.notice = "Type a name (up to 32 characters).\nEnter finishes typing; Ctrl+A selects the whole name.".into();
+        }
+        SearchFocus => {
+            library.search_focused = true;
+            library.name_focused = false;
+            library.search_select_all = true;
+            library.notice = "Search saved names; Clear shows every design.\nSearch and sorting never change your saved library.".into();
+        }
+        ClearSearch => {
+            library.search.clear();
+            library.name_focused = false;
+            library.search_focused = false;
+            library.search_select_all = false;
+            library.reconcile_selection();
+        }
+        Sort => {
+            library.sort = match library.sort {
+                DesignSort::Name => DesignSort::Pieces,
+                DesignSort::Pieces => DesignSort::Name,
+            };
+            library.name_focused = false;
+            library.search_focused = false;
+            library.reconcile_selection();
         }
         MoveX(delta) => {
             library.anchor.x = (i64::from(library.anchor.x) + i64::from(delta))
@@ -422,6 +541,7 @@ pub(crate) fn perform_command(
             library.transfer_request = Some(request);
             library.transfer_pending = true;
             library.name_focused = false;
+            library.search_focused = false;
             view.modal_transition_pending = true;
             library.notice = "Choose a .parktrack.json file in the Windows dialog.\nImport and export leave the draft unchanged.".into();
         }
@@ -475,6 +595,7 @@ pub(crate) fn perform_command(
             library.confirmed_replacement = replacement;
             library.confirmation = Some(command);
             library.name_focused = false;
+            library.search_focused = false;
         }
         Confirm => {
             let Some(target) = library.confirmed_target.take() else {

@@ -11,18 +11,16 @@ pub(crate) const PREVIEW_HEIGHT: u32 = 180;
 pub(crate) const PAGE_SIZE: usize = 4;
 
 pub(crate) fn page_start(library: &DesignLibrary) -> usize {
-    library
-        .selected
-        .filter(|index| *index < library.entries.len())
-        .unwrap_or(0)
-        / PAGE_SIZE
-        * PAGE_SIZE
+    library.selected_visible_position().unwrap_or(0) / PAGE_SIZE * PAGE_SIZE
 }
 
 /// The shape image is normalized; these figures describe the actual placement.
 /// Quotes use current world/cash state and never replace the editor's draft.
 pub(crate) fn status_text(park: &Park, library: &DesignLibrary) -> String {
     let Some(design) = library.selected_design() else {
+        if !library.entries.is_empty() {
+            return "No saved designs match your search.\nClear search to browse the whole library.\nYour draft and park are unchanged.".into();
+        }
         return "Save a draft to see its shape here.\nThumbnails are recreated from saved track.\nBrowsing never changes the park.".into();
     };
     let specs = match design.transformed(library.anchor, library.height, library.rotation) {
@@ -158,12 +156,13 @@ pub(crate) fn refresh_images(
     }
     cache.sync(&library, &mut images);
     let start = page_start(&library);
+    let visible = library.visible_indices();
     for (kind, mut node) in &mut nodes {
         let image = match kind {
             DesignImage::Preview => cache.selected.as_ref().map(|(_, _, image)| image),
-            DesignImage::Thumbnail(slot) => cache
-                .thumbnails
+            DesignImage::Thumbnail(slot) => visible
                 .get(start + slot)
+                .and_then(|&index| cache.thumbnails.get(index))
                 .map(|cached| &cached.image),
         };
         let (handle, color) = image.map_or_else(
