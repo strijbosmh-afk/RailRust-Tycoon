@@ -1,11 +1,178 @@
 //! Purchased graded circuits, refunds, persisted drafts and paid passenger continuation.
 use super::*;
+use crate::track_tools::{self, TrackCommand, TrackEditor};
 use park_sim::{
     FinanceKind, ObjectId, PathDirection, PathSlope, RideId, TrackBuildKind, TrackDirection,
     TrackKind, TrackPieceSpec, TrainPhase,
 };
 
 const REPLAY_TICKS: u64 = 7_200;
+
+/// Use the production picker and edit path in captures and continuation proofs.
+pub(crate) fn edit_draft_piece(
+    park: &mut Park,
+    view: &mut ViewState,
+    kind: TrackBuildKind,
+    pos: TilePos,
+    height: u8,
+    direction: TrackDirection,
+) -> Result<(), String> {
+    track_tools::apply_command(park, view, TrackCommand::Piece(kind));
+    view.track_editor.direction = direction;
+    view.track_editor.height = height;
+    let spec = kind.spec(pos, height, direction);
+    let shift = (f32::from(spec.exit.height) - f32::from(spec.entry.height))
+        * 0.5
+        * crate::world::HEIGHT_STEP;
+    let point = track_tools::build_center(park, pos, height, view.rotation)
+        + bevy::prelude::Vec2::Y * shift;
+    track_tools::point_at(park, view, point, true);
+    if !park.track_draft().contains(&spec) {
+        return Err("production track picker did not apply the requested draft edit".into());
+    }
+    Ok(())
+}
+
+fn history_counts(view: &ViewState) -> (usize, usize) {
+    (view.track_editor.undo_len(), view.track_editor.redo_len())
+}
+
+fn editing_session(directory: &Path) -> SaveSession {
+    SaveSession::from_arguments([
+        "--save-dir".into(),
+        directory.join("editing-session").into_os_string(),
+    ])
+}
+
+fn write_editing_session(directory: &Path) -> Result<(), String> {
+    let mut park = demonstration_park();
+    install_access(&mut park)?;
+    draft(&mut park, true)?;
+    apply(&mut park)?;
+    park.clear_track_draft();
+    let original = park.clone();
+    let mut view = ViewState {
+        track_editor: TrackEditor {
+            active: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::CopyInstalled);
+    if park.track_draft() != specs() || history_counts(&view) != (1, 0) {
+        return Err("copy installed did not create one exact graded draft history entry".into());
+    }
+    let copied = park.clone();
+    let session = editing_session(directory);
+    if !persistence::perform_action(&session, &mut park, &mut view, SaveAction::Save) {
+        return Err(view.save_notice);
+    }
+    write_new(
+        &directory.join("expected-editor-copy.park.json"),
+        &super::ride_choice::bytes(&park)?,
+    )?;
+    edit_draft_piece(
+        &mut park,
+        &mut view,
+        TrackBuildKind::Brake,
+        TilePos { x: 14, y: 5 },
+        11,
+        TrackDirection::North,
+    )?;
+    let edited = park.clone();
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::Undo);
+    if park != copied || history_counts(&view) != (1, 1) {
+        return Err("undo did not restore the copied graded draft exactly".into());
+    }
+    // An identical copy is a no-op, so it cannot destroy this redo.
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::CopyInstalled);
+    if park != copied || history_counts(&view) != (1, 1) {
+        return Err("identical copy destroyed redo or changed the live park".into());
+    }
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::Redo);
+    if park != edited || history_counts(&view) != (2, 0) {
+        return Err("redo did not recover the exact paid replacement draft".into());
+    }
+    unchanged_except_draft(&original, &park)?;
+    let quote = park.track_construction_quote().map_err(|e| e.to_string())?;
+    if (quote.construction_cents, quote.refund_cents) != (2_000, 500) {
+        return Err("redone draft quote no longer matches the actual paid straight".into());
+    }
+    if !persistence::perform_action(&session, &mut park, &mut view, SaveAction::Save) {
+        return Err(view.save_notice);
+    }
+    write_new(
+        &directory.join("expected-editor-edited.park.json"),
+        &super::ride_choice::bytes(&park)?,
+    )?;
+    Ok(())
+}
+
+fn verify_editing_session(directory: &Path) -> Result<(), String> {
+    let session = editing_session(directory);
+    let store = session
+        .store
+        .as_ref()
+        .ok_or("invalid editor proof save directory")?;
+    let primary = fs::read(store.save_path()).map_err(|e| e.to_string())?;
+    let backup = fs::read(store.backup_path()).map_err(|e| e.to_string())?;
+    let edited = read_expected(&directory.join("expected-editor-edited.park.json"))?;
+    let copied = read_expected(&directory.join("expected-editor-copy.park.json"))?;
+    let mut park = demonstration_park();
+    let mut view = ViewState::default();
+    // Populate an unrelated session so a successful load must discard it.
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::CopyInstalled);
+    if view.track_editor.undo_len() != 1 {
+        return Err("editor load fixture did not create old history".into());
+    }
+    if !persistence::perform_action(&session, &mut park, &mut view, SaveAction::Load) {
+        return Err(view.save_notice);
+    }
+    if park != edited || view.speed != Speed::Paused || history_counts(&view) != (0, 0) {
+        return Err(
+            "edited primary failed to load exactly, paused and without session history".into(),
+        );
+    }
+    for command in [TrackCommand::Undo, TrackCommand::Redo] {
+        track_tools::apply_command(&mut park, &mut view, command);
+        if park != edited || history_counts(&view) != (0, 0) {
+            return Err("loaded draft invented an undo/redo snapshot".into());
+        }
+    }
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::CopyInstalled);
+    if park != copied || history_counts(&view) != (1, 0) {
+        return Err("copy after load did not start a new draft-only editing session".into());
+    }
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::Undo);
+    if park != edited || history_counts(&view) != (0, 1) {
+        return Err("copy after load cannot be undone to the loaded replacement draft".into());
+    }
+    // Apply is the purchase boundary. No later history action can refund or
+    // reconstruct the park from an earlier editing snapshot.
+    track_tools::apply_command(&mut park, &mut view, TrackCommand::Apply);
+    if park.cash_cents() + 1_500 != edited.cash_cents() || history_counts(&view) != (0, 0) {
+        return Err("paid Apply failed to settle the edited quote and clear history".into());
+    }
+    let applied = park.clone();
+    for command in [TrackCommand::Undo, TrackCommand::Redo] {
+        track_tools::apply_command(&mut park, &mut view, command);
+        if park != applied {
+            return Err("session history reversed a settled purchase".into());
+        }
+    }
+    if !persistence::perform_action(&session, &mut park, &mut view, SaveAction::Backup) {
+        return Err(view.save_notice);
+    }
+    if park != copied || history_counts(&view) != (0, 0) {
+        return Err("copied-plan backup did not restore exactly without session history".into());
+    }
+    if fs::read(store.save_path()).map_err(|e| e.to_string())? != primary
+        || fs::read(store.backup_path()).map_err(|e| e.to_string())? != backup
+    {
+        return Err("editing verification changed an original primary or backup slot".into());
+    }
+    Ok(())
+}
 
 /// One station, both curve directions, three chain lifts, both descending
 /// grades and brakes. The station keeps its original entrance and exit portals.
@@ -694,6 +861,35 @@ fn replay(park: &mut Park) -> Result<(), String> {
     if !super::ride_choice::paid_running(park, ride) {
         return Err("track primary lacks moving paid passengers".into());
     }
+    let before_copy = park.clone();
+    let mut editing = ViewState {
+        track_editor: TrackEditor {
+            active: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    track_tools::apply_command(park, &mut editing, TrackCommand::CopyInstalled);
+    unchanged_except_draft(&before_copy, park)?;
+    let original = park.clone();
+    edit_draft_piece(
+        park,
+        &mut editing,
+        TrackBuildKind::Brake,
+        TilePos { x: 14, y: 5 },
+        11,
+        TrackDirection::North,
+    )?;
+    let edited = park.clone();
+    let counts = history_counts(&editing);
+    track_tools::apply_command(park, &mut editing, TrackCommand::Apply);
+    if *park != edited || history_counts(&editing) != counts {
+        return Err("occupied Apply changed draft history, passengers or paid track".into());
+    }
+    track_tools::apply_command(park, &mut editing, TrackCommand::Undo);
+    if *park != original {
+        return Err("undo while passengers travel changed more than the draft".into());
+    }
     let original_laps = park.train().unwrap().laps;
     let completed = park.ride().unwrap().completed;
     let mut original_motion = MotionEvidence::default();
@@ -720,9 +916,39 @@ fn replay(park: &mut Park) -> Result<(), String> {
     // Perform a genuinely different replacement after earning money/reviews.
     // Change both descending grades and move the brake, retaining public access.
     let before_draft = park.clone();
-    for piece in replacement_specs() {
-        park.set_track_draft_piece(piece)
-            .map_err(|e| e.to_string())?;
+    track_tools::apply_command(park, &mut editing, TrackCommand::Clear);
+    track_tools::apply_command(park, &mut editing, TrackCommand::CopyInstalled);
+    for (kind, x, height) in [
+        (TrackBuildKind::SteepDrop, 13, 11),
+        (TrackBuildKind::Drop, 12, 9),
+        (TrackBuildKind::Straight, 11, 8),
+        (TrackBuildKind::Brake, 10, 8),
+    ] {
+        edit_draft_piece(
+            park,
+            &mut editing,
+            kind,
+            TilePos { x, y: 4 },
+            height,
+            TrackDirection::West,
+        )?;
+    }
+    let replacement = park.clone();
+    for _ in 0..4 {
+        track_tools::apply_command(park, &mut editing, TrackCommand::Undo);
+    }
+    if park.track_draft() != specs() {
+        return Err(
+            "undoing the four regrading edits did not restore the copied live profile".into(),
+        );
+    }
+    for _ in 0..4 {
+        track_tools::apply_command(park, &mut editing, TrackCommand::Redo);
+    }
+    if *park != replacement
+        || park.validate_track_draft().map_err(|e| e.to_string())? != replacement_specs()
+    {
+        return Err("redoing the regraded replacement changed its exact plan or live state".into());
     }
     unchanged_except_draft(&before_draft, park)?;
     apply(park)?;
@@ -760,6 +986,7 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
     let store = session.store.as_ref().ok_or("invalid --save-dir")?;
     fs::create_dir(store.directory()).map_err(|e| e.to_string())?;
     economics_side_cases()?;
+    write_editing_session(store.directory())?;
     let mut park = demonstration_park();
     install_access(&mut park)?;
     draft(&mut park, false)?;
@@ -806,6 +1033,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     let primary = fs::read(store.save_path()).map_err(|e| e.to_string())?;
     let backup = fs::read(store.backup_path()).map_err(|e| e.to_string())?;
     economics_side_cases()?;
+    verify_editing_session(store.directory())?;
     let mut park = demonstration_park();
     let mut view = ViewState::default();
     if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Load) {
@@ -843,7 +1071,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     {
         return Err("track verification changed an original save slot".into());
     }
-    write_new(&store.directory().join("verification-track-construction.txt"), format!("Parkbound {}\nArbitrary-order station, curves, chain lifts, one/two-step drops and brakes form an exact directed height-matched loop: PASS\nIncomplete persisted draft changes no live objects, IDs, money, RNG or path cache: PASS\nIncomplete, disconnected, mismatched-height, reversed-corner and occupied-path rejection preserve full state: PASS\nWhole lift envelope protects the public bridge where a level rail still fits: PASS\nImmutable quotes match independent fixed piece prices and actual paid-basis refunds: PASS\nClosed Apply retains coaster identity, portals, guests, earned history and laps: PASS\nChanged drop/brake profile preserves unchanged rail IDs and paid bases, charges only changed rails, refunds retired paid rails and completes another paid journey: PASS\nRefund-before-purchase entries attribute exact amounts and running balances to the coaster: PASS\nRepeated Apply preserves existing piece IDs, cash and ledger: PASS\nSeventy paid straight/brake replacements archive ledger entries without profitable rebuild cycles: PASS\nUnaffordable complete replacement rejects atomically including cash, paid bases and ledger: PASS\nPartial demolition faults safely; saved remnants retain half-price refunds exactly once: PASS\nFree fixture and legacy-basis rails yield no refund or ledger entry: PASS\nPaid mid-lift primary, safe occupied refusal, complete lap and public guest return: PASS\nBoth built profiles show fixed-speed lifting, downhill acceleration and brake speed: PASS\nExact mid-lift/drop/brake roundtrips and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nStrict15 roundtrips preserve paid bases, archived history and paused incomplete-draft backup: PASS\nOriginal primary and backup bytes unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
+    write_new(&store.directory().join("verification-track-construction.txt"), format!("Parkbound {}\nArbitrary-order station, curves, chain lifts, one/two-step drops and brakes form an exact directed height-matched loop: PASS\nIncomplete persisted draft changes no live objects, IDs, money, RNG or path cache: PASS\nIncomplete, disconnected, mismatched-height, reversed-corner and occupied-path rejection preserve full state: PASS\nWhole lift envelope protects the public bridge where a level rail still fits: PASS\nImmutable quotes match independent fixed piece prices and actual paid-basis refunds: PASS\nClosed Apply retains coaster identity, portals, guests, earned history and laps: PASS\nChanged drop/brake profile preserves unchanged rail IDs and paid bases, charges only changed rails, refunds retired paid rails and completes another paid journey: PASS\nRefund-before-purchase entries attribute exact amounts and running balances to the coaster: PASS\nRepeated Apply preserves existing piece IDs, cash and ledger: PASS\nSeventy paid straight/brake replacements archive ledger entries without profitable rebuild cycles: PASS\nUnaffordable complete replacement rejects atomically including cash, paid bases and ledger: PASS\nPartial demolition faults safely; saved remnants retain half-price refunds exactly once: PASS\nFree fixture and legacy-basis rails yield no refund or ledger entry: PASS\nPaid mid-lift primary, safe occupied refusal, complete lap and public guest return: PASS\nBoth built profiles show fixed-speed lifting, downhill acceleration and brake speed: PASS\nExact mid-lift/drop/brake roundtrips and fresh-process continuation: PASS ({REPLAY_TICKS} ticks)\nInstalled graded circuit copied through production commands without changing live paid track: PASS\nProduction pointer regrading, four undo/redo steps and occupied Apply refusal preserve live state: PASS\nFresh-process edited primary and copied-plan backup load exactly, paused, with empty session history: PASS\nIdentical Copy preserves redo; new editing after load stays draft-only; successful Apply clears history: PASS\nStrict15 roundtrips preserve paid bases, archived history and paused incomplete-draft backup: PASS\nOriginal primary and backup bytes unchanged: PASS\n", env!("CARGO_PKG_VERSION")).as_bytes())?;
     Ok(())
 }
 

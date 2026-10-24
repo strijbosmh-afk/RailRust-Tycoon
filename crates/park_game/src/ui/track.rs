@@ -23,7 +23,7 @@ fn small_button(parent: &mut ChildSpawnerCommands, text: &str, command: TrackCom
             Action::Track(command),
             Node {
                 width: px(width),
-                height: px(24),
+                height: px(21),
                 flex_shrink: 0.0,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
@@ -46,7 +46,7 @@ fn small_button(parent: &mut ChildSpawnerCommands, text: &str, command: TrackCom
                     TrackLabel::Direction,
                 ));
             }
-            _ => label(p, text, 12.0, INK),
+            _ => label(p, text, if width < 90.0 { 11.0 } else { 12.0 }, INK),
         });
 }
 
@@ -152,8 +152,13 @@ pub(super) fn setup(commands: &mut Commands) {
                 small_button(p, "+", TrackCommand::Height(1), 32.0);
             });
             p.spawn(row()).with_children(|p| {
-                small_button(p, "Erase [X]", TrackCommand::Erase, 100.0);
-                small_button(p, "Clear draft", TrackCommand::Clear, 100.0);
+                small_button(p, "Erase [X]", TrackCommand::Erase, 64.0);
+                small_button(p, "Copy live", TrackCommand::CopyInstalled, 64.0);
+                small_button(p, "Clear", TrackCommand::Clear, 65.0);
+            });
+            p.spawn(row()).with_children(|p| {
+                small_button(p, "Undo Ctrl+Z", TrackCommand::Undo, 100.0);
+                small_button(p, "Redo Ctrl+Y", TrackCommand::Redo, 100.0);
             });
             p.spawn(row()).with_children(|p| {
                 small_button(p, "Apply track", TrackCommand::Apply, 100.0);

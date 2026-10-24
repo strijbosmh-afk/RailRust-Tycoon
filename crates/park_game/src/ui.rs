@@ -596,6 +596,7 @@ pub(super) fn setup(mut commands: Commands) {
                 for (keys, purpose) in [
                     ("L / M / N / Y", "Guests / services / finance / rides"),
                     ("Z / track tools", "Draft track / C heading / X erase"),
+                    ("Ctrl+Z / Ctrl+Y", "Undo / redo draft (also Ctrl+Shift+Z)"),
                     ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
                     ("C / shape button", "Cycle slope / turn gate or service"),
                     ("B / V", "Raise / lower dry land one step"),
@@ -662,8 +663,8 @@ pub(super) fn button_actions(
         keys.just_pressed(KeyCode::KeyL)
             || keys.just_pressed(KeyCode::KeyM)
             || keys.just_pressed(KeyCode::KeyN)
-            || keys.just_pressed(KeyCode::KeyY)
-            || keys.just_pressed(KeyCode::KeyZ)
+            || (crate::track_history_shortcut(keys).is_none()
+                && (keys.just_pressed(KeyCode::KeyY) || keys.just_pressed(KeyCode::KeyZ)))
             || keys.just_pressed(KeyCode::KeyH)
             || keys.just_pressed(KeyCode::F1)
             || ((view.help
@@ -1378,6 +1379,10 @@ pub(super) fn refresh(
             }
             _ => false,
         };
+        let history_disabled = matches!(action,
+            Action::Track(crate::track_tools::TrackCommand::Undo) if !view.track_editor.can_undo())
+            || matches!(action,
+                Action::Track(crate::track_tools::TrackCommand::Redo) if !view.track_editor.can_redo());
         let tool_disabled = matches!(
             action,
             Action::SetPathTool(_)
@@ -1402,7 +1407,12 @@ pub(super) fn refresh(
                 action,
                 Action::RemovePath | Action::RestorePaths | Action::Terrain
             );
-        let color = if tool_disabled || price_disabled || service_disabled || world_edit_disabled {
+        let color = if tool_disabled
+            || history_disabled
+            || price_disabled
+            || service_disabled
+            || world_edit_disabled
+        {
             Color::srgb_u8(239, 240, 232)
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD

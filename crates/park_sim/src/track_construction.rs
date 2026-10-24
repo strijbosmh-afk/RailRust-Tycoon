@@ -162,6 +162,7 @@ pub enum TrackConstructionError {
     DraftFull,
     DuplicateTile(TilePos),
     UnsupportedPiece,
+    NoInstalledCircuit,
     IncompleteLoop(TilePos),
     DisconnectedPieces,
     CloseRide,
@@ -196,6 +197,7 @@ impl std::fmt::Display for TrackConstructionError {
             Self::UnsupportedPiece => {
                 f.write_str("use level stations, straights, curves and brakes, one-step lifts, or one/two-step drops")
             }
+            Self::NoInstalledCircuit => f.write_str("no complete installed coaster to copy"),
             Self::IncompleteLoop(pos) => {
                 write!(f, "connect the track leaving ({}, {})", pos.x, pos.y)
             }
@@ -288,6 +290,41 @@ impl Park {
     }
     pub fn track_draft(&self) -> &[TrackPieceSpec] {
         &self.track_draft
+    }
+
+    /// Restore an exact draft snapshot without touching the installed ride.
+    /// Drafts may be incomplete or obstructed by later world changes; Apply
+    /// rechecks connectivity, clearance, operating state and affordability.
+    pub fn replace_track_draft(
+        &mut self,
+        specs: &[TrackPieceSpec],
+    ) -> Result<bool, TrackConstructionError> {
+        validate_draft_structure(self, specs)?;
+        if self.track_draft == specs {
+            return Ok(false);
+        }
+        self.track_draft = specs.to_vec();
+        Ok(true)
+    }
+
+    /// Copy installed specifications exactly, even while the coaster is open
+    /// or occupied. A missing or faulted circuit leaves the current plan intact.
+    pub fn copy_installed_track_to_draft(&mut self) -> Result<bool, TrackConstructionError> {
+        if self
+            .train
+            .as_ref()
+            .is_none_or(|train| train.phase == TrainPhase::Fault)
+        {
+            return Err(TrackConstructionError::NoInstalledCircuit);
+        }
+        let specs = self
+            .circuit
+            .as_ref()
+            .ok_or(TrackConstructionError::NoInstalledCircuit)?
+            .specs
+            .clone();
+        self.validate_train_circuit()?;
+        self.replace_track_draft(&specs)
     }
 
     /// Preview does not allocate identities or alter navigation cache state.
@@ -639,11 +676,18 @@ fn validate_piece_shape(park: &Park, spec: TrackPieceSpec) -> Result<(), TrackCo
 /// Pending plans may become blocked by later world edits. Save only structural
 /// constraints here; completion and occupied-space checks belong to Apply.
 pub(crate) fn validate_saved_draft(park: &Park) -> Result<(), TrackConstructionError> {
-    if park.track_draft.len() > MAX_TRACK_DRAFT_PIECES {
+    validate_draft_structure(park, &park.track_draft)
+}
+
+fn validate_draft_structure(
+    park: &Park,
+    specs: &[TrackPieceSpec],
+) -> Result<(), TrackConstructionError> {
+    if specs.len() > MAX_TRACK_DRAFT_PIECES {
         return Err(TrackConstructionError::DraftFull);
     }
     let mut occupied = std::collections::BTreeSet::new();
-    for spec in &park.track_draft {
+    for spec in specs {
         validate_piece_shape(park, *spec)?;
         if !occupied.insert((spec.pos.x, spec.pos.y)) {
             return Err(TrackConstructionError::DuplicateTile(spec.pos));
@@ -709,5 +753,7 @@ pub(crate) fn validate_track_economy(park: &Park) -> Result<(), String> {
 
 #[cfg(test)]
 mod economy_tests;
+#[cfg(test)]
+mod editing_tests;
 #[cfg(test)]
 mod tests;

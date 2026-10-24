@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-Updated 24 October 2026 for **0.26.0 track construction costs and refunds**, on `codex/track-economy` from the 0.25 checkpoint `2343f813d5e79bbac71eebe7eeedc91cc74d58e1` / [PR #23](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/23). The editor now shows purchase/refund/net quotes, settles only changed track and retains saved paid basis for one-time refunds. Section 10 and the [track economy report](docs/TRACK_ECONOMY_REPORT.md) record current verification status; earlier reports retain their exact historical identities.
+Updated 24 October 2026 for **0.27.0 copying installed track and draft Undo/Redo**, on `codex/track-draft-history` from the 0.26 checkpoint `925bae82076a95098aafa582b3d7a936fd6ddd28` / [PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24). Copy live replaces the draft with exact installed specifications as one undoable edit; bounded session history affects only the draft. Section 10 and the [draft history report](docs/TRACK_DRAFT_HISTORY_REPORT.md) record current verification status; earlier reports retain their exact historical identities. The latest verified package remains 0.26 until the new runtime and package pass their checks.
 
 Canonical repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>. **Parkbound** is a temporary title for an original Rust theme park simulation inspired by classic RCT1/RCT2. The user chose Windows-only free distribution with all functionality included, developed in playable stages. It is not yet a complete management game. **No reference PC is selected; this development PC is explicitly excluded.** Its measurements remain local diagnostics, not hardware requirements or 60 FPS acceptance.
 
@@ -26,7 +26,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/track-economy`, based on `codex/sloped-track` at `2343f813d5e79bbac71eebe7eeedc91cc74d58e1` / [PR #23](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/23). Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/track-draft-history`, based on `codex/track-economy` at `925bae82076a95098aafa582b3d7a936fd6ddd28` / [PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24). Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -48,10 +48,10 @@ Set-Location -LiteralPath $projectDirectory
 git fetch origin
 git branch -a
 # Only after the current branch is listed on origin:
-git switch --track origin/codex/track-economy
+git switch --track origin/codex/track-draft-history
 ```
 
-If the branch already exists locally, use `git switch codex/track-economy` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/track-draft-history` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -65,13 +65,14 @@ Retain historical reports, raw benchmark data, evidence paths and notices. In pa
 
 ## 2. Read the project records
 
-Start with [TRACK_ECONOMY_REPORT.md](docs/TRACK_ECONOMY_REPORT.md), [SLOPED_TRACK_REPORT.md](docs/SLOPED_TRACK_REPORT.md), [TRACK_CONSTRUCTION_REPORT.md](docs/TRACK_CONSTRUCTION_REPORT.md), [SERVICE_CONSTRUCTION_REPORT.md](docs/SERVICE_CONSTRUCTION_REPORT.md), [RIDE_CONSTRUCTION_REPORT.md](docs/RIDE_CONSTRUCTION_REPORT.md), [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md), [SERVICE_FINANCE_REPORT.md](docs/SERVICE_FINANCE_REPORT.md), [GUEST_SERVICES_REPORT.md](docs/GUEST_SERVICES_REPORT.md), [GUEST_EXPERIENCE_REPORT.md](docs/GUEST_EXPERIENCE_REPORT.md), [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
+Start with [TRACK_DRAFT_HISTORY_REPORT.md](docs/TRACK_DRAFT_HISTORY_REPORT.md), [TRACK_ECONOMY_REPORT.md](docs/TRACK_ECONOMY_REPORT.md), [SLOPED_TRACK_REPORT.md](docs/SLOPED_TRACK_REPORT.md), [TRACK_CONSTRUCTION_REPORT.md](docs/TRACK_CONSTRUCTION_REPORT.md), [SERVICE_CONSTRUCTION_REPORT.md](docs/SERVICE_CONSTRUCTION_REPORT.md), [RIDE_CONSTRUCTION_REPORT.md](docs/RIDE_CONSTRUCTION_REPORT.md), [SECOND_RIDE_REPORT.md](docs/SECOND_RIDE_REPORT.md), [SERVICE_FINANCE_REPORT.md](docs/SERVICE_FINANCE_REPORT.md), [GUEST_SERVICES_REPORT.md](docs/GUEST_SERVICES_REPORT.md), [GUEST_EXPERIENCE_REPORT.md](docs/GUEST_EXPERIENCE_REPORT.md), [ECONOMY_REPORT.md](docs/ECONOMY_REPORT.md), [RIDE_JOURNEY_REPORT.md](docs/RIDE_JOURNEY_REPORT.md), [GAMEPLAY_CHECKLIST.md](docs/GAMEPLAY_CHECKLIST.md), [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md), [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md), and [ASSET_PROVENANCE.md](docs/ASSET_PROVENANCE.md). The checklist's full feature criteria remain authoritative: a bounded implementation does not automatically complete BLD-02/03, the broader sloped-path criterion BLD-08, or the complete game.
 
 Historical reports retain exact source, test, capture, native, CI, package, and checksum evidence without duplicating it all here:
 
 | Version | Retained report |
 | --- | --- |
-| 0.26 | [Track economics: current work and verification status](docs/TRACK_ECONOMY_REPORT.md) |
+| 0.27 | [Copy installed track and draft history: current work and verification status](docs/TRACK_DRAFT_HISTORY_REPORT.md) |
+| 0.26 | [Track economics: historical verification](docs/TRACK_ECONOMY_REPORT.md) |
 | 0.25 | [Sloped track: historical verification](docs/SLOPED_TRACK_REPORT.md) |
 | 0.24 | [Track construction](docs/TRACK_CONSTRUCTION_REPORT.md) |
 | 0.23 | [Service construction costs and demolition refunds](docs/SERVICE_CONSTRUCTION_REPORT.md) |
@@ -145,8 +146,8 @@ Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (
 | `park_sim/src/experience.rs` | Deterministic preferences, thoughts, satisfaction, review events and review validation. |
 | `park_sim/src/finances.rs` | Recurring costs, supplies, debt-free closure, bounded transaction history, archive/opening balances and strict finance validation. |
 | `park_sim/src/economy.rs` | Integer-cent wallets, fare validation/locking, departure payments, affordability and conserved revenue/cash. |
-| `park_sim/src/track_construction.rs`, `trains.rs`, `saves/track_construction.rs` | Entry-height bounds, graded drafts, shared piece rules, atomic paid circuit replacement, per-piece cost basis/refunds and strict legacy 1–14 migration. |
-| `park_game/src/track_tools.rs`, `ui/track.rs`, `world/track_preview.rs` | Eight editor choices, incoming-heading/height controls, graded previews, direction arrows, visible-height erase and live purchase/refund/cash quotes. |
+| `park_sim/src/track_construction.rs`, `trains.rs`, `saves/track_construction.rs` | Exact installed-to-draft copying, structural snapshot restoration, entry-height bounds, graded drafts, atomic paid circuit replacement, per-piece cost basis/refunds and strict legacy 1–14 migration. |
+| `park_game/src/track_tools.rs`, `ui/track.rs`, `world/track_preview.rs` | Eight editor choices, incoming-heading/height controls, graded previews, direction arrows, visible-height erase, live purchase/refund/cash quotes and transient 64-edit draft Undo/Redo. |
 | `park_game/src/main.rs`, `path_tools.rs`, `path_tools/entrance.rs`, `path_tools/service.rs`, `terrain_tools.rs` | Input ordering, tool state, immutable preview validation, commit/gating, pause/view and scene refresh. |
 | `park_game/src/world.rs`, `world/*` | Shared physical faces for painting/picking/selection, slope/gate/terrain ghosts, persistent guest rendering and sampled train geometry. |
 | `park_game/src/static_landscape.rs` | Persistent static chunk slots and conservative visibility. Complete emission groups preserve internal geometry order; small maps retain one mesh. |
@@ -163,6 +164,9 @@ Public path appearance is retained. Owned queue paths use original blue procedur
 | --- | --- |
 | P / Path | Public path tool. |
 | Z / Rides → Edit coaster track | Open/close saved track draft tools. Choose Station, Straight, Left/Right curve, Lift, Drop −1/−2 or Brake; Apply settles the visible quote for a complete safe loop; Clear removes only the free draft. |
+| Copy live button | Replace the draft with exact installed track as one undoable edit, including while the ride is open or occupied. Missing/faulted circuits refuse without changing the draft. |
+| Ctrl+Z / Undo | Undo one draft edit while the track editor is active. |
+| Ctrl+Y / Ctrl+Shift+Z / Redo | Redo one undone draft edit while the track editor is active. |
 | Y / Rides | Select an active ride, edit coaster track, or start building the carousel. Up/Down browses. |
 | J / Queue | Blue queue tool owned by the selected ride (initially Meadow Flyer). |
 | I / Gate | Entrance tool for the selected ride, facing toward its station or carousel edge. |
@@ -228,7 +232,15 @@ Guest choice considers eligible reachable rides using distance, queue length, fa
 
 Core additions are `park_sim/src/carousel.rs` (atomic construction, runtime, samples, validation) and `ride_choice.rs` (candidate scoring). Existing `ride()`/`train()` explicitly mean the original coaster; use `all_rides`, `ride_by_id`, `ride_kind`, `object_ride`, `set_ride_open` and owner-specific stats for general behavior. The game adds `ui/rides.rs`, `world/carousel_render.rs`, `path_tools/carousel.rs`, `save_check/ride_choice.rs` and matching controlled scenes. Moving carousel geometry shares the existing dynamic ride mesh; static footprint geometry uses the existing landscape chunks.
 
-### 0.26 paid sloped track construction
+### 0.27 Copy live and session draft history
+
+Open Z or Rides → Edit coaster track, then choose Copy live to replace the current plan with the installed circuit's exact piece specifications and order. Copying works while running or occupied and preserves live rails, IDs, paid basis, cash, guests and train state. A missing or faulted circuit leaves the plan unchanged. Copy live is one undoable edit, so Undo restores the previous plan in full.
+
+Undo [Ctrl+Z] and Redo [Ctrl+Y or Ctrl+Shift+Z] retain at most 64 actual draft edits in this session. Place/replace, erase, Clear and Copy live are recorded. Unchanged/refused operations do not add history; a new actual edit after Undo clears the redo branch. Done, Escape and closing/reopening the editor retain history. Successful Apply clears both stacks, including an unchanged successful Apply; a refused Apply keeps them. Saving preserves the draft but never serializes history; successful primary Load or Backup resets history. History never reverses purchases, refunds, installed rails, simulation ticks or passenger activity.
+
+`Park::replace_track_draft(&[TrackPieceSpec])` returns whether the exact draft changed after validating bounds, supported shape, size and unique tiles. It accepts incomplete plans and plans blocked by later world changes; Apply rechecks connectivity, clearance, operating state and funds. `Park::copy_installed_track_to_draft()` copies a healthy installed circuit through that same atomic path. `TrackEditor` owns the bounded Undo/Redo stacks outside authoritative park state. Schema/content remain 15/15. The current verification boundary is recorded in [TRACK_DRAFT_HISTORY_REPORT.md](docs/TRACK_DRAFT_HISTORY_REPORT.md).
+
+### Retained 0.26 paid sloped track construction
 
 Rides → Edit track opens eight choices: Station, Straight, Left curve, Right curve, Chain lift, Drop, Steep drop and Brake. C rotates the incoming travel heading; height selects the entry endpoint. Lift rises +1 with entry 0–29; Drop descends −1 with entry 1–30; Steep drop descends −2 with entry 2–30. Other pieces remain level at 0–30. Changing piece kind clamps the entry height to its valid range. Preview shows the endpoint transition and whole-slope clearance.
 
@@ -312,7 +324,7 @@ Save serializes and validates before touching the slots, uses same-directory uni
 
 After a crash, close all Parkbound instances before deciding that the exact lock is stale and removing that lock. Never delete a lock belonging to a running writer. If the UI says `Recovery: see save folder`, preserve `.parkbound-rollback-*.tmp` files before manual recovery. They contain previous backup bytes, which may themselves require validation. Do not sweep unrelated temporary files or replace a valid slot blindly; keep copies and validate with the codec/isolated application first.
 
-New saves are strict **schema 15/content 15**, retaining per-piece track paid basis and cumulative construction/refund totals alongside graded drafts and existing circuit, passenger, ride/service capital, finance, guest and world data. Migrations preserve schema-13 level drafts, schema-14 graded drafts and every original field in versions 1–14; old rails remain free with zero refund basis; versions 1–12 receive an empty draft. Incomplete or obstructed plans remain saveable; Apply rechecks connectivity and clearance. Structural corruption, missing/unknown fields and hybrid schemas are rejected. Limits remain 8 MiB, 4,096 objects, 1,024 paths, 256 guests, 2,048 installed circuit pieces, 256 draft pieces, 65,536 route IDs, 256 lifetime service records, eight retained carousels and 128 recent finance entries; normal play stays 32 × 32.
+New saves remain strict **schema 15/content 15** in 0.27, retaining per-piece track paid basis and cumulative construction/refund totals alongside graded drafts and existing circuit, passenger, ride/service capital, finance, guest and world data. Undo/Redo stacks are session-only and absent from the save; successful Load/Backup resets them while restoring the saved draft. Migrations preserve schema-13 level drafts, schema-14 graded drafts and every original field in versions 1–14; old rails remain free with zero refund basis; versions 1–12 receive an empty draft. Incomplete or obstructed plans remain saveable; Apply rechecks connectivity and clearance. Structural corruption, missing/unknown fields and hybrid schemas are rejected. Limits remain 8 MiB, 4,096 objects, 1,024 paths, 256 guests, 2,048 installed circuit pieces, 256 draft pieces, 65,536 route IDs, 256 lifetime service records, eight retained carousels and 128 recent finance entries; normal play stays 32 × 32.
 
 Explicit strict **1/1 through 14/14 migration** preserves IDs, allocators, RNG, cash, active journeys, needs, services and ride/finance data. Defaults apply only where fields did not exist. The schema-13 reader still enforces its historical level-only draft rules before migration. Compare original state and deterministic current-rule continuations, not old executable futures. Loading leaves both files unchanged; Save writes 15/15. **0.25 rejects 15/15**; retain closed-game legacy copies.
 
@@ -400,7 +412,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.26.0 targets `dist\Parkbound-0.26.0-windows-x64` with a matching `.zip` and `.zip.sha256`. Record actual availability, exact executable identity, payload/guide counts, notices and relocation evidence in the track economy report and `artifacts/track-economy-0.26.0/final-handoff.txt`. The adjacent ZIP checksum remains authoritative after documentation refresh.
+Use `-SkipBuild` only for a binary built from the exact intended source. Otherwise omit it and let packaging build. Version 0.27.0 targets `dist\Parkbound-0.27.0-windows-x64` with a matching `.zip` and `.zip.sha256`; it is not yet a verified delivery. The latest verified archive remains `dist\Parkbound-0.26.0-windows-x64.zip`, whose evidence stays in the track economy report and `artifacts/track-economy-0.26.0/final-handoff.txt`. Record the new executable identity, actual payload/guide counts and relocation results in [TRACK_DRAFT_HISTORY_REPORT.md](docs/TRACK_DRAFT_HISTORY_REPORT.md). The adjacent ZIP checksum remains authoritative after documentation refresh.
 
 The package includes the executable, required redistributable runtime, third-party and Rust standard-library notices, current README/resume/development plan/docs, measurement wrapper and payload manifest. Preserve notice sources, attribution and `.gitattributes` byte rules; newline normalization can invalidate recorded hashes. Do not drop dependency/license files because a local launch succeeds. There is no imported RCT art, sound or original game data. Source licensing and final naming/trademark review remain unresolved; free binary distribution does not itself grant an open-source license.
 
@@ -414,7 +426,11 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 ## 10. Current verification and remaining checks
 
-Current 0.26 runtime **`b8e5fffe95ef4b6b5d56ef141434920b80140dbe`** is pushed on `codex/track-economy` in [draft PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24), stacked on PR #23 from documentation checkpoint `2343f813d5e79bbac71eebe7eeedc91cc74d58e1`. [Exact-source Windows CI 40078975830](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40078975830), job 120828345912, passed all **28 steps**, including **514 release tests (297 game / 217 simulation)**, formatting, strict all-target release Clippy, build, packaging and every retained continuation proof. Local full release Clippy also passed. Duplicate local tests/build were deliberately stopped after CI success, with their cache retained; no local full-test/build pass is claimed. The delivered executable comes from CI.
+The 0.27 implementation on `codex/track-draft-history` starts from `925bae82076a95098aafa582b3d7a936fd6ddd28` / [PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24). All **224 release simulation tests** passed, including seven new tests for exact paid/free/occupied copying, atomic refusals, structural restoration and unchanged schema 15. Game/input tests, complete source checks, production continuation, captures, exact-source CI and the 0.27 package are still pending. The current status belongs in [TRACK_DRAFT_HISTORY_REPORT.md](docs/TRACK_DRAFT_HISTORY_REPORT.md); earlier 514-test/CI/package results below apply only to 0.26. Native Copy live/Undo/Redo and clean-PC acceptance remain unverified.
+
+### Historical 0.26 evidence
+
+Historical 0.26 runtime **`b8e5fffe95ef4b6b5d56ef141434920b80140dbe`** is pushed on `codex/track-economy` in [draft PR #24](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/24), stacked on PR #23 from documentation checkpoint `2343f813d5e79bbac71eebe7eeedc91cc74d58e1`. [Exact-source Windows CI 40078975830](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40078975830), job 120828345912, passed all **28 steps**, including **514 release tests (297 game / 217 simulation)**, formatting, strict all-target release Clippy, build, packaging and every retained continuation proof. Local full release Clippy also passed. Duplicate local tests/build were deliberately stopped after CI success, with their cache retained; no local full-test/build pass is claimed. The delivered 0.26 executable comes from CI.
 
 The final executable is **48,552,960 bytes**, SHA-256 **`a1e01d74efed9e0c3e7b1ed7b7756f4dab759f98acccd11ebec73e939712a443`**. Its downloaded CI artifact digest verifies as **`4d7826fe0a63f6151c5176deb7e88f5a037d906b252e612c30e15beb2c2d12cc`**. The final executable passed the local **7,200-tick** track economics writer/verifier proof recorded in `artifacts/track-economy-0.26.0/final-runtime-verification.txt`. Final authentic schema-14 primary/backup migration preserved every original field through 3,600 ticks per slot, leaving both source files unchanged. The 0.25 reader also rejected final schema 15 without modifying either slot; these checks are in the same final-runtime receipt. See [TRACK_ECONOMY_REPORT.md](docs/TRACK_ECONOMY_REPORT.md) for proof scope and receipts.
 
@@ -586,6 +602,6 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Next major gameplay milestone
 
-The proposed next bounded slice is coaster editing usability: copy the installed circuit into the saved draft and add draft undo/redo with clear Apply/reset/save behavior. Retain the current quote, atomic settlement and paid-basis invariants. Test copying, editing, cancelling, committing, reopening and loading a plan without charging until Apply. Further geometry, multiple coasters, broader ride families, realistic physics and full ratings remain later work. General construction and broad GST-03/MGT-01/MGT-02 remain incomplete; native and clean-PC acceptance checks stay open.
+The current bounded slice is installed-track copying and draft Undo/Redo. Finish its input ordering, full source/runtime verification, minimum-window visual checks and portable package before claiming completion. Preserve the current quote, atomic settlement and paid-basis invariants through copy, edit, Undo/Redo, Clear, Apply, reopen and Load/Backup. After that checkpoint, select one cohesive extension such as additional track geometry; multiple coasters, broader ride families, adjustable operating settings, realistic physics and full ratings remain later work. General construction and broad GST-03/MGT-01/MGT-02 remain incomplete; native and clean-PC acceptance checks stay open.
 
-For the next session: read this guide and the track economy report; verify branch/source, local edits and remote state; inspect the acceptance checklist; complete one cohesive stage with matching source/runtime evidence. Update source, guides and the portable package together. Preserve map/save caps, original-content requirements and all three recorded local paths. No development PC is designated as performance reference.
+For the next session: read this guide and the draft history report; verify branch/source, local edits and remote state; inspect the acceptance checklist; complete one cohesive stage with matching source/runtime evidence. Update source, guides and the portable package together. Preserve map/save caps, original-content requirements and all three recorded local paths. No development PC is designated as performance reference.
