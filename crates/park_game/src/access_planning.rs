@@ -321,7 +321,7 @@ pub(crate) fn perform_command(
     view.view_mode = mode;
     path_tools::point_at(park, view, point, false);
     view.path_notice = Some(format!(
-        "Tile {}, {} / height {}. Move to an exposed edge of the ghost, away from track, then click. Y: Rides.",
+        "Tile {}, {} / h{}. Click a ghost edge clear of track. Y: Rides.",
         suggestion.pos.x + 1,
         suggestion.pos.y + 1,
         suggestion.height
