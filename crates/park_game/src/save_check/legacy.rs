@@ -411,6 +411,50 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn legacy_v15_paid_track_keeps_its_basis_and_passengers_during_continuation() {
+        let directory = std::env::temp_dir().join(format!(
+            "Parkbound legacy paid track é {} {}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let mut park = demonstration_park();
+        super::super::track_construction::install_access(&mut park).unwrap();
+        super::super::track_construction::draft(&mut park, true).unwrap();
+        super::super::track_construction::apply(&mut park).unwrap();
+        super::super::track_construction::occupied(&mut park).unwrap();
+        assert!(park.track_economy().construction_cents > 0);
+        assert!(!park.track_economy().paid_pieces.is_empty());
+        let mut old: Value = serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        old["schema_version"] = json!(15);
+        old["content_version"] = json!(15);
+        old["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ride_operating_settings");
+        let bytes = serde_json::to_vec(&old).unwrap();
+        for name in ["park.park.json", "park.park.json.bak"] {
+            fs::write(directory.join(name), &bytes).unwrap();
+        }
+        assert_eq!(
+            run(vec![
+                "--save-check".into(),
+                "verify-legacy".into(),
+                "--save-dir".into(),
+                directory.clone().into_os_string()
+            ]),
+            Some(AppExit::Success)
+        );
+        for name in ["park.park.json", "park.park.json.bak"] {
+            assert_eq!(fs::read(directory.join(name)).unwrap(), bytes);
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     fn strip_ride_choices(value: &mut Value) {
         value["park"]
             .as_object_mut()

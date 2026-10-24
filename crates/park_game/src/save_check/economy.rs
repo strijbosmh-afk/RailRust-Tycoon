@@ -96,12 +96,14 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
         .map(|service| {
             service.upkeep_cents + service.supplies_cents + service.construction_cost_cents
         })
-        .sum();
+        .sum::<u64>()
+        + park.track_economy().construction_cents;
     let refunds = park
         .services()
         .iter()
         .map(|s| s.demolition_refund_cents)
-        .sum::<u64>();
+        .sum::<u64>()
+        + park.track_economy().refund_cents;
     if spent - service_spent != actual.revenue_cents
         || service_spent != service_revenue
         || services_used != service_count
