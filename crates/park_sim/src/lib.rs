@@ -22,6 +22,7 @@ mod services;
 mod slope_tests;
 mod surfaces;
 mod track_construction;
+mod track_designs;
 mod trains;
 
 pub use admission::{
@@ -67,6 +68,10 @@ pub use surfaces::{
 pub use track_construction::{
     MAX_TRACK_DRAFT_PIECES, PaidTrackPiece, TRACK_REFUND_PERCENT, TrackBuildKind,
     TrackConstructionError, TrackConstructionQuote, TrackEconomy, track_piece_cost_cents,
+};
+pub use track_designs::{
+    MAX_TRACK_DESIGN_BYTES, MAX_TRACK_DESIGN_NAME_CHARS, TRACK_DESIGN_VERSION, TrackDesign,
+    TrackDesignError,
 };
 pub use trains::{
     STATION_DWELL_TICKS, TRACK_UNITS, TrackDirection, TrackKind, TrackPiece, TrackPieceSpec,

@@ -655,7 +655,15 @@ impl Park {
 }
 
 fn validate_piece_shape(park: &Park, spec: TrackPieceSpec) -> Result<(), TrackConstructionError> {
-    if park.tile(spec.pos).is_none() {
+    validate_piece_shape_in_bounds(park.width(), park.height(), spec)
+}
+
+fn validate_piece_shape_in_bounds(
+    width: u32,
+    height: u32,
+    spec: TrackPieceSpec,
+) -> Result<(), TrackConstructionError> {
+    if spec.pos.x >= width || spec.pos.y >= height {
         return Err(PlacementError::OutOfBounds { pos: spec.pos }.into());
     }
     let highest = spec.entry.height.max(spec.exit.height);
@@ -683,12 +691,21 @@ fn validate_draft_structure(
     park: &Park,
     specs: &[TrackPieceSpec],
 ) -> Result<(), TrackConstructionError> {
+    validate_draft_structure_in_bounds(park.width(), park.height(), specs)
+}
+
+/// Portable designs share draft shape rules but have no terrain or live park.
+pub(crate) fn validate_draft_structure_in_bounds(
+    width: u32,
+    height: u32,
+    specs: &[TrackPieceSpec],
+) -> Result<(), TrackConstructionError> {
     if specs.len() > MAX_TRACK_DRAFT_PIECES {
         return Err(TrackConstructionError::DraftFull);
     }
     let mut occupied = std::collections::BTreeSet::new();
     for spec in specs {
-        validate_piece_shape(park, *spec)?;
+        validate_piece_shape_in_bounds(width, height, *spec)?;
         if !occupied.insert((spec.pos.x, spec.pos.y)) {
             return Err(TrackConstructionError::DuplicateTile(spec.pos));
         }

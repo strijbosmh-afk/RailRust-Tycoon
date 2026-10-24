@@ -343,6 +343,19 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
     }
 }
 
+/// Library loads use the same bounded, draft-only history as pointer edits.
+pub(crate) fn load_design_draft(
+    park: &mut Park,
+    view: &mut ViewState,
+    specs: &[TrackPieceSpec],
+) -> Result<bool, park_sim::TrackConstructionError> {
+    let before = park.track_draft().to_vec();
+    let changed = park.replace_track_draft(specs)?;
+    view.track_editor.record_change(before, park.track_draft());
+    view.track_editor.preview = None;
+    Ok(changed)
+}
+
 pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     view.track_editor.preview = None;
     let editor = &mut view.track_editor;

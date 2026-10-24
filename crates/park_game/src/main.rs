@@ -2,6 +2,10 @@
 
 mod benchmark;
 mod capture;
+#[cfg(test)]
+mod design_input_tests;
+mod design_library;
+mod design_store;
 mod frame_probe;
 mod gpu_probe;
 #[cfg(test)]
@@ -59,6 +63,8 @@ struct ViewState {
     services_open: bool,
     finance_open: bool,
     rides_open: bool,
+    designs_open: bool,
+    design_commands: Vec<design_library::DesignCommand>,
     selected_ride: Option<park_sim::RideId>,
     ride_browse_pending: i32,
     finance_page: usize,
@@ -114,6 +120,8 @@ impl Default for ViewState {
             services_open: false,
             finance_open: false,
             rides_open: false,
+            designs_open: false,
+            design_commands: Vec::new(),
             selected_ride: None,
             ride_browse_pending: 0,
             finance_page: 0,
@@ -222,6 +230,7 @@ impl ViewState {
             || self.services_open
             || self.finance_open
             || self.rides_open
+            || self.designs_open
             || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -236,6 +245,8 @@ impl ViewState {
         self.services_open = services;
         self.finance_open = finance;
         self.rides_open = false;
+        self.designs_open = false;
+        self.design_commands.clear();
         self.modal_input_blocked = true;
         self.ui_pointer_consumed = true;
         self.dragging = false;
@@ -378,6 +389,7 @@ fn main() -> AppExit {
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .insert_resource(Simulation(park))
         .insert_resource(view)
+        .init_resource::<design_library::DesignLibrary>()
         .insert_resource(SaveSession::from_arguments(std::env::args_os().skip(1)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -398,25 +410,34 @@ fn main() -> AppExit {
         .add_systems(
             Update,
             (
-                ui::button_actions,
-                keyboard_input,
-                apply_terrain_profile,
-                apply_path_actions,
-                apply_train_actions,
-                apply_price_actions,
-                apply_service_actions,
-                track_tools::apply_commands,
-                pointer_input,
-                persistence::apply_save_action,
-                apply_camera,
-                update_scene,
-                static_landscape::update_visibility,
-                ui::rides::refresh,
-                ui::refresh,
-                ui::guests::refresh,
-                ui::services::refresh,
-                ui::finance::refresh,
-                ui::track::refresh,
+                (
+                    ui::button_actions,
+                    keyboard_input,
+                    design_library::keyboard_text,
+                    design_library::apply_commands,
+                    apply_terrain_profile,
+                    apply_path_actions,
+                    apply_train_actions,
+                    apply_price_actions,
+                    apply_service_actions,
+                    track_tools::apply_commands,
+                    pointer_input,
+                    persistence::apply_save_action,
+                )
+                    .chain(),
+                (
+                    apply_camera,
+                    update_scene,
+                    static_landscape::update_visibility,
+                    ui::rides::refresh,
+                    ui::refresh,
+                    ui::guests::refresh,
+                    ui::services::refresh,
+                    ui::finance::refresh,
+                    ui::track::refresh,
+                    ui::designs::refresh,
+                )
+                    .chain(),
             )
                 .chain(),
         );
@@ -577,6 +598,18 @@ fn keyboard_input(
         return;
     }
     if view.modal_input_blocked {
+        return;
+    }
+    // Text entry and library controls own every key while this modal is open.
+    if view.designs_open {
+        if keys.just_pressed(KeyCode::Escape) {
+            design_library::queue(&mut view, design_library::DesignCommand::Cancel);
+        }
+        return;
+    }
+    if view.track_editor.active && design_library::open_shortcut(&keys) {
+        request_keyboard_save(&keys, &mut view);
+        design_library::request_open(&mut view);
         return;
     }
     if keys.just_pressed(KeyCode::Escape)
@@ -955,6 +988,7 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
             && !view.services_open
             && !view.finance_open
             && !view.rides_open
+            && !view.designs_open
             && !view.modal_input_blocked
         {
             focus_train(&sim.0, &mut view);
@@ -1130,6 +1164,7 @@ fn pointer_input(
             || view.services_open
             || view.finance_open
             || view.rides_open
+            || view.designs_open
             || view.modal_input_blocked
             || view.ui_pointer_consumed,
     );
@@ -1143,6 +1178,7 @@ fn pointer_input(
         || view.services_open
         || view.finance_open
         || view.rides_open
+        || view.designs_open
         || view.modal_input_blocked
         || (!buttons.pressed(MouseButton::Right) && !buttons.pressed(MouseButton::Middle))
     {
@@ -1195,6 +1231,7 @@ fn pointer_input(
             && !view.services_open
             && !view.finance_open
             && !view.rides_open
+            && !view.designs_open
             && !view.modal_input_blocked
             && buttons.just_pressed(MouseButton::Left)
         {

@@ -11,6 +11,7 @@ use park_sim::{
 
 use crate::path_tools::PathTool;
 
+pub(crate) mod designs;
 mod economy;
 pub(crate) mod finance;
 pub(super) mod guests;
@@ -67,6 +68,7 @@ pub(super) enum Action {
     BuildCarousel,
     EditTrack,
     Track(crate::track_tools::TrackCommand),
+    Design(crate::design_library::DesignCommand),
     Save,
     Load,
     LoadBackup,
@@ -595,7 +597,7 @@ pub(super) fn setup(mut commands: Commands) {
                 );
                 for (keys, purpose) in [
                     ("L / M / N / Y", "Guests / services / finance / rides"),
-                    ("Z / track tools", "Draft track / C heading / X erase"),
+                    ("Z / Ctrl+D", "Track tools / saved designs"),
                     ("Ctrl+Z / Ctrl+Y", "Undo / redo draft (also Ctrl+Shift+Z)"),
                     ("P / J / I / K / X", "Path / queue / entrance / exit / remove"),
                     ("C / shape button", "Cycle slope / turn gate or service"),
@@ -639,6 +641,7 @@ pub(super) fn setup(mut commands: Commands) {
     finance::setup(&mut commands);
     rides::setup(&mut commands);
     track::setup(&mut commands);
+    designs::setup(&mut commands);
 }
 
 type ChangedButtons<'w, 's> =
@@ -657,10 +660,30 @@ pub(super) fn button_actions(
     if view.capture_active {
         return;
     }
+    if view.designs_open {
+        // Typing must not trigger shortcuts or controls behind the library.
+        if keys
+            .as_ref()
+            .is_some_and(|keys| keys.just_pressed(KeyCode::Escape))
+        {
+            view.ui_pointer_consumed = true;
+            return;
+        }
+        for (interaction, action) in &interactions {
+            if *interaction == Interaction::Pressed {
+                view.ui_pointer_consumed = true;
+                if let Action::Design(command) = action {
+                    crate::design_library::queue(&mut view, *command);
+                }
+            }
+        }
+        return;
+    }
     // Keyboard transitions run next in the update chain. Do not apply a UI
     // command first when that same frame is about to open or close a modal.
     if keys.as_ref().is_some_and(|keys| {
-        keys.just_pressed(KeyCode::KeyL)
+        crate::design_library::open_shortcut(keys)
+            || keys.just_pressed(KeyCode::KeyL)
             || keys.just_pressed(KeyCode::KeyM)
             || keys.just_pressed(KeyCode::KeyN)
             || (crate::track_history_shortcut(keys).is_none()
@@ -675,6 +698,19 @@ pub(super) fn button_actions(
                 && keys.just_pressed(KeyCode::Escape))
     }) {
         view.ui_pointer_consumed = true;
+        return;
+    }
+    if interactions.iter().any(|(interaction, action)| {
+        *interaction == Interaction::Pressed
+            && matches!(
+                action,
+                Action::Design(crate::design_library::DesignCommand::Open)
+            )
+    }) && !keys
+        .as_ref()
+        .is_some_and(|keys| keys.just_pressed(KeyCode::F9))
+    {
+        crate::design_library::request_open(&mut view);
         return;
     }
     let ride_transition = interactions
@@ -868,6 +904,7 @@ pub(super) fn button_actions(
             | Action::EditTrack
             | Action::BrowseRide(_) => {}
             Action::Track(command) => crate::track_tools::queue(&mut view, *command),
+            Action::Design(_) => {}
             Action::Speed(speed) => view.set_speed(*speed),
             Action::RotateLeft => view.rotate(3),
             Action::RotateRight => view.rotate(1),

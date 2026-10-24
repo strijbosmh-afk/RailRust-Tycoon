@@ -73,7 +73,31 @@ pub(super) fn setup(commands: &mut Commands) {
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
-            label(p, "TRACK DRAFT", 16.0, INK);
+            p.spawn(Node {
+                height: px(20),
+                flex_shrink: 0.0,
+                justify_content: JustifyContent::SpaceBetween,
+                ..row()
+            })
+            .with_children(|p| {
+                label(p, "TRACK DRAFT", 15.0, INK);
+                p.spawn((
+                    Button,
+                    Action::Design(crate::design_library::DesignCommand::Open),
+                    Node {
+                        width: px(70),
+                        height: px(20),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::all(px(1)),
+                        ..default()
+                    },
+                    BackgroundColor(BUTTON),
+                    BorderColor::all(BORDER),
+                    BorderRadius::all(px(5)),
+                ))
+                .with_children(|p| label(p, "Designs", 11.0, INK));
+            });
             p.spawn(row()).with_children(|p| {
                 small_button(
                     p,
