@@ -1437,11 +1437,7 @@ pub(super) fn track_removal_details(
             format!(
                 "Refund {} / {}",
                 money(park.track_demolition_refund_cents(id)),
-                if visible {
-                    "Delete to remove"
-                } else {
-                    "reveal first"
-                }
+                if visible { "Delete" } else { "reveal first" }
             )
         },
         |_| "Removal blocked: passengers".into(),

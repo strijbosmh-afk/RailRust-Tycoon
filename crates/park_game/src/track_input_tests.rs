@@ -427,13 +427,13 @@ fn hiding_selected_track_keeps_buried_guidance_and_refund_without_offering_remov
         let details = &app.world().get::<Text>(label).unwrap().0;
         assert!(details.contains("Underground"));
         assert!(details.contains("Refund"));
-        assert!(details.contains("Delete to remove"));
+        assert!(details.contains(" / Delete"));
         persistence_key_frame(&mut app, &[KeyCode::KeyU]);
         let details = &app.world().get::<Text>(label).unwrap().0;
         assert!(details.contains("Buried / U to reveal"));
         assert!(details.contains("Refund"));
         assert!(details.contains("reveal first"));
-        assert!(!details.contains("Delete to remove"));
+        assert!(!details.contains(" / Delete"));
         persistence_key_frame(&mut app, &[KeyCode::Delete]);
         assert_eq!(app.world().resource::<Simulation>().0, before);
         assert_eq!(
