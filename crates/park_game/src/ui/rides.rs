@@ -67,6 +67,26 @@ pub(crate) fn construction_details(park: &Park, id: RideId) -> String {
     )
 }
 
+pub(crate) fn reputation_label(profile: park_sim::RideAppealProfile) -> String {
+    format!(
+        "Choice reputation: {} (starts neutral)",
+        guests::rating_label(Some(profile.reputation_rating_tenths))
+    )
+}
+
+fn appeal_details(park: &Park, id: RideId) -> String {
+    park.ride_appeal_profile(id).map_or_else(
+        || "Current ride challenge: unavailable\nChoice reputation: unavailable".into(),
+        |profile| {
+            format!(
+                "Current ride challenge: {}/100\n{}",
+                profile.layout_challenge,
+                reputation_label(profile)
+            )
+        },
+    )
+}
+
 #[derive(Component)]
 pub(crate) struct RidesPanel;
 #[derive(Component)]
@@ -359,7 +379,7 @@ pub(crate) fn refresh(
         let value = match kind {
             RideLabel::Selected => format!("{} / #{}", name(&sim.0, id), id.0),
             RideLabel::Details => format!(
-                "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)\n{}",
+                "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)\n{}\n{}",
                 if sim.0.ride_is_open(id) {
                     "Open"
                 } else {
@@ -374,6 +394,7 @@ pub(crate) fn refresh(
                 money(economy.revenue_cents),
                 guests::rating_label(experience.average_rating_tenths),
                 compact_count(experience.rating_count),
+                appeal_details(&sim.0, id),
                 construction_details(&sim.0, id)
             ),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
@@ -469,7 +490,7 @@ fn operating_value(
             seconds(settings.cycle_ticks)
         ),
         OperatingField::MinimumPassengers => format!(
-            "Minimum load / {}\n0-6 passengers; 0 keeps original dispatch",
+            "Minimum load / {}\n0-6 passengers; 0 means no minimum",
             if policy.minimum_passengers == 0 {
                 "No minimum".into()
             } else {

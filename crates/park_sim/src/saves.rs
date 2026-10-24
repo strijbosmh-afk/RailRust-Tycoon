@@ -8,6 +8,8 @@ mod ride_operations;
 use ride_operations::VersionFifteenParkData;
 mod ride_dispatch;
 use ride_dispatch::VersionSixteenParkData;
+mod ride_appeal;
+use ride_appeal::VersionSeventeenParkData;
 mod track_construction;
 use track_construction::{VersionFourteenParkData, VersionThirteenParkData, VersionTwelveParkData};
 mod construction;
@@ -33,8 +35,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 17;
-pub const CONTENT_VERSION: u32 = 17;
+pub const SCHEMA_VERSION: u32 = 18;
+pub const CONTENT_VERSION: u32 = 18;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -644,7 +646,23 @@ impl Park {
         }
         if !matches!(
             header.schema_version,
-            1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | SCHEMA_VERSION
+            1 | 2
+                | 3
+                | 4
+                | 5
+                | 6
+                | 7
+                | 8
+                | 9
+                | 10
+                | 11
+                | 12
+                | 13
+                | 14
+                | 15
+                | 16
+                | 17
+                | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
         }
@@ -706,6 +724,9 @@ impl Park {
             legacy.park.migrate()
         } else if header.schema_version == 16 {
             let legacy: SaveEnvelope<VersionSixteenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
+        } else if header.schema_version == 17 {
+            let legacy: SaveEnvelope<VersionSeventeenParkData> = parse_save(bytes)?;
             legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;

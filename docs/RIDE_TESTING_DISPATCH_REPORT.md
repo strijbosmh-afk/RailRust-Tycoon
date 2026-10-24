@@ -1,6 +1,6 @@
 # Coaster testing and loading policies — 0.33.0
 
-This milestone starts from 0.32 checkpoint `303cd66a0e1789cb0bf4b3d3365233440efefebb` / PR #30 on `codex/coaster-tests-and-dispatch`. It advances RID-04/RID-05/RID-06 with bounded mechanics testing and loading policies. The bounded 0.33 implementation is locally verified: 674 release tests, strict source/build checks, production continuation, inspected captures and fresh package checks passed. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI is pending. [RIDE_ACCESS_ASSISTANCE_REPORT.md](RIDE_ACCESS_ASSISTANCE_REPORT.md) preserves the locally verified 0.32 package; its push CI [40108342235](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40108342235) passed all 32 steps and 634 tests.
+This milestone starts from 0.32 checkpoint `303cd66a0e1789cb0bf4b3d3365233440efefebb` / PR #30 on `codex/coaster-tests-and-dispatch`. It advances RID-04/RID-05/RID-06 with bounded mechanics testing and loading policies. The bounded 0.33 implementation is locally verified: 674 release tests, strict source/build checks, production continuation, inspected captures and fresh package checks passed. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI 40110125468 passed all 34 steps and 674 tests. [RIDE_ACCESS_ASSISTANCE_REPORT.md](RIDE_ACCESS_ASSISTANCE_REPORT.md) preserves the locally verified 0.32 package; its push CI [40108342235](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40108342235) passed all 32 steps and 634 tests.
 
 ## Coaster tests
 
@@ -39,7 +39,7 @@ Explicit readers for versions 1–16 preserve original fields and initialize no-
 | Retained access, operations, track-construction and design-transfer proofs | Passed — eight extracted-executable processes |
 | Authentic version-16 migration and unchanged-slot refusal by 0.32 | Passed — seven processes; six legacy slots each preserve original fields/source bytes through 3,600 current-rule ticks, and all four new dispatch slots remain unchanged after old-reader refusal |
 | Minimum-window capture inspection | Passed — all thirteen 1024 × 680 PNGs directly inspected, readable without clipping or overlap |
-| Exact-source Windows CI | Pending |
+| Exact-source Windows CI | Passed — run 40110125468, job 120919909320, all 34 steps and 674 tests for source `b4523bb8eab5365947759a6643241a3da83400a4` |
 | Archive/payload/current-guide integrity and fresh relocated runtime checks | Passed — **48 payload hashes / 39 current guides**, twelve proof processes and thirteen captures |
 | Dependency/runtime/notices comparison with 0.32 | Passed — **291 dependency entries / five unchanged files** |
 | Physical native gestures and clean-PC/offline standard-user acceptance | Not verified |
@@ -53,7 +53,7 @@ Fresh extraction to `C:\Users\strij\AppData\Local\Temp\Parkbound 0.33 verified d
 
 Seven separate migration/refusal processes passed, recorded in `artifacts/coaster-testing-dispatch-0.33.0/migration-final.log` and `migration-final/migration.txt`. Authentic 0.32 operations primary/backup slots and track-construction main plus editing-session primary/backups cover **six legacy slots**. Each preserves every original field and source byte through **3,600 current-rule ticks**. The 0.32 reader rejects confirmed schema/content **17/17** with its exact `Save version is unsupported` message; all **four new dispatch slots** stay unchanged. Both old/current executable hashes remain unchanged. This is current-rule migration continuity, not a claim that new dispatch rules reproduce an older build's future.
 
-Exact-source push [Windows CI 40110125468](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40110125468) is still pending. Native physical gestures, clean-PC/offline/standard-user acceptance and representative-hardware performance remain open; this PC is not a performance reference.
+Exact-source push [Windows CI 40110125468](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40110125468), job **120919909320**, passed all **34 steps** and **674 release tests** for source **`b4523bb8eab5365947759a6643241a3da83400a4`**. Full run/jobs/artifact metadata, the complete decoded job log and an exact-head summary are retained under `artifacts/coaster-testing-dispatch-0.33.0/ci-push-40110125468-*`. Build artifact **12566522209** was identified but not downloaded or executed; no byte/pixel equivalence with that CI artifact is claimed. The final 0.33 archive remains unchanged and accurately records the local verification and then-pending CI status at packaging. This later CI receipt supplements that historical package. Native physical gestures, clean-PC/offline/standard-user acceptance and representative-hardware performance remain open; this PC is not a performance reference.
 
 ## Following work
 

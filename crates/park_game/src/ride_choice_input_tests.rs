@@ -89,6 +89,72 @@ fn ride_modal_transitions_consume_world_edits_and_selector_wraps_by_identity() {
 }
 
 #[test]
+fn rides_panel_separates_current_challenge_neutral_reputation_and_actual_reviews() {
+    let directory = InputSaveDirectory::new();
+    let (park, carousel) = two_rides();
+    let coaster = park.ride().unwrap().id;
+    let before = park.clone();
+    let mut app = app(
+        &directory,
+        park,
+        ViewState {
+            rides_open: true,
+            selected_ride: Some(coaster),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    for ride in [coaster, carousel] {
+        app.world_mut()
+            .resource_mut::<ViewState>()
+            .select_ride(ride);
+        frame(&mut app);
+        let profile = before.ride_appeal_profile(ride).unwrap();
+        let mut labels = app.world_mut().query::<(&ui::rides::RideLabel, &Text)>();
+        let details = labels
+            .iter(app.world())
+            .find(|(label, _)| matches!(label, ui::rides::RideLabel::Details))
+            .unwrap()
+            .1
+            .0
+            .clone();
+        assert!(details.contains("Reviews: Unrated (0 opinions)"));
+        assert!(details.contains(&format!(
+            "Current ride challenge: {}/100",
+            profile.layout_challenge
+        )));
+        assert!(details.contains("Choice reputation: 3.0/5 (starts neutral)"));
+        assert!(
+            !details.contains("penalty")
+                && !details.contains("recent")
+                && !details.contains("safe")
+        );
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+    }
+    let rail = before.circuit().unwrap().pieces[3].object;
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .remove_object(rail)
+        .unwrap();
+    app.world_mut()
+        .resource_mut::<ViewState>()
+        .select_ride(coaster);
+    frame(&mut app);
+    let mut labels = app.world_mut().query::<(&ui::rides::RideLabel, &Text)>();
+    let details = labels
+        .iter(app.world())
+        .find(|(label, _)| matches!(label, ui::rides::RideLabel::Details))
+        .unwrap()
+        .1
+        .0
+        .clone();
+    assert!(
+        details.contains("Current ride challenge: unavailable\nChoice reputation: unavailable")
+    );
+}
+
+#[test]
 fn selected_ride_price_open_focus_and_save_target_only_that_ride() {
     let dir = InputSaveDirectory::new();
     let (park, carousel) = two_rides();

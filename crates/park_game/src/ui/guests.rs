@@ -202,7 +202,7 @@ fn details(guest: &Guest, park: &Park) -> String {
             ServiceVisitPhase::Approaching => format!("\nHeading to service #{}", visit.service.0),
         });
     format!(
-        "Wallet {} / Total spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100 / Prefers {}\nNeed urgency /100: hunger {} / thirst {} / toilet {}\nActivity: {}\nServices used: {} / Service spend {}{service}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
+        "Wallet {} / Total spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100 / Prefers {}\nPreferred challenge: {} (soft preference)\nNeed urgency /100: hunger {} / thirst {} / toilet {}\nActivity: {}\nServices used: {} / Service spend {}{service}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
         money(u64::from(guest.wallet_cents)),
         money(guest.spent_cents),
         money(u64::from(guest.preferences.max_ticket_price_cents)),
@@ -216,6 +216,10 @@ fn details(guest: &Guest, park: &Park) -> String {
         guest.satisfaction,
         park.guest_preferred_ride_kind(guest.id)
             .map_or_else(|| "unknown".into(), |kind| kind.to_string()),
+        park.guest_preferred_challenge(guest.id).map_or_else(
+            || "unavailable".into(),
+            |challenge| format!("{challenge}/100")
+        ),
         guest.needs.hunger,
         guest.needs.thirst,
         guest.needs.toilet,
@@ -234,13 +238,21 @@ fn demand(guest: &Guest, park: &Park, selected: Option<park_sim::RideId>) -> Str
     let affordable = guest.wallet_cents >= ride.ticket_price_cents;
     let willing = guest.willing_to_pay(ride.ticket_price_cents);
     let yes_no = |value| if value { "yes" } else { "no" };
+    let appeal = park.guest_ride_appeal(guest.id, ride.id).map_or_else(
+        || "Current ride challenge: unavailable\nCurrent fit: unavailable\nChoice reputation: unavailable".into(),
+        |appeal| format!(
+            "Current ride challenge: {}/100\nCurrent fit: {} preferred challenge\n{}",
+            appeal.profile.layout_challenge,
+            if appeal.profile.layout_challenge <= appeal.preferred_challenge { "within" } else { "above" },
+            super::rides::reputation_label(appeal.profile),
+        ),
+    );
     format!(
-        "{}: {}\nCan pay: {} / Willing to pay: {}\nInterested now: {} (wallet + preference)\nTrips here: {} / access and seats checked separately.",
+        "{}: {}\nCan pay: {} / Willing to pay: {}\n{appeal}\nTrips here: {} / access and seats checked separately.",
         super::rides::name(park, ride.id),
         money(u64::from(ride.ticket_price_cents)),
         yes_no(affordable),
         yes_no(willing),
-        yes_no(affordable && willing),
         super::compact_count(
             guest
                 .ride_history

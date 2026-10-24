@@ -1,6 +1,8 @@
 # Resume development on another Windows PC
 
-Current locally verified delivery is **0.33.0 coaster testing and loading policies**, source `b4523bb8eab5365947759a6643241a3da83400a4` on `codex/coaster-tests-and-dispatch` in [draft PR #31](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/31), based on PR #30. All **674 release tests (403 game / 271 simulation)**, formatting, strict Clippy/build, twelve production proof processes, thirteen inspected minimum-window captures and fresh package checks passed. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI [40110125468](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40110125468) is pending. [RIDE_TESTING_DISPATCH_REPORT.md](docs/RIDE_TESTING_DISPATCH_REPORT.md) owns exact identities and receipts. The 0.32 baseline also passed exact-source CI 40108342235.
+Current locally verified delivery is **0.34.0 guest ride appeal**, source `3e51f8511721f465e15c7467bb2c52d68503da82` on `codex/guest-ride-appeal` in [draft PR #32](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/32), based on PR #31. All **690 tests (410 game / 280 simulation)**, strict source/build checks, fourteen runtime proof processes, eight-process authentic schema-17 migration, thirteen inspected captures and fresh **49-payload / 40-guide** package checks passed. Schema/content is 18/18. Exact-source CI [40111680983](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40111680983) passed all 35 steps and 690 tests; [GUEST_RIDE_APPEAL_REPORT.md](docs/GUEST_RIDE_APPEAL_REPORT.md) owns exact identities and scoped evidence.
+
+Verified previous delivery is **0.33.0 coaster testing and loading policies**, source `b4523bb8eab5365947759a6643241a3da83400a4` on `codex/coaster-tests-and-dispatch` in [draft PR #31](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/31), based on PR #30. All **674 release tests (403 game / 271 simulation)**, formatting, strict Clippy/build, twelve production proof processes, thirteen inspected minimum-window captures and fresh package checks passed. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI [40110125468](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40110125468) passed all 34 steps and 674 tests. [RIDE_TESTING_DISPATCH_REPORT.md](docs/RIDE_TESTING_DISPATCH_REPORT.md) owns exact identities and receipts. The 0.32 baseline also passed exact-source CI 40108342235.
 
 Updated 24 October 2026. The prior 0.32 access-assistance checkpoint is `303cd66a0e1789cb0bf4b3d3365233440efefebb`; its verified local package and exact-source CI are recorded in [RIDE_ACCESS_ASSISTANCE_REPORT.md](docs/RIDE_ACCESS_ASSISTANCE_REPORT.md). Historical 0.31 evidence remains in [RIDE_OPERATIONS_REPORT.md](docs/RIDE_OPERATIONS_REPORT.md). Each report preserves its named executable and acceptance limits.
 
@@ -30,7 +32,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/coaster-tests-and-dispatch`, based on `codex/ride-access-assistance` at `303cd66a0e1789cb0bf4b3d3365233440efefebb`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/guest-ride-appeal`, based on `codex/coaster-tests-and-dispatch` at `b16d77babe9ee018c542470d11f456836e7e4ca1`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -54,10 +56,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/coaster-tests-and-dispatch
+git switch --track origin/codex/guest-ride-appeal
 ```
 
-If the branch already exists locally, use `git switch codex/coaster-tests-and-dispatch` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/guest-ride-appeal` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -77,7 +79,8 @@ Historical reports retain exact source, test, capture, native, CI, package, and 
 
 | Version | Retained report |
 | --- | --- |
-| 0.33 | [Coaster testing and loading policies: locally verified; CI pending](docs/RIDE_TESTING_DISPATCH_REPORT.md) |
+| 0.34 | [Guest ride appeal: locally verified and exact-source CI passed](docs/GUEST_RIDE_APPEAL_REPORT.md) |
+| 0.33 | [Coaster testing and loading policies: locally verified and exact-source CI passed](docs/RIDE_TESTING_DISPATCH_REPORT.md) |
 | 0.32 | [Ride access assistance: locally verified delivery and exact-source CI pass](docs/RIDE_ACCESS_ASSISTANCE_REPORT.md) |
 | 0.31 | [Ride operations and design search: verified technical delivery and remaining native/release gates](docs/RIDE_OPERATIONS_REPORT.md) |
 | 0.30 | [Design import/export: verified technical delivery and remaining native/release gates](docs/TRACK_DESIGN_TRANSFER_REPORT.md) |
@@ -151,7 +154,7 @@ Normal play remains a 32 × 32 deterministic demonstration, initially Terraced (
 | --- | --- |
 | `crates/park_sim` | Window-independent deterministic park, bounded terrain/clearance, stable IDs, routes/RNG, crowds, train, ride/queue topology and strict save codec. Never make correctness depend on Bevy or wall-clock time. |
 | `park_sim/src/access_planning.rs`, `park_game/src/access_planning.rs`, `ui/rides.rs` | Derived gate/path suggestions, independent entrance/exit readiness, selected-ride tool preparation and deliberate map-click handling; no saved assistance state. |
-| `park_sim/src/ride_operations.rs`, `park_game/src/ride_operations.rs`, `ui/rides.rs` | Validated per-ride timing/equipment overrides, selected-ride controls, safe closed/stopped/empty edits; schema-17 persistence retains settings plus dispatch policy and elapsed extra wait. |
+| `park_sim/src/ride_operations.rs`, `park_game/src/ride_operations.rs`, `ui/rides.rs` | Validated per-ride timing/equipment overrides, selected-ride controls, safe closed/stopped/empty edits; schema-18 persistence retains settings plus dispatch policy and elapsed extra wait. |
 | `park_sim/src/path_geometry.rs` | Flat/four one-step ramps; endpoint matching; integer `PATH_UNITS = 60` positions. Guest center→edge→center heights and renderer share this geometry. |
 | `park_sim/src/ride_access.rs` | Stable ride identity, entrance placement and derived owned-queue access. Public guest graph is separate. |
 | `park_sim/src/admission.rs` | Seeking, tickets, capacity, reserved queue movement, patience, physical return and local recovery. Motion remains in the shared fixed-point guest sampler. |
@@ -251,7 +254,13 @@ Guest choice considers eligible reachable rides using distance, queue length, fa
 
 Core additions are `park_sim/src/carousel.rs` (atomic construction, runtime, samples, validation) and `ride_choice.rs` (candidate scoring). Existing `ride()`/`train()` explicitly mean the original coaster; use `all_rides`, `ride_by_id`, `ride_kind`, `object_ride`, `set_ride_open` and owner-specific stats for general behavior. The game adds `ui/rides.rs`, `world/carousel_render.rs`, `path_tools/carousel.rs`, `save_check/ride_choice.rs` and matching controlled scenes. Moving carousel geometry shares the existing dynamic ride mesh; static footprint geometry uses the existing landscape chunks.
 
-### Current 0.33 coaster tests and loading policies
+### Current 0.34 guest ride appeal
+
+`park_sim/src/ride_appeal.rs` derives a static profile from installed geometry and cumulative actual review totals. Guests' soft preferred challenge comes from the existing seed/identity, without saving another field. Rides preserves actual reviews and adds current challenge plus choice reputation; Guests shows current within/above-preference fit separately from affordability/value. The reputation includes five neutral three-star prior reviews. No raw scoring penalties, retrospective choice reasons or predicted selection are displayed. Profiles do not require a Test run and do not use its mechanics estimates.
+
+Only fresh idle-guest choices use these factors; existing ride/service targets, queue ownership and locked fares remain intact. Static challenge ignores equipment/loading settings and unapplied drafts. Local source/runtime/migration/capture/package checks passed; exact-source CI 40111680983 passed all 35 steps and 690 tests in the appeal report. Panel sizes remain unchanged.
+
+### Retained 0.33 coaster tests and loading policies
 
 The simulation modules are `park_sim/src/ride_testing.rs` and `ride_dispatch.rs`; `park_game/src/coaster_testing.rs`, `ride_operations.rs` and `ui/rides.rs` own transient reports and deliberate controls. Separate testing/dispatch save-check and capture modules provide reproducible fixtures.
 
@@ -358,7 +367,7 @@ The renderer uses the authoritative positions, clipped path shadows and cached b
 
 Price limits are $4/$6/$8/$10; queue comfort is 15/25/35/45 seconds. Seed/ID hashing initializes traits without consuming RNG. Wallet checks precede value checks. The interested count requires both, independent of reachability/capacity. Front refusal safely drains the existing queue; a reserved fare stays locked. Comfort crossing costs five satisfaction points once; joined-visit cancellation costs eight once and gives no review. Refusal thoughts use cooldown without repeated satisfaction loss.
 
-Only a completed physical public return creates one 1–5-star review, based on locked fare and frozen queue wait. It updates guest and ride counts/sums and satisfaction. Migration invents no historical reviews. `Guest.thought` and its timestamp are event state; the read-only Guests panel exposes their age, preferences, wallet, activity and review history. See the guest experience report for formulas, strict bounds and overflow handling. Needs and services are covered below; intensity preferences and rating-driven ride choice remain future work.
+Only a completed physical public return creates one 1–5-star review, based on locked fare and frozen queue wait. It updates guest and ride counts/sums and satisfaction. Migration invents no historical reviews. `Guest.thought` and its timestamp are event state; the read-only Guests panel exposes their age, preferences, wallet, activity and review history. See the guest experience report for formulas, strict bounds and overflow handling. Needs and services are covered below; 0.34 adds a separate soft challenge preference and cumulative reputation for fresh ride choices, as described above.
 
 ### Ticket economy contract
 
@@ -398,7 +407,7 @@ Save serializes and validates before touching the slots, uses same-directory uni
 
 After a crash, close all Parkbound instances before deciding that the exact lock is stale and removing that lock. Never delete a lock belonging to a running writer. If the UI says `Recovery: see save folder`, preserve `.parkbound-rollback-*.tmp` files before manual recovery. They contain previous backup bytes, which may themselves require validation. Do not sweep unrelated temporary files or replace a valid slot blindly; keep copies and validate with the codec/isolated application first.
 
-New saves use strict **schema 17/content 17**. A bounded sorted dispatch list stores unique ride owners, nondefault loading policies and elapsed extra wait, alongside operating overrides, paid track basis, drafts, passengers, finances and world data. Explicit readers preserve versions 1–16 and initialize no-minimum policies with zero elapsed extra wait. The exact version-16 reader accepts its variable station/cycle timing; fixed legacy timing applies only through version 15. The 0.32 reader rejects schema 17. Loading alone does not rewrite old slots. Keep closed-game legacy copies before saving with 0.33. Undo/Redo and coaster test results remain transient and clear on Load/Backup. Structural corruption, missing/unknown fields and hybrid schemas are rejected. Existing caps remain: 8 MiB, 4,096 objects, 1,024 paths, 256 guests, 2,048 installed circuit pieces, 256 draft pieces, 65,536 route IDs, 256 lifetime service records, eight retained carousels and 128 recent finance entries; normal play remains 32 × 32.
+New saves use strict **schema 18/content 18** to identify changed future guest-choice behavior. The serialized body stays identical to version 17: dispatch policies/elapsed waits, operating settings, active visits/fares, finances, paid track and drafts retain their fields. The exact version-17 reader preserves every field; readers for versions 1–16 remain supported. No derived appeal/preference or cached test state is saved. The 0.33 reader rejects schema 18. Loading alone never rewrites a source slot; retain closed-game legacy copies before saving with 0.34. Continuation follows current rules, without changing existing visit ownership. Undo/Redo and test caches clear on Load/Backup. Strict corruption/hybrid checks and caps remain: 8 MiB, 4,096 objects, 1,024 paths, 256 guests, 2,048 circuit pieces, 256 draft pieces, 65,536 route IDs, 256 lifetime service records, eight retained carousels, 128 recent finance entries and a normal 32 × 32 map.
 
 Explicit strict **1/1 through 15/15 migration** preserves IDs, allocators, RNG, cash, active journeys, needs, services and ride/finance data. Defaults apply only where fields did not exist. The schema-13 reader still enforces its historical level-only draft rules before migration. Compare original state and deterministic current-rule continuations, not old executable futures. Versions 1–15 receive original ride operating defaults. Loading leaves both files unchanged; Save writes 16/16. **0.30 and older readers reject 16/16**; retain closed-game legacy copies. Current-schema settings reject unsupported family fields, out-of-range/off-step values, unknown or duplicate owners, unsorted entries and explicit default overrides.
 
@@ -497,7 +506,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-The current locally verified delivery is `dist\Parkbound-0.33.0-windows-x64` with matching `.zip` and `.zip.sha256`. Fresh extraction at `C:\Users\strij\AppData\Local\Temp\Parkbound 0.33 verified delivery é`, launched from `C:\Windows`, passed **48 payload hashes / 39 current guides**, twelve production proof processes and thirteen directly inspected captures. The **291 dependency entries** and five runtime/notice files match 0.32. The executable is 49,667,584 bytes, SHA-256 `77e4cb7c8f5ce70608e7e434bbe479c0bfe60ae0ff5a66347805c1ec01625532`. CI remains pending; the current report owns detailed receipts. Refresh guides, manifest and archive after documentation edits, preserve the executable, and reverify fresh extraction. The adjacent checksum is authoritative; never embed a mutable ZIP self-hash in bundled guides.
+The current locally verified delivery is `dist\Parkbound-0.34.0-windows-x64`, with matching `.zip` and `.zip.sha256`. Fresh extraction to `C:\Users\strij\AppData\Local\Temp\Parkbound 0.34 appeal delivery é` passed **49 payload hashes / 40 guides**, fourteen production proof processes and thirteen inspected captures. The executable is **49,750,528 bytes**, SHA-256 `58e771bd49491fe7211995ec1e82538b501cbe85cc4e09a5a899a7abcaf6f055`. All 291 dependency entries and five runtime/notice files remain unchanged. Exact-source CI 40111680983 passed; the appeal report records receipts. Preserve this executable when refreshing final guides/manifest/ZIP, then verify fresh extraction. Use the adjacent checksum for archive identity, without a mutable ZIP self-hash in bundled guides.
 
 The source script `scripts/verify-windows-package.ps1` checks explicit archive/executable SHA-256 values, a fresh absolute extraction directory, every payload and current guide, then isolated production proofs and controlled captures from `C:\Windows`. It retains logs and refuses an existing output directory. Capture hashes still need comparison or direct visual review; relocation does not establish native-input or clean-PC acceptance.
 
@@ -513,7 +522,11 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 ## 10. Current verification and remaining checks
 
-Version 0.33 source `b4523bb8eab5365947759a6643241a3da83400a4` passes **674 release tests (403 game / 271 simulation)**, formatting, strict all-target release Clippy and the production build. The final local executable passed twelve separate proof processes, all thirteen inspected 1024 × 680 captures, and fresh relocation with **48 payload hashes / 39 guides**. Dependency/runtime notices remain unchanged from 0.32. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI is pending. [RIDE_TESTING_DISPATCH_REPORT.md](docs/RIDE_TESTING_DISPATCH_REPORT.md) records exact identity and receipts; native controls, clean-PC and representative-performance acceptance remain open.
+Version 0.34 source `3e51f8511721f465e15c7467bb2c52d68503da82` passes **690 release tests**, formatting, strict all-target release Clippy and the production build (50.96 seconds). The final local executable passed fourteen runtime proof processes, thirteen directly inspected 1024 × 680 captures, and fresh package verification with **49 payload hashes / 40 guides**. Eight migration/refusal processes preserve eight authentic schema-17 slots through 3,600 current-rule ticks each and leave four new slots unchanged after old-reader refusal. Mechanics reports match 0.33 byte for byte; dependencies/notices remain unchanged. Exact-source CI 40111680983 passed all 35 steps and 690 tests; native, clean-PC and representative-hardware acceptance remain open. [GUEST_RIDE_APPEAL_REPORT.md](docs/GUEST_RIDE_APPEAL_REPORT.md) owns the exact receipts.
+
+### Verified previous delivery: 0.33
+
+Version 0.33 source `b4523bb8eab5365947759a6643241a3da83400a4` passes **674 release tests (403 game / 271 simulation)**, formatting, strict all-target release Clippy and the production build. The final local executable passed twelve separate proof processes, all thirteen inspected 1024 × 680 captures, and fresh relocation with **48 payload hashes / 39 guides**. Dependency/runtime notices remain unchanged from 0.32. Authentic schema-16 migration and unchanged-slot old-reader refusal passed; exact-source CI 40110125468 passed all 34 steps and 674 tests. [RIDE_TESTING_DISPATCH_REPORT.md](docs/RIDE_TESTING_DISPATCH_REPORT.md) records exact identity and receipts; native controls, clean-PC and representative-performance acceptance remain open.
 
 ### Previous locally verified delivery: 0.32
 
@@ -731,8 +744,8 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Current milestone and next steps
 
-The bounded 0.33 implementation and local source/runtime/visual/package checks are complete. Authentic schema-16 migration and unchanged-slot old-reader refusal also passed. Finish exact-source CI receipts before claiming CI completion. Preserve source `b4523bb8eab5365947759a6643241a3da83400a4` and its verified local executable identity. Refresh bundled guides/manifest/ZIP and reverify extraction after documentation edits; historical 0.32 package evidence remains separate.
+The bounded 0.34 implementation is locally verified through source/build checks, 690 tests, runtime proofs, migration, final images and package relocation. Exact-source CI 40111680983 passed; finish final guide/package integrity receipts, preserving runtime source `3e51f8511721f465e15c7467bb2c52d68503da82` and its exact executable. The historical 0.33 archive remains unchanged.
 
-After validating 0.33, prioritize layout-informed guest choice, then a cohesive expansion of coaster construction or configurable train composition. Multiple coasters, broader track/ride families, realistic forces, staff, maintenance, research, scenarios and full management remain incomplete. The bounded loading and test features do not complete whole checklist families.
+Next implement a bounded single-coaster car-count setting: 1–3 cars, two seats per car, default three, within the existing station; carousel capacity remains six. Require a closed, stationary, empty ride and refuse downsizing below its configured minimum load. Preserve every passenger/fare owner and historical six-seat receipt with explicit migration. This is not multiple-train operation or a changed mass/force model. Wider geometry, multiple coasters, staff, maintenance, research, scenarios, audio and full management remain unfinished. Do not begin a later slice without finishing this checkpoint.
 
-For the next session, read this guide and the testing and dispatch report; verify branch/source, local edits and remote state; continue one cohesive stage with matching evidence. Preserve current map/save caps, original-content requirements, catalog/draft/accounting boundaries and all three recorded local paths. No development PC is designated as a performance reference.
+For the next session, read this guide and the guest ride appeal report; verify branch/source, local edits and remote state; continue one cohesive stage with matching evidence. Preserve current map/save caps, original-content requirements, catalog/draft/accounting boundaries and all three recorded local paths. No development PC is designated as a performance reference.
