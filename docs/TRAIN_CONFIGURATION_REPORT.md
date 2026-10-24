@@ -24,7 +24,7 @@ Fresh extraction to `C:\Users\strij\AppData\Local\Temp\Parkbound 0.35 car count 
 
 Eight further processes generated genuine **schema-18** dispatch/paid and track/draft saves using the verified 0.34.1 executable, migrated all **eight original primary/backup slots** with original fields and bytes preserved, and replayed 3,600 current ticks per slot. An actual 0.34.1 reader refused new schema-19 slots without changing them. Both executable hashes remained unchanged. `migration.log` and its named `migration-*` directory retain these results. The 291 dependency entries and all five runtime/notice files match 0.34.1 byte for byte (`notices.txt`).
 
-Exact-source Windows [CI run 40139500981](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40139500981), job 121008034529, is still running at this local delivery checkpoint. No CI artifact was downloaded or executed. The delivered executable is the independently verified local build.
+Exact-source Windows [CI run 40139500981](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40139500981), job 121008034529, passed all **36 steps**, including 706 tests and the car-count continuation proof. No CI artifact was downloaded or executed. The delivered executable is the independently verified local build.
 
 The download is `dist/Parkbound-0.35.0-windows-x64.zip`; its adjacent `.zip.sha256` identifies the current archive. A final guide refresh preserves the verified executable and checks all payloads/current guides in another fresh extraction (`package-final-verification.log`). Older packages remain available.
 
@@ -34,4 +34,4 @@ Physical mouse/keyboard, clean-PC and representative performance acceptance rema
 
 RID-04 remains open for multiple trains and broader operating modes. Further construction, complete closed/test/open workflows, realistic forces, additional ride families, staff, maintenance, research, scenarios, audio and complete management remain unfinished.
 
-The next bounded construction slice is an original starter-design pack: a small flat oval, a compact dogleg and a modest lift/drop loop. Use the existing version-1 design import, thumbnail, transform, quote and Apply workflow. Include the files in the portable package, document footprints and construction/access steps, and verify all rotations, real paid replacement, import/export identity and save continuation. Finish the car-count checkpoint before beginning that content stage.
+The following original starter-design pack is now implemented and locally verified in 0.36.0: a small flat oval, a compact dogleg and a modest lift/drop loop. [STARTER_DESIGNS_REPORT.md](STARTER_DESIGNS_REPORT.md) records the version-1 import, thumbnails, transforms, paid construction, access and continuation evidence without expanding the current single-coaster limit.
