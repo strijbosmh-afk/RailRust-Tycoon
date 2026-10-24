@@ -1,6 +1,8 @@
 # Resume development on another Windows PC
 
-Latest locally verified delivery: **0.35.0 configurable coaster cars**, runtime `8f2dc0454b32c170ed943b1cca36bbffe830cd46` on `codex/coaster-car-count` in [draft PR #34](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/34). One coaster train supports 1–3 cars and 2–6 seats; Operations, boarding, dispatch limits, rendered poses and strict saves agree. All **706 tests**, strict checks/build, sixteen packaged proof processes, eight-process authentic migration/refusal and eleven inspected captures passed. Save schema/content is **19/19**; CI 40139500981 is still running at this local checkpoint. [TRAIN_CONFIGURATION_REPORT.md](docs/TRAIN_CONFIGURATION_REPORT.md) records identities and limits.
+Latest locally verified delivery: **0.36.0 original starter coaster designs**, runtime `93ffb17bc680c213b3b89aa0cf88e0e14eb8950d` on `codex/starter-track-designs` in [draft PR #35](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/35), based on verified 0.35.0. Pocket Oval, Meadow Winder and Meadow Climb use the existing import, preview, transform, quote and Apply workflow. The package includes all three original files and a construction/access guide. All **711 tests**, strict checks/build, eighteen packaged proof processes, four bidirectional compatibility processes and ten inspected captures passed. Saves remain **19/19**. [STARTER_DESIGNS_REPORT.md](docs/STARTER_DESIGNS_REPORT.md) records exact identities and scope; exact-source CI 40141146431 remains in progress at this local checkpoint.
+
+Previous locally verified delivery: **0.35.0 configurable coaster cars**, runtime `8f2dc0454b32c170ed943b1cca36bbffe830cd46` on `codex/coaster-car-count` in [draft PR #34](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/34). One coaster train supports 1–3 cars and 2–6 seats; Operations, boarding, dispatch limits, rendered poses and strict saves agree. All **706 tests**, strict checks/build, sixteen packaged proof processes, eight-process authentic migration/refusal and eleven inspected captures passed. Save schema/content is **19/19**; exact-source CI 40139500981 passed all 36 steps. [TRAIN_CONFIGURATION_REPORT.md](docs/TRAIN_CONFIGURATION_REPORT.md) records identities and limits.
 
 Previous locally verified delivery: **0.34.1 exit path fix**, runtime `a9217be3e366033a9f04adc0576b64d5f67db01d` on `codex/exit-path-connection` in [draft PR #33](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/33). The helper routes around track and finds exposed path targets; the Access checklist separates the gate connection from the public return route. All **697 tests**, strict Clippy/build, ten packaged proof processes, four bidirectional compatibility processes and six inspected captures passed. Saves remain **18/18**. The functional checkpoint passed all 35 CI steps; the final source passed all 35 steps of CI 40121394869. [EXIT_PATH_FIX_REPORT.md](docs/EXIT_PATH_FIX_REPORT.md) records exact identities and scoped evidence.
 
@@ -36,7 +38,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/coaster-car-count`, based on `codex/exit-path-connection` at `fe5125652df71e16e0e73c07ebc8563228d443bd`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/starter-track-designs`, based on `codex/coaster-car-count` at `5e4356e6f6366ea5478145e4c91cbe171bd4800d`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -60,10 +62,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/guest-ride-appeal
+git switch --track origin/codex/starter-track-designs
 ```
 
-If the branch already exists locally, use `git switch codex/guest-ride-appeal` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/starter-track-designs` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 

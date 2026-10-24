@@ -67,6 +67,11 @@ try {
     if (Test-Path -LiteralPath $developmentPlan -PathType Leaf) {
         Copy-Item -LiteralPath $developmentPlan -Destination $stagedPackage
     }
+    $starterDirectory = Join-Path $stagedPackage 'designs'
+    [void](New-Item -ItemType Directory -Path $starterDirectory)
+    foreach ($name in @('pocket-oval.parktrack.json','meadow-winder.parktrack.json','meadow-climb.parktrack.json')) {
+        Copy-Item -LiteralPath (Join-Path $workspaceDirectory ('designs/' + $name)) -Destination $starterDirectory
+    }
     & (Join-Path $PSScriptRoot 'write-third-party-notices.ps1') -Metadata $metadata -OutputDirectory $stagedPackage
     & (Join-Path $PSScriptRoot 'copy-windows-runtime.ps1') -Executable $executable -OutputDirectory $stagedPackage
 

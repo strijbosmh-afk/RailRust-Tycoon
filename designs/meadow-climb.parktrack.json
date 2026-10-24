@@ -1,0 +1,367 @@
+{
+  "format": "parkbound-track-design",
+  "version": 1,
+  "name": "Meadow Climb",
+  "pieces": [
+    {
+      "pos": {
+        "x": 8,
+        "y": 10
+      },
+      "kind": "Station",
+      "entry": {
+        "edge": "West",
+        "height": 8
+      },
+      "exit": {
+        "edge": "East",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 9,
+        "y": 10
+      },
+      "kind": "Lift",
+      "entry": {
+        "edge": "West",
+        "height": 8
+      },
+      "exit": {
+        "edge": "East",
+        "height": 9
+      }
+    },
+    {
+      "pos": {
+        "x": 10,
+        "y": 10
+      },
+      "kind": "Lift",
+      "entry": {
+        "edge": "West",
+        "height": 9
+      },
+      "exit": {
+        "edge": "East",
+        "height": 10
+      }
+    },
+    {
+      "pos": {
+        "x": 11,
+        "y": 10
+      },
+      "kind": "Lift",
+      "entry": {
+        "edge": "West",
+        "height": 10
+      },
+      "exit": {
+        "edge": "East",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 12,
+        "y": 10
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "West",
+        "height": 11
+      },
+      "exit": {
+        "edge": "East",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 13,
+        "y": 10
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "West",
+        "height": 11
+      },
+      "exit": {
+        "edge": "East",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 14,
+        "y": 10
+      },
+      "kind": "Curve",
+      "entry": {
+        "edge": "West",
+        "height": 11
+      },
+      "exit": {
+        "edge": "North",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 14,
+        "y": 9
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "South",
+        "height": 11
+      },
+      "exit": {
+        "edge": "North",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 14,
+        "y": 8
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "South",
+        "height": 11
+      },
+      "exit": {
+        "edge": "North",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 14,
+        "y": 7
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "South",
+        "height": 11
+      },
+      "exit": {
+        "edge": "North",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 14,
+        "y": 6
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "South",
+        "height": 11
+      },
+      "exit": {
+        "edge": "North",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 14,
+        "y": 5
+      },
+      "kind": "Curve",
+      "entry": {
+        "edge": "South",
+        "height": 11
+      },
+      "exit": {
+        "edge": "West",
+        "height": 11
+      }
+    },
+    {
+      "pos": {
+        "x": 13,
+        "y": 5
+      },
+      "kind": "Drop",
+      "entry": {
+        "edge": "East",
+        "height": 11
+      },
+      "exit": {
+        "edge": "West",
+        "height": 9
+      }
+    },
+    {
+      "pos": {
+        "x": 12,
+        "y": 5
+      },
+      "kind": "Drop",
+      "entry": {
+        "edge": "East",
+        "height": 9
+      },
+      "exit": {
+        "edge": "West",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 11,
+        "y": 5
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "East",
+        "height": 8
+      },
+      "exit": {
+        "edge": "West",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 10,
+        "y": 5
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "East",
+        "height": 8
+      },
+      "exit": {
+        "edge": "West",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 9,
+        "y": 5
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "East",
+        "height": 8
+      },
+      "exit": {
+        "edge": "West",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 8,
+        "y": 5
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "East",
+        "height": 8
+      },
+      "exit": {
+        "edge": "West",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 7,
+        "y": 5
+      },
+      "kind": "Curve",
+      "entry": {
+        "edge": "East",
+        "height": 8
+      },
+      "exit": {
+        "edge": "South",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 7,
+        "y": 6
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "North",
+        "height": 8
+      },
+      "exit": {
+        "edge": "South",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 7,
+        "y": 7
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "North",
+        "height": 8
+      },
+      "exit": {
+        "edge": "South",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 7,
+        "y": 8
+      },
+      "kind": "Straight",
+      "entry": {
+        "edge": "North",
+        "height": 8
+      },
+      "exit": {
+        "edge": "South",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 7,
+        "y": 9
+      },
+      "kind": "Brake",
+      "entry": {
+        "edge": "North",
+        "height": 8
+      },
+      "exit": {
+        "edge": "South",
+        "height": 8
+      }
+    },
+    {
+      "pos": {
+        "x": 7,
+        "y": 10
+      },
+      "kind": "Curve",
+      "entry": {
+        "edge": "North",
+        "height": 8
+      },
+      "exit": {
+        "edge": "East",
+        "height": 8
+      }
+    }
+  ]
+}

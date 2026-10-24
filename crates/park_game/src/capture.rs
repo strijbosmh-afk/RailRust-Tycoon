@@ -44,6 +44,7 @@ mod queue_scenes;
 mod ride_choice_scenes;
 mod service_scenes;
 mod slope_scenes;
+mod starter_scenes;
 mod terrain_scenes;
 mod testing_scenes;
 mod track_construction_scenes;
@@ -142,6 +143,10 @@ enum Scene {
     OperationsCarousel,
     OperationsRunning,
     OperationsLimits,
+    StarterPocket,
+    StarterWinder,
+    StarterClimb,
+    StarterPaid,
     CarsOne,
     CarsTwo,
     CarsThree,
@@ -217,10 +222,18 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_train_configuration()
+        self.is_starter()
+            || self.is_train_configuration()
             || self.is_testing()
             || self.is_appeal()
             || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
+    }
+
+    fn is_starter(self) -> bool {
+        matches!(
+            self,
+            Self::StarterPocket | Self::StarterWinder | Self::StarterClimb | Self::StarterPaid
+        )
     }
 
     fn is_train_configuration(self) -> bool {
@@ -267,29 +280,30 @@ impl Scene {
         )
     }
     fn is_design(self) -> bool {
-        matches!(
-            self,
-            Self::LibraryEmpty
-                | Self::LibrarySaved
-                | Self::LibraryTransformed
-                | Self::LibraryConfirmUpdate
-                | Self::LibraryConfirmDelete
-                | Self::LibraryInvalid
-                | Self::LibraryGallery
-                | Self::LibraryGalleryLast
-                | Self::LibrarySearch
-                | Self::LibraryNoResults
-                | Self::LibrarySorted
-                | Self::LibraryPreviewReady
-                | Self::LibraryPreviewBlocked
-                | Self::LibraryPreviewIncomplete
-                | Self::LibraryPreviewTall
-                | Self::LibraryImported
-                | Self::LibraryExported
-                | Self::LibraryImportRefused
-                | Self::LibraryTransferCancelled
-                | Self::LoadedDesign
-        )
+        self.is_starter()
+            || matches!(
+                self,
+                Self::LibraryEmpty
+                    | Self::LibrarySaved
+                    | Self::LibraryTransformed
+                    | Self::LibraryConfirmUpdate
+                    | Self::LibraryConfirmDelete
+                    | Self::LibraryInvalid
+                    | Self::LibraryGallery
+                    | Self::LibraryGalleryLast
+                    | Self::LibrarySearch
+                    | Self::LibraryNoResults
+                    | Self::LibrarySorted
+                    | Self::LibraryPreviewReady
+                    | Self::LibraryPreviewBlocked
+                    | Self::LibraryPreviewIncomplete
+                    | Self::LibraryPreviewTall
+                    | Self::LibraryImported
+                    | Self::LibraryExported
+                    | Self::LibraryImportRefused
+                    | Self::LibraryTransferCancelled
+                    | Self::LoadedDesign
+            )
     }
     fn is_track_construction(self) -> bool {
         matches!(
@@ -614,6 +628,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("operations-carousel") => Scene::OperationsCarousel,
                 Some("operations-running") => Scene::OperationsRunning,
                 Some("operations-limits") => Scene::OperationsLimits,
+                Some("starter-pocket") => Scene::StarterPocket,
+                Some("starter-winder") => Scene::StarterWinder,
+                Some("starter-climb") => Scene::StarterClimb,
+                Some("starter-paid") => Scene::StarterPaid,
                 Some("cars-one") => Scene::CarsOne,
                 Some("cars-two") => Scene::CarsTwo,
                 Some("cars-three") => Scene::CarsThree,
@@ -976,7 +994,11 @@ fn apply_preset(
     }
     if capture.scene.is_design() {
         let mut library = library.expect("design capture configuration initializes the library");
-        design_scenes::prepare(&mut sim.0, &mut view, &mut library, capture.scene);
+        if capture.scene.is_starter() {
+            starter_scenes::prepare(&mut sim.0, &mut view, &mut library, capture.scene);
+        } else {
+            design_scenes::prepare(&mut sim.0, &mut view, &mut library, capture.scene);
+        }
     }
     if capture.scene.is_slope_tool() {
         slope_scenes::prepare(&mut sim.0, &mut view, capture.scene);
@@ -1282,6 +1304,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(Simulation(park))
             .insert_resource(ViewState::default())
+            .insert_resource(crate::design_library::DesignLibrary::default())
             .insert_resource(SaveSession::from_arguments([
                 OsString::from("--save-dir"),
                 std::env::temp_dir()
@@ -1373,6 +1396,40 @@ mod tests {
                 Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
                 *park
             );
+        }
+    }
+
+    #[test]
+    fn starter_captures_use_the_real_startup_boundary_and_bundled_catalog() {
+        let mut moving = crate::demonstration_park();
+        for _ in 0..DEFAULT_CAPTURE_TICKS {
+            moving.advance(Speed::Normal);
+        }
+        for scene in [
+            Scene::StarterPocket,
+            Scene::StarterWinder,
+            Scene::StarterClimb,
+            Scene::StarterPaid,
+        ] {
+            assert!(scene.is_design() && scene.uses_fresh_ride_fixture());
+            let app = preset_at_startup(scene, moving.clone());
+            let park = &app.world().resource::<Simulation>().0;
+            let view = app.world().resource::<ViewState>();
+            let library = app
+                .world()
+                .resource::<crate::design_library::DesignLibrary>();
+            assert_eq!(library.entries.len(), 3);
+            if matches!(scene, Scene::StarterPaid) {
+                assert!(view.rides_open && !view.designs_open);
+                assert!(crate::save_check::ride_choice::paid_running(
+                    park,
+                    park.ride().unwrap().id
+                ));
+            } else {
+                assert!(view.designs_open && !view.rides_open);
+                assert_eq!(park.ticks(), 0);
+                assert!(park.circuit().is_none());
+            }
         }
     }
 

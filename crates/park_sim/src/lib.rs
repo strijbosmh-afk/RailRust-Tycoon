@@ -18,6 +18,8 @@ mod ride_access;
 mod ride_access_tests;
 mod ride_appeal;
 mod ride_choice;
+#[cfg(test)]
+mod starter_design_tests;
 mod train_configuration;
 pub use train_configuration::{
     DEFAULT_COASTER_CARS, MAX_COASTER_CARS, MIN_COASTER_CARS, SEATS_PER_COASTER_CAR,
