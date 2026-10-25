@@ -122,9 +122,24 @@ fn ride_cashflow_view_pages_retained_rides_and_is_read_only_through_actual_butto
     app.world_mut().despawn(page_button);
     assert_eq!(
         app.world().resource::<ViewState>().finance_view,
-        ui::finance::FinanceView::Transactions
+        ui::finance::FinanceView::ParkSummary
     );
     assert_eq!(app.world().resource::<ViewState>().finance_page, 0);
+    assert!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(0)))
+            .contains("Rides / Operating profit +$0.00")
+    );
+    assert!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(2)))
+            .contains("excluded from operating profit")
+    );
+    click(&mut app, ui::Action::FinancePage(1));
+    assert_eq!(app.world().resource::<ViewState>().finance_page, 0);
+    click(&mut app, ui::Action::FinanceView);
+    assert_eq!(
+        app.world().resource::<ViewState>().finance_view,
+        ui::finance::FinanceView::Transactions
+    );
     assert_eq!(app.world().resource::<Simulation>().0, before);
     assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
 }
@@ -538,5 +553,53 @@ fn finance_distinguishes_facility_and_ride_capital_even_when_their_numeric_ids_m
         matches!(kind, ui::finance::FinanceLabel::Summary)
     });
     assert!(summary.contains("Sales +$0.00 / Costs -$380.00 / Net cash -$190.00"));
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+}
+
+#[test]
+fn park_summary_buttons_show_archived_removed_service_loss_separate_from_capital() {
+    let directory = InputSaveDirectory::new();
+    let mut park = finance_park(140);
+    let object = park.services()[0].object.unwrap();
+    park.remove_object(object).unwrap();
+    assert!(park.finance_ledger().archived_entries > 0);
+    let bytes = park.to_save_bytes().unwrap();
+    let (mut app, _) = finance_app(
+        &directory,
+        park.clone(),
+        ViewState {
+            finance_open: true,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click(&mut app, ui::Action::FinanceView);
+    assert_eq!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::View)),
+        "Park summary"
+    );
+    click(&mut app, ui::Action::FinanceView);
+    for (index, expected) in [
+        "Rides / Operating profit +$0.00\nTickets +$0.00 / Upkeep -$0.00",
+        "Services / Operating profit -$14.00\nSales +$0.00 / Upkeep -$14.00 / Supplies -$0.00",
+        "Combined operating profit -$14.00\nConstruction -$100.00 / Refunds +$50.00 / excluded from operating profit",
+        "Net cash -$64.00 = operating profit + refunds - construction\nStarting cash $1000.00 + net cash = current cash $936.00",
+    ].iter().enumerate() {
+        assert_eq!(label(&mut app, |l|matches!(l,ui::finance::FinanceLabel::Row(i) if *i==index)),*expected);
+    }
+    click(&mut app, ui::Action::FinancePage(1));
+    click(&mut app, ui::Action::FinancePage(-1));
+    assert_eq!(app.world().resource::<ViewState>().finance_page, 0);
+    click(&mut app, ui::Action::CloseFinance);
+    assert!(!app.world().resource::<ViewState>().finance_open);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .to_save_bytes()
+            .unwrap(),
+        bytes
+    );
     assert_eq!(app.world().resource::<Simulation>().0, park);
 }
