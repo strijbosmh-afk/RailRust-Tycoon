@@ -58,6 +58,12 @@ impl Default for Mixer {
 fn sine(t: f32, f: f32) -> f32 {
     (TAU * t * f).sin()
 }
+// Keep oscillator phase precise after hours of play. A global f32 time loses
+// individual samples well before a long park session ends.
+fn osc(sample: u64, frequency: f32) -> f32 {
+    let cycles = sample as f64 * f64::from(frequency) / f64::from(RATE);
+    (cycles.fract() * std::f64::consts::TAU).sin() as f32
+}
 fn frequency(note: i32) -> f32 {
     440.0 * 2.0f32.powf((note - 69) as f32 / 12.0)
 }
@@ -77,7 +83,7 @@ impl Mixer {
             for (g, t) in self.gain.iter_mut().zip(target) {
                 *g += (t - *g) * 0.001;
             }
-            let t = self.sample as f32 / RATE as f32;
+            let clock = self.sample as f64 / f64::from(RATE);
             self.noise = self.noise.wrapping_mul(1664525).wrapping_add(1013904223);
             let n = (self.noise >> 8) as f32 / 8388608.0 - 1.0;
             self.wind += (n - self.wind) * 0.02;
@@ -87,18 +93,21 @@ impl Mixer {
                 72, 76, 79, 76, 74, 72, 69, 67, 72, 74, 76, 79, 81, 79, 76, 74, 69, 72, 76, 72, 67,
                 69, 72, 74, 76, 74, 72, 69, 67, 71, 74, 79,
             ];
-            let beat = t / 0.625;
+            let beat = clock / 0.625;
             let note = MELODY[beat as usize % 32];
-            let age = beat.fract() * 0.625;
+            let age = beat.fract() as f32 * 0.625;
             let env = (age * 60.0).min(1.0) * (-age * 7.0).exp();
             let f = frequency(note);
-            let melody =
-                (sine(t, f) + 0.24 * sine(t, f * 2.0) + 0.08 * sine(t, f * 3.0)) * env * 0.12;
+            let melody = (osc(self.sample, f)
+                + 0.24 * osc(self.sample, f * 2.0)
+                + 0.08 * osc(self.sample, f * 3.0))
+                * env
+                * 0.12;
             let bass = [48, 53, 57, 55][(beat as usize / 8) % 4];
             let b = frequency(bass);
-            let music = melody + (sine(t, b) + 0.3 * sine(t, b * 1.5)) * 0.038;
-            // Filter-free, very quiet wind/crowd texture and spaced bird chirps.
-            let bird_age = (t + 2.0) % 7.0;
+            let music = melody + (osc(self.sample, b) + 0.3 * osc(self.sample, b * 1.5)) * 0.038;
+            // Quiet smoothed wind/crowd texture and spaced bird chirps.
+            let bird_age = ((clock + 2.0) % 7.0) as f32;
             let bird = if bird_age < 0.27 {
                 sine(bird_age, 1800.0 + bird_age * 2100.0)
                     * (bird_age * std::f32::consts::PI / 0.27).sin()
@@ -107,22 +116,22 @@ impl Mixer {
                 0.0
             };
             let ambient = self.wind * (0.10 + self.state.crowd * 0.10)
-                + sine(t, 143.0) * sine(t, 2.7) * self.state.crowd * 0.008
+                + osc(self.sample, 143.0) * osc(self.sample, 2.7) * self.state.crowd * 0.008
                 + bird;
             let moving = if self.state.paused {
                 0.0
             } else {
                 self.state.coaster
             };
-            let rail = n * 0.045 * moving + sine(t, 64.0 + moving * 40.0) * 0.03 * moving;
-            let click = if (t * (7.0 + moving * 11.0)).fract() < 0.045 {
+            let rail = n * 0.045 * moving + osc(self.sample, 64.0 + moving * 40.0) * 0.03 * moving;
+            let click = if (clock * (7.0 + f64::from(moving) * 11.0)).fract() < 0.045 {
                 n * 0.075 * moving
             } else {
                 0.0
             };
             let carousel = if self.state.carousel && !self.state.paused {
-                let f = frequency([72, 76, 79, 84, 79, 76, 74, 71][(t / 0.42) as usize % 8]);
-                sine(t, f) * 0.045 * (1.0 - (t / 0.42).fract())
+                let f = frequency([72, 76, 79, 84, 79, 76, 74, 71][(clock / 0.42) as usize % 8]);
+                osc(self.sample, f) * 0.045 * (1.0 - (clock / 0.42).fract() as f32)
             } else {
                 0.0
             };
@@ -184,6 +193,12 @@ pub(super) fn wav(samples: &[i16]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn oscillator_retains_individual_sample_phase_after_two_days() {
+        let base = u64::from(RATE) * 60 * 60 * 48;
+        assert!((osc(base + 1, 440.0) - osc(1, 440.0)).abs() < 0.00001);
+        assert!((osc(base + 1, 440.0) - osc(base, 440.0)).abs() > 0.05);
+    }
     #[test]
     fn original_mix_is_repeatable_bounded_and_each_bus_can_be_silenced() {
         let mut a = Mixer::default();
