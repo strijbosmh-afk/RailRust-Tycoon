@@ -144,6 +144,11 @@ fn ride_cashflow_view_pages_retained_rides_and_is_read_only_through_actual_butto
     click(&mut app, ui::Action::FinanceView);
     assert_eq!(
         app.world().resource::<ViewState>().finance_view,
+        ui::finance::FinanceView::Value
+    );
+    click(&mut app, ui::Action::FinanceView);
+    assert_eq!(
+        app.world().resource::<ViewState>().finance_view,
         ui::finance::FinanceView::Transactions
     );
     assert_eq!(app.world().resource::<Simulation>().0, before);
@@ -723,4 +728,58 @@ fn loan_conflicts_capture_and_close_transitions_never_change_cash() {
         assert_eq!(app.world().resource::<Simulation>().0, park);
         assert!(!app.world().resource::<ViewState>().finance_open);
     }
+}
+
+#[test]
+fn park_value_view_shows_signed_equity_and_blocks_loan_commands_through_actual_buttons() {
+    use ui::finance::{FinanceView, LoanCommand};
+    let directory = InputSaveDirectory::new();
+    let park = save_check::value::negative().unwrap();
+    let bytes = park.to_save_bytes().unwrap();
+    let (mut app, _) = finance_app(
+        &directory,
+        park.clone(),
+        ViewState {
+            finance_open: true,
+            finance_view: FinanceView::Loans,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    assert_eq!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::View)),
+        "Park value"
+    );
+    click(&mut app, ui::Action::FinanceView);
+    assert_eq!(
+        app.world().resource::<ViewState>().finance_view,
+        FinanceView::Value
+    );
+    assert_eq!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(0))),
+        "Recorded park value $0.00\nTrack $0.00 / Carousels $0.00 / Facilities $0.00"
+    );
+    assert!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(2)))
+            .contains("Loan principal -$200.00 / Unpaid interest -$0.00")
+    );
+    assert!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(3)))
+            .contains("Company book value -$50.00")
+    );
+    click(&mut app, ui::Action::FinancePage(1));
+    click(&mut app, ui::Action::FinancePage(-1));
+    click(&mut app, ui::Action::Loan(LoanCommand::Borrow));
+    assert_eq!(app.world().resource::<ViewState>().finance_page, 0);
+    click(&mut app, ui::Action::CloseFinance);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .to_save_bytes()
+            .unwrap(),
+        bytes
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, park);
 }

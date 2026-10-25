@@ -81,6 +81,7 @@ pub(crate) enum FinanceView {
     Rides,
     ParkSummary,
     Loans,
+    Value,
 }
 
 #[derive(Component)]
@@ -328,6 +329,35 @@ pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
     ]
 }
 
+pub(crate) fn value_rows(park: &Park) -> [String; 4] {
+    let v = park.park_value();
+    [
+        format!(
+            "Recorded park value {}\nTrack {} / Carousels {} / Facilities {}",
+            money(v.park_cents),
+            money(v.track_cents),
+            money(v.carousel_cents),
+            money(v.service_cents)
+        ),
+        format!(
+            "Gross assets {}\nCash {} + recorded park value {}",
+            signed_cash(v.gross_assets_cents),
+            money(v.cash_cents),
+            money(v.park_cents)
+        ),
+        format!(
+            "Liabilities / Loan principal -{} / Unpaid interest -{}\nPaid interest {} is already reflected in cash.",
+            money(v.principal_cents),
+            money(v.interest_due_cents),
+            money(park.loan_stats().interest_paid_cents)
+        ),
+        format!(
+            "Company book value {}\nGross assets - principal - accrued unpaid whole-cent interest.",
+            signed_cash(v.company_cents)
+        ),
+    ]
+}
+
 fn clock(tick: u64) -> String {
     let seconds = tick / TICKS_PER_SECOND;
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
@@ -370,7 +400,7 @@ fn page(park: &Park, view: &mut ViewState) -> (usize, usize) {
     let pages = match view.finance_view {
         FinanceView::Transactions => park.finance_ledger().entries.len().div_ceil(PAGE_SIZE),
         FinanceView::Rides => park.ride_cashflows().len().div_ceil(RIDE_PAGE_SIZE),
-        FinanceView::ParkSummary | FinanceView::Loans => 1,
+        FinanceView::ParkSummary | FinanceView::Loans | FinanceView::Value => 1,
     }
     .max(1);
     let current = view.finance_page.min(pages - 1);
@@ -431,7 +461,8 @@ pub(crate) fn refresh(
             FinanceView::Transactions => FinanceView::Rides,
             FinanceView::Rides => FinanceView::ParkSummary,
             FinanceView::ParkSummary => FinanceView::Loans,
-            FinanceView::Loans => FinanceView::Transactions,
+            FinanceView::Loans => FinanceView::Value,
+            FinanceView::Value => FinanceView::Transactions,
         };
         view.finance_page = 0;
         view.finance_page_pending = 0;
@@ -446,7 +477,8 @@ pub(crate) fn refresh(
             Display::None
         };
     }
-    let double_rows = rides || summary || loans;
+    let value = view.finance_view == FinanceView::Value;
+    let double_rows = rides || summary || loans || value;
     for (row, mut node) in &mut rows {
         node.display = if double_rows
             && row.0
@@ -474,9 +506,17 @@ pub(crate) fn refresh(
     let summary_rows = summary_rows(&sim.0);
     let loan = sim.0.loan_stats();
     let loan_rows = loan_rows(&sim.0);
+    let valuation = sim.0.park_value();
+    let value_rows = value_rows(&sim.0);
     for (label, mut text) in &mut labels {
         let value = match label {
-            FinanceLabel::View if loans=>"Transactions".into(),
+            FinanceLabel::View if value=>"Transactions".into(),
+            FinanceLabel::ListHeading if value=>"RECORDED PARK / COMPANY BOOK VALUE".into(),
+            FinanceLabel::Categories if value=>"Paid basis of assets still present, including closed rides and faulted track.\nUnpriced land/paths/free legacy assets have no recorded value; no depreciation.".into(),
+            FinanceLabel::History if value=>format!("{} paid track pieces / {} installed carousels / {} installed facilities\nDemolished assets leave this report; their cash history remains in Finance.\nBorrowing and principal repayment offset cash and debt, not business earnings.",valuation.paid_track_pieces,valuation.installed_carousels,valuation.installed_services),
+            FinanceLabel::Row(i) if value=>value_rows.get(*i).cloned().unwrap_or_default(),
+            FinanceLabel::Footer if value=>"Book value can be negative. This is not a sale price or an operating-profit forecast.".into(),
+            FinanceLabel::View if loans=>"Park value".into(),
             FinanceLabel::ListHeading if loans=>"LOAN ACCOUNT / funding is separate from operating income".into(),
             FinanceLabel::Categories if loans=>"Borrow/repay in $100 steps, up to $2000 outstanding.\nSimple interest: 0.5% per simulation minute, prorated each tick.".into(),
             FinanceLabel::History if loans=>format!("Interest is collected before ride/facility costs every 60 simulation seconds.\nNext collection in {} simulation seconds / current rate {} per simulation minute.\nUnpaid interest remains due without compounding; Space pauses accrual.",loan.next_collection_ticks.div_ceil(TICKS_PER_SECOND),money(loan.interest_per_minute_cents)),

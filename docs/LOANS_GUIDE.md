@@ -1,6 +1,6 @@
 # Loans, repayments and interest
 
-Open **Finance [N]** and cycle **Ride cashflows → Park summary → Loans**. Use **Borrow $100**, **Repay $100** or **Pay interest**. The loan limit is **$2,000 outstanding principal**; a new park starts with no loan. Actions work while paused and never advance time. Closing Finance or pressing conflicting loan buttons cannot also make a loan transaction.
+Open **Finance [N]** and cycle **Ride cashflows → Park summary → Loans**. Use **Borrow $100**, **Repay $100** or **Pay interest**. After Loans, choose **Park value** for [explained assets and liabilities](PARK_VALUE_GUIDE.md), then Transactions. The loan limit is **$2,000 outstanding principal**; a new park starts with no loan. Actions work while paused and never advance time. Closing Finance or pressing conflicting loan buttons cannot also make a loan transaction.
 
 Borrowing adds cash and matching debt. Principal repayment removes cash and debt. Neither changes ride/service operating profit or customer sales. The park summary shows gross borrowing, repayments and paid interest separately:
 

@@ -54,6 +54,7 @@ mod terrain_scenes;
 mod testing_scenes;
 mod track_construction_scenes;
 mod train_scenes;
+mod value_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
@@ -158,6 +159,13 @@ enum Scene {
     CostsClosed,
     CostsReopened,
     CostsFinance,
+    ValueEmpty,
+    ValueLegacy,
+    ValueBuilt,
+    ValueDebt,
+    ValueEarned,
+    ValueNegative,
+    ValueFaulted,
     LoanEmpty,
     LoanBorrowed,
     LoanDue,
@@ -255,7 +263,8 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_loan()
+        self.is_value()
+            || self.is_loan()
             || self.is_summary()
             || self.is_costs()
             || self.is_cashflow()
@@ -325,6 +334,18 @@ impl Scene {
                 | Self::OpeningReady
                 | Self::OpeningCarousel
                 | Self::OpeningPaid
+        )
+    }
+    fn is_value(self) -> bool {
+        matches!(
+            self,
+            Self::ValueEmpty
+                | Self::ValueLegacy
+                | Self::ValueBuilt
+                | Self::ValueDebt
+                | Self::ValueEarned
+                | Self::ValueNegative
+                | Self::ValueFaulted
         )
     }
     fn is_loan(self) -> bool {
@@ -719,6 +740,13 @@ pub(super) fn configure(app: &mut App) {
                 Some("costs-closed") => Scene::CostsClosed,
                 Some("costs-reopened") => Scene::CostsReopened,
                 Some("costs-finance") => Scene::CostsFinance,
+                Some("value-empty") => Scene::ValueEmpty,
+                Some("value-legacy") => Scene::ValueLegacy,
+                Some("value-built") => Scene::ValueBuilt,
+                Some("value-debt") => Scene::ValueDebt,
+                Some("value-earned") => Scene::ValueEarned,
+                Some("value-negative") => Scene::ValueNegative,
+                Some("value-faulted") => Scene::ValueFaulted,
                 Some("loan-empty") => Scene::LoanEmpty,
                 Some("loan-borrowed") => Scene::LoanBorrowed,
                 Some("loan-due") => Scene::LoanDue,
@@ -1081,6 +1109,9 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_value() {
+        value_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_loan() {
         loan_scenes::prepare(&mut sim.0, &mut view, capture.scene);

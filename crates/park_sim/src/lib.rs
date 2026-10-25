@@ -12,6 +12,8 @@ mod economy;
 mod experience;
 mod finance_summary;
 mod finances;
+mod park_value;
+pub use park_value::ParkValue;
 mod loans;
 pub use finance_summary::{OperatingProfit, ParkFinanceSummary};
 pub use loans::{LOAN_INTEREST_TICKS, LOAN_STEP_CENTS, LoanError, LoanStats, MAX_LOAN_CENTS};
