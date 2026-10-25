@@ -1,6 +1,8 @@
 # Resume development on another Windows PC
 
-Latest locally verified delivery: **0.37.0 checked ride opening**, runtime `d63c7c4acd4c19f45e452bf3132994d29673ba5e` on `codex/ride-opening-checks` in [draft PR #36](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/36). Operations, the main Open button and O require a valid installed ride, connected entrance/queue and public exit return route. Clear refusal reasons preserve state; closing remains available after access damage. All **718 tests**, strict checks/build, twenty packaged proof processes, four bidirectional compatibility processes and eight inspected captures passed. Saves remain **19/19**. [RIDE_OPENING_REPORT.md](docs/RIDE_OPENING_REPORT.md) records exact identities and scope; exact-source CI 40182744749 remains in progress at this local checkpoint.
+Latest locally verified delivery: **0.38.0 ride cashflow reports**, runtime `f5d6297c5e0a8ee73944cea62bde83dce9836e4a` on `codex/ride-cashflow-report` in [draft PR #37](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/37). Finance shows per-ride ticket income, construction, refunds and net cash, including demolished histories and paging. All **723 tests**, strict checks/build, twenty-four packaged proof processes, four bidirectional compatibility processes and seven inspected captures passed. Scoped native Finance/view/Escape/save controls passed with both saved slots byte-identical. Saves remain **19/19**. [RIDE_CASHFLOW_REPORT.md](docs/RIDE_CASHFLOW_REPORT.md) records exact identities and limits; exact-source CI 40183614031 remains in progress at this local checkpoint.
+
+Previous locally verified delivery: **0.37.0 checked ride opening**, runtime `d63c7c4acd4c19f45e452bf3132994d29673ba5e` on `codex/ride-opening-checks` in [draft PR #36](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/36). Operations, the main Open button and O require a valid installed ride, connected entrance/queue and public exit return route. Clear refusal reasons preserve state; closing remains available after access damage. All **718 tests**, strict checks/build, twenty packaged proof processes, four bidirectional compatibility processes and eight inspected captures passed. Saves remain **19/19**. [RIDE_OPENING_REPORT.md](docs/RIDE_OPENING_REPORT.md) records exact identities and scope; exact-source CI 40182744749 remains in progress at this local checkpoint.
 
 Previous locally verified delivery: **0.36.0 original starter coaster designs**, runtime `93ffb17bc680c213b3b89aa0cf88e0e14eb8950d` on `codex/starter-track-designs` in [draft PR #35](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/35), based on verified 0.35.0. Pocket Oval, Meadow Winder and Meadow Climb use the existing import, preview, transform, quote and Apply workflow. The package includes all three original files and a construction/access guide. All **711 tests**, strict checks/build, eighteen packaged proof processes, four bidirectional compatibility processes and ten inspected captures passed. Saves remain **19/19**. [STARTER_DESIGNS_REPORT.md](docs/STARTER_DESIGNS_REPORT.md) records exact identities and scope; exact-source CI 40141146431 passed all 37 steps.
 
@@ -40,7 +42,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/ride-opening-checks`, based on `codex/starter-track-designs` at `b861b75`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/ride-cashflow-report`, based on `codex/ride-opening-checks` at `7ddea6acde170146a5c9b6241b530683eac6f51d`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -64,10 +66,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/ride-opening-checks
+git switch --track origin/codex/ride-cashflow-report
 ```
 
-If the branch already exists locally, use `git switch codex/ride-opening-checks` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/ride-cashflow-report` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 

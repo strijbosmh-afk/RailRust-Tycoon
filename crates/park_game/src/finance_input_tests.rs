@@ -69,6 +69,67 @@ fn click(app: &mut App, action: ui::Action) {
 }
 
 #[test]
+fn ride_cashflow_view_pages_retained_rides_and_is_read_only_through_actual_buttons() {
+    let directory = InputSaveDirectory::new();
+    let mut park = train_park();
+    for _ in 0..3 {
+        let id = park.place_carousel(TilePos { x: 19, y: 22 }, 8).unwrap();
+        park.remove_carousel(id).unwrap();
+    }
+    let live = park.place_carousel(TilePos { x: 19, y: 22 }, 8).unwrap();
+    let before = park.clone();
+    let (mut app, _) = finance_app(
+        &directory,
+        park,
+        ViewState {
+            finance_open: true,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click(&mut app, ui::Action::FinanceView);
+    assert_eq!(
+        app.world().resource::<ViewState>().finance_view,
+        ui::finance::FinanceView::Rides
+    );
+    assert!(
+        label(&mut app, |l| matches!(
+            l,
+            ui::finance::FinanceLabel::History
+        ))
+        .contains("5 retained rides / 2 currently installed")
+    );
+    assert!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(1)))
+            .contains("Not installed / Net cash -$150.00")
+    );
+    click(&mut app, ui::Action::FinancePage(1));
+    assert_eq!(app.world().resource::<ViewState>().finance_page, 1);
+    assert!(
+        label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(0))).contains(&format!(
+            "Ride #{} / Carousel / Closed / Net cash -$300.00",
+            live.0
+        ))
+    );
+    assert!(label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(4))).is_empty());
+    // A view switch wins over simultaneous page requests, independent of order.
+    let page_button = app
+        .world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::FinancePage(1)))
+        .id();
+    click(&mut app, ui::Action::FinanceView);
+    app.world_mut().despawn(page_button);
+    assert_eq!(
+        app.world().resource::<ViewState>().finance_view,
+        ui::finance::FinanceView::Transactions
+    );
+    assert_eq!(app.world().resource::<ViewState>().finance_page, 0);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
+}
+
+#[test]
 fn finance_open_and_close_consume_conflicting_keys_buttons_and_world_clicks() {
     for keyboard in [true, false] {
         for reverse in [true, false] {

@@ -253,6 +253,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-opening --save-dir $openingDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Opening verification failed" }
           Get-Content -LiteralPath (Join-Path $openingDirectory "verification-opening.txt")
+      - name: Verify ride cashflow reports across fresh processes
+        shell: pwsh
+        run: |
+          $cashflowDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound cashflow é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-cashflow --save-dir $cashflowDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Cashflow writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-cashflow --save-dir $cashflowDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Cashflow verification failed" }
+          Get-Content -LiteralPath (Join-Path $cashflowDirectory "verification-cashflow.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:
