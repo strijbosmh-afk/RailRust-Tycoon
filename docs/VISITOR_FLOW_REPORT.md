@@ -1,6 +1,6 @@
 # Visitor arrivals/departures — 0.43.0
 
-Runtime source `f2bde7fd75ae4fd38a0f15d6b5a8073817e957ae` is pushed on `codex/guest-arrivals-departures` in [draft PR #42](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/42), based on verified 0.42.0 `2b322134a519157d6ec1450c1a2a1788d26250b3` / PR #41. All **773 release tests (443 game / 330 simulation)**, formatting and strict Clippy passed. The production build (1m 02s), extracted runtime proofs and image review passed; no current CI completion is claimed. Previous runtime CI 40208303565 passed all 43 steps.
+Runtime source `f2bde7fd75ae4fd38a0f15d6b5a8073817e957ae` is pushed on `codex/guest-arrivals-departures` in [draft PR #42](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/42), based on verified 0.42.0 `2b322134a519157d6ec1450c1a2a1788d26250b3` / PR #41. All **773 release tests (443 game / 330 simulation)**, formatting and strict Clippy passed. The production build (1m 02s), extracted runtime proofs and image review passed; its exact-runtime push and PR CI each passed all 44 steps, confirmed during 0.44 development. Previous runtime CI 40208303565 passed all 43 steps.
 
 The opt-in visitor flow adds a public-path entry, timed arrivals, tracked stays, explicit send-home requests and physical departures. Paid journeys and services finish before returning to entry. Removed entry blocks spawning/departure until replaced. New wallets remain guest money. A bounded aggregate archive retains retired visitors' spending, unused wallets, ride completions/reviews and service usage; ownership totals and strict saved-state validators reconcile active plus retired history.
 
@@ -8,7 +8,7 @@ Timing: 900 ticks per arrival, 18000 ticks per stay, 64 active flow cap, one mil
 
 Physical native input, clean-PC behavior and representative performance remain separate from system-input tests, controlled captures and isolated packaged runtime proofs. The full game remains unfinished.
 
-Verified executable: **50,600,448 bytes**, SHA256 **`74554c45ff8430a7ae78f23c0c8296d5223d3567f9e09977062bd81344520f2a`**. Use `dist/Parkbound-0.43.0-windows-x64.zip` and its adjacent `.zip.sha256` for final archive identity; the mutable archive checksum is not embedded in bundled guides. Runtime [push CI 40211298018](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40211298018), job 121222893302, and PR CI 40211308253 remain in progress.
+Verified executable: **50,600,448 bytes**, SHA256 **`74554c45ff8430a7ae78f23c0c8296d5223d3567f9e09977062bd81344520f2a`**. Use `dist/Parkbound-0.43.0-windows-x64.zip` and its adjacent `.zip.sha256` for final archive identity; the mutable archive checksum is not embedded in bundled guides. Runtime [push CI 40211298018](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40211298018), job 121222893302, and PR CI 40211308253 both passed all 44 steps.
 
 Verification evidence remains under `artifacts/visitors-0.43.0`:
 
