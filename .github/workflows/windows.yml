@@ -289,6 +289,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-loans --save-dir $loanDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Loan verification failed" }
           Get-Content -LiteralPath (Join-Path $loanDirectory "verification-loans.txt")
+      - name: Verify recorded park and company book value
+        shell: pwsh
+        run: |
+          $valueDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound value é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-value --save-dir $valueDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Value writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-value --save-dir $valueDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Value verification failed" }
+          Get-Content -LiteralPath (Join-Path $valueDirectory "verification-value.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

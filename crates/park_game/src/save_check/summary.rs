@@ -139,7 +139,7 @@ pub(crate) fn inspect(park: &Park) -> Result<String, String> {
             return Err("displayed summary row differs from report".into());
         }
     }
-    for _ in 0..4 {
+    for _ in 0..5 {
         app.world_mut()
             .resource_mut::<ViewState>()
             .finance_view_pending = true;

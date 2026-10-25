@@ -1,6 +1,6 @@
 # Park finance summary
 
-Open **Finance [N]**, choose **Ride cashflows**, then **Park summary**. The view button continues to Loans, then back to Transactions. The summary has one page; Previous/Next do not change its figures. It is read-only. Space pauses the simulation; viewing Finance alone does not pause costs or activity.
+Open **Finance [N]**, choose **Ride cashflows**, then **Park summary**. The view button continues to Loans, then Park value, then back to Transactions. The summary has one page; Previous/Next do not change its figures. It is read-only. Space pauses the simulation; viewing Finance alone does not pause costs or activity.
 
 The summary shows lifetime recorded results in dollars:
 

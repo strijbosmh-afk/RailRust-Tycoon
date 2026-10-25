@@ -1,6 +1,6 @@
 # Ride cashflows
 
-Open **Finance [N]**, then choose **Ride cashflows** at the top. The view button cycles through **Park summary**, then **Loans**, then **Transactions**, then Ride cashflows again. Use **Previous / Next** or **Page Up / Page Down** to browse ride history. Four rides fit on each report page, ordered by stable ride ID. Changing views returns to page one.
+Open **Finance [N]**, then choose **Ride cashflows** at the top. The view button cycles through **Park summary**, then **Loans**, then **Park value**, then **Transactions**, then Ride cashflows again. Use **Previous / Next** or **Page Up / Page Down** to browse ride history. Four rides fit on each report page, ordered by stable ride ID. Changing views returns to page one.
 
 Each ride shows its family, current installed/open state, lifetime ticket income, recorded construction spending, refunds, upkeep and net cash:
 
