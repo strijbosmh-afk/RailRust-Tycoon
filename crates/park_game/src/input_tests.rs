@@ -1624,3 +1624,23 @@ fn same_tick_load_refreshes_land_guests_train_and_clears_the_selection_mesh() {
         }
     }
 }
+
+#[test]
+fn f10_sound_modal_consumes_simultaneous_save_build_and_close_inputs() {
+    let directory = InputSaveDirectory::new();
+    let park = train_park();
+    let before = park.clone();
+    let (mut app, _) = persistence_input_app(&directory, park, ViewState::default());
+    persistence_key_frame(&mut app, &[KeyCode::F10, KeyCode::F5, KeyCode::Delete]);
+    let v = app.world().resource::<ViewState>();
+    assert!(v.help && v.audio_view);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert!(!directory.store().save_path().exists());
+    persistence_key_frame(&mut app, &[KeyCode::F5, KeyCode::KeyT, KeyCode::KeyO]);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert!(!directory.store().save_path().exists());
+    persistence_key_frame(&mut app, &[KeyCode::Escape, KeyCode::F5, KeyCode::Delete]);
+    assert!(!app.world().resource::<ViewState>().help);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert!(!directory.store().save_path().exists());
+}

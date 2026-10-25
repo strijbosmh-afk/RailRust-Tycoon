@@ -60,6 +60,10 @@ mod visitor_scenes;
 #[derive(Clone, Copy)]
 enum Scene {
     Overview,
+    Sound,
+    SoundMuted,
+    Garden,
+    Water,
     Help,
     Selection,
     Path,
@@ -666,6 +670,10 @@ pub(super) fn configure(app: &mut App) {
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
                 Some("overview") => Scene::Overview,
                 Some("help") => Scene::Help,
+                Some("sound") => Scene::Sound,
+                Some("sound-muted") => Scene::SoundMuted,
+                Some("garden") => Scene::Garden,
+                Some("water") => Scene::Water,
                 Some("selection") => Scene::Selection,
                 Some("path") => Scene::Path,
                 Some("track") => Scene::Track,
@@ -976,16 +984,21 @@ pub(super) fn configure(app: &mut App) {
     .add_systems(Last, capture_frame);
 }
 
+type PresetResources<'w> = (
+    Option<ResMut<'w, crate::design_library::DesignLibrary>>,
+    Option<ResMut<'w, crate::sound::SoundSettings>>,
+);
 fn apply_preset(
     capture: Res<Capture>,
     session: Res<SaveSession>,
     mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
     // Non-design presets also run in minimal rendering apps without a library.
-    library: Option<ResMut<crate::design_library::DesignLibrary>>,
+    resources: PresetResources<'_>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
+    let (library, mut sound) = resources;
     view.capture_active = true;
     view.set_speed(Speed::Paused);
     // These controlled scenes build their own stopped, waiting or paid state.
@@ -1002,7 +1015,18 @@ fn apply_preset(
     view.terrain_change_pending = false;
     view.view_mode = capture.view_mode;
     view.scene_dirty = true;
-    view.help = matches!(capture.scene, Scene::Help);
+    view.help = matches!(
+        capture.scene,
+        Scene::Help | Scene::Sound | Scene::SoundMuted
+    );
+    view.audio_view = matches!(capture.scene, Scene::Sound | Scene::SoundMuted);
+    if matches!(capture.scene, Scene::SoundMuted)
+        && let Some(settings) = sound.as_mut()
+    {
+        settings.value.muted = true;
+        settings.value.levels = [30, 10, 60, 40, 80];
+    }
+
     if !capture.scene.uses_fresh_ride_fixture() {
         for _ in 0..capture.ticks {
             sim.0.advance(Speed::Normal);
@@ -1079,6 +1103,26 @@ fn apply_preset(
         // Only overview captures may use an isolated rendering fixture.
         // Reapply its camera after the ordinary preset resets rotation/view.
         scene.apply_view(&sim.0, &mut view);
+    }
+    if matches!(capture.scene, Scene::Garden | Scene::Water) {
+        let anchor = if matches!(capture.scene, Scene::Garden) {
+            TilePos { x: 3, y: 6 }
+        } else {
+            (0..sim.0.height())
+                .flat_map(|y| (0..sim.0.width()).map(move |x| TilePos { x, y }))
+                .find(|p| {
+                    p.x > 2
+                        && p.y > 2
+                        && sim
+                            .0
+                            .tile(*p)
+                            .is_some_and(|t| t.terrain == park_sim::Terrain::Water)
+                })
+                .unwrap()
+        };
+        view.zoom = 2.0;
+        view.pan = world::elevated_tile_center(&sim.0, anchor, view.rotation).unwrap()
+            - Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
     }
     if capture.scene.is_train() {
         crate::focus_train(&sim.0, &mut view);
