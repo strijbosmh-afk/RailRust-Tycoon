@@ -151,6 +151,7 @@ impl Drop for Output {
 pub(crate) fn configure(app: &mut App, args: &[std::ffi::OsString]) {
     let quiet = args.iter().any(|s| {
         s == "--capture-frame"
+            || s.to_string_lossy().starts_with("--profile-")
             || s.to_string_lossy().starts_with("--frame-")
             || s.to_string_lossy().starts_with("--render-")
     });
@@ -297,4 +298,20 @@ fn update(
 }
 pub(crate) fn run(args: &[std::ffi::OsString]) -> Option<AppExit> {
     proof::run(args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn captures_and_frame_diagnostics_never_start_audio_or_load_player_settings() {
+        for flag in ["--capture-frame", "--profile-frames", "--render-case"] {
+            let mut app = App::new();
+            configure(&mut app, &[flag.into(), "isolated".into()]);
+            assert!(!app.world().contains_resource::<Output>());
+            let settings = app.world().resource::<SoundSettings>();
+            assert!(settings.path.is_none());
+            assert!(settings.backend().contains("disabled"));
+        }
+    }
 }
