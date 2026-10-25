@@ -11,3 +11,7 @@ The schema-20 migration regression compares all original park fields recursively
 ## v20-paid-summary.park.json
 
 Authentic schema/content 20/20 primary written by the verified 0.40.0 `write-summary` production mode, runtime source `ca55df06555f5502b6275b6d2072ba99c552af84`. Executable SHA256: `73894400b053e9e90fedb3c94b4aa91d6d6bbae5e34c549b49348739fe2b9477`. Fixture SHA256: `9c2833d29c4e0bc012fcd60f7e6d20ef76089b638bd72243e1e99c84aab47b48`. It includes real paid ride/service sales, operating costs, removed owner history and archived receipts; no loans or player/private data. The loan migration test compares every original park field and requires zero new financing defaults.
+
+## v21-paid-value.park.json
+
+Authentic schema/content 21/21 primary from the actual 0.42.0 `write-value` mode, runtime `b54329b49843be835b2cd11eb92cbac7f2d5cb96`. Executable SHA256 `be75b23ffd70a63c165f701a258855181bed245a8985be90f50011d201224471`. Fixture SHA256 `ab7a4b59d08546fe216b644b0fa2692f0dbeafbec426e4f4a368910af1765f9d`. Real paid rides, services, archived receipts, demolition and loans; no player data. Migration compares every original field and adds disabled, empty visitor state.

@@ -50,6 +50,7 @@ impl VersionNineteenParkData {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: self.coaster_cars,
             ride_dispatch: self.ride_dispatch,
             track_economy: self.track_economy,

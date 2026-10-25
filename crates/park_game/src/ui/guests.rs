@@ -1,4 +1,4 @@
-//! Read-only guest inspection. List slots never serve as authoritative identities.
+//! Guest inspection and explicit visitor controls. List slots are not identities.
 use super::*;
 use park_sim::{Guest, GuestState, Park, RideVisitPhase, ServiceVisitPhase};
 
@@ -11,8 +11,11 @@ pub(crate) struct GuestPanel;
 #[derive(Component)]
 pub(crate) struct GuestRow(usize);
 #[derive(Component)]
+pub(crate) struct GuestInspection;
+#[derive(Component)]
 pub(crate) enum GuestLabel {
     Summary,
+    FlowView,
     Page,
     Row(usize),
     Title,
@@ -69,15 +72,32 @@ pub(super) fn setup(commands: &mut Commands) {
                 })
                 .with_children(|p| {
                     label(p, "Guests", 23.0, INK);
+                    p.spawn((
+                        Button,
+                        Action::GuestFlowView,
+                        Node {
+                            width: px(140),
+                            height: px(30),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON),
+                    ))
+                    .with_children(|p| text(p, "Visitor flow", 12.0, GuestLabel::FlowView));
                     button(p, "Close [L / Esc]", Action::CloseGuests, 140.0);
                 });
                 text(p, "Guest experience", 12.0, GuestLabel::Summary);
-                p.spawn(Node {
-                    height: px(350),
-                    flex_shrink: 0.0,
-                    column_gap: px(18),
-                    ..row()
-                })
+                super::visitor_flow::setup(p);
+                p.spawn((
+                    GuestInspection,
+                    Node {
+                        height: px(350),
+                        flex_shrink: 0.0,
+                        column_gap: px(18),
+                        ..row()
+                    },
+                ))
                 .with_children(|p| {
                     p.spawn(Node {
                         width: px(230),
@@ -299,10 +319,30 @@ type Rows<'w, 's> = Query<
     Without<GuestPanel>,
 >;
 
+type GuestPanels<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Node,
+    (
+        With<GuestPanel>,
+        Without<GuestInspection>,
+        Without<super::visitor_flow::VisitorBody>,
+    ),
+>;
+type GuestBodies<'w, 's> = Query<
+    'w,
+    's,
+    (&'static mut Node, Has<super::visitor_flow::VisitorBody>),
+    Or<(
+        With<GuestInspection>,
+        With<super::visitor_flow::VisitorBody>,
+    )>,
+>;
 pub(crate) fn refresh(
     sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
-    mut panels: Query<&mut Node, (With<GuestPanel>, Without<GuestRow>)>,
+    mut panels: GuestPanels<'_, '_>,
+    mut bodies: GuestBodies<'_, '_>,
     mut rows: Rows<'_, '_>,
     mut labels: Query<(&GuestLabel, &mut Text)>,
 ) {
@@ -318,6 +358,19 @@ pub(crate) fn refresh(
         view.guest_page_pending = 0;
         return;
     }
+    if std::mem::take(&mut view.guest_flow_pending) {
+        view.guest_flow_view = !view.guest_flow_view;
+        view.visitor_pending = None;
+        view.visitor_notice = None;
+    }
+    for (mut node, is_flow) in &mut bodies {
+        node.display = if is_flow == view.guest_flow_view {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+    let flow = sim.0.visitor_flow_stats();
     let mut guests: Vec<_> = sim.0.guests().iter().collect();
     guests.sort_unstable_by_key(|guest| guest.id);
     resolve_selection(&guests, &mut view);
@@ -342,6 +395,20 @@ pub(crate) fn refresh(
     let experience = ride_id.map(|id| sim.0.ride_experience_stats(id));
     for (kind, mut text) in &mut labels {
         let value = match kind {
+            GuestLabel::FlowView => if view.guest_flow_view {
+                "Guest list"
+            } else {
+                "Visitor flow"
+            }
+            .into(),
+            GuestLabel::Summary if view.guest_flow_view => format!(
+                "{} active guests / {} leaving / {} finishing visits\nArrival flow {} / {} lifetime departures",
+                flow.active,
+                flow.leaving,
+                flow.finishing_visits,
+                if flow.enabled { "on" } else { "off" },
+                flow.departed
+            ),
             GuestLabel::Summary => format!(
                 "{} guests / Average satisfaction {} / {} unhappy\n{} reviews: {} from {} opinions",
                 guests.len(),

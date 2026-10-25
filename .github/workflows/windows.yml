@@ -298,6 +298,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-value --save-dir $valueDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Value verification failed" }
           Get-Content -LiteralPath (Join-Path $valueDirectory "verification-value.txt")
+      - name: Verify visitor turnover and retired receipts
+        shell: pwsh
+        run: |
+          $visitorDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound visitors é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-visitors --save-dir $visitorDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Visitor writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-visitors --save-dir $visitorDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Visitor verification failed" }
+          Get-Content -LiteralPath (Join-Path $visitorDirectory "verification-visitors.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

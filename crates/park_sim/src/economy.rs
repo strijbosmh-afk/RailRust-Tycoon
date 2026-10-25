@@ -150,9 +150,12 @@ impl Park {
 }
 
 pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
-    let mut spent = 0_u64;
-    let mut service_spent = 0_u64;
+    let mut spent = park.visitors.departed.spent_cents;
+    let mut service_spent = park.visitors.departed.service_spent_cents;
     let mut histories = BTreeMap::<RideId, (u64, u64)>::new();
+    for row in &park.visitors.departed.rides {
+        histories.insert(row.ride, (row.spent_cents, row.completed));
+    }
     for guest in &park.guests {
         if guest.wallet_cents > INITIAL_GUEST_WALLET_CENTS
             || guest.spent_cents > u64::from(INITIAL_GUEST_WALLET_CENTS)

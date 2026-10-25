@@ -532,6 +532,7 @@ impl Park {
 pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     crate::ride_costs::validate(park)?;
     crate::loans::validate(park)?;
+    crate::visitors::validate(park)?;
     let ledger = &park.finances;
     if ledger.opening_tick > park.ticks
         || ledger.archived_through_tick < ledger.opening_tick

@@ -615,7 +615,13 @@ fn validate_owner_journeys(
     let mut seats = BTreeSet::new();
     let mut transfers = 0;
     let mut riding = 0;
-    let mut completed_total = 0_u64;
+    let mut completed_total = park
+        .visitors
+        .departed
+        .rides
+        .iter()
+        .find(|h| h.ride == ride.id)
+        .map_or(0, |h| h.completed);
     for guest in &park.guests {
         completed_total = completed_total
             .checked_add(
