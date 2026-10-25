@@ -1042,7 +1042,15 @@ fn train_shortcuts_preserve_pause_and_help_and_capture_gate_actions() {
                 .resource_mut::<ButtonInput<KeyCode>>()
                 .press(KeyCode::KeyO);
             frame(&mut app);
-            assert!(app.world().resource::<Simulation>().0.train().unwrap().open);
+            assert!(!app.world().resource::<Simulation>().0.train().unwrap().open);
+            assert!(
+                app.world()
+                    .resource::<ViewState>()
+                    .price_notice
+                    .as_deref()
+                    .unwrap()
+                    .contains("entrance")
+            );
         }
     }
 }

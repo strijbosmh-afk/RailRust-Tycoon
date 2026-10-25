@@ -22,7 +22,7 @@ Ten final 1024 × 680 captures cover the three selected starter previews, a paid
 
 All **291 dependency entries** and five runtime/notice files match 0.35 byte for byte. Logs and visual receipts are retained in `artifacts/starter-designs-0.36.0/`. Final guide refresh uses the same verified executable and another fresh extraction; the archive's adjacent `.zip.sha256` identifies the refreshed ZIP.
 
-Exact-source Windows [CI run 40141146431](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40141146431), job 121012967542, remains in progress at this local checkpoint. No CI artifact was downloaded or executed. Previous 0.35 runtime source passed all 36 steps of CI 40139500981.
+Exact-source Windows [CI run 40141146431](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40141146431), job 121012967542, passed all **37 steps**, including 711 tests and the starter design proof. No CI artifact was downloaded or executed. Previous 0.35 runtime source passed all 36 steps of CI 40139500981.
 
 ## Remaining work
 

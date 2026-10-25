@@ -39,6 +39,7 @@ mod facility_construction_scenes;
 mod feedback_scenes;
 mod finance_scenes;
 mod journey_scenes;
+mod opening_scenes;
 mod operations_scenes;
 mod queue_scenes;
 mod ride_choice_scenes;
@@ -143,6 +144,11 @@ enum Scene {
     OperationsCarousel,
     OperationsRunning,
     OperationsLimits,
+    OpeningEntrance,
+    OpeningExitPath,
+    OpeningReady,
+    OpeningCarousel,
+    OpeningPaid,
     StarterPocket,
     StarterWinder,
     StarterClimb,
@@ -222,7 +228,8 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_starter()
+        self.is_opening()
+            || self.is_starter()
             || self.is_train_configuration()
             || self.is_testing()
             || self.is_appeal()
@@ -277,6 +284,16 @@ impl Scene {
                 | Self::OperationsCarousel
                 | Self::OperationsRunning
                 | Self::OperationsLimits
+        )
+    }
+    fn is_opening(self) -> bool {
+        matches!(
+            self,
+            Self::OpeningEntrance
+                | Self::OpeningExitPath
+                | Self::OpeningReady
+                | Self::OpeningCarousel
+                | Self::OpeningPaid
         )
     }
     fn is_design(self) -> bool {
@@ -625,6 +642,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("ride-choice") => Scene::RideChoice,
                 Some("rides") => Scene::Rides,
                 Some("operations-coaster") => Scene::OperationsCoaster,
+                Some("opening-entrance") => Scene::OpeningEntrance,
+                Some("opening-exit-path") => Scene::OpeningExitPath,
+                Some("opening-ready") => Scene::OpeningReady,
+                Some("opening-carousel") => Scene::OpeningCarousel,
+                Some("opening-paid") => Scene::OpeningPaid,
                 Some("operations-carousel") => Scene::OperationsCarousel,
                 Some("operations-running") => Scene::OperationsRunning,
                 Some("operations-limits") => Scene::OperationsLimits,
@@ -962,6 +984,9 @@ fn apply_preset(
     }
     if capture.scene.is_operations() {
         operations_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_opening() {
+        opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_testing() {
         testing_scenes::prepare(&mut sim.0, &mut view, capture.scene);

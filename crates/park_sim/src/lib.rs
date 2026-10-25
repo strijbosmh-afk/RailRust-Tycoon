@@ -26,7 +26,9 @@ pub use train_configuration::{
     TrainConfigurationError,
 };
 mod ride_dispatch;
+mod ride_opening;
 mod ride_operations;
+pub use ride_opening::RideOpeningError;
 mod ride_testing;
 mod saves;
 mod services;

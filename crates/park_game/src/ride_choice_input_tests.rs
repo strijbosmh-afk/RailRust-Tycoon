@@ -157,7 +157,10 @@ fn rides_panel_separates_current_challenge_neutral_reputation_and_actual_reviews
 #[test]
 fn selected_ride_price_open_focus_and_save_target_only_that_ride() {
     let dir = InputSaveDirectory::new();
-    let (park, carousel) = two_rides();
+    let mut park = train_park();
+    let carousel = crate::save_check::ride_choice::install_carousel(&mut park).unwrap();
+    park.set_ride_open_checked(carousel, false).unwrap();
+    park.set_ride_ticket_price(carousel, 0).unwrap();
     let coaster = park.ride().unwrap().clone();
     let mut app = app(
         &dir,

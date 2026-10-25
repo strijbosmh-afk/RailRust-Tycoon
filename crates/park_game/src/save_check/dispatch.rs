@@ -56,16 +56,24 @@ fn roundtrip(park: &mut Park) -> Result<(), String> {
 }
 
 pub(crate) fn install_empty(park: &mut Park) -> Result<[RideId; 2], String> {
-    park.set_train_open(false);
-    let coaster = park.ride().ok_or("missing dispatch coaster")?.id;
+    // An empty loading test must still meet player opening rules. Connect both
+    // rides and use an unaffordable fare to keep guests out of this wait fixture.
+    let (coaster, carousel) = super::ride_choice::install(park)?;
+    for id in [coaster, carousel] {
+        park.set_ride_open_checked(id, false)
+            .map_err(|e| e.to_string())?;
+        park.set_ride_ticket_price(id, park_sim::MAX_TICKET_PRICE_CENTS)
+            .map_err(|e| e.to_string())?;
+    }
     super::ride_choice::seek(
         park,
-        |p| p.ride_operating_settings_status(coaster).is_ok(),
-        "empty closed coaster",
+        |p| {
+            [coaster, carousel]
+                .iter()
+                .all(|id| p.ride_operating_settings_status(*id).is_ok())
+        },
+        "both connected rides closed and empty",
     )?;
-    let carousel = park
-        .place_carousel(super::ride_choice::ORIGIN, 8)
-        .map_err(|e| e.to_string())?;
     for (id, minimum, extra_adjustment) in [(coaster, 6, -28), (carousel, 3, -27)] {
         command(park, id, Command::Adjust(Field::StationWait, -2))?;
         command(park, id, Command::Adjust(Field::MinimumPassengers, minimum))?;
@@ -75,9 +83,8 @@ pub(crate) fn install_empty(park: &mut Park) -> Result<[RideId; 2], String> {
             Command::Adjust(Field::MaxExtraWait, extra_adjustment),
         )?;
         require(
-            park.ride_by_id(id)
-                .is_some_and(|ride| ride.entrance.is_none() && ride.exit.is_none()),
-            "empty dispatch fixture unexpectedly has guest access",
+            park.ride_opening_status(id).is_ok(),
+            "empty dispatch fixture must retain valid access",
         )?;
     }
     require(
