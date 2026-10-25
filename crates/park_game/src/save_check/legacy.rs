@@ -361,12 +361,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=19).contains(&schema)
+        if !(1..=20).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version 1..19 source slot".into(),
+                "verify-legacy requires an authentic strict version 1..20 source slot".into(),
             );
         }
         let mut park = demonstration_park();

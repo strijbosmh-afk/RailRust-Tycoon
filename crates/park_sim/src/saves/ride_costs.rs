@@ -1,8 +1,9 @@
 //! Exact pre-operating-cost finance types; no new charge or history is invented.
+use super::loans::LegacyFinanceTotals as FinanceTotals;
 use super::*;
 use crate::{
-    FINANCE_LEDGER_CAPACITY, FinanceTotals, MAX_SERVICES, RideId, ServiceFinanceOpening,
-    ServiceFinanceTotals, ServiceId,
+    FINANCE_LEDGER_CAPACITY, MAX_SERVICES, RideId, ServiceFinanceOpening, ServiceFinanceTotals,
+    ServiceId,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -99,7 +100,7 @@ impl From<LegacyFinanceLedger> for crate::FinanceLedger {
             opening_services: old.opening_services,
             archived_entries: old.archived_entries,
             archived_through_tick: old.archived_through_tick,
-            archived: old.archived,
+            archived: old.archived.into(),
             archived_services: old.archived_services,
             archived_rides: old.archived_rides.into_iter().map(Into::into).collect(),
             entries: old

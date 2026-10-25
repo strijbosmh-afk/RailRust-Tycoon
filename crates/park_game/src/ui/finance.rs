@@ -7,6 +7,72 @@ pub(crate) const PANEL_WIDTH: f32 = 760.0;
 pub(crate) const PANEL_HEIGHT: f32 = 520.0;
 pub(crate) const PAGE_SIZE: usize = 8;
 pub(crate) const RIDE_PAGE_SIZE: usize = 4;
+pub(crate) const SUMMARY_PAGE_SIZE: usize = 5;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LoanCommand {
+    Borrow,
+    Repay,
+    Interest,
+    Conflict,
+}
+
+pub(crate) fn queue_loan(view: &mut ViewState, command: LoanCommand) {
+    view.finance_loan_pending = Some(if view.finance_loan_pending.is_some() {
+        LoanCommand::Conflict
+    } else {
+        command
+    });
+}
+
+pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    let Some(command) = view.finance_loan_pending.take() else {
+        return;
+    };
+    if !view.finance_open
+        || view.finance_view != FinanceView::Loans
+        || view.finance_view_pending
+        || view.modal_input_blocked
+        || view.capture_active
+        || view.diagnostic_case.is_some()
+    {
+        return;
+    }
+    let result = match command {
+        LoanCommand::Borrow => sim
+            .0
+            .borrow_loan(park_sim::LOAN_STEP_CENTS)
+            .map(|_| "Borrowed $100; recorded as funding.".into()),
+        LoanCommand::Repay => sim
+            .0
+            .repay_loan(park_sim::LOAN_STEP_CENTS)
+            .map(|_| "Repaid $100 and settled accrued whole-cent interest.".into()),
+        LoanCommand::Interest => sim
+            .0
+            .pay_loan_interest()
+            .map(|paid| format!("Paid {} interest.", money(paid))),
+        LoanCommand::Conflict => {
+            view.finance_loan_notice = Some("Choose one loan command at a time.".into());
+            return;
+        }
+    };
+    view.finance_loan_notice =
+        Some(result.unwrap_or_else(|error| format!("Loan unchanged: {error}")));
+}
+
+fn loan_rows(park: &Park) -> [String; 4] {
+    let loan = park.loan_stats();
+    [
+        format!("Outstanding principal {} / Available to borrow {}\nBorrowing adds cash and debt; it never counts as a sale.",money(loan.principal_cents),money(loan.available_cents)),
+        format!("Lifetime borrowed +{} / Principal repaid -{}\nPrincipal repayment reduces cash and debt, not operating profit.",money(loan.borrowed_cents),money(loan.repaid_cents)),
+        format!("Interest accrued {} / Paid -{} / Still due {}\nUnpaid interest is retained; no automatic borrowing or compounding.",money(loan.interest_accrued_cents),money(loan.interest_paid_cents),money(loan.interest_due_cents)),
+        "Repayments first settle all accrued whole-cent interest.\nPartial automatic interest payments use available cash; the rest stays due.".into(),
+    ]
+}
+#[derive(Component)]
+pub(crate) struct FinanceLoanControls;
+#[derive(Component)]
+pub(crate) struct FinancePaging;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum FinanceView {
@@ -14,6 +80,7 @@ pub(crate) enum FinanceView {
     Transactions,
     Rides,
     ParkSummary,
+    Loans,
 }
 
 #[derive(Component)]
@@ -143,14 +210,35 @@ pub(super) fn setup(commands: &mut Commands) {
                         });
                     }
                 });
-                p.spawn(Node {
-                    justify_content: JustifyContent::SpaceBetween,
-                    ..row()
-                })
+                p.spawn((
+                    FinancePaging,
+                    Node {
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..row()
+                    },
+                ))
                 .with_children(|p| {
                     button(p, "Previous [PgUp]", Action::FinancePage(-1), 140.0);
                     text(p, "Page 1 / 1", 12.0, FinanceLabel::Page);
                     button(p, "Next [PgDn]", Action::FinancePage(1), 140.0);
+                });
+                p.spawn((
+                    FinanceLoanControls,
+                    Node {
+                        display: Display::None,
+                        justify_content: JustifyContent::SpaceBetween,
+                        ..row()
+                    },
+                ))
+                .with_children(|p| {
+                    button(p, "Borrow $100", Action::Loan(LoanCommand::Borrow), 200.0);
+                    button(p, "Repay $100", Action::Loan(LoanCommand::Repay), 200.0);
+                    button(
+                        p,
+                        "Pay interest",
+                        Action::Loan(LoanCommand::Interest),
+                        200.0,
+                    );
                 });
                 text(p, "", 11.0, FinanceLabel::Footer);
             });
@@ -201,7 +289,7 @@ pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
     )
 }
 
-pub(crate) fn summary_rows(park: &Park) -> [String; 4] {
+pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
     let report = park.finance_summary();
     [
         format!(
@@ -224,7 +312,15 @@ pub(crate) fn summary_rows(park: &Park) -> [String; 4] {
             money(report.refunds_cents)
         ),
         format!(
-            "Net cash {} = operating profit + refunds - construction\nStarting cash {} + net cash = current cash {}",
+            "Financing / Borrowed +{} / Repaid -{} / Interest paid -{}\nLoan balance {} / Interest due {}",
+            money(report.loan_borrowed_cents),
+            money(report.loan_repaid_cents),
+            money(report.loan_interest_cents),
+            money(park.loan_stats().principal_cents),
+            money(park.loan_stats().interest_due_cents)
+        ),
+        format!(
+            "Net cash {} / includes construction, refunds and financing\nStarting cash {} + net cash = current cash {}",
             signed_cash(report.net_cash_cents),
             money(report.starting_cash_cents),
             money(report.cash_cents)
@@ -239,6 +335,9 @@ fn clock(tick: u64) -> String {
 
 fn row_text(entry: &FinanceEntry) -> String {
     let (label, sign) = match entry.kind {
+        FinanceKind::LoanBorrow => ("Loan borrowing", "+"),
+        FinanceKind::LoanRepayment => ("Loan repayment", "-"),
+        FinanceKind::LoanInterest => ("Loan interest", "-"),
         FinanceKind::RideUpkeep => ("Ride upkeep", "-"),
         FinanceKind::RideRevenue => ("Ride tickets", "+"),
         FinanceKind::ServiceRevenue => ("Service sales", "+"),
@@ -271,7 +370,7 @@ fn page(park: &Park, view: &mut ViewState) -> (usize, usize) {
     let pages = match view.finance_view {
         FinanceView::Transactions => park.finance_ledger().entries.len().div_ceil(PAGE_SIZE),
         FinanceView::Rides => park.ride_cashflows().len().div_ceil(RIDE_PAGE_SIZE),
-        FinanceView::ParkSummary => 1,
+        FinanceView::ParkSummary | FinanceView::Loans => 1,
     }
     .max(1);
     let current = view.finance_page.min(pages - 1);
@@ -280,12 +379,40 @@ fn page(park: &Park, view: &mut ViewState) -> (usize, usize) {
     (view.finance_page, pages)
 }
 
+type FinancePanels<'w, 's> = Query<
+    'w,
+    's,
+    &'static mut Node,
+    (
+        With<FinancePanel>,
+        Without<FinanceLoanControls>,
+        Without<FinancePaging>,
+    ),
+>;
+type FinanceRows<'w, 's> = Query<
+    'w,
+    's,
+    (&'static FinanceRow, &'static mut Node),
+    (
+        Without<FinancePanel>,
+        Without<FinanceLoanControls>,
+        Without<FinancePaging>,
+    ),
+>;
+type FinanceControls<'w, 's> = Query<
+    'w,
+    's,
+    (&'static mut Node, Has<FinanceLoanControls>),
+    Or<(With<FinanceLoanControls>, With<FinancePaging>)>,
+>;
+
 pub(crate) fn refresh(
     sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
-    mut panels: Query<&mut Node, With<FinancePanel>>,
-    mut rows: Query<(&FinanceRow, &mut Node), Without<FinancePanel>>,
+    mut panels: FinancePanels<'_, '_>,
+    mut rows: FinanceRows<'_, '_>,
     mut labels: Query<(&FinanceLabel, &mut Text)>,
+    mut controls: FinanceControls<'_, '_>,
 ) {
     for mut panel in &mut panels {
         panel.display = if view.finance_open {
@@ -303,32 +430,61 @@ pub(crate) fn refresh(
         view.finance_view = match view.finance_view {
             FinanceView::Transactions => FinanceView::Rides,
             FinanceView::Rides => FinanceView::ParkSummary,
-            FinanceView::ParkSummary => FinanceView::Transactions,
+            FinanceView::ParkSummary => FinanceView::Loans,
+            FinanceView::Loans => FinanceView::Transactions,
         };
         view.finance_page = 0;
         view.finance_page_pending = 0;
     }
     let rides = view.finance_view == FinanceView::Rides;
     let summary = view.finance_view == FinanceView::ParkSummary;
-    let double_rows = rides || summary;
+    let loans = view.finance_view == FinanceView::Loans;
+    for (mut node, is_loan) in &mut controls {
+        node.display = if is_loan == loans {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+    let double_rows = rides || summary || loans;
     for (row, mut node) in &mut rows {
-        node.display = if double_rows && row.0 >= RIDE_PAGE_SIZE {
+        node.display = if double_rows
+            && row.0
+                >= if summary {
+                    SUMMARY_PAGE_SIZE
+                } else {
+                    RIDE_PAGE_SIZE
+                } {
             Display::None
         } else {
             Display::Flex
         };
-        node.height = px(if double_rows { 44 } else { 22 });
+        node.height = px(if summary {
+            36
+        } else if double_rows {
+            44
+        } else {
+            22
+        });
     }
     let (page, pages) = page(&sim.0, &mut view);
     let stats = sim.0.finance_stats();
     let ledger = sim.0.finance_ledger();
     let cashflows = sim.0.ride_cashflows();
     let summary_rows = summary_rows(&sim.0);
+    let loan = sim.0.loan_stats();
+    let loan_rows = loan_rows(&sim.0);
     for (label, mut text) in &mut labels {
         let value = match label {
+            FinanceLabel::View if loans=>"Transactions".into(),
+            FinanceLabel::ListHeading if loans=>"LOAN ACCOUNT / funding is separate from operating income".into(),
+            FinanceLabel::Categories if loans=>"Borrow/repay in $100 steps, up to $2000 outstanding.\nSimple interest: 0.5% per simulation minute, prorated each tick.".into(),
+            FinanceLabel::History if loans=>format!("Interest is collected before ride/facility costs every 60 simulation seconds.\nNext collection in {} simulation seconds / current rate {} per simulation minute.\nUnpaid interest remains due without compounding; Space pauses accrual.",loan.next_collection_ticks.div_ceil(TICKS_PER_SECOND),money(loan.interest_per_minute_cents)),
+            FinanceLabel::Row(i) if loans=>loan_rows.get(*i).cloned().unwrap_or_default(),
+            FinanceLabel::Footer if loans=>view.finance_loan_notice.clone().unwrap_or_else(||"Repayment also settles accrued whole-cent interest; leave cash for running costs.".into()),
             FinanceLabel::ListHeading if summary => "PARK SUMMARY / lifetime operating results and cash reconciliation".into(),
-            FinanceLabel::View if summary => "Transactions".into(),
-            FinanceLabel::Footer if summary => "Operating profit = sales - upkeep - supplies. Historical costs stay after demolition.".into(),
+            FinanceLabel::View if summary => "Loans".into(),
+            FinanceLabel::Footer if summary => "Operating profit excludes borrowing, repayments and interest. Removed histories remain.".into(),
             FinanceLabel::Categories if summary => "Operating profit excludes construction and refunds.\nLifetime recorded amounts include removed rides/facilities and older receipts.".into(),
             FinanceLabel::History if summary => format!("{} retained rides / {} retained facilities\n{} older transactions are included, not discarded.\nThis is not a monthly report, asset valuation or forecast.",cashflows.len(),sim.0.services().len(),compact_count(ledger.archived_entries)),
             FinanceLabel::Row(index) if summary => summary_rows.get(*index).cloned().unwrap_or_default(),
@@ -346,19 +502,21 @@ pub(crate) fn refresh(
                         .saturating_add(stats.service_revenue_cents)
                 ),
                 money(stats.total_costs_cents),
-                signed_money(stats.net_profit_cents),
+                signed_cash(stats.net_cash_cents),
                 money(stats.demolition_refunds_cents),
                 money(stats.open_upkeep_per_minute_cents)
             ),
             FinanceLabel::Categories => format!(
-                "Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nConstruction -{} / Demolition refunds +{}",
+                "Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nConstruction -{} / Demolition refunds +{} / Interest -{}",
                 money(stats.ride_revenue_cents),
                 money(stats.service_revenue_cents),
                 money(stats.ride_upkeep_cents),money(stats.service_upkeep_cents),
                 money(stats.supplies_cents),
                 money(stats.construction_cents),
-                money(stats.demolition_refunds_cents)
+                money(stats.demolition_refunds_cents),
+                money(stats.loan_interest_cents)
             ),
+            FinanceLabel::History if ledger.archived.loan_borrowed_cents!=0 || ledger.archived.loan_repaid_cents!=0 || ledger.archived.loan_interest_cents!=0 =>format!("Older {} transactions remain included in lifetime totals.\nOlder funding: borrowed +{} / repaid -{} / interest -{}.\nShowing latest {} transactions; financing never counts as customer sales.",compact_count(ledger.archived_entries),money(ledger.archived.loan_borrowed_cents),money(ledger.archived.loan_repaid_cents),money(ledger.archived.loan_interest_cents),ledger.entries.len()),
             FinanceLabel::History => format!(
                 "History starts at {} with cash {}. Lifetime totals above include earlier activity.\nOlder {} transactions: income +{} / costs -{} / refunds +{}.\nShowing the latest {} transactions; older amounts remain included in all totals.",
                 clock(ledger.opening_tick),

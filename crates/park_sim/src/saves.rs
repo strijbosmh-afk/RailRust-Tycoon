@@ -8,7 +8,10 @@ mod ride_operations;
 use ride_operations::VersionFifteenParkData;
 mod ride_dispatch;
 use ride_dispatch::VersionSixteenParkData;
+mod loans;
+mod loans_park;
 mod ride_costs;
+use loans_park::VersionTwentyParkData;
 mod ride_costs_park;
 mod train_configuration;
 use ride_costs_park::VersionNineteenParkData;
@@ -40,8 +43,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 20;
-pub const CONTENT_VERSION: u32 = 20;
+pub const SCHEMA_VERSION: u32 = 21;
+pub const CONTENT_VERSION: u32 = 21;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -128,6 +131,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(deserialize_with = "strict_object")]
+    loans: crate::loans::LoanAccount,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
     ride_costs: Vec<crate::ride_costs::RideCostRecord>,
     coaster_cars: u8,
@@ -290,6 +295,7 @@ impl VersionNineParkData {
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -452,6 +458,7 @@ impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -678,6 +685,7 @@ impl Park {
                 | 17
                 | 18
                 | 19
+                | 20
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -749,6 +757,9 @@ impl Park {
             legacy.park.migrate()
         } else if header.schema_version == 19 {
             let legacy: SaveEnvelope<VersionNineteenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
+        } else if header.schema_version == 20 {
+            let legacy: SaveEnvelope<VersionTwentyParkData> = parse_save(bytes)?;
             legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
@@ -1429,6 +1440,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             .collect();
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1458,6 +1470,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     fn migrate_experience(self) -> ParkData {
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1490,6 +1503,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
     fn migrate(self) -> ParkData {
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1650,6 +1664,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1775,6 +1790,7 @@ impl ParkData {
             ride_dispatch: park.ride_dispatch.clone(),
             coaster_cars: park.coaster_cars,
             ride_costs: park.ride_costs.clone(),
+            loans: park.loans,
         }
     }
 
@@ -1820,6 +1836,7 @@ impl ParkData {
             ride_dispatch: self.ride_dispatch,
             coaster_cars: self.coaster_cars,
             ride_costs: self.ride_costs,
+            loans: self.loans,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
         };

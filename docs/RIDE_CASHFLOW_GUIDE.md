@@ -1,6 +1,6 @@
 # Ride cashflows
 
-Open **Finance [N]**, then choose **Ride cashflows** at the top. The view button cycles through **Park summary**, then **Transactions**, then Ride cashflows again. Use **Previous / Next** or **Page Up / Page Down** to browse ride history. Four rides fit on each report page, ordered by stable ride ID. Changing views returns to page one.
+Open **Finance [N]**, then choose **Ride cashflows** at the top. The view button cycles through **Park summary**, then **Loans**, then **Transactions**, then Ride cashflows again. Use **Previous / Next** or **Page Up / Page Down** to browse ride history. Four rides fit on each report page, ordered by stable ride ID. Changing views returns to page one.
 
 Each ride shows its family, current installed/open state, lifetime ticket income, recorded construction spending, refunds, upkeep and net cash:
 
@@ -8,7 +8,7 @@ Each ride shows its family, current installed/open state, lifetime ticket income
 
 Coaster construction includes paid track purchases and replacements; refunds include paid track removals. Carousel spending and demolition refunds belong to that specific ride ID. A rebuilt carousel receives a new ID and its own row. The removed ride's history remains visible as **Not installed**.
 
-Older receipts stay included after the bounded recent transaction list rolls over. Facility costs and sales stay separate from ride figures, even when a facility and a ride happen to have the same numeric ID. The park totals above the report still include both rides and facilities.
+Older receipts stay included after the bounded recent transaction list rolls over. Facility costs and sales stay separate from ride figures, even when a facility and a ride happen to have the same numeric ID. The park totals above the report include rides, facilities and paid loan interest. Loan financing belongs to the park, never an individual ride.
 
 Legacy free construction has zero recorded cost. These figures describe recorded cash rather than current ride value, forecast profit or payback time. Ride upkeep follows the [operating costs guide](RIDE_OPERATING_COSTS_GUIDE.md); facility upkeep and supplies retain their existing rules. The [park summary](PARK_FINANCE_SUMMARY_GUIDE.md) separates operating profit from construction/refund cash movements. Wages, interest and depreciation are not modelled yet.
 

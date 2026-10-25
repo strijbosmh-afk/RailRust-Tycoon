@@ -40,6 +40,7 @@ mod facility_construction_scenes;
 mod feedback_scenes;
 mod finance_scenes;
 mod journey_scenes;
+mod loan_scenes;
 mod opening_scenes;
 mod operations_scenes;
 mod queue_scenes;
@@ -157,6 +158,14 @@ enum Scene {
     CostsClosed,
     CostsReopened,
     CostsFinance,
+    LoanEmpty,
+    LoanBorrowed,
+    LoanDue,
+    LoanRepaid,
+    LoanPartial,
+    LoanSummary,
+    LoanTransactions,
+    LoanLimit,
     SummaryEmpty,
     SummaryBuilt,
     SummaryMixed,
@@ -246,7 +255,8 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_summary()
+        self.is_loan()
+            || self.is_summary()
             || self.is_costs()
             || self.is_cashflow()
             || self.is_opening()
@@ -315,6 +325,19 @@ impl Scene {
                 | Self::OpeningReady
                 | Self::OpeningCarousel
                 | Self::OpeningPaid
+        )
+    }
+    fn is_loan(self) -> bool {
+        matches!(
+            self,
+            Self::LoanEmpty
+                | Self::LoanBorrowed
+                | Self::LoanDue
+                | Self::LoanRepaid
+                | Self::LoanPartial
+                | Self::LoanSummary
+                | Self::LoanTransactions
+                | Self::LoanLimit
         )
     }
     fn is_summary(self) -> bool {
@@ -696,6 +719,14 @@ pub(super) fn configure(app: &mut App) {
                 Some("costs-closed") => Scene::CostsClosed,
                 Some("costs-reopened") => Scene::CostsReopened,
                 Some("costs-finance") => Scene::CostsFinance,
+                Some("loan-empty") => Scene::LoanEmpty,
+                Some("loan-borrowed") => Scene::LoanBorrowed,
+                Some("loan-due") => Scene::LoanDue,
+                Some("loan-repaid") => Scene::LoanRepaid,
+                Some("loan-partial") => Scene::LoanPartial,
+                Some("loan-summary") => Scene::LoanSummary,
+                Some("loan-transactions") => Scene::LoanTransactions,
+                Some("loan-limit") => Scene::LoanLimit,
                 Some("summary-empty") => Scene::SummaryEmpty,
                 Some("summary-built") => Scene::SummaryBuilt,
                 Some("summary-mixed") => Scene::SummaryMixed,
@@ -1050,6 +1081,9 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_loan() {
+        loan_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_summary() {
         summary_scenes::prepare(&mut sim.0, &mut view, capture.scene);

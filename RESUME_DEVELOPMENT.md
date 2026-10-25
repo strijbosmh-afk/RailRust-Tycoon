@@ -1,6 +1,8 @@
 # Resume development on another Windows PC
 
-Latest locally verified delivery: **0.40.0 park finance summary**, runtime `ca55df06555f5502b6275b6d2072ba99c552af84` on `codex/park-finance-summary` in [draft PR #39](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/39). Finance separates ride/service operating profits from construction/refund cash movements and explains the current cash balance. All **738 release tests**, strict checks/build, twenty-eight packaged proof processes, four bidirectional 0.39/0.40 continuation processes and ten inspected captures passed. Saves remain **20/20**. [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md) records exact identities and limits; exact-source CI 40192298373 remains in progress.
+Latest locally verified delivery: **0.41.0 loans and interest**, runtime `283d133b8e6b5188c0273a738dadbc1ba934c00e` on `codex/loans-and-interest` in [draft PR #40](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/40). Borrow/repay in $100 steps up to $2000 principal; prorated simple interest, partial collections and arrears preserve cash and history. Principal and paid interest stay outside ride/service operating profit. All **752 release tests**, strict checks/build, thirty-two packaged proof processes, eight real migration/refusal processes and twelve inspected captures passed. Saves migrate explicitly to **21/21**. [LOANS_REPORT.md](docs/LOANS_REPORT.md) records identities and scope; exact-source CI 40206542067 remains in progress.
+
+Previous locally verified delivery: **0.40.0 park finance summary**, runtime `ca55df06555f5502b6275b6d2072ba99c552af84` on `codex/park-finance-summary` in [draft PR #39](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/39). Finance separates ride/service operating profits from construction/refund cash movements and explains the current cash balance. All **738 release tests**, strict checks/build, twenty-eight packaged proof processes, four bidirectional 0.39/0.40 continuation processes and ten inspected captures passed. Saves remain **20/20**. [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md) records exact identities and limits; exact-source CI 40192298373 passed all 41 steps.
 
 Previous locally verified delivery: **0.39.0 ride operating costs**, runtime `32d1d503efb099e680c0c58108f972bc451b0349` on `codex/ride-operating-costs` in [draft PR #38](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/38). Open coasters cost $2/min and carousels $1/min; unaffordable bills close admission while paid trips finish. Overdue costs persist and recovery requires funded manual reopening. All **731 release tests**, strict checks/build, twenty-six packaged proof processes, eight authentic migration/refusal processes and eight inspected captures passed. Schema/content is **20/20**. [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md) records exact identities and limits; exact-source CI 40188036144 passed all 40 steps.
 
@@ -46,7 +48,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/park-finance-summary`, based on `codex/ride-operating-costs` at `3d31f3c`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/loans-and-interest`, based on `codex/park-finance-summary` at `94cdbbc`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -70,10 +72,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/park-finance-summary
+git switch --track origin/codex/loans-and-interest
 ```
 
-If the branch already exists locally, use `git switch codex/park-finance-summary` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/loans-and-interest` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -520,7 +522,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-The current locally verified delivery is `dist\Parkbound-0.40.0-windows-x64`, with matching ZIP/checksum. It passed 64 payload hashes / 52 guides, twenty-eight production proof processes, four bidirectional compatibility processes and ten inspected captures. Preserve runtime source `ca55df06555f5502b6275b6d2072ba99c552af84` and executable SHA256 `73894400b053e9e90fedb3c94b4aa91d6d6bbae5e34c549b49348739fe2b9477` when refreshing guides. The summary report records local receipts and pending exact-source CI.
+The current locally verified delivery is `dist\Parkbound-0.41.0-windows-x64`, with matching ZIP/checksum. It passed 66 payload hashes / 54 guides, thirty-two packaged proof processes, eight real migration/refusal processes and twelve inspected captures. Preserve runtime source `283d133b8e6b5188c0273a738dadbc1ba934c00e` and executable SHA256 `c4892aa328c93203e2b92fe8d0995b62eb9178cc05be849ce3a641c2e5bd1e54` when refreshing guides. The loan report records receipts and pending exact-source CI.
 
 The source script `scripts/verify-windows-package.ps1` checks explicit archive/executable SHA-256 values, a fresh absolute extraction directory, every payload and current guide, then isolated production proofs and controlled captures from `C:\Windows`. It retains logs and refuses an existing output directory. Capture hashes still need comparison or direct visual review; relocation does not establish native-input or clean-PC acceptance.
 
@@ -536,7 +538,9 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 ## 10. Current verification and remaining checks
 
-Latest locally verified delivery: **0.40.0 park finance summary**, runtime `ca55df06555f5502b6275b6d2072ba99c552af84` on `codex/park-finance-summary` in [draft PR #39](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/39). Finance separates ride/service operating profits from construction/refund cash movements and explains the current cash balance. All **738 release tests**, strict checks/build, twenty-eight packaged proof processes, four bidirectional 0.39/0.40 continuation processes and ten inspected captures passed. Saves remain **20/20**. [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md) records exact identities and limits; exact-source CI 40192298373 remains in progress.
+Latest locally verified delivery: **0.41.0 loans and interest**, runtime `283d133b8e6b5188c0273a738dadbc1ba934c00e` on `codex/loans-and-interest` in [draft PR #40](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/40). Borrow/repay in $100 steps up to $2000 principal; prorated simple interest, partial collections and arrears preserve cash and history. Principal and paid interest stay outside ride/service operating profit. All **752 release tests**, strict checks/build, thirty-two packaged proof processes, eight real migration/refusal processes and twelve inspected captures passed. Saves migrate explicitly to **21/21**. [LOANS_REPORT.md](docs/LOANS_REPORT.md) records identities and scope; exact-source CI 40206542067 remains in progress.
+
+Previous locally verified delivery: **0.40.0 park finance summary**, runtime `ca55df06555f5502b6275b6d2072ba99c552af84` on `codex/park-finance-summary` in [draft PR #39](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/39). Finance separates ride/service operating profits from construction/refund cash movements and explains the current cash balance. All **738 release tests**, strict checks/build, twenty-eight packaged proof processes, four bidirectional 0.39/0.40 continuation processes and ten inspected captures passed. Saves remain **20/20**. [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md) records exact identities and limits; exact-source CI 40192298373 passed all 41 steps.
 
 Previous locally verified delivery: **0.39.0 ride operating costs**, runtime `32d1d503efb099e680c0c58108f972bc451b0349` on `codex/ride-operating-costs` in [draft PR #38](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/38). Open coasters cost $2/min and carousels $1/min; unaffordable bills close admission while paid trips finish. Overdue costs persist and recovery requires funded manual reopening. All **731 release tests**, strict checks/build, twenty-six packaged proof processes, eight authentic migration/refusal processes and eight inspected captures passed. Schema/content is **20/20**. [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md) records exact identities and limits; exact-source CI 40188036144 passed all 40 steps.
 
@@ -762,8 +766,8 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Current milestone and next steps
 
-The bounded 0.40 park finance summary is locally verified. Read [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md), inspect the exact CI result and final archive checksum, and preserve the runtime executable identity. Draft PR #39 is stacked on #38; do not assume these branches are merged.
+The bounded 0.41 loans/interest implementation is locally verified. Read [LOANS_REPORT.md](docs/LOANS_REPORT.md), inspect exact-source CI and the final archive checksum, and preserve the runtime executable identity. Draft PR #40 is stacked on #39; do not assume these branches are merged.
 
-Next implement bounded loans/repayments and interest with explicit funding cashflows. Loan principal must stay separate from sales and operating profit; the summary cash reconciliation must include financing explicitly. Keep signed integer accounting, stable owner histories, archived receipts, deterministic billing and strict saved continuation/migration. Broader valuations, wages, staff, maintenance, guest lifecycle, research, ride families and scenarios remain unfinished.
+Next add explained park/company value including principal and accrued unpaid interest liabilities. Keep valuation distinct from cashflow, financing and operating profit; do not count borrowed cash as business earnings. Then prioritize guest arrivals/departures before wider management. Preserve stable owner/finance histories, deterministic interest/expense ordering, sub-cent accrual, old defaults and strict save migration. Wages, scenario loan rules, staff, maintenance, research and remaining ride families remain unfinished.
 
 Preserve map/save caps, original-content requirements, catalog/draft/accounting boundaries and all three recorded PC paths. No reference PC is selected; this development PC remains excluded.

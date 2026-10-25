@@ -8,6 +8,9 @@ pub const FINANCE_LEDGER_CAPACITY: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FinanceKind {
+    LoanBorrow,
+    LoanRepayment,
+    LoanInterest,
     RideUpkeep,
     RideRevenue,
     ServiceRevenue,
@@ -24,11 +27,18 @@ impl FinanceKind {
     fn income(self) -> bool {
         matches!(
             self,
-            Self::RideRevenue
+            Self::LoanBorrow
+                | Self::RideRevenue
                 | Self::ServiceRevenue
                 | Self::RideDemolitionRefund
                 | Self::ServiceDemolitionRefund
                 | Self::TrackRefund
+        )
+    }
+    pub(crate) fn financing(self) -> bool {
+        matches!(
+            self,
+            Self::LoanBorrow | Self::LoanRepayment | Self::LoanInterest
         )
     }
     fn ride_source(self) -> bool {
@@ -46,6 +56,9 @@ impl FinanceKind {
 impl std::fmt::Display for FinanceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
+            Self::LoanBorrow => "Loan borrowing",
+            Self::LoanRepayment => "Loan repayment",
+            Self::LoanInterest => "Loan interest",
             Self::RideUpkeep => "Ride upkeep",
             Self::RideRevenue => "Ride tickets",
             Self::ServiceRevenue => "Service sale",
@@ -79,6 +92,9 @@ pub struct FinanceEntry {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FinanceTotals {
+    pub loan_borrowed_cents: u64,
+    pub loan_repaid_cents: u64,
+    pub loan_interest_cents: u64,
     pub ride_revenue_cents: u64,
     pub service_revenue_cents: u64,
     pub upkeep_cents: u64,
@@ -89,6 +105,9 @@ pub struct FinanceTotals {
 impl FinanceTotals {
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
         let target = match kind {
+            FinanceKind::LoanBorrow => &mut self.loan_borrowed_cents,
+            FinanceKind::LoanRepayment => &mut self.loan_repaid_cents,
+            FinanceKind::LoanInterest => &mut self.loan_interest_cents,
             FinanceKind::RideRevenue => &mut self.ride_revenue_cents,
             FinanceKind::ServiceRevenue => &mut self.service_revenue_cents,
             FinanceKind::ServiceUpkeep | FinanceKind::RideUpkeep => &mut self.upkeep_cents,
@@ -106,13 +125,18 @@ impl FinanceTotals {
         Ok(())
     }
     fn balance(self, opening: u64) -> Option<u64> {
-        opening
-            .checked_add(self.ride_revenue_cents)?
-            .checked_add(self.service_revenue_cents)?
-            .checked_add(self.demolition_refunds_cents)?
-            .checked_sub(self.upkeep_cents)?
-            .checked_sub(self.supplies_cents)?
-            .checked_sub(self.construction_cents)
+        (i128::from(opening)
+            + i128::from(self.ride_revenue_cents)
+            + i128::from(self.service_revenue_cents)
+            + i128::from(self.demolition_refunds_cents)
+            + i128::from(self.loan_borrowed_cents)
+            - i128::from(self.loan_repaid_cents)
+            - i128::from(self.loan_interest_cents)
+            - i128::from(self.upkeep_cents)
+            - i128::from(self.supplies_cents)
+            - i128::from(self.construction_cents))
+        .try_into()
+        .ok()
     }
 }
 
@@ -342,6 +366,10 @@ impl FinanceLedger {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct FinanceStats {
+    pub loan_borrowed_cents: u64,
+    pub loan_repaid_cents: u64,
+    pub loan_interest_cents: u64,
+    pub net_cash_cents: i128,
     pub ride_upkeep_cents: u64,
     pub service_upkeep_cents: u64,
     pub cash_cents: u64,
@@ -394,8 +422,13 @@ impl Park {
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .chain(std::iter::once(self.track_economy.refund_cents))
             .sum::<u64>();
-        let total_costs_cents = upkeep_cents + supplies_cents + construction_cents;
+        let total_costs_cents =
+            upkeep_cents + supplies_cents + construction_cents + self.loans.interest_paid_cents;
         FinanceStats {
+            loan_borrowed_cents: self.loans.borrowed_cents,
+            loan_repaid_cents: self.loans.repaid_cents,
+            loan_interest_cents: self.loans.interest_paid_cents,
+            net_cash_cents: i128::from(self.cash_cents) - i128::from(INITIAL_PARK_CASH_CENTS),
             ride_upkeep_cents,
             service_upkeep_cents,
             cash_cents: self.cash_cents,
@@ -498,6 +531,7 @@ impl Park {
 
 pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     crate::ride_costs::validate(park)?;
+    crate::loans::validate(park)?;
     let ledger = &park.finances;
     if ledger.opening_tick > park.ticks
         || ledger.archived_through_tick < ledger.opening_tick
@@ -701,6 +735,29 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         )?;
         sources.insert(entry.service, entry.clone());
     }
+    let archived_loans = ledger.archived;
+    let mut loan_principal = archived_loans
+        .loan_borrowed_cents
+        .checked_sub(archived_loans.loan_repaid_cents)
+        .ok_or("archived loan repayments exceed borrowing")?;
+    if loan_principal > crate::MAX_LOAN_CENTS {
+        return Err("archived loan exceeds limit".into());
+    }
+    for amount in [
+        archived_loans.loan_borrowed_cents,
+        archived_loans.loan_repaid_cents,
+    ] {
+        if !amount.is_multiple_of(crate::LOAN_STEP_CENTS) {
+            return Err("archived loan amount has invalid denomination".into());
+        }
+        minimum_archived += u128::from(amount.div_ceil(crate::MAX_LOAN_CENTS));
+        maximum_archived += u128::from(amount / crate::LOAN_STEP_CENTS);
+    }
+    minimum_archived += u128::from(u64::from(archived_loans.loan_interest_cents > 0));
+    maximum_archived += u128::from(archived_loans.loan_interest_cents);
+    archived_check.loan_borrowed_cents = archived_loans.loan_borrowed_cents;
+    archived_check.loan_repaid_cents = archived_loans.loan_repaid_cents;
+    archived_check.loan_interest_cents = archived_loans.loan_interest_cents;
     if archived_check != ledger.archived
         || (ledger.archived_entries == 0
             && (ledger.archived != FinanceTotals::default()
@@ -739,13 +796,48 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::ServiceDemolitionRefund
                         | FinanceKind::TrackConstruction
                         | FinanceKind::TrackRefund
+                        | FinanceKind::LoanBorrow
+                        | FinanceKind::LoanRepayment
+                        | FinanceKind::LoanInterest
                 ))
             || entry.tick > park.ticks
             || entry.amount_cents == 0
         {
             return Err("finance entry order, tick or amount is invalid".into());
         }
-        if entry.kind.ride_source() {
+        if entry.kind.financing() {
+            if entry.ride.is_some() || entry.service.is_some() {
+                return Err("loan transaction has an operating owner".into());
+            }
+            match entry.kind {
+                FinanceKind::LoanBorrow => {
+                    if !entry.amount_cents.is_multiple_of(crate::LOAN_STEP_CENTS)
+                        || entry.amount_cents > crate::MAX_LOAN_CENTS
+                        || loan_principal + entry.amount_cents > crate::MAX_LOAN_CENTS
+                    {
+                        return Err("invalid loan draw".into());
+                    }
+                    loan_principal += entry.amount_cents;
+                }
+                FinanceKind::LoanRepayment => {
+                    if !entry.amount_cents.is_multiple_of(crate::LOAN_STEP_CENTS)
+                        || entry.amount_cents > loan_principal
+                    {
+                        return Err("invalid loan repayment".into());
+                    }
+                    loan_principal -= entry.amount_cents;
+                }
+                FinanceKind::LoanInterest => {
+                    if entry.tick == 0
+                        || u128::from(entry.amount_cents)
+                            > u128::from(entry.tick) * u128::from(crate::MAX_LOAN_CENTS) / 360000
+                    {
+                        return Err("interest precedes possible accrual".into());
+                    }
+                }
+                _ => unreachable!(),
+            }
+        } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;
             if entry.service.is_some() || park.ride_by_id(id).is_none() {
                 return Err("ride receipt source or amount is invalid".into());
@@ -899,6 +991,13 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         expected_id = expected_id.checked_add(1).ok_or("finance ID overflow")?;
         tick = entry.tick;
     }
+    if total.loan_borrowed_cents != park.loans.borrowed_cents
+        || total.loan_repaid_cents != park.loans.repaid_cents
+        || total.loan_interest_cents != park.loans.interest_paid_cents
+        || loan_principal != park.loans.principal_cents
+    {
+        return Err("loan ledger and account disagree".into());
+    }
     if ledger.next_entry_id != expected_id
         || balance != park.cash_cents
         || ledger
@@ -960,26 +1059,14 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             return Err("service costs, opening history or operating state disagree".into());
         }
     }
-    // Finite guest funds and no debt bound every transaction total, and thus
-    // the positive-amount entry allocator, far below u64 exhaustion.
-    let receipts = park
-        .guests
-        .iter()
-        .try_fold(0_u64, |sum, guest| sum.checked_add(guest.spent_cents))
-        .ok_or("guest receipt sum overflows")?;
-    let expenses = total
-        .upkeep_cents
-        .checked_add(total.supplies_cents)
-        .and_then(|costs| costs.checked_add(total.construction_cents))
-        .ok_or("cost sum overflows")?;
-    if INITIAL_PARK_CASH_CENTS
-        .checked_add(receipts)
-        .and_then(|funds| funds.checked_add(total.demolition_refunds_cents))
-        .and_then(|funds| funds.checked_sub(expenses))
-        != Some(park.cash_cents)
-    {
-        return Err("finance receipts and expenses do not conserve cash".into());
+    // Principal is funding, never a guest receipt or operating profit.
+    let mut lifetime = total;
+    lifetime.ride_revenue_cents = ride_revenue;
+    lifetime.service_revenue_cents = park.services.iter().map(|s| s.revenue_cents).sum();
+    if lifetime.balance(INITIAL_PARK_CASH_CENTS) != Some(park.cash_cents) {
+        return Err("finance funding, receipts and expenses do not conserve cash".into());
     }
+
     Ok(())
 }
 

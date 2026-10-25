@@ -15,8 +15,8 @@ If cash cannot cover a bill, the ride closes admission and shows **Funds closure
 
 The overdue interval stays pending while closed. Recover cash through normal park income or a paid demolition refund, repair access if needed, then choose **Open ride** or **O**. Adding cash alone does not reopen the ride. The opening command refuses an overdue ride when funds are still insufficient. After a successful manual reopening, the overdue bill is paid on the next simulation tick, before departures. While paused, reopening changes the operating state but does not advance time or charge the bill.
 
-On the same tick, ride bills are handled in stable ride-ID order, followed by facility upkeep, completed facility transactions and ride departure fares. Money earned later that tick cannot fund an earlier due bill. Leave operating float for the time guests need to walk, queue and board.
+On the same tick, due loan interest is collected first, then ride bills are handled in stable ride-ID order, followed by facility upkeep, completed facility transactions and ride departure fares. Money earned later that tick cannot fund an earlier due bill. Leave operating float for the time guests need to walk, queue and board.
 
-Saves use schema/content **20/20**. Older saves through version 19 migrate explicitly, preserving cash, passengers, fares, car settings, construction/refund history and existing ledger entries. Earlier game versions reject new saves. Keep your earlier builds and backup saves when moving between versions.
+Saves use schema/content **21/21**. Older saves through version 20 migrate explicitly, preserving cash, passengers, fares, car settings, construction/refund history and existing ledger entries. Earlier game versions reject new saves. Keep your earlier builds and backup saves when moving between versions.
 
-These costs do not add wages, loans, electricity simulation, wear, inspections or maintenance breakdowns. The broader management roadmap remains in progress.
+Loans and interest are available separately in [Finance](LOANS_GUIDE.md); borrowing does not automatically reopen rides. Ride costs do not add wages, electricity simulation, wear, inspections or maintenance breakdowns. The broader management roadmap remains in progress.

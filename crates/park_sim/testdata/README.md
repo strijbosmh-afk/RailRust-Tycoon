@@ -7,3 +7,7 @@
 - Fixture SHA256: `537307dd794a5b37b1d69e54e9c290a2c1bd69b4e7e8df291b076611647a67b7`.
 
 The schema-20 migration regression compares all original park fields recursively, then checks prospective operating costs and current-engine restart equality. The fixture is never rewritten by a test. Synthetic older-version fixtures are labelled separately in test support.
+
+## v20-paid-summary.park.json
+
+Authentic schema/content 20/20 primary written by the verified 0.40.0 `write-summary` production mode, runtime source `ca55df06555f5502b6275b6d2072ba99c552af84`. Executable SHA256: `73894400b053e9e90fedb3c94b4aa91d6d6bbae5e34c549b49348739fe2b9477`. Fixture SHA256: `9c2833d29c4e0bc012fcd60f7e6d20ef76089b638bd72243e1e99c84aab47b48`. It includes real paid ride/service sales, operating costs, removed owner history and archived receipts; no loans or player/private data. The loan migration test compares every original park field and requires zero new financing defaults.

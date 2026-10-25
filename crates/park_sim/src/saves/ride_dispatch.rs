@@ -46,6 +46,7 @@ impl VersionSixteenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             track_economy: self.track_economy,
