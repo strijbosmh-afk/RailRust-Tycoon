@@ -31,6 +31,7 @@ const DEFAULT_CAPTURE_TICKS: u32 = 600;
 mod access_scenes;
 mod admission_scenes;
 mod appeal_scenes;
+mod cashflow_scenes;
 mod construction_scenes;
 mod design_scenes;
 mod dispatch_scenes;
@@ -149,6 +150,10 @@ enum Scene {
     OpeningReady,
     OpeningCarousel,
     OpeningPaid,
+    CashflowEmpty,
+    CashflowBuilt,
+    CashflowPaid,
+    CashflowPage,
     StarterPocket,
     StarterWinder,
     StarterClimb,
@@ -228,7 +233,8 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_opening()
+        self.is_cashflow()
+            || self.is_opening()
             || self.is_starter()
             || self.is_train_configuration()
             || self.is_testing()
@@ -294,6 +300,12 @@ impl Scene {
                 | Self::OpeningReady
                 | Self::OpeningCarousel
                 | Self::OpeningPaid
+        )
+    }
+    fn is_cashflow(self) -> bool {
+        matches!(
+            self,
+            Self::CashflowEmpty | Self::CashflowBuilt | Self::CashflowPaid | Self::CashflowPage
         )
     }
     fn is_design(self) -> bool {
@@ -643,6 +655,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("rides") => Scene::Rides,
                 Some("operations-coaster") => Scene::OperationsCoaster,
                 Some("opening-entrance") => Scene::OpeningEntrance,
+                Some("cashflow-empty") => Scene::CashflowEmpty,
+                Some("cashflow-built") => Scene::CashflowBuilt,
+                Some("cashflow-paid") => Scene::CashflowPaid,
+                Some("cashflow-page") => Scene::CashflowPage,
                 Some("opening-exit-path") => Scene::OpeningExitPath,
                 Some("opening-ready") => Scene::OpeningReady,
                 Some("opening-carousel") => Scene::OpeningCarousel,
@@ -987,6 +1003,9 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_cashflow() {
+        cashflow_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_testing() {
         testing_scenes::prepare(&mut sim.0, &mut view, capture.scene);

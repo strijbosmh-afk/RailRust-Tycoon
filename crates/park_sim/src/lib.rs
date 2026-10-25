@@ -11,6 +11,8 @@ pub mod diagnostics;
 mod economy;
 mod experience;
 mod finances;
+mod ride_cashflow;
+pub use ride_cashflow::RideCashflow;
 mod journeys;
 mod path_geometry;
 mod ride_access;
