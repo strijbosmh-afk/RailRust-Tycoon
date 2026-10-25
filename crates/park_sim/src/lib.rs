@@ -7,6 +7,11 @@ mod access_planning;
 mod admission;
 mod carousel;
 mod crowds;
+mod visitors;
+pub use visitors::{
+    DepartedVisitors, VISITOR_ACTIVE_CAP, VISITOR_ARRIVAL_TICKS, VISITOR_LIFETIME_CAP,
+    VISITOR_STAY_TICKS, VisitorError, VisitorFlowStats,
+};
 pub mod diagnostics;
 mod economy;
 mod experience;
@@ -249,6 +254,7 @@ pub struct Park {
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
+    visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
     next_service_id: u64,
@@ -283,6 +289,7 @@ impl PartialEq for Park {
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
+            && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
             && self.next_service_id == other.next_service_id
@@ -338,6 +345,7 @@ impl Park {
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),
+            visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),
             next_service_id: 1,
@@ -475,11 +483,13 @@ impl Park {
             self.step_ride_upkeep();
             self.step_service_upkeep();
             self.step_needs();
+            self.step_visitor_arrivals();
             self.step_crowd();
             self.step_ride_journeys();
             self.step_train();
             self.step_carousels();
             self.reconcile_passenger_laps();
+            self.finish_visitor_departures();
         }
     }
 }

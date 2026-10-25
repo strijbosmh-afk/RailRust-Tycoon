@@ -417,6 +417,9 @@ impl Park {
             return Some(removed);
         }
         let removed = self.objects.remove(index);
+        if self.visitors.entry == Some(id) {
+            self.visitors.entry = None;
+        }
         self.refund_removed_track(id);
         if removed.is_public_path() {
             self.path_cache.invalidate();

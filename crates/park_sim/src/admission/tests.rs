@@ -347,7 +347,7 @@ fn public_walks_keep_legacy_rng_when_no_ride_can_admit() {
             reference.ticks += 1;
             reference.step_needs();
             for guest in &mut reference.guests {
-                graph.step_guest(guest, &mut rng);
+                graph.step_guest(guest, &mut rng, crate::visitors::WalkGoal::Explore);
             }
             park.advance(Speed::Normal);
             assert_eq!(park.guests, reference.guests);

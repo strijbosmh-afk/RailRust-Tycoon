@@ -37,7 +37,9 @@ fn finance_app(directory: &InputSaveDirectory, park: Park, view: ViewState) -> (
             Update,
             (
                 ui::refresh,
+                ui::visitor_flow::apply_commands,
                 ui::guests::refresh,
+                ui::visitor_flow::refresh,
                 ui::services::refresh,
                 ui::finance::apply_commands,
                 ui::finance::refresh,
@@ -782,4 +784,82 @@ fn park_value_view_shows_signed_equity_and_blocks_loan_commands_through_actual_b
         bytes
     );
     assert_eq!(app.world().resource::<Simulation>().0, park);
+}
+
+#[test]
+fn visitor_controls_are_read_only_until_explicit_valid_command_and_conflicts_are_atomic() {
+    use ui::visitor_flow::VisitorCommand as C;
+    let directory = InputSaveDirectory::new();
+    let park = train_park();
+    let before = park.clone();
+    let entry = park
+        .objects()
+        .iter()
+        .find(|o| o.is_public_path() && !park.path_neighbors(o.id).is_empty())
+        .unwrap()
+        .id;
+    let (mut app, _) = finance_app(
+        &directory,
+        park,
+        ViewState {
+            guests_open: true,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click(&mut app, ui::Action::GuestFlowView);
+    assert!(app.world().resource::<ViewState>().guest_flow_view);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    for command in [C::SetEntry, C::Toggle, C::SendHome] {
+        app.world_mut().resource_mut::<ViewState>().selected_guest = None;
+        click(&mut app, ui::Action::Visitor(command));
+        assert_eq!(app.world().resource::<Simulation>().0, before);
+        assert!(
+            app.world()
+                .resource::<ViewState>()
+                .visitor_notice
+                .as_ref()
+                .unwrap()
+                .starts_with("Visitors unchanged:")
+        );
+    }
+    app.world_mut().resource_mut::<ViewState>().selected = Some(SurfaceId::Object(entry));
+    let conflict = app
+        .world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::Visitor(C::Toggle)))
+        .id();
+    click(&mut app, ui::Action::Visitor(C::SetEntry));
+    app.world_mut().despawn(conflict);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    click(&mut app, ui::Action::Visitor(C::SetEntry));
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .visitor_flow_stats()
+            .entry,
+        Some(entry)
+    );
+    click(&mut app, ui::Action::Visitor(C::Toggle));
+    assert!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .visitor_flow_stats()
+            .enabled
+    );
+    assert_eq!(
+        app.world().resource::<Simulation>().0.cash_cents(),
+        before.cash_cents()
+    );
+    let enabled = app.world().resource::<Simulation>().0.clone();
+    let transition = app
+        .world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::GuestFlowView))
+        .id();
+    click(&mut app, ui::Action::Visitor(C::Toggle));
+    app.world_mut().despawn(transition);
+    assert_eq!(app.world().resource::<Simulation>().0, enabled);
+    assert!(!app.world().resource::<ViewState>().guest_flow_view);
 }

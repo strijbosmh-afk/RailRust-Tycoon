@@ -55,6 +55,7 @@ mod testing_scenes;
 mod track_construction_scenes;
 mod train_scenes;
 mod value_scenes;
+mod visitor_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
@@ -159,6 +160,12 @@ enum Scene {
     CostsClosed,
     CostsReopened,
     CostsFinance,
+    VisitorsOff,
+    VisitorsReady,
+    VisitorsPaid,
+    VisitorsTurnover,
+    VisitorsBlocked,
+    VisitorsFinance,
     ValueEmpty,
     ValueLegacy,
     ValueBuilt,
@@ -334,6 +341,17 @@ impl Scene {
                 | Self::OpeningReady
                 | Self::OpeningCarousel
                 | Self::OpeningPaid
+        )
+    }
+    fn is_visitors(self) -> bool {
+        matches!(
+            self,
+            Self::VisitorsOff
+                | Self::VisitorsReady
+                | Self::VisitorsPaid
+                | Self::VisitorsTurnover
+                | Self::VisitorsBlocked
+                | Self::VisitorsFinance
         )
     }
     fn is_value(self) -> bool {
@@ -740,6 +758,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("costs-closed") => Scene::CostsClosed,
                 Some("costs-reopened") => Scene::CostsReopened,
                 Some("costs-finance") => Scene::CostsFinance,
+                Some("visitors-off") => Scene::VisitorsOff,
+                Some("visitors-ready") => Scene::VisitorsReady,
+                Some("visitors-paid") => Scene::VisitorsPaid,
+                Some("visitors-turnover") => Scene::VisitorsTurnover,
+                Some("visitors-blocked") => Scene::VisitorsBlocked,
+                Some("visitors-finance") => Scene::VisitorsFinance,
                 Some("value-empty") => Scene::ValueEmpty,
                 Some("value-legacy") => Scene::ValueLegacy,
                 Some("value-built") => Scene::ValueBuilt,
@@ -1109,6 +1133,9 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_visitors() {
+        visitor_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_value() {
         value_scenes::prepare(&mut sim.0, &mut view, capture.scene);

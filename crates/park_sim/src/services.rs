@@ -620,7 +620,8 @@ impl Park {
             }
             if visit.phase == ServiceVisitPhase::Approaching {
                 let destination = visit.access;
-                graph.step_guest(&mut self.guests[index], &mut self.crowd_rng);
+                let goal = self.visitors.walk_goal(self.guests[index].id);
+                graph.step_guest(&mut self.guests[index], &mut self.crowd_rng, goal);
                 let guest = &mut self.guests[index];
                 if guest.next.is_none() && guest.current == Some(destination) {
                     guest.wait_ticks = 0;
@@ -639,7 +640,8 @@ impl Park {
             .collect();
         // A failed search is bounded by cooldown, with no navigation RNG draw.
         for guest in &mut self.guests {
-            if guest.ride_visit.is_some()
+            if self.visitors.leaving(guest.id)
+                || guest.ride_visit.is_some()
                 || guest.service_visit.is_some()
                 || guest.service_cooldown != 0
                 || guest.next.is_some()
@@ -862,8 +864,8 @@ pub(crate) fn validate_services(park: &Park) -> Result<(), String> {
         return Err("service object has no metadata".into());
     }
     let mut users = BTreeSet::new();
-    let mut guest_served = 0_u64;
-    let mut guest_revenue = 0_u64;
+    let mut guest_served = park.visitors.departed.services_used;
+    let mut guest_revenue = park.visitors.departed.service_spent_cents;
     for guest in &park.guests {
         if ServiceKind::ALL
             .iter()

@@ -63,6 +63,12 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     super::finance::check(park)?;
     let mut seats = BTreeSet::new();
     let mut receipts = BTreeMap::<RideId, (u64, u64, u64, u64)>::new();
+    for r in &park.departed_visitors().rides {
+        receipts.insert(
+            r.ride,
+            (r.spent_cents, r.completed, r.rating_count, r.rating_total),
+        );
+    }
     for guest in park.guests() {
         let mut spent = 0;
         let mut completed = 0;

@@ -35,7 +35,8 @@ impl Park {
             .collect();
         let mut choices = BTreeMap::new();
         for guest in &self.guests {
-            if guest.ride_visit.is_some()
+            if self.visitors.leaving(guest.id)
+                || guest.ride_visit.is_some()
                 || guest.service_visit.is_some()
                 || guest.ride_cooldown != 0
                 || guest.next.is_some()

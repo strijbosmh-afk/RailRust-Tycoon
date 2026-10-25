@@ -52,6 +52,7 @@ impl VersionTwentyParkData {
         ParkData {
             ride_costs: self.ride_costs,
             loans: crate::loans::LoanAccount::default(),
+            visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: self.coaster_cars,
             ride_dispatch: self.ride_dispatch,
             track_economy: self.track_economy,

@@ -66,6 +66,7 @@ impl VersionTwelveParkData {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -136,6 +137,7 @@ impl VersionFourteenParkData {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),

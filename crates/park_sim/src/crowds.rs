@@ -542,7 +542,12 @@ impl PathGraph {
             .then(|| route_from_parents(&parents, start, destination))
     }
 
-    pub(crate) fn step_guest(&self, guest: &mut Guest, rng: &mut u64) {
+    pub(crate) fn step_guest(
+        &self,
+        guest: &mut Guest,
+        rng: &mut u64,
+        goal: crate::visitors::WalkGoal,
+    ) {
         if guest.current.is_none() {
             // The exact removed footprint wins over an incident path. A slope
             // retains both end heights: side neighbors and wrong levels cannot
@@ -571,6 +576,41 @@ impl PathGraph {
             guest.anchor_slope = path.path_slope;
         }
         let current = guest.current.expect("a retained or recovered current path");
+        // An existing ride/service approach owns this route until its visit
+        // completes or is cancelled. A departure request must not overwrite it.
+        let goal = if guest.ride_visit.is_some() || guest.service_visit.is_some() {
+            crate::visitors::WalkGoal::Explore
+        } else {
+            goal
+        };
+        if let crate::visitors::WalkGoal::Exit(target) = goal {
+            guest.wait_ticks = 0;
+            // Finish the current edge before rerouting. Each exit edge has its
+            // own destination, so neither reversal nor entry edits create a
+            // cyclic saved route or teleport a partially moving visitor.
+            guest.route.clear();
+            guest.destination = guest.next;
+            if guest.next.is_none() {
+                let Some(target) = target.filter(|id| self.nodes.contains_key(id)) else {
+                    guest.state = GuestState::Waiting;
+                    return;
+                };
+                if current == target {
+                    guest.state = GuestState::Waiting;
+                    guest.progress = 0;
+                    return;
+                }
+                let Some(mut route) = self.route(current, target) else {
+                    guest.state = GuestState::Lost;
+                    return;
+                };
+                guest.next = route.pop_front();
+                guest.destination = guest.next;
+                guest.progress = 0;
+                guest.state = GuestState::Walking;
+                return;
+            }
+        }
         if guest.wait_ticks > 0 {
             guest.wait_ticks -= 1;
             guest.state = GuestState::Waiting;

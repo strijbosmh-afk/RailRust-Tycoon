@@ -2,6 +2,14 @@
 // never used by production readers or authentic old-binary migration proofs.
 pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
     use serde_json::json;
+    if value["schema_version"].as_u64().is_some_and(|v| v <= 21)
+        && let Some(flow) = value["park"].as_object_mut().unwrap().remove("visitors")
+    {
+        assert_eq!(
+            flow,
+            serde_json::json!({"entry":null,"enabled":false,"arrival_progress":0,"spawned":0,"departed":{"count":0,"highest_id":0,"wallet_cents":0,"spent_cents":0,"service_spent_cents":0,"services_used":0,"rides":[]},"stays":[]})
+        );
+    }
     project_pre_loan(value);
     if !value["schema_version"]
         .as_u64()

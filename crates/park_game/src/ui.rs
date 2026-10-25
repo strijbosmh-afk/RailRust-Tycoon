@@ -18,6 +18,7 @@ pub(super) mod guests;
 pub(crate) mod rides;
 pub(crate) mod services;
 pub(super) mod track;
+pub(crate) mod visitor_flow;
 pub(super) use economy::money;
 
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
@@ -53,6 +54,8 @@ pub(super) enum Action {
     CloseGuests,
     SelectGuest(Option<park_sim::GuestId>),
     GuestPage(i8),
+    GuestFlowView,
+    Visitor(visitor_flow::VisitorCommand),
     Services,
     CloseServices,
     BuildService(park_sim::ServiceKind),
@@ -866,7 +869,11 @@ pub(super) fn button_actions(
         if view.guests_open
             && !matches!(
                 action,
-                Action::Pause | Action::SelectGuest(_) | Action::GuestPage(_)
+                Action::Pause
+                    | Action::SelectGuest(_)
+                    | Action::GuestPage(_)
+                    | Action::GuestFlowView
+                    | Action::Visitor(_)
             )
         {
             continue;
@@ -968,6 +975,10 @@ pub(super) fn button_actions(
                 finance::queue_loan(&mut view, *command)
             }
             Action::FinanceView if view.finance_open => view.finance_view_pending = true,
+            Action::GuestFlowView if view.guests_open => view.guest_flow_pending = true,
+            Action::Visitor(command) if view.guests_open && view.guest_flow_view => {
+                visitor_flow::queue(&mut view, *command)
+            }
             Action::SelectGuest(id) if view.guests_open && id.is_some() => {
                 view.selected_guest = *id;
                 view.guest_browse_pending = 0;
@@ -1011,7 +1022,9 @@ pub(super) fn button_actions(
             | Action::BuildService(_)
             | Action::BrowseService(_)
             | Action::ServicePrice(_)
-            | Action::ToggleService => {}
+            | Action::ToggleService
+            | Action::GuestFlowView
+            | Action::Visitor(_) => {}
             Action::Finance
             | Action::CloseFinance
             | Action::FinancePage(_)

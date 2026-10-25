@@ -241,9 +241,24 @@ impl Park {
 }
 
 pub(crate) fn validate_experience(park: &Park) -> Result<(), String> {
-    let mut count = 0_u64;
-    let mut total = 0_u64;
+    let mut count = park
+        .visitors
+        .departed
+        .rides
+        .iter()
+        .map(|r| r.rating_count)
+        .sum::<u64>();
+    let mut total = park
+        .visitors
+        .departed
+        .rides
+        .iter()
+        .map(|r| r.rating_total)
+        .sum::<u64>();
     let mut owners = std::collections::BTreeMap::<RideId, (u64, u64)>::new();
+    for r in &park.visitors.departed.rides {
+        owners.insert(r.ride, (r.rating_count, r.rating_total));
+    }
     let mut active = std::collections::BTreeMap::<RideId, u64>::new();
     for guest in &park.guests {
         let passenger = guest

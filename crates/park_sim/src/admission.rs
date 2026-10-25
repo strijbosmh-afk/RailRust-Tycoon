@@ -244,7 +244,11 @@ impl Park {
         }
         for guest in &mut self.guests {
             if guest.service_visit.is_none() && !processed.contains(&guest.id) {
-                graph.step_guest(guest, &mut self.crowd_rng);
+                graph.step_guest(
+                    guest,
+                    &mut self.crowd_rng,
+                    self.visitors.walk_goal(guest.id),
+                );
             }
         }
     }
@@ -270,7 +274,11 @@ impl Park {
             if ordinary_inline {
                 for guest in &mut self.guests {
                     if guest.service_visit.is_none() {
-                        graph.step_guest(guest, &mut self.crowd_rng);
+                        graph.step_guest(
+                            guest,
+                            &mut self.crowd_rng,
+                            self.visitors.walk_goal(guest.id),
+                        );
                     }
                 }
             }
@@ -415,7 +423,11 @@ impl Park {
             }
             if guest.ride_visit.is_none() && choices.get(&guest.id) != Some(&id) {
                 if ordinary_inline {
-                    graph.step_guest(guest, &mut self.crowd_rng);
+                    graph.step_guest(
+                        guest,
+                        &mut self.crowd_rng,
+                        self.visitors.walk_goal(guest.id),
+                    );
                 }
                 continue;
             }
@@ -429,7 +441,11 @@ impl Park {
             let approaching = guest.ride_visit.is_some();
             if approaching {
                 if guest.next.is_some() {
-                    graph.step_guest(guest, &mut self.crowd_rng);
+                    graph.step_guest(
+                        guest,
+                        &mut self.crowd_rng,
+                        self.visitors.walk_goal(guest.id),
+                    );
                     if guest.next.is_none() && guest.current == access.public_entry {
                         guest.wait_ticks = 0;
                     }
@@ -466,13 +482,21 @@ impl Park {
                 if guest.wallet_cents < ride.ticket_price_cents {
                     ride.unaffordable_rejections = ride.unaffordable_rejections.saturating_add(1);
                     reject_applicant(guest, ride, GuestThought::NotEnoughMoney, self.ticks);
-                    graph.step_guest(guest, &mut self.crowd_rng);
+                    graph.step_guest(
+                        guest,
+                        &mut self.crowd_rng,
+                        self.visitors.walk_goal(guest.id),
+                    );
                     continue;
                 }
                 if !guest.willing_to_pay(ride.ticket_price_cents) {
                     ride.value_rejections = ride.value_rejections.saturating_add(1);
                     reject_applicant(guest, ride, GuestThought::TooExpensive, self.ticks);
-                    graph.step_guest(guest, &mut self.crowd_rng);
+                    graph.step_guest(
+                        guest,
+                        &mut self.crowd_rng,
+                        self.visitors.walk_goal(guest.id),
+                    );
                     continue;
                 }
                 guest.think(GuestThought::HeadingToRide, self.ticks);
