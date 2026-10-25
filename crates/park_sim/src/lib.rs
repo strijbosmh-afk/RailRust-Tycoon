@@ -10,7 +10,9 @@ mod crowds;
 pub mod diagnostics;
 mod economy;
 mod experience;
+mod finance_summary;
 mod finances;
+pub use finance_summary::{OperatingProfit, ParkFinanceSummary};
 #[cfg(test)]
 #[path = "../test_support/pre_upkeep.rs"]
 pub(crate) mod legacy_cost_test_support;

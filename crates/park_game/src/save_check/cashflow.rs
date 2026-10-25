@@ -68,7 +68,7 @@ pub(crate) fn inspect(park: &Park) -> Result<String, String> {
         }
         actual.push(displayed);
     }
-    for _ in 0..2 {
+    for _ in 0..3 {
         app.world_mut()
             .resource_mut::<ViewState>()
             .finance_view_pending = true;

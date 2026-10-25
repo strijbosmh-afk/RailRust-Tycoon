@@ -48,6 +48,7 @@ mod ride_cost_scenes;
 mod service_scenes;
 mod slope_scenes;
 mod starter_scenes;
+mod summary_scenes;
 mod terrain_scenes;
 mod testing_scenes;
 mod track_construction_scenes;
@@ -156,6 +157,12 @@ enum Scene {
     CostsClosed,
     CostsReopened,
     CostsFinance,
+    SummaryEmpty,
+    SummaryBuilt,
+    SummaryMixed,
+    SummaryRemoved,
+    SummaryClosed,
+    SummaryProfit,
     CashflowEmpty,
     CashflowBuilt,
     CashflowPaid,
@@ -239,7 +246,8 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_costs()
+        self.is_summary()
+            || self.is_costs()
             || self.is_cashflow()
             || self.is_opening()
             || self.is_starter()
@@ -307,6 +315,17 @@ impl Scene {
                 | Self::OpeningReady
                 | Self::OpeningCarousel
                 | Self::OpeningPaid
+        )
+    }
+    fn is_summary(self) -> bool {
+        matches!(
+            self,
+            Self::SummaryEmpty
+                | Self::SummaryBuilt
+                | Self::SummaryMixed
+                | Self::SummaryRemoved
+                | Self::SummaryClosed
+                | Self::SummaryProfit
         )
     }
     fn is_cashflow(self) -> bool {
@@ -677,6 +696,12 @@ pub(super) fn configure(app: &mut App) {
                 Some("costs-closed") => Scene::CostsClosed,
                 Some("costs-reopened") => Scene::CostsReopened,
                 Some("costs-finance") => Scene::CostsFinance,
+                Some("summary-empty") => Scene::SummaryEmpty,
+                Some("summary-built") => Scene::SummaryBuilt,
+                Some("summary-mixed") => Scene::SummaryMixed,
+                Some("summary-removed") => Scene::SummaryRemoved,
+                Some("summary-closed") => Scene::SummaryClosed,
+                Some("summary-profit") => Scene::SummaryProfit,
                 Some("cashflow-empty") => Scene::CashflowEmpty,
                 Some("cashflow-built") => Scene::CashflowBuilt,
                 Some("cashflow-paid") => Scene::CashflowPaid,
@@ -1025,6 +1050,9 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_summary() {
+        summary_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_costs() {
         ride_cost_scenes::prepare(&mut sim.0, &mut view, capture.scene);

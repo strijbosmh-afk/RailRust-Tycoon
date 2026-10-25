@@ -13,6 +13,7 @@ pub(crate) enum FinanceView {
     #[default]
     Transactions,
     Rides,
+    ParkSummary,
 }
 
 #[derive(Component)]
@@ -200,6 +201,37 @@ pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
     )
 }
 
+pub(crate) fn summary_rows(park: &Park) -> [String; 4] {
+    let report = park.finance_summary();
+    [
+        format!(
+            "Rides / Operating profit {}\nTickets +{} / Upkeep -{}",
+            signed_cash(report.rides.profit_cents),
+            money(report.rides.revenue_cents),
+            money(report.rides.upkeep_cents)
+        ),
+        format!(
+            "Services / Operating profit {}\nSales +{} / Upkeep -{} / Supplies -{}",
+            signed_cash(report.services.profit_cents),
+            money(report.services.revenue_cents),
+            money(report.services.upkeep_cents),
+            money(report.services.supplies_cents)
+        ),
+        format!(
+            "Combined operating profit {}\nConstruction -{} / Refunds +{} / excluded from operating profit",
+            signed_cash(report.operating_profit_cents),
+            money(report.construction_cents),
+            money(report.refunds_cents)
+        ),
+        format!(
+            "Net cash {} = operating profit + refunds - construction\nStarting cash {} + net cash = current cash {}",
+            signed_cash(report.net_cash_cents),
+            money(report.starting_cash_cents),
+            money(report.cash_cents)
+        ),
+    ]
+}
+
 fn clock(tick: u64) -> String {
     let seconds = tick / TICKS_PER_SECOND;
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
@@ -239,6 +271,7 @@ fn page(park: &Park, view: &mut ViewState) -> (usize, usize) {
     let pages = match view.finance_view {
         FinanceView::Transactions => park.finance_ledger().entries.len().div_ceil(PAGE_SIZE),
         FinanceView::Rides => park.ride_cashflows().len().div_ceil(RIDE_PAGE_SIZE),
+        FinanceView::ParkSummary => 1,
     }
     .max(1);
     let current = view.finance_page.min(pages - 1);
@@ -269,28 +302,38 @@ pub(crate) fn refresh(
     if std::mem::take(&mut view.finance_view_pending) {
         view.finance_view = match view.finance_view {
             FinanceView::Transactions => FinanceView::Rides,
-            FinanceView::Rides => FinanceView::Transactions,
+            FinanceView::Rides => FinanceView::ParkSummary,
+            FinanceView::ParkSummary => FinanceView::Transactions,
         };
         view.finance_page = 0;
         view.finance_page_pending = 0;
     }
     let rides = view.finance_view == FinanceView::Rides;
+    let summary = view.finance_view == FinanceView::ParkSummary;
+    let double_rows = rides || summary;
     for (row, mut node) in &mut rows {
-        node.display = if rides && row.0 >= RIDE_PAGE_SIZE {
+        node.display = if double_rows && row.0 >= RIDE_PAGE_SIZE {
             Display::None
         } else {
             Display::Flex
         };
-        node.height = px(if rides { 44 } else { 22 });
+        node.height = px(if double_rows { 44 } else { 22 });
     }
     let (page, pages) = page(&sim.0, &mut view);
     let stats = sim.0.finance_stats();
     let ledger = sim.0.finance_ledger();
     let cashflows = sim.0.ride_cashflows();
+    let summary_rows = summary_rows(&sim.0);
     for (label, mut text) in &mut labels {
         let value = match label {
+            FinanceLabel::ListHeading if summary => "PARK SUMMARY / lifetime operating results and cash reconciliation".into(),
+            FinanceLabel::View if summary => "Transactions".into(),
+            FinanceLabel::Footer if summary => "Operating profit = sales - upkeep - supplies. Historical costs stay after demolition.".into(),
+            FinanceLabel::Categories if summary => "Operating profit excludes construction and refunds.\nLifetime recorded amounts include removed rides/facilities and older receipts.".into(),
+            FinanceLabel::History if summary => format!("{} retained rides / {} retained facilities\n{} older transactions are included, not discarded.\nThis is not a monthly report, asset valuation or forecast.",cashflows.len(),sim.0.services().len(),compact_count(ledger.archived_entries)),
+            FinanceLabel::Row(index) if summary => summary_rows.get(*index).cloned().unwrap_or_default(),
             FinanceLabel::ListHeading => if rides {"RIDE CASHFLOWS / four rides per page / recorded amounts"} else {"RECENT TRANSACTIONS / newest first / resulting cash at right"}.into(),
-            FinanceLabel::View => if rides {"Transactions"} else {"Ride cashflows"}.into(),
+            FinanceLabel::View => if rides {"Park summary"} else {"Ride cashflows"}.into(),
             FinanceLabel::Footer => if rides {"Net cash = tickets + refunds - build - upkeep. Ride upkeep accrues while open."} else {"Open facilities cost money even without customers. Space pauses all costs and activity."}.into(),
             FinanceLabel::Categories if rides => "RIDE CASHFLOWS / stable ride IDs / lifetime recorded amounts\nEach ride keeps its history after demolition; facility transactions are separate.".into(),
             FinanceLabel::History if rides => format!("{} retained rides / {} currently installed\nRecorded cash is not a ride valuation or a profit forecast.\nLegacy free construction has $0 recorded cost. Older receipts remain included.",cashflows.len(),cashflows.iter().filter(|row|row.installed).count()),

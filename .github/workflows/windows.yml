@@ -271,6 +271,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-ride-costs --save-dir $costDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Ride cost verification failed" }
           Get-Content -LiteralPath (Join-Path $costDirectory "verification-ride-costs.txt")
+      - name: Verify park finance summary and operating profits
+        shell: pwsh
+        run: |
+          $summaryDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound summary é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-summary --save-dir $summaryDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Summary writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-summary --save-dir $summaryDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Summary verification failed" }
+          Get-Content -LiteralPath (Join-Path $summaryDirectory "verification-summary.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -1,6 +1,8 @@
 # Resume development on another Windows PC
 
-Latest locally verified delivery: **0.39.0 ride operating costs**, runtime `32d1d503efb099e680c0c58108f972bc451b0349` on `codex/ride-operating-costs` in [draft PR #38](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/38). Open coasters cost $2/min and carousels $1/min; unaffordable bills close admission while paid trips finish. Overdue costs persist and recovery requires funded manual reopening. All **731 release tests**, strict checks/build, twenty-six packaged proof processes, eight authentic migration/refusal processes and eight inspected captures passed. Schema/content is **20/20**. [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md) records exact identities and limits; exact-source CI 40188036144 remains in progress.
+Latest locally verified delivery: **0.40.0 park finance summary**, runtime `ca55df06555f5502b6275b6d2072ba99c552af84` on `codex/park-finance-summary` in [draft PR #39](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/39). Finance separates ride/service operating profits from construction/refund cash movements and explains the current cash balance. All **738 release tests**, strict checks/build, twenty-eight packaged proof processes, four bidirectional 0.39/0.40 continuation processes and ten inspected captures passed. Saves remain **20/20**. [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md) records exact identities and limits; exact-source CI 40192298373 remains in progress.
+
+Previous locally verified delivery: **0.39.0 ride operating costs**, runtime `32d1d503efb099e680c0c58108f972bc451b0349` on `codex/ride-operating-costs` in [draft PR #38](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/38). Open coasters cost $2/min and carousels $1/min; unaffordable bills close admission while paid trips finish. Overdue costs persist and recovery requires funded manual reopening. All **731 release tests**, strict checks/build, twenty-six packaged proof processes, eight authentic migration/refusal processes and eight inspected captures passed. Schema/content is **20/20**. [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md) records exact identities and limits; exact-source CI 40188036144 passed all 40 steps.
 
 Previous locally verified delivery: **0.38.0 ride cashflow reports**, runtime `f5d6297c5e0a8ee73944cea62bde83dce9836e4a` on `codex/ride-cashflow-report` in [draft PR #37](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/37). Finance shows per-ride ticket income, construction, refunds and net cash, including demolished histories and paging. All **723 tests**, strict checks/build, twenty-four packaged proof processes, four bidirectional compatibility processes and seven inspected captures passed. Scoped native Finance/view/Escape/save controls passed with both saved slots byte-identical. Saves remain **19/19**. [RIDE_CASHFLOW_REPORT.md](docs/RIDE_CASHFLOW_REPORT.md) records exact identities and limits; exact-source CI 40183614031 passed all 39 steps.
 
@@ -44,7 +46,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/ride-operating-costs`, based on `codex/ride-cashflow-report` at `a58d674`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/park-finance-summary`, based on `codex/ride-operating-costs` at `3d31f3c`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -68,10 +70,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/ride-operating-costs
+git switch --track origin/codex/park-finance-summary
 ```
 
-If the branch already exists locally, use `git switch codex/ride-operating-costs` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/park-finance-summary` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -518,7 +520,7 @@ pwsh -NoProfile -File scripts/package-windows.ps1 -SkipBuild
 if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
 ```
 
-The current locally verified delivery is `dist\Parkbound-0.39.0-windows-x64`, with matching ZIP/checksum. It passed 62 payload hashes / 50 guides, twenty-six production proof processes, eight migration/refusal processes and eight inspected captures. Preserve runtime source `32d1d503efb099e680c0c58108f972bc451b0349` and executable SHA256 `8fa1b79d88e6365a21141bd5dcff6d46e1c442070492d9cb369b081f5135ad15` when refreshing guides. The operating costs report records local receipts and pending exact-source CI.
+The current locally verified delivery is `dist\Parkbound-0.40.0-windows-x64`, with matching ZIP/checksum. It passed 64 payload hashes / 52 guides, twenty-eight production proof processes, four bidirectional compatibility processes and ten inspected captures. Preserve runtime source `ca55df06555f5502b6275b6d2072ba99c552af84` and executable SHA256 `73894400b053e9e90fedb3c94b4aa91d6d6bbae5e34c549b49348739fe2b9477` when refreshing guides. The summary report records local receipts and pending exact-source CI.
 
 The source script `scripts/verify-windows-package.ps1` checks explicit archive/executable SHA-256 values, a fresh absolute extraction directory, every payload and current guide, then isolated production proofs and controlled captures from `C:\Windows`. It retains logs and refuses an existing output directory. Capture hashes still need comparison or direct visual review; relocation does not establish native-input or clean-PC acceptance.
 
@@ -534,7 +536,9 @@ Before ending a stage, confirm the source branch is pushed, the draft PR targets
 
 ## 10. Current verification and remaining checks
 
-Latest locally verified delivery: **0.39.0 ride operating costs**, runtime `32d1d503efb099e680c0c58108f972bc451b0349` on `codex/ride-operating-costs` in [draft PR #38](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/38). Open coasters cost $2/min and carousels $1/min; unaffordable bills close admission while paid trips finish. Overdue costs persist and recovery requires funded manual reopening. All **731 release tests**, strict checks/build, twenty-six packaged proof processes, eight authentic migration/refusal processes and eight inspected captures passed. Schema/content is **20/20**. [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md) records exact identities and limits; exact-source CI 40188036144 remains in progress.
+Latest locally verified delivery: **0.40.0 park finance summary**, runtime `ca55df06555f5502b6275b6d2072ba99c552af84` on `codex/park-finance-summary` in [draft PR #39](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/39). Finance separates ride/service operating profits from construction/refund cash movements and explains the current cash balance. All **738 release tests**, strict checks/build, twenty-eight packaged proof processes, four bidirectional 0.39/0.40 continuation processes and ten inspected captures passed. Saves remain **20/20**. [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md) records exact identities and limits; exact-source CI 40192298373 remains in progress.
+
+Previous locally verified delivery: **0.39.0 ride operating costs**, runtime `32d1d503efb099e680c0c58108f972bc451b0349` on `codex/ride-operating-costs` in [draft PR #38](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/38). Open coasters cost $2/min and carousels $1/min; unaffordable bills close admission while paid trips finish. Overdue costs persist and recovery requires funded manual reopening. All **731 release tests**, strict checks/build, twenty-six packaged proof processes, eight authentic migration/refusal processes and eight inspected captures passed. Schema/content is **20/20**. [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md) records exact identities and limits; exact-source CI 40188036144 passed all 40 steps.
 
 Version 0.34 source `3e51f8511721f465e15c7467bb2c52d68503da82` passes **690 release tests**, formatting, strict all-target release Clippy and the production build (50.96 seconds). The final local executable passed fourteen runtime proof processes, thirteen directly inspected 1024 × 680 captures, and fresh package verification with **49 payload hashes / 40 guides**. Eight migration/refusal processes preserve eight authentic schema-17 slots through 3,600 current-rule ticks each and leave four new slots unchanged after old-reader refusal. Mechanics reports match 0.33 byte for byte; dependencies/notices remain unchanged. Exact-source CI 40111680983 passed all 35 steps and 690 tests; native, clean-PC and representative-hardware acceptance remain open. [GUEST_RIDE_APPEAL_REPORT.md](docs/GUEST_RIDE_APPEAL_REPORT.md) owns the exact receipts.
 
@@ -758,8 +762,8 @@ Source input tests establish ordering and gating; captures establish rendered st
 
 ## 11. Current milestone and next steps
 
-The bounded 0.39 operating-cost implementation is locally verified. Read [RIDE_OPERATING_COSTS_REPORT.md](docs/RIDE_OPERATING_COSTS_REPORT.md), inspect the exact CI result and final archive checksum, and preserve the runtime executable identity. Draft PR #38 is stacked on #37; do not assume these branches are merged.
+The bounded 0.40 park finance summary is locally verified. Read [PARK_FINANCE_SUMMARY_REPORT.md](docs/PARK_FINANCE_SUMMARY_REPORT.md), inspect the exact CI result and final archive checksum, and preserve the runtime executable identity. Draft PR #39 is stacked on #38; do not assume these branches are merged.
 
-Next implement one bounded park summary with explained ride/service operating profit, then explicit loan rules before staff/maintenance or scenarios. Keep cashflow (including construction/refunds) distinct from operating profit. Verify stable owner histories, archived receipts, saved continuation and any new schema migration. Broader guest lifecycle, ride families, terrain, research and full-game acceptance remain unfinished.
+Next implement bounded loans/repayments and interest with explicit funding cashflows. Loan principal must stay separate from sales and operating profit; the summary cash reconciliation must include financing explicitly. Keep signed integer accounting, stable owner histories, archived receipts, deterministic billing and strict saved continuation/migration. Broader valuations, wages, staff, maintenance, guest lifecycle, research, ride families and scenarios remain unfinished.
 
-Preserve current map/save caps, original-content requirements, catalog/draft/accounting boundaries and all three recorded PC paths. No reference PC is selected; this development PC remains excluded.
+Preserve map/save caps, original-content requirements, catalog/draft/accounting boundaries and all three recorded PC paths. No reference PC is selected; this development PC remains excluded.
