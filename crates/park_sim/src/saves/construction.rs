@@ -37,6 +37,7 @@ impl From<VersionTenFinanceTotals> for crate::FinanceTotals {
             supplies_cents: old.supplies_cents,
             construction_cents: 0,
             demolition_refunds_cents: 0,
+            ..Default::default()
         }
     }
 }
@@ -196,6 +197,7 @@ impl VersionTenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),

@@ -63,6 +63,7 @@ pub(super) enum Action {
     CloseFinance,
     FinancePage(i8),
     FinanceView,
+    Loan(finance::LoanCommand),
     Rides,
     CloseRides,
     BrowseRide(i8),
@@ -887,7 +888,7 @@ pub(super) fn button_actions(
         if view.finance_open
             && !matches!(
                 action,
-                Action::Pause | Action::FinancePage(_) | Action::FinanceView
+                Action::Pause | Action::FinancePage(_) | Action::FinanceView | Action::Loan(_)
             )
         {
             continue;
@@ -961,6 +962,11 @@ pub(super) fn button_actions(
                 view.finance_page_pending =
                     view.finance_page_pending.saturating_add(i32::from(*delta));
             }
+            Action::Loan(command)
+                if view.finance_open && view.finance_view == finance::FinanceView::Loans =>
+            {
+                finance::queue_loan(&mut view, *command)
+            }
             Action::FinanceView if view.finance_open => view.finance_view_pending = true,
             Action::SelectGuest(id) if view.guests_open && id.is_some() => {
                 view.selected_guest = *id;
@@ -1009,7 +1015,8 @@ pub(super) fn button_actions(
             Action::Finance
             | Action::CloseFinance
             | Action::FinancePage(_)
-            | Action::FinanceView => {}
+            | Action::FinanceView
+            | Action::Loan(_) => {}
             Action::Save => view.request_save(SaveAction::Save),
             Action::Load => view.request_save(SaveAction::Load),
             Action::LoadBackup => view.request_save(SaveAction::Backup),

@@ -39,6 +39,7 @@ fn finance_app(directory: &InputSaveDirectory, park: Park, view: ViewState) -> (
                 ui::refresh,
                 ui::guests::refresh,
                 ui::services::refresh,
+                ui::finance::apply_commands,
                 ui::finance::refresh,
             )
                 .chain()
@@ -135,6 +136,11 @@ fn ride_cashflow_view_pages_retained_rides_and_is_read_only_through_actual_butto
     );
     click(&mut app, ui::Action::FinancePage(1));
     assert_eq!(app.world().resource::<ViewState>().finance_page, 0);
+    click(&mut app, ui::Action::FinanceView);
+    assert_eq!(
+        app.world().resource::<ViewState>().finance_view,
+        ui::finance::FinanceView::Loans
+    );
     click(&mut app, ui::Action::FinanceView);
     assert_eq!(
         app.world().resource::<ViewState>().finance_view,
@@ -584,7 +590,8 @@ fn park_summary_buttons_show_archived_removed_service_loss_separate_from_capital
         "Rides / Operating profit +$0.00\nTickets +$0.00 / Upkeep -$0.00",
         "Services / Operating profit -$14.00\nSales +$0.00 / Upkeep -$14.00 / Supplies -$0.00",
         "Combined operating profit -$14.00\nConstruction -$100.00 / Refunds +$50.00 / excluded from operating profit",
-        "Net cash -$64.00 = operating profit + refunds - construction\nStarting cash $1000.00 + net cash = current cash $936.00",
+        "Financing / Borrowed +$0.00 / Repaid -$0.00 / Interest paid -$0.00\nLoan balance $0.00 / Interest due $0.00",
+        "Net cash -$64.00 / includes construction, refunds and financing\nStarting cash $1000.00 + net cash = current cash $936.00",
     ].iter().enumerate() {
         assert_eq!(label(&mut app, |l|matches!(l,ui::finance::FinanceLabel::Row(i) if *i==index)),*expected);
     }
@@ -602,4 +609,118 @@ fn park_summary_buttons_show_archived_removed_service_loss_separate_from_capital
         bytes
     );
     assert_eq!(app.world().resource::<Simulation>().0, park);
+}
+
+#[test]
+fn loan_buttons_borrow_once_and_reject_limits_without_touching_operating_profit() {
+    use ui::finance::{FinanceView, LoanCommand};
+    let directory = InputSaveDirectory::new();
+    let park = Park::new(32, 32);
+    let (mut app, _) = finance_app(
+        &directory,
+        park,
+        ViewState {
+            finance_open: true,
+            finance_view: FinanceView::Loans,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click(&mut app, ui::Action::Loan(LoanCommand::Borrow));
+    let p = &app.world().resource::<Simulation>().0;
+    assert_eq!(p.cash_cents(), 110_000);
+    assert_eq!(p.loan_stats().principal_cents, 10_000);
+    assert_eq!(p.finance_summary().operating_profit_cents, 0);
+    click(&mut app, ui::Action::Loan(LoanCommand::Repay));
+    assert_eq!(app.world().resource::<Simulation>().0.cash_cents(), 100_000);
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .borrow_loan(park_sim::MAX_LOAN_CENTS)
+        .unwrap();
+    let before = app
+        .world()
+        .resource::<Simulation>()
+        .0
+        .to_save_bytes()
+        .unwrap();
+    click(&mut app, ui::Action::Loan(LoanCommand::Borrow));
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .to_save_bytes()
+            .unwrap(),
+        before
+    );
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .finance_loan_notice
+            .as_ref()
+            .unwrap()
+            .contains("limit")
+    );
+}
+
+#[test]
+fn loan_conflicts_capture_and_close_transitions_never_change_cash() {
+    use ui::finance::{FinanceView, LoanCommand};
+    for reverse in [false, true] {
+        let directory = InputSaveDirectory::new();
+        let park = Park::new(32, 32);
+        let (mut app, _) = finance_app(
+            &directory,
+            park.clone(),
+            ViewState {
+                finance_open: true,
+                finance_view: FinanceView::Loans,
+                speed: Speed::Paused,
+                ..default()
+            },
+        );
+        frame(&mut app);
+        let mut cmds = vec![LoanCommand::Borrow, LoanCommand::Repay];
+        if reverse {
+            cmds.reverse();
+        }
+        let ids: Vec<_> = cmds
+            .into_iter()
+            .map(|c| {
+                app.world_mut()
+                    .spawn((Button, Interaction::Pressed, ui::Action::Loan(c)))
+                    .id()
+            })
+            .collect();
+        frame(&mut app);
+        assert_eq!(app.world().resource::<Simulation>().0, park);
+        assert!(
+            app.world()
+                .resource::<ViewState>()
+                .finance_loan_notice
+                .as_ref()
+                .unwrap()
+                .contains("one loan")
+        );
+        for id in ids {
+            app.world_mut().despawn(id);
+        }
+        app.world_mut().resource_mut::<ViewState>().capture_active = true;
+        click(&mut app, ui::Action::Loan(LoanCommand::Borrow));
+        assert_eq!(app.world().resource::<Simulation>().0, park);
+        app.world_mut().resource_mut::<ViewState>().capture_active = false;
+        let id = app
+            .world_mut()
+            .spawn((
+                Button,
+                Interaction::Pressed,
+                ui::Action::Loan(LoanCommand::Borrow),
+            ))
+            .id();
+        click(&mut app, ui::Action::CloseFinance);
+        app.world_mut().despawn(id);
+        assert_eq!(app.world().resource::<Simulation>().0, park);
+        assert!(!app.world().resource::<ViewState>().finance_open);
+    }
 }

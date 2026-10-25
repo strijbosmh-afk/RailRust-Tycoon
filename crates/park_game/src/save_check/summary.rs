@@ -49,9 +49,15 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let mut supplies = ledger.archived.supplies_cents;
     let mut construction = ledger.archived.construction_cents;
     let mut refunds = ledger.archived.demolition_refunds_cents;
+    let mut borrowed = ledger.archived.loan_borrowed_cents;
+    let mut repaid = ledger.archived.loan_repaid_cents;
+    let mut interest = ledger.archived.loan_interest_cents;
     for entry in &ledger.entries {
         let amount = entry.amount_cents;
         match entry.kind {
+            FinanceKind::LoanBorrow => borrowed += amount,
+            FinanceKind::LoanRepayment => repaid += amount,
+            FinanceKind::LoanInterest => interest += amount,
             FinanceKind::RideRevenue => ride_revenue += amount,
             FinanceKind::ServiceRevenue => service_revenue += amount,
             FinanceKind::RideUpkeep => ride_cost += amount,
@@ -69,7 +75,10 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let ride_profit = i128::from(ride_revenue) - i128::from(ride_cost);
     let service_profit =
         i128::from(service_revenue) - i128::from(service_cost) - i128::from(supplies);
-    if report.rides.revenue_cents != ride_revenue
+    if report.loan_borrowed_cents != borrowed
+        || report.loan_repaid_cents != repaid
+        || report.loan_interest_cents != interest
+        || report.rides.revenue_cents != ride_revenue
         || report.rides.upkeep_cents != ride_cost
         || report.rides.supplies_cents != 0
         || report.rides.profit_cents != ride_profit
@@ -82,6 +91,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || report.refunds_cents != refunds
         || report.net_cash_cents
             != ride_profit + service_profit + i128::from(refunds) - i128::from(construction)
+                + i128::from(borrowed)
+                - i128::from(repaid)
+                - i128::from(interest)
         || i128::from(report.starting_cash_cents) + report.net_cash_cents
             != i128::from(park.cash_cents())
         || report.cash_cents != park.cash_cents()
@@ -127,7 +139,7 @@ pub(crate) fn inspect(park: &Park) -> Result<String, String> {
             return Err("displayed summary row differs from report".into());
         }
     }
-    for _ in 0..3 {
+    for _ in 0..4 {
         app.world_mut()
             .resource_mut::<ViewState>()
             .finance_view_pending = true;

@@ -280,6 +280,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-summary --save-dir $summaryDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Summary verification failed" }
           Get-Content -LiteralPath (Join-Path $summaryDirectory "verification-summary.txt")
+      - name: Verify loans, interest and funding cashflows
+        shell: pwsh
+        run: |
+          $loanDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound loans é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-loans --save-dir $loanDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Loan writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-loans --save-dir $loanDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Loan verification failed" }
+          Get-Content -LiteralPath (Join-Path $loanDirectory "verification-loans.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

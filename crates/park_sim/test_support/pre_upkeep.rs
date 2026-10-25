@@ -2,6 +2,7 @@
 // never used by production readers or authentic old-binary migration proofs.
 pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
     use serde_json::json;
+    project_pre_loan(value);
     if !value["schema_version"]
         .as_u64()
         .is_some_and(|v| (1..20).contains(&v))
@@ -108,4 +109,35 @@ pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
         id += 1;
     }
     ledger["next_entry_id"] = json!(id);
+}
+
+fn project_pre_loan(value: &mut serde_json::Value) {
+    if !value["schema_version"]
+        .as_u64()
+        .is_some_and(|v| (1..=20).contains(&v))
+    {
+        return;
+    }
+    let p = value["park"].as_object_mut().unwrap();
+    if let Some(a) = p.remove("loans") {
+        assert_eq!(
+            a,
+            serde_json::json!({"principal_cents":0,"borrowed_cents":0,"repaid_cents":0,"interest_accrued_cents":0,"interest_paid_cents":0,"interest_fraction":0})
+        );
+    }
+    if let Some(f) = p
+        .get_mut("finances")
+        .and_then(|f| f.get_mut("archived"))
+        .and_then(|f| f.as_object_mut())
+    {
+        for k in [
+            "loan_borrowed_cents",
+            "loan_repaid_cents",
+            "loan_interest_cents",
+        ] {
+            if let Some(v) = f.remove(k) {
+                assert_eq!(v, 0);
+            }
+        }
+    }
 }

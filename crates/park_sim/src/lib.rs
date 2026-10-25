@@ -12,7 +12,9 @@ mod economy;
 mod experience;
 mod finance_summary;
 mod finances;
+mod loans;
 pub use finance_summary::{OperatingProfit, ParkFinanceSummary};
+pub use loans::{LOAN_INTEREST_TICKS, LOAN_STEP_CENTS, LoanError, LoanStats, MAX_LOAN_CENTS};
 #[cfg(test)]
 #[path = "../test_support/pre_upkeep.rs"]
 pub(crate) mod legacy_cost_test_support;
@@ -245,6 +247,7 @@ pub struct Park {
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
+    loans: loans::LoanAccount,
     services: Vec<Service>,
     next_service_id: u64,
     path_cache: crowds::PathCache,
@@ -278,6 +281,7 @@ impl PartialEq for Park {
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
+            && self.loans == other.loans
             && self.services == other.services
             && self.next_service_id == other.next_service_id
     }
@@ -332,6 +336,7 @@ impl Park {
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),
+            loans: loans::LoanAccount::default(),
             services: Vec::new(),
             next_service_id: 1,
             path_cache: crowds::PathCache::default(),
@@ -464,6 +469,7 @@ impl Park {
                 break;
             }
             self.ticks += 1;
+            self.step_loan_interest();
             self.step_ride_upkeep();
             self.step_service_upkeep();
             self.step_needs();

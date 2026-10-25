@@ -31,6 +31,9 @@ pub struct ParkFinanceSummary {
     pub operating_profit_cents: i128,
     pub construction_cents: u64,
     pub refunds_cents: u64,
+    pub loan_borrowed_cents: u64,
+    pub loan_repaid_cents: u64,
+    pub loan_interest_cents: u64,
     pub net_cash_cents: i128,
     pub starting_cash_cents: u64,
     pub cash_cents: u64,
@@ -52,8 +55,14 @@ impl Park {
             operating_profit_cents,
             construction_cents: stats.construction_cents,
             refunds_cents: stats.demolition_refunds_cents,
+            loan_borrowed_cents: self.loans.borrowed_cents,
+            loan_repaid_cents: self.loans.repaid_cents,
+            loan_interest_cents: self.loans.interest_paid_cents,
             net_cash_cents: operating_profit_cents + i128::from(stats.demolition_refunds_cents)
-                - i128::from(stats.construction_cents),
+                - i128::from(stats.construction_cents)
+                + i128::from(self.loans.borrowed_cents)
+                - i128::from(self.loans.repaid_cents)
+                - i128::from(self.loans.interest_paid_cents),
             starting_cash_cents: INITIAL_PARK_CASH_CENTS,
             cash_cents: self.cash_cents(),
         }

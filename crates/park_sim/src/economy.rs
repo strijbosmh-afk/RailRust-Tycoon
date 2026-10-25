@@ -266,6 +266,7 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         || revenue.checked_add(service_revenue) != Some(spent)
         || INITIAL_PARK_CASH_CENTS
             .checked_add(spent)
+            .and_then(|funds| funds.checked_add(park.loans.borrowed_cents))
             .and_then(|funds| {
                 park.carousels.iter().try_fold(funds, |cash, carousel| {
                     cash.checked_add(carousel.demolition_refund_cents)
@@ -295,6 +296,8 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
                         .checked_sub(service.supplies_cents)
                 })
             })
+            .and_then(|funds| funds.checked_sub(park.loans.repaid_cents))
+            .and_then(|funds| funds.checked_sub(park.loans.interest_paid_cents))
             != Some(park.cash_cents)
     {
         return Err("ride price, revenue, and park cash do not conserve funds".into());

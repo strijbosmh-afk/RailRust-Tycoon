@@ -243,6 +243,25 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         .remove("ride_operating_settings");
     old["park"]["cash_cents"] = cash.into();
     old["park"]["finances"] = ledger;
+    // This synthetic pre-loan baseline has never borrowed. Remove only zero
+    // financing defaults; authentic old-binary migration uses original bytes.
+    if park.loan_stats().borrowed_cents != 0 || park.loan_stats().interest_accrued_cents != 0 {
+        return Err("synthetic legacy baseline unexpectedly contains financing".into());
+    }
+    old["park"].as_object_mut().unwrap().remove("loans");
+    for field in [
+        "loan_borrowed_cents",
+        "loan_repaid_cents",
+        "loan_interest_cents",
+    ] {
+        if old["park"]["finances"]["archived"][field] != 0 {
+            return Err("synthetic legacy baseline has nonzero archived financing".into());
+        }
+        old["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+    }
     for service in old["park"]["services"].as_array_mut().unwrap() {
         service
             .as_object_mut()

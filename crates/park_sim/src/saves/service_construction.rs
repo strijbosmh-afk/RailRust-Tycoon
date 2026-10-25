@@ -111,7 +111,7 @@ struct VersionElevenFinanceLedger {
     archived_entries: u64,
     archived_through_tick: u64,
     #[serde(deserialize_with = "strict_object")]
-    archived: crate::FinanceTotals,
+    archived: loans::LegacyFinanceTotals,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
     archived_services: Vec<VersionElevenServiceFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
@@ -130,7 +130,7 @@ impl From<VersionElevenFinanceLedger> for crate::FinanceLedger {
             opening_services: old.opening_services,
             archived_entries: old.archived_entries,
             archived_through_tick: old.archived_through_tick,
-            archived: old.archived,
+            archived: old.archived.into(),
             archived_services: old.archived_services.into_iter().map(Into::into).collect(),
             archived_rides: old.archived_rides.into_iter().map(Into::into).collect(),
             entries: old
@@ -187,6 +187,7 @@ impl VersionElevenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
             ride_costs: Vec::new(),
+            loans: crate::loans::LoanAccount::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
