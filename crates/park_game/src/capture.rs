@@ -44,6 +44,7 @@ mod opening_scenes;
 mod operations_scenes;
 mod queue_scenes;
 mod ride_choice_scenes;
+mod ride_cost_scenes;
 mod service_scenes;
 mod slope_scenes;
 mod starter_scenes;
@@ -150,6 +151,11 @@ enum Scene {
     OpeningReady,
     OpeningCarousel,
     OpeningPaid,
+    CostsReady,
+    CostsPaid,
+    CostsClosed,
+    CostsReopened,
+    CostsFinance,
     CashflowEmpty,
     CashflowBuilt,
     CashflowPaid,
@@ -233,7 +239,8 @@ enum Scene {
 
 impl Scene {
     fn uses_fresh_ride_fixture(self) -> bool {
-        self.is_cashflow()
+        self.is_costs()
+            || self.is_cashflow()
             || self.is_opening()
             || self.is_starter()
             || self.is_train_configuration()
@@ -306,6 +313,16 @@ impl Scene {
         matches!(
             self,
             Self::CashflowEmpty | Self::CashflowBuilt | Self::CashflowPaid | Self::CashflowPage
+        )
+    }
+    fn is_costs(self) -> bool {
+        matches!(
+            self,
+            Self::CostsReady
+                | Self::CostsPaid
+                | Self::CostsClosed
+                | Self::CostsReopened
+                | Self::CostsFinance
         )
     }
     fn is_design(self) -> bool {
@@ -655,6 +672,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("rides") => Scene::Rides,
                 Some("operations-coaster") => Scene::OperationsCoaster,
                 Some("opening-entrance") => Scene::OpeningEntrance,
+                Some("costs-ready") => Scene::CostsReady,
+                Some("costs-paid") => Scene::CostsPaid,
+                Some("costs-closed") => Scene::CostsClosed,
+                Some("costs-reopened") => Scene::CostsReopened,
+                Some("costs-finance") => Scene::CostsFinance,
                 Some("cashflow-empty") => Scene::CashflowEmpty,
                 Some("cashflow-built") => Scene::CashflowBuilt,
                 Some("cashflow-paid") => Scene::CashflowPaid,
@@ -1003,6 +1025,9 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if capture.scene.is_costs() {
+        ride_cost_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_cashflow() {
         cashflow_scenes::prepare(&mut sim.0, &mut view, capture.scene);

@@ -262,6 +262,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-cashflow --save-dir $cashflowDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Cashflow verification failed" }
           Get-Content -LiteralPath (Join-Path $cashflowDirectory "verification-cashflow.txt")
+      - name: Verify ride operating costs and funds closure
+        shell: pwsh
+        run: |
+          $costDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound ride costs é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-ride-costs --save-dir $costDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Ride cost writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-ride-costs --save-dir $costDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Ride cost verification failed" }
+          Get-Content -LiteralPath (Join-Path $costDirectory "verification-ride-costs.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

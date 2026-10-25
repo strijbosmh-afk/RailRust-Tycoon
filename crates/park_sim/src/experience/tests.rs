@@ -344,6 +344,7 @@ fn full_schedules_save_resume_and_speed_grouping_preserve_feedback_exactly() {
 pub(crate) fn strip_feedback(value: Value) -> Value {
     let mut value = crate::services::tests::strip_services(value);
     value["schema_version"] = json!(6);
+    crate::legacy_cost_test_support::project_old_fixture(&mut value);
     value["park"]
         .as_object_mut()
         .unwrap()
@@ -495,6 +496,7 @@ fn invalid_preferences_feedback_and_rating_aggregates_are_rejected() {
     ] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(pair.0);
+        crate::legacy_cost_test_support::project_old_fixture(&mut forged);
         forged["content_version"] = json!(pair.1);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
     }

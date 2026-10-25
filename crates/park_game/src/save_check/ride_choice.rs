@@ -146,6 +146,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         if matches!(
             entry.kind,
             FinanceKind::RideRevenue
+                | FinanceKind::RideUpkeep
                 | FinanceKind::RideConstruction
                 | FinanceKind::RideDemolitionRefund
                 | FinanceKind::TrackConstruction
@@ -278,6 +279,21 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<Vec<RideId>, String> {
     let revenues: BTreeMap<_, _> = park.all_rides().map(|r| (r.id, r.revenue_cents)).collect();
     let old_cash = park.cash_cents();
     let old_next = park.finance_ledger().next_entry_id;
+    let mut balance = old_cash;
+    let mut expected = Vec::new();
+    let mut owners = park.all_rides().map(|r| r.id).collect::<Vec<_>>();
+    owners.sort_unstable();
+    for id in owners {
+        let costs = park.ride_running_costs(id).unwrap();
+        if park.ride_is_open(id)
+            && costs.upkeep_progress + 1 == park_sim::RIDE_UPKEEP_TICKS
+            && balance >= u64::from(costs.cost_per_interval_cents)
+        {
+            let amount = u64::from(costs.cost_per_interval_cents);
+            balance -= amount;
+            expected.push((FinanceKind::RideUpkeep, id, amount, balance));
+        }
+    }
     park.advance(Speed::Normal);
     let mut earned = BTreeMap::<RideId, u64>::new();
     let mut choices = Vec::new();
@@ -335,8 +351,6 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<Vec<RideId>, String> {
         }
         check_history_delta(park, old, new, payment)?;
     }
-    let mut balance = old_cash;
-    let mut expected = Vec::new();
     for ride in park.all_rides() {
         if ride.revenue_cents
             != revenues[&ride.id] + earned.get(&ride.id).copied().unwrap_or_default()
@@ -346,7 +360,7 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<Vec<RideId>, String> {
     }
     for (owner, amount) in earned.into_iter().filter(|(_, amount)| *amount != 0) {
         balance += amount;
-        expected.push((owner, amount, balance));
+        expected.push((FinanceKind::RideRevenue, owner, amount, balance));
     }
     let actual: Vec<_> = park
         .finance_ledger()
@@ -362,10 +376,10 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<Vec<RideId>, String> {
             "new ledger count or cash differs from independently derived departures".into(),
         );
     }
-    for (index, (entry, (owner, amount, cash))) in actual.iter().zip(expected).enumerate() {
+    for (index, (entry, (kind, owner, amount, cash))) in actual.iter().zip(expected).enumerate() {
         if entry.id != old_next + index as u64
             || entry.tick != park.ticks()
-            || entry.kind != FinanceKind::RideRevenue
+            || entry.kind != kind
             || entry.ride != Some(owner)
             || entry.service.is_some()
             || entry.amount_cents != amount

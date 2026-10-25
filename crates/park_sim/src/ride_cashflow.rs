@@ -2,7 +2,7 @@
 use crate::{Park, RideId, RideKind};
 
 /// Recorded cash, not a valuation or a forecast. Legacy free construction has
-/// zero recorded basis. There are currently no recurring ride running costs.
+/// zero recorded basis. Running expenses remain attributed after demolition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RideCashflow {
     pub ride: RideId,
@@ -12,6 +12,8 @@ pub struct RideCashflow {
     pub ticket_revenue_cents: u64,
     pub construction_cents: u64,
     pub refunds_cents: u64,
+    pub upkeep_cents: u64,
+    pub closed_for_funds: bool,
     pub net_cash_cents: i128,
 }
 
@@ -33,6 +35,8 @@ impl Park {
             }
         };
         Some(RideCashflow {
+            upkeep_cents: self.ride_running_costs(id)?.upkeep_cents,
+            closed_for_funds: self.ride_running_costs(id)?.closed_for_funds,
             ride: id,
             kind,
             installed: self.ride_available(id),
@@ -41,7 +45,8 @@ impl Park {
             construction_cents,
             refunds_cents,
             net_cash_cents: i128::from(ride.revenue_cents) + i128::from(refunds_cents)
-                - i128::from(construction_cents),
+                - i128::from(construction_cents)
+                - i128::from(self.ride_running_costs(id)?.upkeep_cents),
         })
     }
 
@@ -61,8 +66,8 @@ mod tests {
     use super::*;
     use crate::{FinanceKind, RideFinanceTotals, Speed, TilePos};
 
-    fn ledger_total(park: &Park, id: RideId) -> (u64, u64, u64) {
-        let mut total = (0, 0, 0);
+    fn ledger_total(park: &Park, id: RideId) -> (u64, u64, u64, u64) {
+        let mut total = (0, 0, 0, 0);
         let ledger = park.finance_ledger();
         for row in ledger
             .opening_rides
@@ -74,14 +79,17 @@ mod tests {
                 revenue_cents,
                 construction_cents,
                 demolition_refunds_cents,
+                upkeep_cents,
                 ..
             } = *row;
             total.0 += revenue_cents;
             total.1 += construction_cents;
             total.2 += demolition_refunds_cents;
+            total.3 += upkeep_cents;
         }
         for row in ledger.entries.iter().filter(|row| row.ride == Some(id)) {
             match row.kind {
+                FinanceKind::RideUpkeep => total.3 += row.amount_cents,
                 FinanceKind::RideRevenue => total.0 += row.amount_cents,
                 FinanceKind::RideConstruction | FinanceKind::TrackConstruction => {
                     total.1 += row.amount_cents
@@ -127,7 +135,8 @@ mod tests {
             (
                 row.ticket_revenue_cents,
                 row.construction_cents,
-                row.refunds_cents
+                row.refunds_cents,
+                row.upkeep_cents
             )
         );
         assert!(park.ride_cashflow(RideId(999)).is_none());
@@ -164,13 +173,15 @@ mod tests {
                 (
                     row.ticket_revenue_cents,
                     row.construction_cents,
-                    row.refunds_cents
+                    row.refunds_cents,
+                    row.upkeep_cents
                 )
             );
             assert_eq!(
                 row.net_cash_cents,
                 i128::from(row.ticket_revenue_cents) + i128::from(row.refunds_cents)
                     - i128::from(row.construction_cents)
+                    - i128::from(row.upkeep_cents)
             );
         }
         assert_eq!(

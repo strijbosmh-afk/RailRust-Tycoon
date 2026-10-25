@@ -105,7 +105,7 @@ struct VersionElevenFinanceLedger {
     opening_cash_cents: u64,
     opening_ride_revenue_cents: u64,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
-    opening_rides: Vec<crate::RideFinanceTotals>,
+    opening_rides: Vec<ride_costs::LegacyRideFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
     opening_services: Vec<crate::ServiceFinanceOpening>,
     archived_entries: u64,
@@ -115,7 +115,7 @@ struct VersionElevenFinanceLedger {
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_SERVICES }>")]
     archived_services: Vec<VersionElevenServiceFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
-    archived_rides: Vec<crate::RideFinanceTotals>,
+    archived_rides: Vec<ride_costs::LegacyRideFinanceTotals>,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::FINANCE_LEDGER_CAPACITY }>")]
     entries: Vec<VersionElevenFinanceEntry>,
     next_entry_id: u64,
@@ -126,13 +126,13 @@ impl From<VersionElevenFinanceLedger> for crate::FinanceLedger {
             opening_tick: old.opening_tick,
             opening_cash_cents: old.opening_cash_cents,
             opening_ride_revenue_cents: old.opening_ride_revenue_cents,
-            opening_rides: old.opening_rides,
+            opening_rides: old.opening_rides.into_iter().map(Into::into).collect(),
             opening_services: old.opening_services,
             archived_entries: old.archived_entries,
             archived_through_tick: old.archived_through_tick,
             archived: old.archived,
             archived_services: old.archived_services.into_iter().map(Into::into).collect(),
-            archived_rides: old.archived_rides,
+            archived_rides: old.archived_rides.into_iter().map(Into::into).collect(),
             entries: old
                 .entries
                 .into_iter()
@@ -186,6 +186,7 @@ pub(super) struct VersionElevenParkData {
 impl VersionElevenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),

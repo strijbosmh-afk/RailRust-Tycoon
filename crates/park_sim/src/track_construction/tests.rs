@@ -698,6 +698,7 @@ fn schema_fourteen_requires_strict_bounded_drafts_and_migrates_twelve_without_re
         .remove("ride_operating_settings");
     old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["schema_version"] = json!(12);
+    crate::legacy_cost_test_support::project_old_fixture(&mut old);
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(12);
     old["park"].as_object_mut().unwrap().remove("track_draft");
@@ -754,6 +755,7 @@ fn schema_thirteen_migration_preserves_level_drafts_and_rejects_new_piece_kinds(
     for _ in 0..240 {
         park.advance(Speed::Normal);
     }
+    let mut park = crate::ride_costs_tests::without_upkeep(&park);
     let mut old = json_value(&park);
     old["park"].as_object_mut().unwrap().remove("track_economy");
     old["park"]
@@ -762,6 +764,7 @@ fn schema_thirteen_migration_preserves_level_drafts_and_rejects_new_piece_kinds(
         .remove("ride_operating_settings");
     old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["schema_version"] = json!(13);
+    crate::legacy_cost_test_support::project_old_fixture(&mut old);
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(13);
     let mut migrated = read(&old).unwrap();
@@ -790,6 +793,7 @@ fn schema_thirteen_migration_preserves_level_drafts_and_rejects_new_piece_kinds(
         forged["park"]["track_draft"] = json!([piece]);
         assert!(read(&forged).is_err(), "schema 13 accepted {kind:?}");
         forged["schema_version"] = json!(14);
+        crate::legacy_cost_test_support::project_old_fixture(&mut forged);
         forged["park"]
             .as_object_mut()
             .unwrap()

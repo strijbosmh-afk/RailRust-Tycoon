@@ -359,6 +359,7 @@ fn archived_paid_ride_cannot_relabel_genuine_income_as_legacy_opening_revenue() 
         .finances
         .opening_rides
         .push(crate::RideFinanceTotals {
+            upkeep_cents: 0,
             ride: id,
             revenue_cents: 1,
             construction_cents: 0,
@@ -398,9 +399,11 @@ fn version_ten_migration_preserves_bodies_and_history_without_refund_windfalls()
     for _ in 0..3000 {
         legacy.advance(Speed::Normal);
     }
+    let legacy = crate::ride_costs_tests::without_upkeep(&legacy);
     let mut old = value(&legacy);
     crate::finances::tests::strip_construction_fields(&mut old);
     old["schema_version"] = json!(10);
+    crate::legacy_cost_test_support::project_old_fixture(&mut old);
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(10);
     let mut migrated = read(&old).unwrap();

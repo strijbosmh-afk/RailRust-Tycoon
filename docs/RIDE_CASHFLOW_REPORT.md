@@ -22,7 +22,7 @@ Focused native checks used this exact extracted executable and an isolated copy 
 
 All **291 dependency entries** and five runtime/notice files match 0.37 byte for byte. Prior 0.37 and 0.36 ZIPs remain unchanged. Receipts, native scope and visual review are retained in `artifacts/ride-cashflow-0.38.0/`. The download is `dist/Parkbound-0.38.0-windows-x64.zip`; the adjacent `.zip.sha256` identifies the archive after final guide-only refresh and fresh integrity verification with the same executable.
 
-Exact-source Windows [CI 40183614031](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40183614031), job 121139654448, remains in progress at this local checkpoint. The 0.37 source run 40182744749 also remains in progress. No CI artifacts were downloaded or executed.
+Exact-source Windows [CI 40183614031](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40183614031), job 121139654448, passed all **39 steps**, including the cashflow proof. The 0.37 source run 40182744749 passed all **38 steps**. No CI artifacts were downloaded or executed.
 
 ## Following work
 

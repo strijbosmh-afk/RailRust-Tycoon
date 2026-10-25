@@ -9,6 +9,7 @@ use crate::{
 pub enum RideOpeningError {
     UnknownRide(RideId),
     Unavailable,
+    OperatingFunds(u32),
     Circuit(TrainError),
     Entrance(RideAccessStatus),
     Exit(RideExitStatus),
@@ -20,6 +21,12 @@ impl std::fmt::Display for RideOpeningError {
         match self {
             Self::UnknownRide(id) => write!(f, "Ride #{} does not exist", id.0),
             Self::Unavailable => f.write_str("Restore the installed ride first"),
+            Self::OperatingFunds(cents) => write!(
+                f,
+                "Need ${}.{:02} for overdue ride upkeep",
+                cents / 100,
+                cents % 100
+            ),
             Self::Circuit(_) => f.write_str("Repair the installed coaster track"),
             Self::Entrance(status) => status.fmt(f),
             Self::Exit(RideExitStatus::PublicDisconnected) => {
@@ -61,6 +68,14 @@ impl Park {
         let exit = self.ride_exit_access(id).status;
         if exit != RideExitStatus::Ready {
             return Err(RideOpeningError::Exit(exit));
+        }
+        if let Some(costs) = self.ride_running_costs(id)
+            && costs.closed_for_funds
+            && self.cash_cents() < u64::from(costs.cost_per_interval_cents)
+        {
+            return Err(RideOpeningError::OperatingFunds(
+                costs.cost_per_interval_cents,
+            ));
         }
         Ok(())
     }

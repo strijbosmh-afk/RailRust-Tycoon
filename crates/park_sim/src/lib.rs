@@ -11,6 +11,13 @@ pub mod diagnostics;
 mod economy;
 mod experience;
 mod finances;
+#[cfg(test)]
+#[path = "../test_support/pre_upkeep.rs"]
+pub(crate) mod legacy_cost_test_support;
+mod ride_costs;
+#[cfg(test)]
+pub(crate) mod ride_costs_tests;
+pub use ride_costs::{RIDE_UPKEEP_TICKS, RideRunningCosts, ride_upkeep_cost_cents};
 mod ride_cashflow;
 pub use ride_cashflow::RideCashflow;
 mod journeys;
@@ -232,6 +239,7 @@ pub struct Park {
     ride_operating_settings: Vec<ride_operations::RideOperatingSettingsRecord>,
     ride_dispatch: Vec<ride_dispatch::RideDispatchRecord>,
     coaster_cars: u8,
+    ride_costs: Vec<ride_costs::RideCostRecord>,
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
@@ -264,6 +272,7 @@ impl PartialEq for Park {
             && self.ride_operating_settings == other.ride_operating_settings
             && self.ride_dispatch == other.ride_dispatch
             && self.coaster_cars == other.coaster_cars
+            && self.ride_costs == other.ride_costs
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
@@ -317,6 +326,7 @@ impl Park {
             ride_operating_settings: Vec::new(),
             ride_dispatch: Vec::new(),
             coaster_cars: DEFAULT_COASTER_CARS,
+            ride_costs: Vec::new(),
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),
@@ -452,6 +462,7 @@ impl Park {
                 break;
             }
             self.ticks += 1;
+            self.step_ride_upkeep();
             self.step_service_upkeep();
             self.step_needs();
             self.step_crowd();

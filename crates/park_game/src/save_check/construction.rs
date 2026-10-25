@@ -205,6 +205,15 @@ fn replay(park: &mut Park) -> Result<(), String> {
         let old = park.clone();
         park.advance(Speed::Normal);
         super::finance::check_tick(
+            &old.all_rides()
+                .map(|r| {
+                    (
+                        r.id,
+                        old.ride_is_open(r.id),
+                        old.ride_running_costs(r.id).unwrap(),
+                    )
+                })
+                .collect::<Vec<_>>(),
             old.services(),
             old.guests(),
             old.finance_ledger(),

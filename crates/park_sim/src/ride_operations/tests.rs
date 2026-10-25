@@ -550,8 +550,10 @@ fn schema_fifteen_preserves_every_prior_field_and_default_future_behavior() {
         p.ride_is_running(carousel) && occupied(p, carousel)
     });
     park.copy_installed_track_to_draft().unwrap();
+    let mut park = crate::ride_costs_tests::without_upkeep(&park);
     let mut old = value(&park);
     old["schema_version"] = json!(15);
+    crate::legacy_cost_test_support::project_old_fixture(&mut old);
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(15);
     old["park"]
@@ -569,6 +571,7 @@ fn schema_fifteen_preserves_every_prior_field_and_default_future_behavior() {
     }
     let mut projection = value(&migrated);
     projection["schema_version"] = json!(15);
+    crate::legacy_cost_test_support::project_old_fixture(&mut projection);
     projection["park"]
         .as_object_mut()
         .unwrap()
@@ -633,6 +636,7 @@ fn timer_validation_uses_current_settings_but_legacy_keeps_original_counter_boun
     original.set_ride_open(id, false).unwrap();
     let mut legacy = value(&original);
     legacy["schema_version"] = json!(15);
+    crate::legacy_cost_test_support::project_old_fixture(&mut legacy);
     legacy["park"]
         .as_object_mut()
         .unwrap()

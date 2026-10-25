@@ -53,7 +53,10 @@ fn assert_ledger(park: &Park) {
         })
         .sum();
     assert_eq!(park.ride().map_or(0, |ride| ride.revenue_cents), spent);
-    assert_eq!(park.cash_cents(), INITIAL_PARK_CASH_CENTS + spent);
+    assert_eq!(
+        park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+        INITIAL_PARK_CASH_CENTS + spent
+    );
     validate_economy(park).unwrap();
 }
 fn seek(park: &mut Park, predicate: impl Fn(&Park) -> bool) {
@@ -216,7 +219,10 @@ fn boarding_locks_fare_and_departure_collects_it_exactly_once() {
     let guest = member(&park, RideVisitPhase::Boarding).unwrap();
     let ride = park.ride().unwrap().id;
     assert_eq!(park.ride_economy_stats(ride).reserved_fares_cents, 250);
-    assert_eq!(park.cash_cents(), INITIAL_PARK_CASH_CENTS);
+    assert_eq!(
+        park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+        INITIAL_PARK_CASH_CENTS
+    );
     let poses = park.ride_guest_positions();
     park.set_ride_ticket_price(ride, 500).unwrap();
     assert_eq!(park.ride_guest_positions(), poses);
@@ -289,7 +295,10 @@ fn closing_before_departure_releases_reservation_without_any_debit() {
         assert_eq!(park.ride().unwrap().boarded, park.ride().unwrap().exited);
         assert_eq!(park.ride().unwrap().completed, 0);
         assert_eq!(park.ride().unwrap().revenue_cents, 0);
-        assert_eq!(park.cash_cents(), INITIAL_PARK_CASH_CENTS);
+        assert_eq!(
+            park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+            INITIAL_PARK_CASH_CENTS
+        );
         assert_eq!(park.ride_economy_stats(ride).reserved_fares_cents, 0);
         assert!(park.guests().iter().all(
             |guest| guest.wallet_cents == INITIAL_GUEST_WALLET_CENTS && guest.spent_cents == 0
@@ -311,7 +320,10 @@ fn reopening_before_departure_keeps_locked_fare_and_charges_only_on_motion() {
         .unwrap();
     park.set_train_open(true);
     assert_eq!(poses, park.ride_guest_positions());
-    assert_eq!(park.cash_cents(), INITIAL_PARK_CASH_CENTS);
+    assert_eq!(
+        park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+        INITIAL_PARK_CASH_CENTS
+    );
     let mut loaded = roundtrip(&park);
     for _ in 0..3_600 {
         park.advance(Speed::Normal);
@@ -489,6 +501,7 @@ fn v5_value(park: &Park) -> Value {
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap(),
     );
     value["schema_version"] = json!(5);
+    crate::legacy_cost_test_support::project_old_fixture(&mut value);
     value["park"]
         .as_object_mut()
         .unwrap()
@@ -701,6 +714,7 @@ fn malformed_money_and_missing_v6_fields_are_rejected_without_mutation() {
     ] {
         let mut invalid = base.clone();
         invalid["schema_version"] = json!(schema);
+        crate::legacy_cost_test_support::project_old_fixture(&mut invalid);
         invalid["content_version"] = json!(content);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&invalid).unwrap()).is_err());
     }
