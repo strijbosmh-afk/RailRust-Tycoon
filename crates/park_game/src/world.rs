@@ -9,6 +9,7 @@ use park_sim::{
     Terrain, TilePos,
 };
 
+mod atmosphere;
 mod carousel_render;
 mod entrance_render;
 mod guest_render;
@@ -20,6 +21,7 @@ mod terrain_preview;
 mod track_preview;
 mod train_render;
 
+pub(crate) use atmosphere::water_mesh;
 pub use carousel_render::{carousel_preview_mesh, ride_focus};
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};
@@ -854,8 +856,8 @@ fn scene_painter(
                 elevated_tile_center(park, pos, rotation).expect("loop stays inside square park");
             let variation = (noise(pos) % 5) as i16 - 2;
             let color = match tile.terrain {
-                Terrain::Grass => varied(108, 153, 88, variation),
-                Terrain::Water => varied(74, 157, 165, variation),
+                Terrain::Grass => varied(111, 156, 91, variation),
+                Terrain::Water => varied(58, 144, 154, variation),
                 Terrain::Sand => varied(213, 196, 145, variation),
             };
             let surfaces = column_surfaces(park, pos, rotation);
@@ -939,6 +941,7 @@ fn scene_painter(
                 }
                 _ => {}
             }
+            atmosphere::ground_details(&mut mesh, park, pos, center, top);
             if grid {
                 let stroke = match tile.terrain {
                     Terrain::Grass => rgb(100, 143, 82),
@@ -977,6 +980,10 @@ fn scene_painter(
             let entrance_clearance = x <= 4 && y.abs_diff(size / 2) <= 3;
             if edge < 4
                 && !entrance_clearance
+                && !park
+                    .objects()
+                    .iter()
+                    .any(|o| o.pos.x.abs_diff(x) <= 2 && o.pos.y.abs_diff(y) <= 2)
                 && noise(pos).is_multiple_of(5)
                 && park
                     .tile(pos)
@@ -1350,6 +1357,28 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
             12.0 * scale,
             depth + 0.004,
             rgb(94, 153, 85),
+        );
+    }
+    if !seed.is_multiple_of(3) {
+        for (dx, dy, r, ink) in [
+            (-15.0, 35.0, 7.0, rgb(58, 122, 75)),
+            (9.0, 40.0, 8.0, rgb(76, 142, 80)),
+            (-4.0, 52.0, 7.0, rgb(115, 163, 91)),
+        ] {
+            mesh.ellipse(
+                base + Vec2::new(dx, dy) * scale,
+                r * scale,
+                r * 1.15 * scale,
+                depth + 0.005,
+                ink,
+            );
+        }
+        mesh.line(
+            base + Vec2::new(0.0, 21.0) * scale,
+            base + Vec2::new(-6.0, 32.0) * scale,
+            1.4 * scale,
+            depth + 0.006,
+            rgb(94, 95, 57),
         );
     }
 }

@@ -27,10 +27,12 @@ mod input_tests;
 mod measurement;
 mod path_tools;
 mod persistence;
+mod presentation;
 mod render_scene;
 mod ride_operations;
 mod save_check;
 mod save_store;
+mod sound;
 mod starter_designs;
 mod static_landscape;
 mod terrain_tools;
@@ -75,6 +77,7 @@ struct ViewState {
     hovered: Option<SurfaceId>,
     view_mode: world::ViewMode,
     help: bool,
+    audio_view: bool,
     guests_open: bool,
     services_open: bool,
     finance_open: bool,
@@ -148,6 +151,7 @@ impl Default for ViewState {
             hovered: None,
             view_mode: world::ViewMode::Surface,
             help: false,
+            audio_view: false,
             guests_open: false,
             services_open: false,
             finance_open: false,
@@ -424,6 +428,9 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    if let Some(result) = sound::run(&arguments) {
+        return result;
+    }
     if let Some(result) = benchmark::run(&arguments) {
         return result;
     }
@@ -471,7 +478,10 @@ fn main() -> AppExit {
             }),
             ..default()
         }))
-        .add_systems(Startup, (setup_scene, ui::setup))
+        .add_systems(
+            Startup,
+            (setup_scene, presentation::setup, ui::setup).chain(),
+        )
         .add_systems(FixedUpdate, tick_simulation)
         .add_systems(
             Update,
@@ -479,6 +489,7 @@ fn main() -> AppExit {
                 (
                     ui::button_actions,
                     keyboard_input,
+                    ui::audio::apply,
                     design_library::keyboard_text,
                     design_library::apply_commands,
                     design_transfer::open_dialog,
@@ -499,10 +510,12 @@ fn main() -> AppExit {
                     .chain(),
                 (
                     apply_camera,
+                    presentation::animate,
                     update_scene,
                     static_landscape::update_visibility,
                     ui::rides::refresh,
                     ui::refresh,
+                    ui::audio::refresh,
                     ui::guests::refresh,
                     ui::visitor_flow::refresh,
                     ui::services::refresh,
@@ -519,6 +532,7 @@ fn main() -> AppExit {
         app.insert_resource(scene);
     }
     capture::configure(&mut app);
+    sound::configure(&mut app, &arguments);
     if let Err(error) = frame_probe::configure(&mut app, &arguments) {
         eprintln!("Frame profiling failed: {error}");
         return AppExit::error();
@@ -697,7 +711,14 @@ fn keyboard_input(
         view.set_modal(false, false, false, false);
         return;
     }
+    if keys.just_pressed(KeyCode::F10) {
+        let open = !(view.help && view.audio_view);
+        view.set_modal(open, false, false, false);
+        view.audio_view = true;
+        return;
+    }
     if keys.just_pressed(KeyCode::F1) || keys.just_pressed(KeyCode::KeyH) {
+        view.audio_view = false;
         let open = !view.help;
         view.set_modal(open, false, false, false);
         return;

@@ -11,6 +11,7 @@ use park_sim::{
 
 use crate::path_tools::PathTool;
 
+pub(crate) mod audio;
 pub(crate) mod designs;
 mod economy;
 pub(crate) mod finance;
@@ -83,6 +84,7 @@ pub(super) enum Action {
     SetPathTool(PathTool),
     PathHeight(i8),
     CyclePathShape,
+    Sound,
     Help,
     CloseHelp,
 }
@@ -624,6 +626,7 @@ pub(super) fn setup(mut commands: Commands) {
                     ("F5 / F9", "Save / load park"),
                     ("Shift + F9", "Load the previous valid save"),
                     ("Space / 1 / 2 / 3", "Pause / 1x / 2x / 4x time"),
+                    ("F10", "Sound and music settings"),
                     ("Esc", "Close window / return to inspection"),
                 ] {
                     p.spawn(Node {
@@ -641,9 +644,13 @@ pub(super) fn setup(mut commands: Commands) {
                     12.0,
                     MUTED,
                 );
-                button(p, "Back to the park", Action::CloseHelp, 180.0);
+                p.spawn(row()).with_children(|p|{
+                    button(p, "Back to the park", Action::CloseHelp, 180.0);
+                    button(p,"Sound [F10]",Action::Sound,160.0);
+                });
             });
         });
+    audio::setup(&mut commands);
     guests::setup(&mut commands);
     services::setup(&mut commands);
     finance::setup(&mut commands);
@@ -698,6 +705,7 @@ pub(super) fn button_actions(
                 && (keys.just_pressed(KeyCode::KeyY) || keys.just_pressed(KeyCode::KeyZ)))
             || keys.just_pressed(KeyCode::KeyH)
             || keys.just_pressed(KeyCode::F1)
+            || keys.just_pressed(KeyCode::F10)
             || ((view.help
                 || view.guests_open
                 || view.services_open
@@ -706,6 +714,20 @@ pub(super) fn button_actions(
                 && keys.just_pressed(KeyCode::Escape))
     }) {
         view.ui_pointer_consumed = true;
+        return;
+    }
+    if (!view.edits_blocked() || view.help)
+        && interactions
+            .iter()
+            .any(|(i, a)| *i == Interaction::Pressed && *a == Action::Sound)
+        && !interactions
+            .iter()
+            .any(|(i, a)| *i == Interaction::Pressed && *a == Action::CloseHelp)
+    {
+        let open = !(view.help && view.audio_view);
+        view.set_modal(open, false, false, false);
+        view.audio_view = true;
+        view.modal_transition_pending = true;
         return;
     }
     if interactions.iter().any(|(interaction, action)| {
@@ -841,6 +863,13 @@ pub(super) fn button_actions(
                 view.finance_page = 0;
                 view.finance_page_pending = 0;
             }
+            if help
+                && interactions
+                    .iter()
+                    .any(|(i, a)| *i == Interaction::Pressed && *a == Action::Help)
+            {
+                view.audio_view = false;
+            }
             view.set_modal(help, guests, facilities, finances);
         }
         view.modal_transition_pending = true;
@@ -863,7 +892,7 @@ pub(super) fn button_actions(
         {
             continue;
         }
-        if view.help && !matches!(action, Action::CloseHelp | Action::Help) {
+        if view.help && !matches!(action, Action::CloseHelp | Action::Help | Action::Sound) {
             continue;
         }
         if view.guests_open
@@ -1036,7 +1065,11 @@ pub(super) fn button_actions(
             Action::SetPathTool(mode) => view.set_path_tool(*mode),
             Action::PathHeight(delta) => view.adjust_path_height(*delta),
             Action::CyclePathShape => view.cycle_path_shape(),
-            Action::Help => view.help = !view.help,
+            Action::Sound => {}
+            Action::Help => {
+                view.audio_view = false;
+                view.help = !view.help;
+            }
             Action::CloseHelp => view.help = false,
         }
     }
@@ -1550,7 +1583,7 @@ pub(super) fn refresh(
         }
     }
     for mut node in &mut help {
-        let display = if view.help {
+        let display = if view.help && !view.audio_view {
             Display::Flex
         } else {
             Display::None

@@ -301,12 +301,21 @@ jobs:
       - name: Verify visitor turnover and retired receipts
         shell: pwsh
         run: |
-          $visitorDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound visitors � " + [guid]::NewGuid())
+          $visitorDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound visitors é " + [guid]::NewGuid())
           & ./target/release/parkbound.exe --save-check write-visitors --save-dir $visitorDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Visitor writer failed" }
           & ./target/release/parkbound.exe --save-check verify-visitors --save-dir $visitorDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Visitor verification failed" }
           Get-Content -LiteralPath (Join-Path $visitorDirectory "verification-visitors.txt")
+      - name: Verify original sound mix and persisted volume controls
+        shell: pwsh
+        run: |
+          $soundDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound sound é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --sound-check $soundDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Sound writer failed" }
+          & ./target/release/parkbound.exe --verify-sound $soundDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Sound verification failed" }
+          Get-Content -LiteralPath (Join-Path $soundDirectory "verification-sound.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:
