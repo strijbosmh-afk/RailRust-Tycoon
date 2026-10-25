@@ -577,9 +577,11 @@ fn version_seventeen_identity_migration_preserves_loading_state_and_new_engine_c
                 })
             });
         }
+        let park = crate::ride_costs_tests::without_upkeep(&park);
         let mut old = value(&park);
         let body = old["park"].clone();
         old["schema_version"] = json!(17);
+        crate::legacy_cost_test_support::project_old_fixture(&mut old);
         old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(17);
         let source_bytes = serde_json::to_vec(&old).unwrap();
@@ -617,6 +619,7 @@ fn version_seventeen_stays_strict_and_derived_appeal_is_not_serialized() {
     for version in [17, crate::SAVE_SCHEMA_VERSION] {
         let mut source = base.clone();
         source["schema_version"] = json!(version);
+        crate::legacy_cost_test_support::project_old_fixture(&mut source);
         source["content_version"] = json!(version);
         if version < 19 {
             source["park"]
@@ -655,9 +658,10 @@ fn version_seventeen_stays_strict_and_derived_appeal_is_not_serialized() {
         assert_ne!(text, duplicate);
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
     }
-    for pair in [(17, 18), (18, 17), (20, 20)] {
+    for pair in [(17, 18), (18, 17), (21, 21)] {
         let mut malformed = base.clone();
         malformed["schema_version"] = json!(pair.0);
+        crate::legacy_cost_test_support::project_old_fixture(&mut malformed);
         malformed["content_version"] = json!(pair.1);
         assert!(read(&malformed).is_err());
     }

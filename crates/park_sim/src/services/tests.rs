@@ -73,6 +73,7 @@ fn ledger(park: &Park) {
 pub(crate) fn strip_services(value: Value) -> Value {
     let mut value = crate::finances::tests::strip_finances(value);
     value["schema_version"] = json!(7);
+    crate::legacy_cost_test_support::project_old_fixture(&mut value);
     value["park"]
         .as_object_mut()
         .unwrap()
@@ -670,6 +671,7 @@ fn malformed_service_references_quotes_histories_and_missing_fields_are_rejected
     ] {
         let mut forged = base.clone();
         forged["schema_version"] = json!(schema);
+        crate::legacy_cost_test_support::project_old_fixture(&mut forged);
         forged["content_version"] = json!(content);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
     }

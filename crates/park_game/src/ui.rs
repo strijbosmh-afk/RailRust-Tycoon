@@ -1347,6 +1347,8 @@ pub(super) fn refresh(
                     };
                     let operation = if train.phase == TrainPhase::Fault {
                         "Unavailable"
+                    } else if ride_id.and_then(|id|sim.0.ride_running_costs(id)).is_some_and(|c|c.closed_for_funds) {
+                        "Funds closure"
                     } else if train.open {
                         "Open"
                     } else if train.phase == TrainPhase::Closed {

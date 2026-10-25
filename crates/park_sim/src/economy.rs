@@ -276,6 +276,11 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
                     cash.checked_add(service.demolition_refund_cents)
                 })
             })
+            .and_then(|funds| {
+                park.ride_costs
+                    .iter()
+                    .try_fold(funds, |cash, record| cash.checked_sub(record.upkeep_cents))
+            })
             .and_then(|funds| funds.checked_add(park.track_economy.refund_cents))
             .and_then(|funds| funds.checked_sub(park.track_economy.construction_cents))
             .and_then(|funds| {

@@ -29,7 +29,7 @@ fn balances(park: &Park) -> Balances {
             .map(|guest| (guest.id, guest.wallet_cents, guest.spent_cents))
             .collect(),
         revenue: park.ride().unwrap().revenue_cents,
-        cash: park.cash_cents(),
+        cash: park.cash_cents() + park.finance_stats().ride_upkeep_cents,
     }
 }
 
@@ -97,7 +97,11 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
             service.upkeep_cents + service.supplies_cents + service.construction_cost_cents
         })
         .sum::<u64>()
-        + park.track_economy().construction_cents;
+        + park.track_economy().construction_cents
+        + park
+            .all_rides()
+            .map(|r| park.ride_running_costs(r.id).unwrap().upkeep_cents)
+            .sum::<u64>();
     let refunds = park
         .services()
         .iter()
@@ -131,6 +135,17 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
     let ledger = park.finance_ledger().clone();
     let revenue = park.ride().unwrap().revenue_cents;
     let cash = park.cash_cents();
+    let mut old_ride_costs = park
+        .all_rides()
+        .map(|r| {
+            (
+                r.id,
+                park.ride_is_open(r.id),
+                park.ride_running_costs(r.id).unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    old_ride_costs.sort_by_key(|r| r.0);
     let was_stopped = park.train().is_some_and(|train| train.speed == 0);
     park.advance(Speed::Normal);
     let started_moving = was_stopped && park.train().is_some_and(|train| train.speed > 0);
@@ -247,7 +262,15 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
     if park.ride().unwrap().revenue_cents != revenue + earned {
         return Err("cash/revenue delta differs from actual per-guest departure payments".into());
     }
-    super::finance::check_tick(&services, &before, &ledger, cash, park, earned)?;
+    super::finance::check_tick(
+        &old_ride_costs,
+        &services,
+        &before,
+        &ledger,
+        cash,
+        park,
+        earned,
+    )?;
     require_accounting(park)
 }
 
@@ -504,7 +527,9 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
         reserved_boarding,
         "uncharged boarding reservation",
     )?;
-    if park.ride().unwrap().revenue_cents != 0 || park.cash_cents() != INITIAL_PARK_CASH_CENTS {
+    if park.ride().unwrap().revenue_cents != 0
+        || park.cash_cents() + park.finance_stats().ride_upkeep_cents != INITIAL_PARK_CASH_CENTS
+    {
         return Err("reservation must not debit wallets or earn cash".into());
     }
     let mut view = ViewState::default();

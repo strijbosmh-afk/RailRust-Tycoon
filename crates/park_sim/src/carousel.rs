@@ -229,6 +229,9 @@ impl Park {
                 self.reconcile_ride_visits();
             }
         }
+        if open {
+            self.clear_ride_funds_closure(id);
+        }
         Ok(())
     }
     pub(crate) fn reset_ride_dwell(&mut self, id: RideId) {

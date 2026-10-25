@@ -47,7 +47,11 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let stats = park.finance_stats();
     let ride = park.all_rides().map(|r| r.revenue_cents).sum::<u64>();
     let revenue: u64 = park.services().iter().map(|s| s.revenue_cents).sum();
-    let upkeep: u64 = park.services().iter().map(|s| s.upkeep_cents).sum();
+    let upkeep: u64 = park.services().iter().map(|s| s.upkeep_cents).sum::<u64>()
+        + park
+            .all_rides()
+            .map(|r| park.ride_running_costs(r.id).unwrap().upkeep_cents)
+            .sum::<u64>();
     let supplies: u64 = park.services().iter().map(|s| s.supplies_cents).sum();
     let construction: u64 = park
         .carousels()
@@ -96,7 +100,18 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         .iter()
         .filter(|s| s.object.is_some() && s.open)
         .map(|s| upkeep_cost(s.kind) * 1800 / u64::from(SERVICE_UPKEEP_TICKS))
-        .sum();
+        .sum::<u64>()
+        + park
+            .all_rides()
+            .filter(|r| park.ride_is_open(r.id))
+            .map(|r| {
+                u64::from(
+                    park.ride_running_costs(r.id)
+                        .unwrap()
+                        .cost_per_interval_cents,
+                ) * 2
+            })
+            .sum::<u64>();
     if stats.open_upkeep_per_minute_cents != per_minute {
         return Err("open upkeep forecast differs from live services".into());
     }
@@ -117,6 +132,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             || matches!(
                 entry.kind,
                 FinanceKind::RideRevenue
+                    | FinanceKind::RideUpkeep
                     | FinanceKind::RideConstruction
                     | FinanceKind::RideDemolitionRefund
                     | FinanceKind::TrackConstruction
@@ -147,7 +163,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             + archived.ride_revenue_cents
             + total(&ledger.entries, FinanceKind::RideRevenue, None)
             != ride
-        || archived.upkeep_cents + total(&ledger.entries, FinanceKind::ServiceUpkeep, None)
+        || archived.upkeep_cents
+            + total(&ledger.entries, FinanceKind::ServiceUpkeep, None)
+            + total(&ledger.entries, FinanceKind::RideUpkeep, None)
             != upkeep
         || archived.supplies_cents + total(&ledger.entries, FinanceKind::ServiceSupplies, None)
             != supplies
@@ -293,6 +311,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
 
 /// Reconstruct allowed transactions independently in their specified tick order.
 pub(crate) fn check_tick(
+    old_ride_costs: &[(park_sim::RideId, bool, park_sim::RideRunningCosts)],
     old_services: &[Service],
     old_guests: &[Guest],
     old_ledger: &FinanceLedger,
@@ -304,6 +323,21 @@ pub(crate) fn check_tick(
     services.sort_by_key(|s| s.id);
     let mut cash = old_cash;
     let mut expected = Vec::new();
+    for (id, open, costs) in old_ride_costs {
+        let amount = u64::from(costs.cost_per_interval_cents);
+        if *open && costs.upkeep_progress + 1 == park_sim::RIDE_UPKEEP_TICKS && cash >= amount {
+            cash -= amount;
+            expected.push(FinanceEntry {
+                id: old_ledger.next_entry_id + expected.len() as u64,
+                tick: park.ticks(),
+                kind: FinanceKind::RideUpkeep,
+                service: None,
+                ride: Some(*id),
+                amount_cents: amount,
+                balance_cents: cash,
+            });
+        }
+    }
     let mut costs = BTreeMap::new();
     let mut closed = BTreeMap::new();
     let mut progress = BTreeMap::new();
@@ -435,7 +469,9 @@ pub(crate) fn check_tick(
             != old_ledger.archived.service_revenue_cents
                 + total(removed, FinanceKind::ServiceRevenue, None)
         || ledger.archived.upkeep_cents
-            != old_ledger.archived.upkeep_cents + total(removed, FinanceKind::ServiceUpkeep, None)
+            != old_ledger.archived.upkeep_cents
+                + total(removed, FinanceKind::ServiceUpkeep, None)
+                + total(removed, FinanceKind::RideUpkeep, None)
         || ledger.archived.supplies_cents
             != old_ledger.archived.supplies_cents
                 + total(removed, FinanceKind::ServiceSupplies, None)
@@ -515,6 +551,28 @@ pub(crate) fn close_all(park: &mut Park) -> Result<(), String> {
     check(park)
 }
 pub(crate) fn install_income_ride(park: &mut Park) -> Result<(), String> {
+    // Operating a ride now requires float before its first departure. Recover
+    // that float from a real paid auxiliary refund, never from invented cash.
+    if park.cash_cents() < 500 {
+        let object = park
+            .services()
+            .iter()
+            .filter(|s| {
+                s.object.is_some()
+                    && !s.open
+                    && s.kind == ServiceKind::Food
+                    && s.construction_cost_cents > 0
+            })
+            .find_map(|s| {
+                s.object.filter(|object| {
+                    park.object(*object)
+                        .is_some_and(|o| o.pos.y == 24 && o.pos.x <= 5)
+                })
+            })
+            .ok_or("no paid auxiliary available to fund ride operation")?;
+        park.remove_object(object)
+            .ok_or("auxiliary refund failed")?;
+    }
     super::journey::install(park)?;
     super::economy::set_price_checked(park, 200)?;
     park.set_train_open(true);

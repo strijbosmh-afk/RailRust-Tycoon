@@ -284,6 +284,9 @@ impl Park {
     /// this lap. Reopening a parked train begins a fresh full dwell. Commands
     /// work while globally paused, but no distance or dwell time elapses.
     pub fn set_train_open(&mut self, open: bool) {
+        if open && let Some(id) = self.ride.as_ref().map(|r| r.id) {
+            self.clear_ride_funds_closure(id);
+        }
         let wait_ticks = self.coaster_operating_settings().station_wait_ticks;
         let Some(train) = &mut self.train else {
             return;

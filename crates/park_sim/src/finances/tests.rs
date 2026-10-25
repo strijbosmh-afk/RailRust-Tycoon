@@ -79,6 +79,7 @@ pub(crate) fn strip_finances(mut value: Value) -> Value {
         }
     }
     value["schema_version"] = json!(8);
+    crate::legacy_cost_test_support::project_old_fixture(&mut value);
     value["park"]
         .as_object_mut()
         .unwrap()
@@ -176,6 +177,7 @@ pub(crate) fn place_legacy_service(
     id
 }
 pub(crate) fn reset_finances(park: &mut Park) {
+    park.ride_costs.clear();
     park.cash_cents = INITIAL_PARK_CASH_CENTS
         + park
             .guests
@@ -587,6 +589,7 @@ fn strict_finance_metadata_rejects_forged_chronology_balances_sources_and_costs(
     ] {
         let mut bad = base.clone();
         bad["schema_version"] = json!(schema);
+        crate::legacy_cost_test_support::project_old_fixture(&mut bad);
         bad["content_version"] = json!(content);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&bad).unwrap()).is_err());
     }

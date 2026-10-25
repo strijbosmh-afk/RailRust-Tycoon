@@ -8,6 +8,7 @@ pub const FINANCE_LEDGER_CAPACITY: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum FinanceKind {
+    RideUpkeep,
     RideRevenue,
     ServiceRevenue,
     ServiceUpkeep,
@@ -33,7 +34,8 @@ impl FinanceKind {
     fn ride_source(self) -> bool {
         matches!(
             self,
-            Self::RideRevenue
+            Self::RideUpkeep
+                | Self::RideRevenue
                 | Self::RideConstruction
                 | Self::RideDemolitionRefund
                 | Self::TrackConstruction
@@ -44,6 +46,7 @@ impl FinanceKind {
 impl std::fmt::Display for FinanceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
+            Self::RideUpkeep => "Ride upkeep",
             Self::RideRevenue => "Ride tickets",
             Self::ServiceRevenue => "Service sale",
             Self::ServiceUpkeep => "Service upkeep",
@@ -88,7 +91,7 @@ impl FinanceTotals {
         let target = match kind {
             FinanceKind::RideRevenue => &mut self.ride_revenue_cents,
             FinanceKind::ServiceRevenue => &mut self.service_revenue_cents,
-            FinanceKind::ServiceUpkeep => &mut self.upkeep_cents,
+            FinanceKind::ServiceUpkeep | FinanceKind::RideUpkeep => &mut self.upkeep_cents,
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
             FinanceKind::RideConstruction
             | FinanceKind::ServiceConstruction
@@ -123,6 +126,7 @@ pub struct ServiceFinanceOpening {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RideFinanceTotals {
+    pub upkeep_cents: u64,
     pub ride: RideId,
     pub revenue_cents: u64,
     pub construction_cents: u64,
@@ -131,6 +135,7 @@ pub struct RideFinanceTotals {
 impl RideFinanceTotals {
     fn new(ride: RideId) -> Self {
         Self {
+            upkeep_cents: 0,
             ride,
             revenue_cents: 0,
             construction_cents: 0,
@@ -139,6 +144,7 @@ impl RideFinanceTotals {
     }
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
         let target = match kind {
+            FinanceKind::RideUpkeep => &mut self.upkeep_cents,
             FinanceKind::RideRevenue => &mut self.revenue_cents,
             FinanceKind::RideConstruction | FinanceKind::TrackConstruction => {
                 &mut self.construction_cents
@@ -249,6 +255,7 @@ impl FinanceLedger {
         let mut opening_rides: Vec<_> = park
             .all_rides()
             .map(|ride| RideFinanceTotals {
+                upkeep_cents: 0,
                 ride: ride.id,
                 revenue_cents: ride.revenue_cents,
                 construction_cents: 0,
@@ -304,6 +311,7 @@ impl FinanceLedger {
                         self.archived_rides.insert(
                             index,
                             RideFinanceTotals {
+                                upkeep_cents: 0,
                                 ride: id,
                                 revenue_cents: 0,
                                 construction_cents: 0,
@@ -334,6 +342,8 @@ impl FinanceLedger {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct FinanceStats {
+    pub ride_upkeep_cents: u64,
+    pub service_upkeep_cents: u64,
     pub cash_cents: u64,
     pub ride_revenue_cents: u64,
     pub service_revenue_cents: u64,
@@ -358,11 +368,13 @@ impl Park {
             .iter()
             .map(|service| service.revenue_cents)
             .sum::<u64>();
-        let upkeep_cents = self
+        let service_upkeep_cents = self
             .services
             .iter()
             .map(|service| service.upkeep_cents)
             .sum::<u64>();
+        let ride_upkeep_cents = self.ride_costs.iter().map(|r| r.upkeep_cents).sum::<u64>();
+        let upkeep_cents = service_upkeep_cents + ride_upkeep_cents;
         let supplies_cents = self
             .services
             .iter()
@@ -384,6 +396,8 @@ impl Park {
             .sum::<u64>();
         let total_costs_cents = upkeep_cents + supplies_cents + construction_cents;
         FinanceStats {
+            ride_upkeep_cents,
+            service_upkeep_cents,
             cash_cents: self.cash_cents,
             ride_revenue_cents,
             service_revenue_cents,
@@ -401,7 +415,16 @@ impl Park {
                 .iter()
                 .filter(|service| service.open && service.object.is_some())
                 .map(|service| u64::from(service.kind.upkeep_cost_cents()) * 20)
-                .sum(),
+                .sum::<u64>()
+                + self
+                    .all_rides()
+                    .filter(|ride| self.ride_is_open(ride.id) && self.ride_available(ride.id))
+                    .map(|ride| {
+                        u64::from(crate::ride_upkeep_cost_cents(
+                            self.ride_kind(ride.id).unwrap(),
+                        )) * 2
+                    })
+                    .sum::<u64>(),
             retained_entries: self.finances.entries.len(),
             archived_entries: self.finances.archived_entries,
         }
@@ -474,6 +497,7 @@ impl Park {
 }
 
 pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
+    crate::ride_costs::validate(park)?;
     let ledger = &park.finances;
     if ledger.opening_tick > park.ticks
         || ledger.archived_through_tick < ledger.opening_tick
@@ -505,6 +529,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         if previous_ride.is_some_and(|id| id >= entry.ride)
             || entry.revenue_cents > ride.revenue_cents
             || entry.construction_cents != 0
+            || entry.upkeep_cents != 0
             || entry.demolition_refunds_cents != 0
             || (entry.revenue_cents != 0
                 && park
@@ -557,6 +582,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         if park.ride_by_id(entry.ride).is_none()
             || previous_ride.is_some_and(|id| id >= entry.ride)
             || (entry.revenue_cents == 0
+                && entry.upkeep_cents == 0
                 && entry.construction_cents == 0
                 && entry.demolition_refunds_cents == 0)
         {
@@ -564,6 +590,17 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         }
         previous_ride = Some(entry.ride);
         let carousel = park.carousel(entry.ride);
+        let upkeep_cost = u64::from(crate::ride_upkeep_cost_cents(
+            park.ride_kind(entry.ride).unwrap(),
+        ));
+        if !entry.upkeep_cents.is_multiple_of(upkeep_cost)
+            || entry.upkeep_cents > park.ride_running_costs(entry.ride).unwrap().upkeep_cents
+        {
+            return Err("archived ride upkeep disagrees with its owner".into());
+        }
+        let operating_entries = u128::from(entry.upkeep_cents / upkeep_cost);
+        minimum_archived += operating_entries;
+        maximum_archived += operating_entries;
         let basis = carousel.map_or(park.track_economy.construction_cents, |c| {
             c.construction_cost_cents
         });
@@ -603,6 +640,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             maximum_archived += receipts + capital_entries;
         }
         archived_check.add(FinanceKind::RideRevenue, entry.revenue_cents)?;
+        archived_check.add(FinanceKind::RideUpkeep, entry.upkeep_cents)?;
         archived_check.add(FinanceKind::RideConstruction, entry.construction_cents)?;
         archived_check.add(
             FinanceKind::RideDemolitionRefund,
@@ -716,6 +754,17 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 .entry(id)
                 .or_insert_with(|| RideFinanceTotals::new(id));
             match entry.kind {
+                FinanceKind::RideUpkeep => {
+                    if entry.amount_cents
+                        != u64::from(crate::ride_upkeep_cost_cents(park.ride_kind(id).unwrap()))
+                        || (park.carousel(id).is_some()
+                            && (source.demolition_refunds_cents != 0
+                                || source.construction_cents
+                                    != park.carousel(id).unwrap().construction_cost_cents))
+                    {
+                        return Err("ride upkeep amount or chronology is invalid".into());
+                    }
+                }
                 FinanceKind::RideRevenue => {
                     if entry.amount_cents
                         > crate::TRAIN_SEATS as u64 * u64::from(crate::INITIAL_GUEST_WALLET_CENTS)
@@ -879,6 +928,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 != carousel.map_or(park.track_economy.refund_cents, |c| {
                     c.demolition_refund_cents
                 })
+            || source.upkeep_cents != park.ride_running_costs(ride.id).unwrap().upkeep_cents
         {
             return Err("ride income disagrees with attributed cash history".into());
         }

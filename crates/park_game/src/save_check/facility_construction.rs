@@ -231,6 +231,7 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         serde_json::from_slice(&park.to_save_bytes().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
     old["schema_version"] = 11.into();
+    old["park"].as_object_mut().unwrap().remove("ride_costs");
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["content_version"] = 11.into();

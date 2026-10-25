@@ -22,7 +22,7 @@ All **eight final 1024 × 680 captures** passed direct inspection: missing entra
 
 All **291 dependency entries** and five runtime/notice files match 0.36 byte for byte. Receipts are retained in `artifacts/ride-opening-0.37.0/`. The archive is `dist/Parkbound-0.37.0-windows-x64.zip`; its adjacent `.zip.sha256` identifies the current archive after the final guide-only refresh, which uses the same verified executable and a separate fresh extraction.
 
-Exact-source Windows [CI 40182744749](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40182744749), job 121137064063, remains in progress at this local checkpoint. No CI artifact was downloaded or executed.
+Exact-source Windows [CI 40182744749](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/40182744749), job 121137064063, passed all **38 steps**. No CI artifact was downloaded or executed.
 
 ## Following work
 

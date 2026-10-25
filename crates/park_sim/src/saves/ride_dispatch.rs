@@ -37,7 +37,7 @@ pub(super) struct VersionSixteenParkData<O = SurfaceObject, G = Guest, R = crate
     services: Vec<crate::Service>,
     next_service_id: u64,
     #[serde(deserialize_with = "strict_object")]
-    finances: crate::FinanceLedger,
+    finances: ride_costs::LegacyFinanceLedger,
     #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_CAROUSEL_RECORDS }>")]
     carousels: Vec<crate::CarouselRide>,
 }
@@ -45,6 +45,7 @@ pub(super) struct VersionSixteenParkData<O = SurfaceObject, G = Guest, R = crate
 impl VersionSixteenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             track_economy: self.track_economy,
@@ -67,7 +68,7 @@ impl VersionSixteenParkData {
             cash_cents: self.cash_cents,
             services: self.services,
             next_service_id: self.next_service_id,
-            finances: self.finances,
+            finances: self.finances.into(),
             carousels: self.carousels,
         }
     }

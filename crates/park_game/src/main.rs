@@ -3,6 +3,13 @@
 mod access_planning;
 mod benchmark;
 mod capture;
+#[cfg(test)]
+mod legacy_cost_test_support {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../park_sim/test_support/pre_upkeep.rs"
+    ));
+}
 mod coaster_testing;
 mod design_file_dialog;
 #[cfg(test)]

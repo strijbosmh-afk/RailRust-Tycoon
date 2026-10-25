@@ -8,7 +8,10 @@ mod ride_operations;
 use ride_operations::VersionFifteenParkData;
 mod ride_dispatch;
 use ride_dispatch::VersionSixteenParkData;
+mod ride_costs;
+mod ride_costs_park;
 mod train_configuration;
+use ride_costs_park::VersionNineteenParkData;
 use train_configuration::VersionEighteenParkData;
 mod ride_appeal;
 use ride_appeal::VersionSeventeenParkData;
@@ -37,8 +40,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 19;
-pub const CONTENT_VERSION: u32 = 19;
+pub const SCHEMA_VERSION: u32 = 20;
+pub const CONTENT_VERSION: u32 = 20;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,6 +128,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_RIDE_RECORDS }>")]
+    ride_costs: Vec<crate::ride_costs::RideCostRecord>,
     coaster_cars: u8,
     #[serde(deserialize_with = "strict_object")]
     track_economy: crate::TrackEconomy,
@@ -235,6 +240,7 @@ impl VersionNineFinanceLedger {
             opening_ride_revenue_cents: self.opening_ride_revenue_cents,
             opening_rides: ride
                 .map(|ride| crate::RideFinanceTotals {
+                    upkeep_cents: 0,
                     ride,
                     revenue_cents: self.opening_ride_revenue_cents,
                     construction_cents: 0,
@@ -248,6 +254,7 @@ impl VersionNineFinanceLedger {
             archived_rides: ride
                 .filter(|_| self.archived.ride_revenue_cents != 0)
                 .map(|ride| crate::RideFinanceTotals {
+                    upkeep_cents: 0,
                     ride,
                     revenue_cents: self.archived.ride_revenue_cents,
                     construction_cents: 0,
@@ -282,6 +289,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -443,6 +451,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -668,6 +677,7 @@ impl Park {
                 | 16
                 | 17
                 | 18
+                | 19
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -736,6 +746,9 @@ impl Park {
             legacy.park.migrate()
         } else if header.schema_version == 18 {
             let legacy: SaveEnvelope<VersionEighteenParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
+        } else if header.schema_version == 19 {
+            let legacy: SaveEnvelope<VersionNineteenParkData> = parse_save(bytes)?;
             legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
@@ -1415,6 +1428,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1443,6 +1457,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1474,6 +1489,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1633,6 +1649,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),
@@ -1708,6 +1725,7 @@ impl ParkData {
                 .ride
                 .as_ref()
                 .map(|ride| crate::RideFinanceTotals {
+                    upkeep_cents: 0,
                     ride: ride.id,
                     revenue_cents: ride.revenue_cents,
                     construction_cents: 0,
@@ -1756,6 +1774,7 @@ impl ParkData {
             ride_operating_settings: park.ride_operating_settings.clone(),
             ride_dispatch: park.ride_dispatch.clone(),
             coaster_cars: park.coaster_cars,
+            ride_costs: park.ride_costs.clone(),
         }
     }
 
@@ -1800,6 +1819,7 @@ impl ParkData {
             ride_operating_settings: self.ride_operating_settings,
             ride_dispatch: self.ride_dispatch,
             coaster_cars: self.coaster_cars,
+            ride_costs: self.ride_costs,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
         };
@@ -2232,12 +2252,18 @@ mod tests {
             if source.finances.archived_entries > 0 && paid(&source) {
                 break;
             }
+            // Build a synthetic v9 history with its original cost-free rides;
+            // do not lose older service receipts by stripping new fees after
+            // the bounded ledger has already rolled over.
+            source.ride_costs.clear();
             source.advance(Speed::Normal);
+            source.ride_costs.clear();
         }
         assert!(source.finances.archived_entries > 0 && paid(&source));
         let mut old = value(&source);
         crate::finances::tests::strip_carousel_fields(&mut old);
         old["schema_version"] = json!(9);
+        crate::legacy_cost_test_support::project_old_fixture(&mut old);
         old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(9);
         let bytes = serde_json::to_vec(&old).unwrap();
@@ -2245,6 +2271,7 @@ mod tests {
         let mut projection = value(&migrated);
         crate::finances::tests::strip_carousel_fields(&mut projection);
         projection["schema_version"] = json!(9);
+        crate::legacy_cost_test_support::project_old_fixture(&mut projection);
         projection["park"]
             .as_object_mut()
             .unwrap()
@@ -2321,6 +2348,7 @@ mod tests {
         assert!(decode(&too_many).is_err());
         let mut mixed = base;
         mixed["schema_version"] = json!(9);
+        crate::legacy_cost_test_support::project_old_fixture(&mut mixed);
         mixed["park"]
             .as_object_mut()
             .unwrap()
@@ -2331,6 +2359,7 @@ mod tests {
     fn legacy_value(park: &Park) -> Value {
         let mut data = version_two_value(park);
         data["schema_version"] = json!(1);
+        crate::legacy_cost_test_support::project_old_fixture(&mut data);
         data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(1);
         for object in data["park"]["objects"].as_array_mut().unwrap() {
@@ -2348,6 +2377,7 @@ mod tests {
         let mut data = version_three_value(park);
         assert!(park.ride().is_none_or(|ride| ride.entrance.is_none()));
         data["schema_version"] = json!(2);
+        crate::legacy_cost_test_support::project_old_fixture(&mut data);
         data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(2);
         data["park"].as_object_mut().unwrap().remove("ride");
@@ -2362,6 +2392,7 @@ mod tests {
     fn version_three_value(park: &Park) -> Value {
         let mut data = version_four_value(park);
         data["schema_version"] = json!(3);
+        crate::legacy_cost_test_support::project_old_fixture(&mut data);
         data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(3);
         for guest in data["park"]["guests"].as_array_mut().unwrap() {
@@ -2387,6 +2418,7 @@ mod tests {
     fn version_four_value(park: &Park) -> Value {
         let mut data = version_five_value(park);
         data["schema_version"] = json!(4);
+        crate::legacy_cost_test_support::project_old_fixture(&mut data);
         data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(4);
         for guest in data["park"]["guests"].as_array_mut().unwrap() {
@@ -2409,6 +2441,7 @@ mod tests {
     fn version_five_value(park: &Park) -> Value {
         let mut data = crate::experience::tests::strip_feedback(value(park));
         data["schema_version"] = json!(5);
+        crate::legacy_cost_test_support::project_old_fixture(&mut data);
         data["park"].as_object_mut().unwrap().remove("coaster_cars");
         data["content_version"] = json!(5);
         assert_eq!(
@@ -2666,6 +2699,7 @@ mod tests {
         ] {
             let mut invalid = current.clone();
             invalid["schema_version"] = json!(schema);
+            crate::legacy_cost_test_support::project_old_fixture(&mut invalid);
             invalid["content_version"] = json!(content);
             assert!(decode(&invalid).is_err());
         }
@@ -2721,6 +2755,7 @@ mod tests {
         for (schema, content) in [(4, 3), (3, 4), (4, 2), (2, 4), (4, 1), (1, 4)] {
             let mut malformed = modern.clone();
             malformed["schema_version"] = json!(schema);
+            crate::legacy_cost_test_support::project_old_fixture(&mut malformed);
             malformed["content_version"] = json!(content);
             assert!(decode(&malformed).is_err());
         }
@@ -2844,6 +2879,7 @@ mod tests {
         ] {
             let mut altered = modern.clone();
             altered["schema_version"] = json!(schema);
+            crate::legacy_cost_test_support::project_old_fixture(&mut altered);
             altered["content_version"] = json!(content);
             assert!(
                 decode(&altered).is_err(),

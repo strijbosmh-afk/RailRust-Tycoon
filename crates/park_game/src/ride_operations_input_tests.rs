@@ -52,6 +52,68 @@ fn two_rides() -> (Park, RideId, RideId) {
 }
 
 #[test]
+fn funds_closure_buttons_refuse_without_money_and_preserve_the_overdue_bill_after_recovery() {
+    let (mut park, id, reserve) = crate::save_check::ride_costs::install().unwrap();
+    crate::save_check::ride_costs::paid(&mut park, id).unwrap();
+    crate::save_check::ride_costs::closed(&mut park, id).unwrap();
+    let before = park.clone();
+    let directory = SaveDirectory::new();
+    let mut app = app(
+        &directory,
+        park,
+        ViewState {
+            rides_open: true,
+            selected_ride: Some(id),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    click(&mut app, OperationCommand::ToggleOpen);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .ride_operating_notice
+            .as_deref()
+            .unwrap()
+            .contains("overdue")
+    );
+    let mut labels = app.world_mut().query::<(&ui::rides::RideLabel, &Text)>();
+    assert!(labels.iter(app.world()).any(|(kind, text)| matches!(
+        kind,
+        ui::rides::RideLabel::OperatingStatus
+    ) && text.0.contains("Funds closure")));
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .remove_carousel(reserve)
+        .unwrap();
+    assert!(!app.world().resource::<Simulation>().0.ride_is_open(id));
+    click(&mut app, OperationCommand::ToggleOpen);
+    assert!(app.world().resource::<Simulation>().0.ride_is_open(id));
+    assert_eq!(app.world().resource::<Simulation>().0.cash_cents(), 15_000);
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .advance(Speed::Normal);
+    assert_eq!(app.world().resource::<Simulation>().0.cash_cents(), 14_900);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .ride_running_costs(id)
+            .unwrap()
+            .upkeep_cents,
+        700
+    );
+    app.world()
+        .resource::<Simulation>()
+        .0
+        .to_save_bytes()
+        .unwrap();
+}
+
+#[test]
 fn opening_buttons_and_o_reject_missing_access_atomically_and_close_damaged_rides() {
     for panel in [false, true] {
         for keyboard in [false, true] {

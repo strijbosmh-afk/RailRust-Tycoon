@@ -49,6 +49,7 @@ struct VersionTenRideFinanceTotals {
 impl From<VersionTenRideFinanceTotals> for crate::RideFinanceTotals {
     fn from(old: VersionTenRideFinanceTotals) -> Self {
         Self {
+            upkeep_cents: 0,
             ride: old.ride,
             revenue_cents: old.revenue_cents,
             construction_cents: 0,
@@ -194,6 +195,7 @@ pub(super) struct VersionTenParkData {
 impl VersionTenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            ride_costs: Vec::new(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),
             ride_operating_settings: Vec::new(),

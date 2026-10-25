@@ -851,8 +851,10 @@ mod tests {
         advance(&mut park, 390);
         park.set_ride_open(carousel, false).unwrap();
         assert_eq!(park.carousel(carousel).unwrap().cycles, 1);
+        let mut park = crate::ride_costs_tests::without_upkeep(&park);
         let mut old = value(&park);
         old["schema_version"] = json!(16);
+        crate::legacy_cost_test_support::project_old_fixture(&mut old);
         old["park"].as_object_mut().unwrap().remove("coaster_cars");
         old["content_version"] = json!(16);
         old["park"].as_object_mut().unwrap().remove("ride_dispatch");
@@ -861,6 +863,7 @@ mod tests {
         assert!(migrated.ride_dispatch.is_empty());
         let mut projected = value(&migrated);
         projected["schema_version"] = json!(16);
+        crate::legacy_cost_test_support::project_old_fixture(&mut projected);
         projected["park"]
             .as_object_mut()
             .unwrap()

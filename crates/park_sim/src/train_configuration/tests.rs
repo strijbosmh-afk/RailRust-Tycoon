@@ -145,9 +145,11 @@ fn schema_eighteen_migrates_exact_body_with_three_cars_and_keeps_passengers() {
         }
     }
     assert!(park.ride_journey_stats(coaster).riding > 0);
+    let mut park = crate::ride_costs_tests::without_upkeep(&park);
     let mut old: serde_json::Value =
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     old["schema_version"] = 18.into();
+    crate::legacy_cost_test_support::project_old_fixture(&mut old);
     old["content_version"] = 18.into();
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     let bytes = serde_json::to_vec(&old).unwrap();

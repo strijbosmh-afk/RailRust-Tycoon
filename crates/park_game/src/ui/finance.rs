@@ -176,7 +176,7 @@ pub(crate) fn signed_cash(cents: i128) -> String {
 
 pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
     format!(
-        "Ride #{} / {} / {} / Net cash {}\nTickets +{} / Construction -{} / Refunds +{}",
+        "Ride #{} / {} / {} / Net cash {}\nTickets +{} / Build -{} / Refunds +{} / Upkeep -{}",
         row.ride.0,
         if row.kind == RideKind::Coaster {
             "Coaster"
@@ -187,13 +187,16 @@ pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
             "Not installed"
         } else if row.open {
             "Open"
+        } else if row.closed_for_funds {
+            "Closed: funds"
         } else {
             "Closed"
         },
         signed_cash(row.net_cash_cents),
         money(row.ticket_revenue_cents),
         money(row.construction_cents),
-        money(row.refunds_cents)
+        money(row.refunds_cents),
+        money(row.upkeep_cents)
     )
 }
 
@@ -204,6 +207,7 @@ fn clock(tick: u64) -> String {
 
 fn row_text(entry: &FinanceEntry) -> String {
     let (label, sign) = match entry.kind {
+        FinanceKind::RideUpkeep => ("Ride upkeep", "-"),
         FinanceKind::RideRevenue => ("Ride tickets", "+"),
         FinanceKind::ServiceRevenue => ("Service sales", "+"),
         FinanceKind::ServiceUpkeep => ("Service upkeep", "-"),
@@ -287,11 +291,11 @@ pub(crate) fn refresh(
         let value = match label {
             FinanceLabel::ListHeading => if rides {"RIDE CASHFLOWS / four rides per page / recorded amounts"} else {"RECENT TRANSACTIONS / newest first / resulting cash at right"}.into(),
             FinanceLabel::View => if rides {"Transactions"} else {"Ride cashflows"}.into(),
-            FinanceLabel::Footer => if rides {"Net cash = tickets + refunds - recorded construction. No recurring ride running costs are modelled."} else {"Open facilities cost money even without customers. Space pauses all costs and activity."}.into(),
+            FinanceLabel::Footer => if rides {"Net cash = tickets + refunds - build - upkeep. Ride upkeep accrues while open."} else {"Open facilities cost money even without customers. Space pauses all costs and activity."}.into(),
             FinanceLabel::Categories if rides => "RIDE CASHFLOWS / stable ride IDs / lifetime recorded amounts\nEach ride keeps its history after demolition; facility transactions are separate.".into(),
             FinanceLabel::History if rides => format!("{} retained rides / {} currently installed\nRecorded cash is not a ride valuation or a profit forecast.\nLegacy free construction has $0 recorded cost. Older receipts remain included.",cashflows.len(),cashflows.iter().filter(|row|row.installed).count()),
             FinanceLabel::Summary => format!(
-                "Cash {} / Sales +{} / Costs -{} / Net cash {}\nRefunds +{} / Open facilities: {} per simulation minute",
+                "Cash {} / Sales +{} / Costs -{} / Net cash {}\nRefunds +{} / Open rides/facilities: {} per simulation minute",
                 money(stats.cash_cents),
                 money(
                     stats
@@ -304,10 +308,10 @@ pub(crate) fn refresh(
                 money(stats.open_upkeep_per_minute_cents)
             ),
             FinanceLabel::Categories => format!(
-                "Ride tickets +{} / Service sales +{} / Upkeep -{} / Supplies -{}\nConstruction -{} / Demolition refunds +{}",
+                "Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nConstruction -{} / Demolition refunds +{}",
                 money(stats.ride_revenue_cents),
                 money(stats.service_revenue_cents),
-                money(stats.upkeep_cents),
+                money(stats.ride_upkeep_cents),money(stats.service_upkeep_cents),
                 money(stats.supplies_cents),
                 money(stats.construction_cents),
                 money(stats.demolition_refunds_cents)

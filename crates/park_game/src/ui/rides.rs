@@ -67,6 +67,16 @@ pub(crate) fn construction_details(park: &Park, id: RideId) -> String {
     )
 }
 
+pub(crate) fn running_cost_details(park: &Park, id: RideId) -> String {
+    park.ride_running_costs(id).map_or(String::new(), |costs| {
+        format!(
+            "Running {} / min / Upkeep paid {}",
+            money(u64::from(costs.cost_per_interval_cents) * 2),
+            money(costs.upkeep_cents)
+        )
+    })
+}
+
 pub(crate) fn reputation_label(profile: park_sim::RideAppealProfile) -> String {
     format!(
         "Choice reputation: {} (starts neutral)",
@@ -208,7 +218,7 @@ pub(super) fn setup(commands: &mut Commands) {
         });
         p.spawn(Node { column_gap: px(16), align_items: AlignItems::Start, flex_grow: 1.0, ..row() }).with_children(|p| {
             p.spawn(Node { width: px(408), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(10), ..default() }).with_children(|p| {
-                p.spawn(Node{height:px(170),flex_shrink:0.0,..default()}).with_children(|p| {
+                p.spawn(Node{height:px(188),flex_shrink:0.0,..default()}).with_children(|p| {
                     operating_label(p, RideLabel::Details, 13.0, INK);
                 });
                 button(p,&format!("Build carousel / {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,310.0);
@@ -383,7 +393,7 @@ pub(crate) fn refresh(
         let value = match kind {
             RideLabel::Selected => format!("{} / #{}", name(&sim.0, id), id.0),
             RideLabel::Details => format!(
-                "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)\n{}\n{}",
+                "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)\n{}\n{}\n{}",
                 if sim.0.ride_is_open(id) {
                     "Open"
                 } else {
@@ -399,7 +409,7 @@ pub(crate) fn refresh(
                 guests::rating_label(experience.average_rating_tenths),
                 compact_count(experience.rating_count),
                 appeal_details(&sim.0, id),
-                construction_details(&sim.0, id)
+                construction_details(&sim.0, id),running_cost_details(&sim.0,id)
             ),
             RideLabel::OperatingValue(OperatingField::Cars) => {
                 let cars=sim.0.coaster_car_count(id).unwrap_or(3);
@@ -407,6 +417,7 @@ pub(crate) fn refresh(
             },
             RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, journey.capacity) }),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
+            RideLabel::OperatingStatus if sim.0.ride_running_costs(id).is_some_and(|c|c.closed_for_funds) => format!("Funds closure / overdue {}.\nAdd funds and reopen manually.",money(u64::from(sim.0.ride_running_costs(id).unwrap().cost_per_interval_cents))),
             RideLabel::OperatingStatus => sim.0.ride_dispatch_progress(id).filter(|progress| progress.waiting_for_load).map_or_else(
                 || if sim.0.ride_is_open(id) || sim.0.ride_is_running(id) {
                     sim.0.ride_operating_settings_status(id).map_or_else(|error| error.to_string(), |()| "Ready to tune.".into())
