@@ -200,6 +200,8 @@ impl Park {
             && (self.ride_kind(id) != Some(RideKind::Coaster)
                 || self.train.as_ref().is_some_and(|t| t.speed == 0))
     }
+    /// Low-level operating switch retained for fixtures and legacy continuation.
+    /// Player commands must use `set_ride_open_checked` to require current access.
     pub fn set_ride_open(&mut self, id: RideId, open: bool) -> Result<(), RideAccessError> {
         let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id).ok_or(RideAccessError::UnknownRide(id))? {

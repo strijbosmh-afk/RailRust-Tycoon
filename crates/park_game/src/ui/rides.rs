@@ -408,7 +408,11 @@ pub(crate) fn refresh(
             RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, journey.capacity) }),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
             RideLabel::OperatingStatus => sim.0.ride_dispatch_progress(id).filter(|progress| progress.waiting_for_load).map_or_else(
-                || sim.0.ride_operating_settings_status(id).map_or_else(|error| error.to_string(), |()| "Ready to tune. Open the ride when ready.".into()),
+                || if sim.0.ride_is_open(id) || sim.0.ride_is_running(id) {
+                    sim.0.ride_operating_settings_status(id).map_or_else(|error| error.to_string(), |()| "Ready to tune.".into())
+                } else {
+                    sim.0.ride_opening_status(id).map_or_else(|error| format!("{error}\nUse Access before opening."), |()| "Ready to open / access connected.\nClose and empty the ride to tune.".into())
+                },
                 |progress| format!("Loading {}/{} / extra wait {:.1}/{:.0} s\nClose and empty the ride before tuning.", progress.seated_passengers, progress.minimum_passengers, f64::from(progress.extra_waited_ticks) / TICKS_PER_SECOND as f64, f64::from(progress.maximum_extra_wait_ticks) / TICKS_PER_SECOND as f64)),
             RideLabel::OperatingNotice => view
                 .ride_operating_notice

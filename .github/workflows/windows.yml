@@ -244,6 +244,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-starters --save-dir $starterDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Starter design verification failed" }
           Get-Content -LiteralPath (Join-Path $starterDirectory "verification-starters.txt")
+      - name: Verify checked ride opening across fresh processes
+        shell: pwsh
+        run: |
+          $openingDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound opening é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-opening --save-dir $openingDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Opening writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-opening --save-dir $openingDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Opening verification failed" }
+          Get-Content -LiteralPath (Join-Path $openingDirectory "verification-opening.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

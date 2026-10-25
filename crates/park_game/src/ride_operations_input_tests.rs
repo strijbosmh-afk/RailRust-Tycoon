@@ -1,7 +1,7 @@
 //! Actual Rides buttons and production input/save systems, without a GPU.
 use super::*;
 use crate::{SaveSession, Speed, keyboard_input, persistence};
-use park_sim::{RideOperatingSettings, TilePos};
+use park_sim::RideOperatingSettings;
 use std::{
     ffi::OsString,
     path::PathBuf,
@@ -45,10 +45,86 @@ impl Drop for SaveDirectory {
 
 fn two_rides() -> (Park, RideId, RideId) {
     let mut park = crate::demonstration_park();
-    park.set_train_open(false);
-    let coaster = park.ride().unwrap().id;
-    let carousel = park.place_carousel(TilePos { x: 19, y: 22 }, 8).unwrap();
+    let (coaster, carousel) = crate::save_check::ride_choice::install(&mut park).unwrap();
+    park.set_ride_open(coaster, false).unwrap();
+    park.set_ride_open(carousel, false).unwrap();
     (park, coaster, carousel)
+}
+
+#[test]
+fn opening_buttons_and_o_reject_missing_access_atomically_and_close_damaged_rides() {
+    for panel in [false, true] {
+        for keyboard in [false, true] {
+            if panel && keyboard {
+                continue;
+            }
+            let directory = SaveDirectory::new();
+            let mut park = crate::demonstration_park();
+            park.set_train_open(false);
+            let id = park.ride().unwrap().id;
+            let before = park.clone();
+            let mut app = app(
+                &directory,
+                park,
+                ViewState {
+                    rides_open: panel,
+                    selected_ride: Some(id),
+                    speed: Speed::Paused,
+                    ..default()
+                },
+            );
+            if keyboard {
+                frame(&mut app, &[], &[KeyCode::KeyO]);
+            } else {
+                frame(
+                    &mut app,
+                    &[if panel {
+                        ui::Action::RideOperating(OperationCommand::ToggleOpen)
+                    } else {
+                        ui::Action::ToggleTrain
+                    }],
+                    &[],
+                );
+            }
+            assert_eq!(app.world().resource::<Simulation>().0, before);
+            let view = app.world().resource::<ViewState>();
+            let notice = if panel {
+                view.ride_operating_notice.as_deref()
+            } else {
+                view.price_notice.as_deref()
+            }
+            .unwrap();
+            assert!(notice.contains("entrance"), "{notice}");
+        }
+    }
+    let (mut app, _directory, coaster, _) = fixture();
+    click(&mut app, OperationCommand::ToggleOpen);
+    let exit = app
+        .world()
+        .resource::<Simulation>()
+        .0
+        .ride_by_id(coaster)
+        .unwrap()
+        .exit
+        .unwrap()
+        .object;
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .remove_object(exit);
+    click(&mut app, OperationCommand::ToggleOpen);
+    assert!(!app.world().resource::<Simulation>().0.ride_is_open(coaster));
+    let before = app.world().resource::<Simulation>().0.clone();
+    click(&mut app, OperationCommand::ToggleOpen);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert!(
+        app.world()
+            .resource::<ViewState>()
+            .ride_operating_notice
+            .as_deref()
+            .unwrap()
+            .contains("exit")
+    );
 }
 
 fn app(directory: &SaveDirectory, park: Park, view: ViewState) -> App {
@@ -67,6 +143,7 @@ fn app(directory: &SaveDirectory, park: Park, view: ViewState) -> App {
                 crate::coaster_testing::apply_commands,
                 crate::access_planning::apply_commands,
                 apply_commands,
+                crate::apply_train_actions,
                 persistence::apply_save_action,
                 ui::rides::refresh,
                 ui::refresh,

@@ -231,7 +231,7 @@ pub(crate) fn perform_command(
             return false;
         }
         let open = !park.ride_is_open(id);
-        return match park.set_ride_open(id, open) {
+        return match park.set_ride_open_checked(id, open) {
             Ok(()) => {
                 view.ride_operating_notice = Some(if open {
                     "Ride opened. Close and empty it before tuning.".into()

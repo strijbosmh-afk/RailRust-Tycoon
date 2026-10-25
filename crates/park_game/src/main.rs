@@ -1025,9 +1025,16 @@ fn apply_train_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>)
             && !view.edits_blocked()
         {
             let open = !sim.0.ride_is_open(id);
-            if let Err(error) = sim.0.set_ride_open(id, open) {
-                view.price_notice = Some(error.to_string());
-            }
+            view.price_notice = Some(match sim.0.set_ride_open_checked(id, open) {
+                Ok(()) => {
+                    if open {
+                        "Ride opened.".into()
+                    } else {
+                        "Close requested. Current trips finish.".into()
+                    }
+                }
+                Err(error) => format!("Cannot open: {error}. Y: Access"),
+            });
         }
     }
     if view.focus_train_pending {
