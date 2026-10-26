@@ -658,7 +658,7 @@ fn version_seventeen_stays_strict_and_derived_appeal_is_not_serialized() {
         assert_ne!(text, duplicate);
         assert!(Park::from_save_bytes(duplicate.as_bytes()).is_err());
     }
-    for pair in [(17, 18), (18, 17), (23, 23)] {
+    for pair in [(17, 18), (18, 17), (24, 24)] {
         let mut malformed = base.clone();
         malformed["schema_version"] = json!(pair.0);
         crate::legacy_cost_test_support::project_old_fixture(&mut malformed);

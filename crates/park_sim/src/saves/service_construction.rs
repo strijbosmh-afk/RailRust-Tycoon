@@ -188,6 +188,7 @@ impl VersionElevenParkData {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
             ride_dispatch: Vec::new(),

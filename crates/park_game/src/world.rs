@@ -15,6 +15,7 @@ mod entrance_render;
 mod guest_render;
 mod layout;
 mod path_preview;
+mod ride_colors;
 mod service_render;
 mod static_chunks;
 mod terrain_preview;
@@ -592,6 +593,10 @@ pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
 }
 
 fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) {
+    let appearance = park
+        .ride()
+        .and_then(|r| park.ride_appearance(r.id))
+        .unwrap_or_default();
     for object in park.objects() {
         if !object_visible(park, object, mode) {
             continue;
@@ -662,6 +667,18 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 ) => {
                     unreachable!("entrance faces are handled above")
                 }
+            };
+            let ink = if object.kind == ObjectKind::Track
+                && appearance.structure != park_sim::RidePaint::Classic
+            {
+                let i = match surface.kind {
+                    SurfaceKind::Top => 0,
+                    SurfaceKind::LeftCliff => 1,
+                    SurfaceKind::RightCliff => 2,
+                };
+                ride_colors::darken(ride_colors::inks(appearance.structure, [[0.0; 4]; 3]), 0.36)[i]
+            } else {
+                ink
             };
             mesh.surface(surface, ink);
         }
@@ -758,7 +775,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                         point(0.5, across),
                         2.2,
                         DETAIL_BIAS * 2.0,
-                        rgb(213, 224, 220),
+                        ride_colors::inks(appearance.structure, [rgb(213, 224, 220); 3])[0],
                     );
                 }
             }

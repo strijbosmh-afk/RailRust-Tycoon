@@ -316,6 +316,15 @@ jobs:
           & ./target/release/parkbound.exe --verify-sound $soundDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Sound verification failed" }
           Get-Content -LiteralPath (Join-Path $soundDirectory "verification-sound.txt")
+      - name: Verify ride colors and paid visitor continuation
+        shell: pwsh
+        run: |
+          $colorDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound colors é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-colors --save-dir $colorDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Colors writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-colors --save-dir $colorDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Colors verification failed" }
+          Get-Content -LiteralPath (Join-Path $colorDirectory "verification-colors.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

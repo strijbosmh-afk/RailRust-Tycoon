@@ -5,8 +5,10 @@
 
 mod access_planning;
 mod admission;
+mod appearance;
 mod carousel;
 mod crowds;
+pub use appearance::{RideAppearance, RidePaint, RidePaintError};
 mod visitors;
 pub use visitors::{
     DepartedVisitors, VISITOR_ACTIVE_CAP, VISITOR_ARRIVAL_TICKS, VISITOR_LIFETIME_CAP,
@@ -254,6 +256,7 @@ pub struct Park {
     next_ride_id: u64,
     cash_cents: u64,
     finances: FinanceLedger,
+    ride_paints: Vec<RideAppearance>,
     visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
@@ -289,6 +292,7 @@ impl PartialEq for Park {
             && self.next_ride_id == other.next_ride_id
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
+            && self.ride_paints == other.ride_paints
             && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
@@ -345,6 +349,7 @@ impl Park {
             next_ride_id: 1,
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),
+            ride_paints: Vec::new(),
             visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),

@@ -14,6 +14,7 @@ pub(crate) enum RideTab {
     Operations,
     Access,
     Test,
+    Colors,
 }
 
 pub(crate) fn active_ids(park: &Park) -> Vec<RideId> {
@@ -228,10 +229,12 @@ pub(super) fn setup(commands: &mut Commands) {
             });
             p.spawn(Node { width: px(356), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
                 p.spawn(row()).with_children(|p| {
-                    button(p, "Operations", Action::RideAccess(AccessCommand::ShowOperations), 114.0);
-                    button(p, "Access", Action::RideAccess(AccessCommand::ShowAccess), 114.0);
-                    button(p, "Test", Action::CoasterTest(crate::coaster_testing::TestCommand::Show), 114.0);
+                    button(p, "Operations", Action::RideAccess(AccessCommand::ShowOperations), 100.0);
+                    button(p, "Access", Action::RideAccess(AccessCommand::ShowAccess), 75.0);
+                    button(p, "Test", Action::CoasterTest(crate::coaster_testing::TestCommand::Show), 60.0);
+                    button(p,"Colors",Action::RidePaint(super::appearance::Command::Show),100.0);
                 });
+                super::appearance::setup(p);
                 p.spawn((RideSection(RideTab::Operations), Node { width: percent(100), flex_direction: FlexDirection::Column, row_gap: px(4), ..default() })).with_children(|p| {
                 label(p, "Operating settings", 17.0, INK);
                 p.spawn((Button, Action::RideOperating(OperationCommand::ToggleOpen), Node {

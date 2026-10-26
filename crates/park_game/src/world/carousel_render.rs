@@ -69,7 +69,26 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
     owner(park, object)
         .filter(|c| c.objects.first() == Some(&object))
         .map_or_else(Vec::new, |c| {
-            faces(c.origin, c.height, park.width(), rotation)
+            let appearance = park.ride_appearance(c.ride.id).unwrap_or_default();
+            let mut result = faces(c.origin, c.height, park.width(), rotation);
+            for f in &mut result {
+                for (paint, colors) in [
+                    (
+                        appearance.structure,
+                        [rgb(77, 159, 150), rgb(43, 113, 112), rgb(32, 84, 91)],
+                    ),
+                    (
+                        appearance.supports,
+                        [rgb(246, 194, 83), rgb(193, 132, 48), rgb(143, 89, 35)],
+                    ),
+                ] {
+                    if let Some(i) = colors.iter().position(|c| *c == f.ink) {
+                        f.ink = ride_colors::inks(paint, colors)[i];
+                        break;
+                    }
+                }
+            }
+            result
         })
 }
 
@@ -174,9 +193,19 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
         {
             let p = nominal(point);
             let mut surfaces = Vec::new();
-            let gold = [rgb(240, 187, 72), rgb(179, 121, 44), rgb(127, 82, 33)];
-            let cream = [rgb(246, 231, 185), rgb(199, 173, 128), rgb(157, 129, 91)];
-            let teal = [rgb(63, 142, 143), rgb(40, 101, 113), rgb(27, 73, 86)];
+            let appearance = park.ride_appearance(carousel.ride.id).unwrap_or_default();
+            let gold = ride_colors::inks(
+                appearance.supports,
+                [rgb(240, 187, 72), rgb(179, 121, 44), rgb(127, 82, 33)],
+            );
+            let cream = ride_colors::inks(
+                appearance.vehicles,
+                [rgb(246, 231, 185), rgb(199, 173, 128), rgb(157, 129, 91)],
+            );
+            let teal = ride_colors::inks(
+                appearance.structure,
+                [rgb(63, 142, 143), rgb(40, 101, 113), rgb(27, 73, 86)],
+            );
             // Compact horse-like bench: legs, body, saddle and raised head.
             for x in [-0.13, 0.10] {
                 cuboid(

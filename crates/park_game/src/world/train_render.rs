@@ -163,7 +163,14 @@ fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8
         b
     };
     let side = normal(park, piece, middle);
-    let colors = [rgb(134, 164, 157), rgb(80, 113, 111), rgb(56, 85, 87)];
+    let paint = park
+        .ride()
+        .and_then(|r| park.ride_appearance(r.id))
+        .unwrap_or_default();
+    let colors = ride_colors::inks(
+        paint.supports,
+        [rgb(134, 164, 157), rgb(80, 113, 111), rgb(56, 85, 87)],
+    );
     for offset in [-0.23, 0.23] {
         let point = center + side * offset;
         let Some(bottom) = support_is_clear(park, piece.object, point) else {
@@ -206,6 +213,10 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
         return faces;
     }
     let size = park.width();
+    let paint = park
+        .ride()
+        .and_then(|r| park.ride_appearance(r.id))
+        .unwrap_or_default();
     supports(&mut faces, park, piece, rotation);
     for index in 0..piece.samples.len() - 1 {
         let a = ground(piece.samples[index]);
@@ -218,7 +229,11 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
             bed,
             0.0,
             0.10,
-            [rgb(48, 70, 77), rgb(35, 51, 59), rgb(29, 43, 50)],
+            if paint.structure == park_sim::RidePaint::Classic {
+                [rgb(48, 70, 77), rgb(35, 51, 59), rgb(29, 43, 50)]
+            } else {
+                ride_colors::darken(ride_colors::inks(paint.structure, [[0.0; 4]; 3]), 0.36)
+            },
             size,
             rotation,
         );
@@ -254,7 +269,10 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                 strip(a, b, na, nb, offset - 0.025, offset + 0.025),
                 0.15,
                 0.25,
-                [rgb(228, 235, 212), rgb(148, 174, 166), rgb(108, 140, 139)],
+                ride_colors::inks(
+                    paint.structure,
+                    [rgb(228, 235, 212), rgb(148, 174, 166), rgb(108, 140, 139)],
+                ),
                 size,
                 rotation,
             );
@@ -552,7 +570,12 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             continue;
         }
         for face in car_faces(*pose, park.width(), rotation) {
-            painter.surface(face.surface, face.ink);
+            let paint = park
+                .ride()
+                .and_then(|r| park.ride_appearance(r.id))
+                .unwrap_or_default()
+                .vehicles;
+            painter.surface(face.surface, ride_colors::vehicle(paint, face.ink));
         }
     }
     for passenger in park.ride_guest_positions() {
