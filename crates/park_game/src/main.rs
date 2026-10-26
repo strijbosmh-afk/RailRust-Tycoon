@@ -89,6 +89,8 @@ struct ViewState {
     ride_operating_commands: Vec<ride_operations::OperationCommand>,
     ride_operating_notice: Option<String>,
     ride_tab: ui::rides::RideTab,
+    paint_commands: Vec<ui::appearance::Command>,
+    paint_notice: Option<String>,
     coaster_testing: coaster_testing::CoasterTesting,
     ride_access_commands: Vec<access_planning::AccessCommand>,
     ride_access_plan: Option<park_sim::RideAccessPlan>,
@@ -163,6 +165,8 @@ impl Default for ViewState {
             ride_operating_commands: Vec::new(),
             ride_operating_notice: None,
             ride_tab: default(),
+            paint_commands: Vec::new(),
+            paint_notice: None,
             coaster_testing: default(),
             ride_access_commands: Vec::new(),
             ride_access_plan: None,
@@ -302,6 +306,8 @@ impl ViewState {
         self.ride_operating_commands.clear();
         self.ride_operating_notice = None;
         self.ride_tab = default();
+        self.paint_commands.clear();
+        self.paint_notice = None;
         self.coaster_testing.run_pending = false;
         self.coaster_testing.show_pending = false;
         self.ride_access_commands.clear();
@@ -346,6 +352,8 @@ impl ViewState {
             self.track_editor.preview = None;
             self.path_tool.clear_pointer();
             self.price_notice = None;
+            self.paint_commands.clear();
+            self.paint_notice = None;
             self.ride_operating_commands.clear();
             self.ride_operating_notice = None;
             self.coaster_testing = default();
@@ -500,6 +508,7 @@ fn main() -> AppExit {
                     coaster_testing::apply_commands,
                     access_planning::apply_commands,
                     ride_operations::apply_commands,
+                    ui::appearance::apply,
                     ui::finance::apply_commands,
                     ui::visitor_flow::apply_commands,
                     apply_service_actions,
@@ -514,6 +523,7 @@ fn main() -> AppExit {
                     update_scene,
                     static_landscape::update_visibility,
                     ui::rides::refresh,
+                    ui::appearance::refresh,
                     ui::refresh,
                     ui::audio::refresh,
                     ui::guests::refresh,

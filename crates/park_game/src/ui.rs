@@ -11,6 +11,7 @@ use park_sim::{
 
 use crate::path_tools::PathTool;
 
+pub(crate) mod appearance;
 pub(crate) mod audio;
 pub(crate) mod designs;
 mod economy;
@@ -72,6 +73,7 @@ pub(super) enum Action {
     CloseRides,
     BrowseRide(i8),
     RideOperating(crate::ride_operations::OperationCommand),
+    RidePaint(appearance::Command),
     RideAccess(crate::access_planning::AccessCommand),
     CoasterTest(crate::coaster_testing::TestCommand),
     BuildCarousel,
@@ -875,17 +877,43 @@ pub(super) fn button_actions(
         view.modal_transition_pending = true;
         return;
     }
+    let ride_tab_transition = interactions.iter().any(|(i, a)| {
+        *i == Interaction::Pressed
+            && matches!(
+                a,
+                Action::RideAccess(
+                    crate::access_planning::AccessCommand::ShowAccess
+                        | crate::access_planning::AccessCommand::ShowOperations
+                ) | Action::CoasterTest(crate::coaster_testing::TestCommand::Show)
+                    | Action::RidePaint(appearance::Command::Show)
+            )
+    });
     for (interaction, action) in &interactions {
         if *interaction != Interaction::Pressed {
             continue;
         }
         view.ui_pointer_consumed = true;
+        if ride_tab_transition
+            && match action {
+                Action::RideOperating(_) => true,
+                Action::RideAccess(c) => !matches!(
+                    c,
+                    crate::access_planning::AccessCommand::ShowAccess
+                        | crate::access_planning::AccessCommand::ShowOperations
+                ),
+                Action::CoasterTest(c) => *c != crate::coaster_testing::TestCommand::Show,
+                _ => false,
+            }
+        {
+            continue;
+        }
         if view.rides_open
             && !matches!(
                 action,
                 Action::Pause
                     | Action::BrowseRide(_)
                     | Action::RideOperating(_)
+                    | Action::RidePaint(_)
                     | Action::RideAccess(_)
                     | Action::CoasterTest(_)
             )
@@ -1005,6 +1033,18 @@ pub(super) fn button_actions(
             }
             Action::FinanceView if view.finance_open => view.finance_view_pending = true,
             Action::GuestFlowView if view.guests_open => view.guest_flow_pending = true,
+            Action::RidePaint(command) => {
+                if view.rides_open {
+                    appearance::queue(
+                        &mut view,
+                        if ride_tab_transition && *command != appearance::Command::Show {
+                            appearance::Command::Conflict
+                        } else {
+                            *command
+                        },
+                    );
+                }
+            }
             Action::Visitor(command) if view.guests_open && view.guest_flow_view => {
                 visitor_flow::queue(&mut view, *command)
             }

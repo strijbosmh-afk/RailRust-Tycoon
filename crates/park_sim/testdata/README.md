@@ -15,3 +15,7 @@ Authentic schema/content 20/20 primary written by the verified 0.40.0 `write-sum
 ## v21-paid-value.park.json
 
 Authentic schema/content 21/21 primary from the actual 0.42.0 `write-value` mode, runtime `b54329b49843be835b2cd11eb92cbac7f2d5cb96`. Executable SHA256 `be75b23ffd70a63c165f701a258855181bed245a8985be90f50011d201224471`. Fixture SHA256 `ab7a4b59d08546fe216b644b0fa2692f0dbeafbec426e4f4a368910af1765f9d`. Real paid rides, services, archived receipts, demolition and loans; no player data. Migration compares every original field and adds disabled, empty visitor state.
+
+## v22-paid-visitors.park.json
+
+Authentic schema/content 22/22 primary from actual 0.44.0 `write-visitors`, runtime `58ac6650713b7b9432b4b5ea7c0701693c8887cc`, executable SHA256 `ab35fe89ae8d9471a559c843f35a95c4a33008c9452e6d0bbb7d26a22893b793`. Fixture SHA256 `0d2b61f3b46280ba17365840370cead6566caa56daeff4becf7efd2d8c4f5924`. It contains real paid rides/services, loans, retired visitor spending and reviews; no player data. Schema-23 migration compares every original field and initializes empty classic paint without changing future behavior.

@@ -205,9 +205,11 @@ fn app(directory: &SaveDirectory, park: Park, view: ViewState) -> App {
                 crate::coaster_testing::apply_commands,
                 crate::access_planning::apply_commands,
                 apply_commands,
+                ui::appearance::apply,
                 crate::apply_train_actions,
                 persistence::apply_save_action,
                 ui::rides::refresh,
+                ui::appearance::refresh,
                 ui::refresh,
             )
                 .chain(),
@@ -885,4 +887,166 @@ fn tab_changes_and_load_intent_consume_loading_controls_before_any_policy_write(
         frame(&mut app, &[], &[]);
         assert_eq!(app.world().resource::<Simulation>().0, before);
     }
+}
+
+#[test]
+fn colors_controls_preserve_selected_owner_money_and_atomic_browse_or_tab_transitions() {
+    use park_sim::RidePaint;
+    use ui::appearance::{Command as C, Part};
+    let (mut app, _directory, coaster, carousel) = fixture();
+    let before = app.world().resource::<Simulation>().0.clone();
+    frame(
+        &mut app,
+        &[
+            ui::Action::RidePaint(C::Show),
+            ui::Action::RideOperating(OperationCommand::ToggleOpen),
+        ],
+        &[],
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    assert_eq!(
+        app.world().resource::<ViewState>().ride_tab,
+        ui::rides::RideTab::Colors
+    );
+    frame(
+        &mut app,
+        &[ui::Action::RidePaint(C::Step(Part::Structure, 1))],
+        &[],
+    );
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .ride_appearance(coaster)
+            .unwrap()
+            .structure,
+        RidePaint::Coral
+    );
+    assert_eq!(
+        app.world().resource::<Simulation>().0.cash_cents(),
+        before.cash_cents()
+    );
+    let painted = app.world().resource::<Simulation>().0.clone();
+    frame(
+        &mut app,
+        &[
+            ui::Action::BrowseRide(1),
+            ui::Action::RidePaint(C::Step(Part::Vehicles, 1)),
+        ],
+        &[],
+    );
+    assert_eq!(
+        app.world().resource::<ViewState>().selected_ride,
+        Some(carousel)
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, painted);
+    frame(
+        &mut app,
+        &[
+            ui::Action::RidePaint(C::Step(Part::Structure, 1)),
+            ui::Action::RidePaint(C::Step(Part::Vehicles, 1)),
+        ],
+        &[],
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, painted);
+    frame(
+        &mut app,
+        &[ui::Action::RidePaint(C::Step(Part::Vehicles, 1))],
+        &[],
+    );
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .ride_appearance(carousel)
+            .unwrap()
+            .vehicles,
+        RidePaint::Coral
+    );
+    frame(&mut app, &[ui::Action::RidePaint(C::Reset)], &[]);
+    assert_eq!(app.world().resource::<Simulation>().0, painted);
+    frame(&mut app, &[ui::Action::BrowseRide(-1)], &[]);
+    frame(&mut app, &[ui::Action::RidePaint(C::Reset)], &[]);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+}
+#[test]
+fn color_tab_switch_close_and_capture_cannot_apply_conflicting_paint() {
+    use ui::appearance::{Command as C, Part};
+    let (mut app, _directory, _, _) = fixture();
+    let before = app.world().resource::<Simulation>().0.clone();
+    frame(
+        &mut app,
+        &[
+            ui::Action::RidePaint(C::Show),
+            ui::Action::RidePaint(C::Step(Part::Structure, 1)),
+        ],
+        &[],
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    frame(&mut app, &[ui::Action::RidePaint(C::Show)], &[]);
+    frame(
+        &mut app,
+        &[
+            ui::Action::RideAccess(crate::access_planning::AccessCommand::ShowAccess),
+            ui::Action::RidePaint(C::Step(Part::Structure, 1)),
+        ],
+        &[],
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    frame(&mut app, &[ui::Action::RidePaint(C::Show)], &[]);
+    frame(
+        &mut app,
+        &[
+            ui::Action::CloseRides,
+            ui::Action::RidePaint(C::Step(Part::Structure, 1)),
+        ],
+        &[],
+    );
+    assert!(!app.world().resource::<ViewState>().rides_open);
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+    {
+        let mut v = app.world_mut().resource_mut::<ViewState>();
+        v.rides_open = true;
+        v.ride_tab = ui::rides::RideTab::Colors;
+        v.capture_active = true;
+    }
+    frame(
+        &mut app,
+        &[ui::Action::RidePaint(C::Step(Part::Structure, 1))],
+        &[],
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+}
+#[test]
+fn painted_ride_can_be_shown_and_saved_without_changing_pause_or_gameplay() {
+    use ui::appearance::{Command as C, Part};
+    let (mut app, directory, coaster, _) = fixture();
+    frame(&mut app, &[ui::Action::RidePaint(C::Show)], &[]);
+    frame(
+        &mut app,
+        &[ui::Action::RidePaint(C::Step(Part::Structure, 1))],
+        &[],
+    );
+    let painted = app.world().resource::<Simulation>().0.clone();
+    frame(&mut app, &[ui::Action::RidePaint(C::Find)], &[]);
+    let v = app.world().resource::<ViewState>();
+    assert!(!v.rides_open);
+    assert_eq!(v.speed, Speed::Paused);
+    assert_eq!(v.selected_ride, Some(coaster));
+    assert_eq!(app.world().resource::<Simulation>().0, painted);
+    // The close action deliberately consumes one transition frame.
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    assert_eq!(directory.store().load().unwrap(), painted);
+    app.world_mut()
+        .resource_mut::<Simulation>()
+        .0
+        .set_ride_appearance(park_sim::RideAppearance {
+            ride: coaster,
+            ..Default::default()
+        })
+        .unwrap();
+    frame(&mut app, &[], &[KeyCode::F9]);
+    assert_eq!(app.world().resource::<Simulation>().0, painted);
+    assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
 }

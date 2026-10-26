@@ -52,6 +52,15 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
         return Err("legacy train did not retain three cars and six seats".into());
     }
     let version = old["schema_version"].as_u64().unwrap();
+    if park.all_rides().any(|r| {
+        park.ride_appearance(r.id).unwrap()
+            != park_sim::RideAppearance {
+                ride: r.id,
+                ..Default::default()
+            }
+    }) {
+        return Err("Migration invented custom paint".into());
+    }
     let flow = park.visitor_flow_stats();
     if flow.enabled
         || flow.entry.is_some()
@@ -372,12 +381,12 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         let schema = old["schema_version"]
             .as_u64()
             .ok_or("legacy schema must be an integer")?;
-        if !(1..=21).contains(&schema)
+        if !(1..=22).contains(&schema)
             || old["content_version"].as_u64() != Some(schema)
             || old["format"] != "parkbound-save"
         {
             return Err(
-                "verify-legacy requires an authentic strict version 1..21 source slot".into(),
+                "verify-legacy requires an authentic strict version 1..22 source slot".into(),
             );
         }
         let mut park = demonstration_park();

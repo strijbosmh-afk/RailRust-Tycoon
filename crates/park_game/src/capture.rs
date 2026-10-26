@@ -32,6 +32,7 @@ mod access_scenes;
 mod admission_scenes;
 mod appeal_scenes;
 mod cashflow_scenes;
+mod color_scenes;
 mod construction_scenes;
 mod design_scenes;
 mod dispatch_scenes;
@@ -60,6 +61,15 @@ mod visitor_scenes;
 #[derive(Clone, Copy)]
 enum Scene {
     Overview,
+    ColorsCoaster,
+    ColorsCarousel,
+    ColorsWorld,
+    ColorsCars,
+    ColorsCarouselWorld,
+    ColorsRotated,
+    ColorsReset,
+    ColorsFaulted,
+    ColorsUnderground,
     Sound,
     SoundMuted,
     Garden,
@@ -670,6 +680,15 @@ pub(super) fn configure(app: &mut App) {
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
                 Some("overview") => Scene::Overview,
                 Some("help") => Scene::Help,
+                Some("colors-coaster") => Scene::ColorsCoaster,
+                Some("colors-carousel") => Scene::ColorsCarousel,
+                Some("colors-world") => Scene::ColorsWorld,
+                Some("colors-cars") => Scene::ColorsCars,
+                Some("colors-carousel-world") => Scene::ColorsCarouselWorld,
+                Some("colors-rotated") => Scene::ColorsRotated,
+                Some("colors-reset") => Scene::ColorsReset,
+                Some("colors-faulted") => Scene::ColorsFaulted,
+                Some("colors-underground") => Scene::ColorsUnderground,
                 Some("sound") => Scene::Sound,
                 Some("sound-muted") => Scene::SoundMuted,
                 Some("garden") => Scene::Garden,
@@ -1177,6 +1196,20 @@ fn apply_preset(
     }
     if capture.scene.is_opening() {
         opening_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if matches!(
+        capture.scene,
+        Scene::ColorsCoaster
+            | Scene::ColorsCarousel
+            | Scene::ColorsWorld
+            | Scene::ColorsCars
+            | Scene::ColorsCarouselWorld
+            | Scene::ColorsRotated
+            | Scene::ColorsReset
+            | Scene::ColorsFaulted
+            | Scene::ColorsUnderground
+    ) {
+        color_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_visitors() {
         visitor_scenes::prepare(&mut sim.0, &mut view, capture.scene);
