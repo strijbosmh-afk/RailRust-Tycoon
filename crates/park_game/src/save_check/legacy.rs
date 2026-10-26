@@ -62,11 +62,12 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
         return Err("Migration invented custom paint".into());
     }
     let flow = park.visitor_flow_stats();
-    if flow.enabled
-        || flow.entry.is_some()
-        || flow.spawned != 0
-        || flow.departed != 0
-        || flow.tracked != 0
+    if version <= 21
+        && (flow.enabled
+            || flow.entry.is_some()
+            || flow.spawned != 0
+            || flow.departed != 0
+            || flow.tracked != 0)
     {
         return Err(
             "migration invented visitor entry, arrivals, departures or tracked stays".into(),
@@ -884,6 +885,44 @@ mod tests {
         assert_eq!(run(args), Some(AppExit::Success));
         assert_eq!(fs::read(directory.join("park.park.json")).unwrap(), bytes);
         assert!(directory.join("verification-legacy.txt").is_file());
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod authentic_paint_migration_tests {
+    use super::*;
+    #[test]
+    fn schema_22_visitor_history_is_preserved_by_production_legacy_verification() {
+        let directory = std::env::temp_dir().join(format!(
+            "Parkbound v22 colors {} {}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../park_sim/testdata/v22-paid-visitors.park.json"
+        ));
+        for name in ["park.park.json", "park.park.json.bak"] {
+            fs::write(directory.join(name), bytes).unwrap();
+        }
+        assert_eq!(
+            run(vec![
+                "--save-check".into(),
+                "verify-legacy".into(),
+                "--save-dir".into(),
+                directory.clone().into_os_string()
+            ]),
+            Some(AppExit::Success)
+        );
+        for name in ["park.park.json", "park.park.json.bak"] {
+            assert_eq!(fs::read(directory.join(name)).unwrap(), bytes);
+        }
+        assert!(directory.starts_with(std::env::temp_dir()));
         fs::remove_dir_all(directory).unwrap();
     }
 }
