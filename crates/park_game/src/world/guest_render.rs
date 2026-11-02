@@ -8,12 +8,12 @@ use park_sim::{ObjectId, WALK_TICKS};
 
 use super::*;
 
-const APPEARANCES: usize = 6;
+const APPEARANCES: usize = crate::visitor_look::LOOK_COUNT;
 const POSES: usize = WALK_TICKS as usize + 2;
 // A convex twelve-point shadow clipped by four edges has at most sixteen
 // vertices: 42 triangle vertices per supporting roof. A lost body has 126;
 // an ordinary body plus any visit marker stays below that bound.
-const MAX_GUEST_VERTICES: usize = 2 * 42 + 126;
+const MAX_GUEST_VERTICES: usize = 2 * 42 + 180;
 const CLIPPED_POINTS: usize = 16;
 
 /// Algorithm counters, not allocator instrumentation or GPU measurements.
@@ -338,6 +338,7 @@ impl Writer<'_> {
 
 fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
     let mut mesh = Painter::default();
+    let look = crate::visitor_look::look(park_sim::GuestId(appearance as u64));
     let lost = pose == usize::from(WALK_TICKS) + 1;
     let stride = if pose < usize::from(WALK_TICKS) {
         ((pose as f32 / f32::from(WALK_TICKS)) * std::f32::consts::TAU).sin() * 1.8
@@ -356,15 +357,9 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
     let shirt = if lost {
         rgb(235, 112, 44)
     } else {
-        match appearance {
-            0 => rgb(213, 77, 82),
-            1 => rgb(66, 126, 188),
-            2 => rgb(150, 88, 174),
-            3 => rgb(242, 184, 65),
-            4 => rgb(53, 154, 140),
-            _ => rgb(222, 119, 161),
-        }
+        rgb_from(look.shirt)
     };
+    mesh.ellipse(Vec2::new(-3.2, 12.1), 2.4, 5.0, 0.0005, rgb_from(look.bag));
     mesh.quad(
         [
             Vec2::new(-3.3, 7.0),
@@ -375,11 +370,14 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
         0.001,
         shirt,
     );
-    let skin = if appearance.is_multiple_of(3) {
-        rgb(174, 119, 84)
-    } else {
-        rgb(239, 192, 143)
-    };
+    mesh.line(
+        Vec2::new(-2.3, 11.2),
+        Vec2::new(2.2, 11.2),
+        0.9,
+        0.0015,
+        rgb(247, 239, 217),
+    );
+    let skin = rgb_from(look.skin);
     for side in [-1.0, 1.0] {
         mesh.line(
             Vec2::new(side * 4.0, 15.3),
@@ -389,8 +387,19 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
             skin,
         );
     }
-    mesh.ellipse(Vec2::new(0.0, 20.2), 3.5, 4.0, 0.003, rgb(67, 53, 42));
+    mesh.ellipse(Vec2::new(0.0, 20.2), 3.5, 4.0, 0.003, rgb_from(look.hair));
     mesh.ellipse(Vec2::new(0.3, 19.6), 3.1, 3.2, 0.004, skin);
+    match look.hair_style {
+        0 => mesh.ellipse(Vec2::new(-0.1, 22.3), 3.1, 1.3, 0.0045, rgb_from(look.hair)),
+        1 => mesh.line(
+            Vec2::new(-2.5, 23.0),
+            Vec2::new(2.3, 22.4),
+            1.4,
+            0.0045,
+            rgb_from(look.hair),
+        ),
+        _ => mesh.ellipse(Vec2::new(1.4, 23.4), 2.0, 1.6, 0.0045, rgb_from(look.hair)),
+    }
     if lost {
         mesh.line(
             Vec2::new(0.0, 28.0),

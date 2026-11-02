@@ -83,6 +83,7 @@ enum Scene {
     Path,
     Track,
     Crowd,
+    VisitorLooks,
     Lost,
     Recovered,
     Train,
@@ -704,6 +705,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("path") => Scene::Path,
                 Some("track") => Scene::Track,
                 Some("crowd") => Scene::Crowd,
+                Some("visitor-looks") => Scene::VisitorLooks,
                 Some("lost") => Scene::Lost,
                 Some("recovered") => Scene::Recovered,
                 Some("train") => Scene::Train,
@@ -1153,9 +1155,16 @@ fn apply_preset(
     if capture.scene.is_train() {
         crate::focus_train(&sim.0, &mut view);
     }
-    if matches!(capture.scene, Scene::Crowd | Scene::Lost | Scene::Recovered) {
+    if matches!(
+        capture.scene,
+        Scene::Crowd | Scene::VisitorLooks | Scene::Lost | Scene::Recovered
+    ) {
         let anchor = crowd_anchor.unwrap_or(TilePos { x: 13, y: 17 });
-        view.zoom = 1.6;
+        view.zoom = if matches!(capture.scene, Scene::VisitorLooks) {
+            3.0
+        } else {
+            1.6
+        };
         view.pan = world::tile_center(anchor, MAP_SIZE, view.rotation)
             + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
     }

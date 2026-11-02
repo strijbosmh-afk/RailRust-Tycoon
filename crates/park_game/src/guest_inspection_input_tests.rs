@@ -219,7 +219,7 @@ fn list_is_sorted_by_identity_wraps_and_ignores_blank_rows() {
             kind,
             ui::guests::GuestLabel::Row(0)
         )),
-        "Guest #9\nMood 70"
+        "Guest #9  70/100\nWaiting on a path"
     );
     persistence_key_frame(&mut app, &[KeyCode::ArrowDown]);
     assert_eq!(
@@ -251,7 +251,7 @@ fn list_is_sorted_by_identity_wraps_and_ignores_blank_rows() {
             kind,
             ui::guests::GuestLabel::Details
         ))
-        .contains("Comfortable ticket:")
+        .contains("Ticket comfort")
     );
     // Replacing the same-tick simulation with a different storage order must
     // preserve the selected identity and refresh its live detail text.
@@ -401,7 +401,7 @@ fn live_detail_distinguishes_preference_from_wallet_and_unrated_from_zero_stars(
             kind,
             ui::guests::GuestLabel::Demand
         ))
-        .contains("Can pay: yes / Willing to pay: no\nCurrent ride challenge:")
+        .contains("Can pay: yes / Willing: no / Trips here:")
     );
     assert!(
         text_for(&mut app, |kind| matches!(
@@ -428,7 +428,7 @@ fn live_detail_distinguishes_preference_from_wallet_and_unrated_from_zero_stars(
             kind,
             ui::guests::GuestLabel::Demand
         ))
-        .contains("Can pay: yes / Willing to pay: yes\nCurrent ride challenge:")
+        .contains("Can pay: yes / Willing: yes / Trips here:")
     );
     assert_eq!(app.world().resource::<Simulation>().0.ticks(), ticks);
 }
@@ -460,20 +460,15 @@ fn current_ride_fit_is_readonly_follows_selection_and_clears_unavailable_profile
         let details = text_for(&mut app, |kind| {
             matches!(kind, ui::guests::GuestLabel::Details)
         });
-        assert!(details.contains(&format!(
-            "Preferred challenge: {preferred}/100 (soft preference)"
-        )));
+        assert!(details.contains(&format!("Challenge {preferred}/100")));
         let demand = text_for(&mut app, |kind| {
             matches!(kind, ui::guests::GuestLabel::Demand)
         });
-        assert!(demand.contains(&format!(
-            "Current ride challenge: {}/100",
-            profile.layout_challenge
-        )));
+        assert!(demand.contains(&format!("Challenge {}/100", profile.layout_challenge)));
         assert!(demand.contains(if profile.layout_challenge <= preferred {
-            "Current fit: within preferred challenge"
+            "within preferred level"
         } else {
-            "Current fit: above preferred challenge"
+            "above preferred level"
         }));
         assert!(demand.contains("Choice reputation: 3.0/5 (starts neutral)"));
         assert!(
@@ -501,7 +496,7 @@ fn current_ride_fit_is_readonly_follows_selection_and_clears_unavailable_profile
     let demand = text_for(&mut app, |kind| {
         matches!(kind, ui::guests::GuestLabel::Demand)
     });
-    assert!(demand.contains("Current ride challenge: unavailable\nCurrent fit: unavailable\nChoice reputation: unavailable"));
+    assert!(demand.contains("Challenge unavailable / fit unavailable / reputation unavailable"));
     app.world_mut().resource_mut::<ViewState>().selected_ride = Some(park_sim::RideId(u64::MAX));
     frame(&mut app);
     assert_eq!(
@@ -509,7 +504,7 @@ fn current_ride_fit_is_readonly_follows_selection_and_clears_unavailable_profile
             kind,
             ui::guests::GuestLabel::Demand
         )),
-        "No ride is available to consider."
+        "RIDE CHOICE  No ride is available to consider."
     );
 }
 

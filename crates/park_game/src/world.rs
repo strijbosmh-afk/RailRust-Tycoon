@@ -1160,18 +1160,19 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 rgb(43, 62, 68),
             );
         }
+        let look = crate::visitor_look::look(guest.id);
         let shirt = if guest.state == GuestState::Lost {
             rgb(235, 112, 44)
         } else {
-            match guest.id.0 % 6 {
-                0 => rgb(213, 77, 82),
-                1 => rgb(66, 126, 188),
-                2 => rgb(150, 88, 174),
-                3 => rgb(242, 184, 65),
-                4 => rgb(53, 154, 140),
-                _ => rgb(222, 119, 161),
-            }
+            rgb_from(look.shirt)
         };
+        mesh.ellipse(
+            point + Vec2::new(-3.2, 12.1),
+            2.4,
+            5.0,
+            depth + 0.0005,
+            rgb_from(look.bag),
+        );
         mesh.quad(
             [
                 point + Vec2::new(-3.3, 7.0),
@@ -1182,11 +1183,14 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             depth + 0.001,
             shirt,
         );
-        let skin = if guest.id.0.is_multiple_of(3) {
-            rgb(174, 119, 84)
-        } else {
-            rgb(239, 192, 143)
-        };
+        mesh.line(
+            point + Vec2::new(-2.3, 11.2),
+            point + Vec2::new(2.2, 11.2),
+            0.9,
+            depth + 0.0015,
+            rgb(247, 239, 217),
+        );
+        let skin = rgb_from(look.skin);
         for side in [-1.0, 1.0] {
             mesh.line(
                 point + Vec2::new(side * 4.0, 15.3),
@@ -1201,9 +1205,32 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             3.5,
             4.0,
             depth + 0.003,
-            rgb(67, 53, 42),
+            rgb_from(look.hair),
         );
         mesh.ellipse(point + Vec2::new(0.3, 19.6), 3.1, 3.2, depth + 0.004, skin);
+        match look.hair_style {
+            0 => mesh.ellipse(
+                point + Vec2::new(-0.1, 22.3),
+                3.1,
+                1.3,
+                depth + 0.0045,
+                rgb_from(look.hair),
+            ),
+            1 => mesh.line(
+                point + Vec2::new(-2.5, 23.0),
+                point + Vec2::new(2.3, 22.4),
+                1.4,
+                depth + 0.0045,
+                rgb_from(look.hair),
+            ),
+            _ => mesh.ellipse(
+                point + Vec2::new(1.4, 23.4),
+                2.0,
+                1.6,
+                depth + 0.0045,
+                rgb_from(look.hair),
+            ),
+        }
         if guest.state == GuestState::Lost {
             mesh.line(
                 point + Vec2::new(0.0, 28.0),
@@ -1536,6 +1563,10 @@ fn noise(pos: TilePos) -> u32 {
 
 fn rgb(r: u8, g: u8, b: u8) -> Ink {
     Color::srgb_u8(r, g, b).to_linear().to_f32_array()
+}
+
+fn rgb_from([r, g, b]: [u8; 3]) -> Ink {
+    rgb(r, g, b)
 }
 
 fn varied(r: u8, g: u8, b: u8, amount: i16) -> Ink {

@@ -12,6 +12,18 @@ pub(crate) struct GuestPanel;
 pub(crate) struct GuestRow(usize);
 #[derive(Component)]
 pub(crate) struct GuestInspection;
+#[derive(Component, Clone, Copy)]
+pub(crate) enum GuestAvatar {
+    Row(usize),
+    Selected,
+}
+#[derive(Component, Clone, Copy)]
+pub(crate) enum GuestMeterFill {
+    Mood,
+    Hunger,
+    Thirst,
+    Toilet,
+}
 #[derive(Component)]
 pub(crate) enum GuestLabel {
     Summary,
@@ -22,6 +34,7 @@ pub(crate) enum GuestLabel {
     Details,
     Thought,
     Demand,
+    Meter(GuestMeterFill),
 }
 
 fn text(parent: &mut ChildSpawnerCommands, initial: &str, size: f32, kind: GuestLabel) {
@@ -34,6 +47,46 @@ fn text(parent: &mut ChildSpawnerCommands, initial: &str, size: f32, kind: Guest
         TextColor(INK),
         kind,
     ));
+}
+
+fn meter(parent: &mut ChildSpawnerCommands, kind: GuestMeterFill) {
+    parent
+        .spawn(Node {
+            width: percent(100),
+            height: px(19),
+            align_items: AlignItems::Center,
+            column_gap: px(8),
+            ..row()
+        })
+        .with_children(|p| {
+            p.spawn(Node {
+                width: px(122),
+                flex_shrink: 0.0,
+                ..default()
+            })
+            .with_children(|p| text(p, "", 11.0, GuestLabel::Meter(kind)));
+            p.spawn((
+                Node {
+                    width: px(250),
+                    height: px(10),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb_u8(217, 225, 210)),
+                BorderRadius::all(px(5)),
+            ))
+            .with_children(|p| {
+                p.spawn((
+                    kind,
+                    Node {
+                        width: percent(0),
+                        height: percent(100),
+                        ..default()
+                    },
+                    BackgroundColor(GOLD),
+                    BorderRadius::all(px(5)),
+                ));
+            });
+        });
 }
 
 pub(super) fn setup(commands: &mut Commands) {
@@ -126,7 +179,21 @@ pub(super) fn setup(commands: &mut Commands) {
                                 BorderColor::all(BORDER),
                                 BorderRadius::all(px(5)),
                             ))
-                            .with_children(|p| text(p, "", 11.0, GuestLabel::Row(index)));
+                            .with_children(|p| {
+                                p.spawn((
+                                    GuestAvatar::Row(index),
+                                    Node {
+                                        width: px(17),
+                                        height: px(17),
+                                        margin: UiRect::right(px(7)),
+                                        flex_shrink: 0.0,
+                                        ..default()
+                                    },
+                                    BackgroundColor(BUTTON),
+                                    BorderRadius::all(px(9)),
+                                ));
+                                text(p, "", 11.0, GuestLabel::Row(index));
+                            });
                         }
                         p.spawn(Node {
                             justify_content: JustifyContent::SpaceBetween,
@@ -146,10 +213,48 @@ pub(super) fn setup(commands: &mut Commands) {
                         ..default()
                     })
                     .with_children(|p| {
-                        text(p, "Select a guest", 20.0, GuestLabel::Title);
-                        text(p, "", 12.0, GuestLabel::Details);
-                        text(p, "", 13.0, GuestLabel::Thought);
-                        text(p, "", 12.0, GuestLabel::Demand);
+                        p.spawn(Node {
+                            justify_content: JustifyContent::SpaceBetween,
+                            align_items: AlignItems::Center,
+                            ..row()
+                        })
+                        .with_children(|p| {
+                            text(p, "Select a guest", 20.0, GuestLabel::Title);
+                            p.spawn((
+                                GuestAvatar::Selected,
+                                Node {
+                                    width: px(28),
+                                    height: px(28),
+                                    ..default()
+                                },
+                                BackgroundColor(BUTTON),
+                                BorderRadius::all(px(14)),
+                            ));
+                        });
+                        p.spawn((
+                            Node {
+                                width: percent(100),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: px(3),
+                                padding: UiRect::axes(px(8), px(6)),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb_u8(232, 238, 224)),
+                            BorderRadius::all(px(5)),
+                        ))
+                        .with_children(|p| {
+                            for kind in [
+                                GuestMeterFill::Mood,
+                                GuestMeterFill::Hunger,
+                                GuestMeterFill::Thirst,
+                                GuestMeterFill::Toilet,
+                            ] {
+                                meter(p, kind);
+                            }
+                        });
+                        text(p, "", 11.0, GuestLabel::Details);
+                        text(p, "", 11.0, GuestLabel::Thought);
+                        text(p, "", 11.0, GuestLabel::Demand);
                     });
                 });
                 p.spawn(Node {
@@ -202,29 +307,29 @@ fn activity(guest: &Guest) -> &'static str {
 fn details(guest: &Guest, park: &Park) -> String {
     let review = guest
         .last_rating
-        .map_or_else(|| "No review yet".into(), |rating| format!("{rating}/5"));
+        .map_or_else(|| "none".into(), |rating| format!("{rating}/5"));
     let service = guest
         .service_visit
         .as_ref()
         .map_or_else(String::new, |visit| match visit.phase {
             ServiceVisitPhase::Using => format!(
-                "\nService #{}: {}s left / Locked {}",
+                " / service #{}: {}s left",
                 visit.service.0,
                 u64::from(park_sim::SERVICE_USE_TICKS.saturating_sub(visit.progress))
-                    .div_ceil(TICKS_PER_SECOND),
-                money(u64::from(visit.price_cents))
+                    .div_ceil(TICKS_PER_SECOND)
             ),
-            ServiceVisitPhase::Waiting => format!(
-                "\nService #{}: waiting {}s",
-                visit.service.0,
-                u64::from(visit.waited_ticks) / TICKS_PER_SECOND
-            ),
-            ServiceVisitPhase::Approaching => format!("\nHeading to service #{}", visit.service.0),
+            ServiceVisitPhase::Waiting => format!(" / service #{}: waiting", visit.service.0),
+            ServiceVisitPhase::Approaching => format!(" / service #{}", visit.service.0),
         });
+    let activity = guest.ride_visit.as_ref().map_or_else(
+        || format!("{}{}", activity(guest), service),
+        |visit| format!("{} / ride #{}", activity(guest), visit.ride.0),
+    );
     format!(
-        "Wallet {} / Total spent {}\nComfortable ticket: up to {}\nComfortable queue: {}s / Wait so far: {}s\nSatisfaction: {}/100 / Prefers {}\nPreferred challenge: {} (soft preference)\nNeed urgency /100: hunger {} / thirst {} / toilet {}\nActivity: {}\nServices used: {} / Service spend {}{service}\nCompleted trips: {} / Reviews: {}\nLatest review: {review}",
+        "Now: {activity}\nWallet {} / Spent {} (services {})\nTicket comfort {} / Queue comfort {}s / Wait {}s\nPrefers {} / Challenge {}\nTrips {} / Services {} / Reviews {} (latest {review})",
         money(u64::from(guest.wallet_cents)),
         money(guest.spent_cents),
+        money(guest.service_spent_cents),
         money(u64::from(guest.preferences.max_ticket_price_cents)),
         u64::from(guest.preferences.comfortable_queue_ticks) / TICKS_PER_SECOND,
         u64::from(
@@ -233,42 +338,42 @@ fn details(guest: &Guest, park: &Park) -> String {
                 .as_ref()
                 .map_or(0, |visit| visit.waited_ticks)
         ) / TICKS_PER_SECOND,
-        guest.satisfaction,
         park.guest_preferred_ride_kind(guest.id)
             .map_or_else(|| "unknown".into(), |kind| kind.to_string()),
         park.guest_preferred_challenge(guest.id).map_or_else(
             || "unavailable".into(),
             |challenge| format!("{challenge}/100")
         ),
-        guest.needs.hunger,
-        guest.needs.thirst,
-        guest.needs.toilet,
-        activity(guest),
-        super::compact_count(guest.services_used),
-        money(guest.service_spent_cents),
         super::compact_count(guest.rides_completed),
+        super::compact_count(guest.services_used),
         super::compact_count(guest.ratings_given),
     )
 }
 
 fn demand(guest: &Guest, park: &Park, selected: Option<park_sim::RideId>) -> String {
     let Some(ride) = selected.and_then(|id| park.ride_by_id(id)) else {
-        return "No ride is available to consider.".into();
+        return "RIDE CHOICE  No ride is available to consider.".into();
     };
     let affordable = guest.wallet_cents >= ride.ticket_price_cents;
     let willing = guest.willing_to_pay(ride.ticket_price_cents);
     let yes_no = |value| if value { "yes" } else { "no" };
     let appeal = park.guest_ride_appeal(guest.id, ride.id).map_or_else(
-        || "Current ride challenge: unavailable\nCurrent fit: unavailable\nChoice reputation: unavailable".into(),
-        |appeal| format!(
-            "Current ride challenge: {}/100\nCurrent fit: {} preferred challenge\n{}",
-            appeal.profile.layout_challenge,
-            if appeal.profile.layout_challenge <= appeal.preferred_challenge { "within" } else { "above" },
-            super::rides::reputation_label(appeal.profile),
-        ),
+        || "Challenge unavailable / fit unavailable / reputation unavailable".into(),
+        |appeal| {
+            format!(
+                "Challenge {}/100 / {} preferred level\n{}",
+                appeal.profile.layout_challenge,
+                if appeal.profile.layout_challenge <= appeal.preferred_challenge {
+                    "within"
+                } else {
+                    "above"
+                },
+                super::rides::reputation_label(appeal.profile),
+            )
+        },
     );
     format!(
-        "{}: {}\nCan pay: {} / Willing to pay: {}\n{appeal}\nTrips here: {} / access and seats checked separately.",
+        "RIDE CHOICE  {} / ticket {}\nCan pay: {} / Willing: {} / Trips here: {}\n{appeal}",
         super::rides::name(park, ride.id),
         money(u64::from(ride.ticket_price_cents)),
         yes_no(affordable),
@@ -281,6 +386,42 @@ fn demand(guest: &Guest, park: &Park, selected: Option<park_sim::RideId>) -> Str
                 .map_or(0, |history| history.completed)
         ),
     )
+}
+
+fn meter_value(guest: &Guest, kind: GuestMeterFill) -> (&'static str, u8) {
+    match kind {
+        GuestMeterFill::Mood => ("Satisfaction", guest.satisfaction),
+        GuestMeterFill::Hunger => ("Hunger", guest.needs.hunger),
+        GuestMeterFill::Thirst => ("Thirst", guest.needs.thirst),
+        GuestMeterFill::Toilet => ("Toilet", guest.needs.toilet),
+    }
+}
+
+fn meter_color(kind: GuestMeterFill, value: u8) -> Color {
+    let warning = match kind {
+        GuestMeterFill::Mood => value <= 40,
+        _ => value >= 70,
+    };
+    let caution = match kind {
+        GuestMeterFill::Mood => value <= 65,
+        _ => value >= 40,
+    };
+    if warning {
+        Color::srgb_u8(196, 75, 61)
+    } else if caution {
+        Color::srgb_u8(215, 153, 52)
+    } else {
+        Color::srgb_u8(70, 148, 108)
+    }
+}
+
+fn avatar_color(guest: &Guest) -> Color {
+    let [r, g, b] = if guest.state == GuestState::Lost {
+        [235, 112, 44]
+    } else {
+        crate::visitor_look::look(guest.id).shirt
+    };
+    Color::srgb_u8(r, g, b)
 }
 
 /// Stable-ID order is independent of storage order in a valid loaded save.
@@ -316,7 +457,33 @@ type Rows<'w, 's> = Query<
         &'static mut Action,
         &'static mut BackgroundColor,
     ),
-    Without<GuestPanel>,
+    (
+        Without<GuestPanel>,
+        Without<GuestAvatar>,
+        Without<GuestMeterFill>,
+    ),
+>;
+type Avatars<'w, 's> = Query<
+    'w,
+    's,
+    (&'static GuestAvatar, &'static mut BackgroundColor),
+    (Without<GuestRow>, Without<GuestMeterFill>),
+>;
+type Meters<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static GuestMeterFill,
+        &'static mut Node,
+        &'static mut BackgroundColor,
+    ),
+    (
+        Without<GuestRow>,
+        Without<GuestAvatar>,
+        Without<GuestPanel>,
+        Without<GuestInspection>,
+        Without<super::visitor_flow::VisitorBody>,
+    ),
 >;
 
 type GuestPanels<'w, 's> = Query<
@@ -327,16 +494,20 @@ type GuestPanels<'w, 's> = Query<
         With<GuestPanel>,
         Without<GuestInspection>,
         Without<super::visitor_flow::VisitorBody>,
+        Without<GuestMeterFill>,
     ),
 >;
 type GuestBodies<'w, 's> = Query<
     'w,
     's,
     (&'static mut Node, Has<super::visitor_flow::VisitorBody>),
-    Or<(
-        With<GuestInspection>,
-        With<super::visitor_flow::VisitorBody>,
-    )>,
+    (
+        Or<(
+            With<GuestInspection>,
+            With<super::visitor_flow::VisitorBody>,
+        )>,
+        Without<GuestMeterFill>,
+    ),
 >;
 pub(crate) fn refresh(
     sim: Res<Simulation>,
@@ -345,6 +516,7 @@ pub(crate) fn refresh(
     mut bodies: GuestBodies<'_, '_>,
     mut rows: Rows<'_, '_>,
     mut labels: Query<(&GuestLabel, &mut Text)>,
+    mut visuals: ParamSet<'_, '_, (Avatars<'_, '_>, Meters<'_, '_>)>,
 ) {
     for mut panel in &mut panels {
         panel.display = if view.guests_open {
@@ -390,6 +562,20 @@ pub(crate) fn refresh(
             BUTTON
         };
     }
+    for (avatar, mut background) in &mut visuals.p0() {
+        let guest = match avatar {
+            GuestAvatar::Row(index) => guests.get(start + index).copied(),
+            GuestAvatar::Selected => selected,
+        };
+        background.0 = guest.map_or(BUTTON, avatar_color);
+    }
+    for (kind, mut node, mut background) in &mut visuals.p1() {
+        let value = selected
+            .map_or(0, |guest| meter_value(guest, *kind).1)
+            .min(100);
+        node.width = percent(f32::from(value));
+        background.0 = meter_color(*kind, value);
+    }
     let summary = sim.0.guest_experience_summary();
     let ride_id = super::rides::selected_id(&sim.0, &view);
     let experience = ride_id.map(|id| sim.0.ride_experience_stats(id));
@@ -431,24 +617,25 @@ pub(crate) fn refresh(
             ),
             GuestLabel::Row(index) => guests.get(start + index).map_or_else(
                 || "".into(),
-                |guest| format!("Guest #{}\nMood {}", guest.id.0, guest.satisfaction),
+                |guest| {
+                    format!(
+                        "Guest #{}  {}/100\n{}",
+                        guest.id.0,
+                        guest.satisfaction,
+                        activity(guest)
+                    )
+                },
             ),
             GuestLabel::Title => selected.map_or_else(
                 || "No guests in this park".into(),
                 |guest| format!("Guest #{}", guest.id.0),
             ),
-            GuestLabel::Details => selected.map_or_else(String::new, |guest| {
-                let text = details(guest, &sim.0);
-                guest.ride_visit.as_ref().map_or(text.clone(), |visit| {
-                    text.replace(
-                        &format!("Activity: {}", activity(guest)),
-                        &format!("Activity: {} / ride #{}", activity(guest), visit.ride.0),
-                    )
-                })
-            }),
+            GuestLabel::Details => {
+                selected.map_or_else(String::new, |guest| details(guest, &sim.0))
+            }
             GuestLabel::Thought => selected.map_or_else(String::new, |guest| {
                 format!(
-                    "Latest thought ({}s ago)\n{}",
+                    "THOUGHT  {}s ago\n{}",
                     sim.0.ticks().saturating_sub(guest.thought_tick) / TICKS_PER_SECOND,
                     guest.thought
                 )
@@ -456,6 +643,10 @@ pub(crate) fn refresh(
             GuestLabel::Demand => {
                 selected.map_or_else(String::new, |guest| demand(guest, &sim.0, ride_id))
             }
+            GuestLabel::Meter(kind) => selected.map_or_else(String::new, |guest| {
+                let (name, value) = meter_value(guest, *kind);
+                format!("{name}  {value}/100")
+            }),
         };
         if text.0 != value {
             text.0 = value;
