@@ -2,6 +2,8 @@
 
 This stage follows 0.48.0 visitor stats and appearance. It adds two player-facing steps: a park-wide condition snapshot and a way to locate one selected visitor. This PC is excluded as a performance reference.
 
+Source is on `codex/visitor-overview-find` in [draft PR #48](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/48), stacked on `codex/visitor-stats-appearance`. Runtime source commit: **`3efd950c837f5f8328d573730b59b05d6756a953`**. The final archive is local in `dist/`, with its own adjacent SHA-256 sidecar; GitHub receives source and guides.
+
 ## Park stats
 
 The guest modal now has Guest list, Park stats and Visitor flow views. Park stats derives counts from currently active, authoritative guests each refresh. The satisfaction bands are 0–39, 40–69 and 70–100. The need bars count hunger/thirst/toilet values at least 70; their totals can overlap. The activity line reports riding, queueing, service visits and lost guests as separate live counts. Bars show exact text values and are safe for an empty park. This is a snapshot, not a time series; no new simulation or save fields are introduced.
