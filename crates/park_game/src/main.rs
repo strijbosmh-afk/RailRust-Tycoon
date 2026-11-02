@@ -38,6 +38,7 @@ mod static_landscape;
 mod terrain_tools;
 mod track_tools;
 mod ui;
+mod visitor_look;
 mod world;
 
 use bevy::{

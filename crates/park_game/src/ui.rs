@@ -31,6 +31,7 @@ type RideNameFontLabels<'w, 's> = Query<
         &'static mut TextFont,
         Option<&'static Label>,
         Option<&'static rides::RideLabel>,
+        Option<&'static guests::GuestLabel>,
     ),
     Added<TextFont>,
 >;
@@ -56,12 +57,18 @@ pub(crate) fn install_ride_name_font(
     let Some(Some(font)) = cached.as_ref() else {
         return;
     };
-    for (mut text_font, label, ride_label) in &mut labels {
+    for (mut text_font, label, ride_label, guest_label) in &mut labels {
         if label.is_some_and(|label| matches!(label, Label::RideName | Label::SelectionTitle))
             || ride_label.is_some_and(|label| {
                 matches!(
                     label,
                     rides::RideLabel::Selected | rides::RideLabel::NameDraft
+                )
+            })
+            || guest_label.is_some_and(|label| {
+                matches!(
+                    label,
+                    guests::GuestLabel::Summary | guests::GuestLabel::Demand
                 )
             })
         {
