@@ -91,6 +91,12 @@ struct ViewState {
     ride_tab: ui::rides::RideTab,
     paint_commands: Vec<ui::appearance::Command>,
     paint_notice: Option<String>,
+    ride_name_draft: String,
+    ride_name_owner: Option<park_sim::RideId>,
+    ride_name_focused: bool,
+    ride_name_select_all: bool,
+    ride_name_commands: Vec<ui::names::Command>,
+    ride_name_notice: Option<String>,
     coaster_testing: coaster_testing::CoasterTesting,
     ride_access_commands: Vec<access_planning::AccessCommand>,
     ride_access_plan: Option<park_sim::RideAccessPlan>,
@@ -167,6 +173,12 @@ impl Default for ViewState {
             ride_tab: default(),
             paint_commands: Vec::new(),
             paint_notice: None,
+            ride_name_draft: String::new(),
+            ride_name_owner: None,
+            ride_name_focused: false,
+            ride_name_select_all: false,
+            ride_name_commands: Vec::new(),
+            ride_name_notice: None,
             coaster_testing: default(),
             ride_access_commands: Vec::new(),
             ride_access_plan: None,
@@ -308,6 +320,12 @@ impl ViewState {
         self.ride_tab = default();
         self.paint_commands.clear();
         self.paint_notice = None;
+        self.ride_name_draft.clear();
+        self.ride_name_owner = None;
+        self.ride_name_focused = false;
+        self.ride_name_select_all = false;
+        self.ride_name_commands.clear();
+        self.ride_name_notice = None;
         self.coaster_testing.run_pending = false;
         self.coaster_testing.show_pending = false;
         self.ride_access_commands.clear();
@@ -354,6 +372,12 @@ impl ViewState {
             self.price_notice = None;
             self.paint_commands.clear();
             self.paint_notice = None;
+            self.ride_name_draft.clear();
+            self.ride_name_owner = None;
+            self.ride_name_focused = false;
+            self.ride_name_select_all = false;
+            self.ride_name_commands.clear();
+            self.ride_name_notice = None;
             self.ride_operating_commands.clear();
             self.ride_operating_notice = None;
             self.coaster_testing = default();
@@ -495,10 +519,16 @@ fn main() -> AppExit {
             Update,
             (
                 (
-                    ui::button_actions,
-                    keyboard_input,
-                    ui::audio::apply,
-                    design_library::keyboard_text,
+                    (
+                        ui::install_ride_name_font,
+                        ui::button_actions,
+                        keyboard_input,
+                        ui::audio::apply,
+                        design_library::keyboard_text,
+                        ui::names::keyboard_text,
+                        ui::names::apply,
+                    )
+                        .chain(),
                     design_library::apply_commands,
                     design_transfer::open_dialog,
                     apply_terrain_profile,
@@ -703,6 +733,14 @@ fn keyboard_input(
     if view.designs_open {
         if keys.just_pressed(KeyCode::Escape) {
             design_library::queue(&mut view, design_library::DesignCommand::Cancel);
+        }
+        return;
+    }
+    if view.rides_open && view.ride_name_focused {
+        if keys.just_pressed(KeyCode::Escape) {
+            view.ride_name_focused = false;
+            view.ride_name_select_all = false;
+            view.ride_name_notice = Some("Name edit cancelled.".into());
         }
         return;
     }

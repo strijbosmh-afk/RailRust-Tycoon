@@ -5,8 +5,8 @@ use super::{
 use bevy::{ecs::hierarchy::ChildSpawnerCommands, prelude::*};
 use park_sim::{
     CrowdStats, ObjectKind, PathDirection, PathSlope, QUEUE_PATIENCE_TICKS, RideAccessStatus,
-    RideExitStatus, RideJourneyStats, RideQueueStats, Speed, SurfaceId, TICKS_PER_SECOND, Terrain,
-    TerrainProfile, TrackKind, TrainPhase,
+    RideExitStatus, RideJourneyStats, RideQueueStats, SceneryKind, Speed, SurfaceId,
+    TICKS_PER_SECOND, Terrain, TerrainProfile, TrackKind, TrainPhase,
 };
 
 use crate::path_tools::PathTool;
@@ -17,11 +17,58 @@ pub(crate) mod designs;
 mod economy;
 pub(crate) mod finance;
 pub(super) mod guests;
+pub(crate) mod names;
 pub(crate) mod rides;
 pub(crate) mod services;
 pub(super) mod track;
 pub(crate) mod visitor_flow;
 pub(super) use economy::money;
+
+type RideNameFontLabels<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static mut TextFont,
+        Option<&'static Label>,
+        Option<&'static rides::RideLabel>,
+    ),
+    Added<TextFont>,
+>;
+
+/// Use the Windows UI font for user-supplied ride names. Bevy's compact
+/// built-in face omits common accented letters; Windows already supplies this
+/// face, so the download needs no copied system font or font license.
+pub(crate) fn install_ride_name_font(
+    mut assets: ResMut<Assets<Font>>,
+    mut labels: RideNameFontLabels<'_, '_>,
+    mut cached: Local<Option<Option<Handle<Font>>>>,
+) {
+    if cached.is_none() {
+        let windows = std::env::var_os("WINDIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+        let face = std::fs::read(windows.join("Fonts").join("segoeui.ttf"))
+            .ok()
+            .and_then(|bytes| Font::try_from_bytes(bytes).ok())
+            .map(|font| assets.add(font));
+        *cached = Some(face);
+    }
+    let Some(Some(font)) = cached.as_ref() else {
+        return;
+    };
+    for (mut text_font, label, ride_label) in &mut labels {
+        if label.is_some_and(|label| matches!(label, Label::RideName | Label::SelectionTitle))
+            || ride_label.is_some_and(|label| {
+                matches!(
+                    label,
+                    rides::RideLabel::Selected | rides::RideLabel::NameDraft
+                )
+            })
+        {
+            text_font.font = font.clone();
+        }
+    }
+}
 
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_RIGHT: f32 = RIDE_PANEL_MARGIN;
@@ -74,6 +121,7 @@ pub(super) enum Action {
     BrowseRide(i8),
     RideOperating(crate::ride_operations::OperationCommand),
     RidePaint(appearance::Command),
+    RideName(names::Command),
     RideAccess(crate::access_planning::AccessCommand),
     CoasterTest(crate::coaster_testing::TestCommand),
     BuildCarousel,
@@ -456,7 +504,21 @@ pub(super) fn setup(mut commands: Commands) {
                     100.0,
                 );
             });
-            button(p, "Level path [C]", Action::CyclePathShape, 207.0);
+            p.spawn(row()).with_children(|p| {
+                button(p, "Slope [C]", Action::CyclePathShape, 65.0);
+                button(
+                    p,
+                    "Tree",
+                    Action::SetPathTool(PathTool::Scenery(SceneryKind::Tree)),
+                    65.0,
+                );
+                button(
+                    p,
+                    "Flowers",
+                    Action::SetPathTool(PathTool::Scenery(SceneryKind::FlowerBed)),
+                    65.0,
+                );
+            });
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
                 button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
@@ -914,6 +976,7 @@ pub(super) fn button_actions(
                     | Action::BrowseRide(_)
                     | Action::RideOperating(_)
                     | Action::RidePaint(_)
+                    | Action::RideName(_)
                     | Action::RideAccess(_)
                     | Action::CoasterTest(_)
             )
@@ -1045,6 +1108,10 @@ pub(super) fn button_actions(
                     );
                 }
             }
+            Action::RideName(command) if view.rides_open && !ride_tab_transition => {
+                names::queue(&mut view, *command);
+            }
+            Action::RideName(_) => {}
             Action::Visitor(command) if view.guests_open && view.guest_flow_view => {
                 visitor_flow::queue(&mut view, *command)
             }
@@ -1179,7 +1246,7 @@ pub(super) fn refresh(
                             return format!("{} #{}",service.kind,service.id.0);
                         }
                         if object.kind==ObjectKind::Carousel {
-                            return "Meadow Carousel".into();
+                            return sim.0.object_ride(id).and_then(|ride| sim.0.ride_name(ride)).unwrap_or("Meadow Carousel").into();
                         }
                         let name = if object.queue_owner.is_some() {
                             "Queue path"
@@ -1345,6 +1412,10 @@ pub(super) fn refresh(
                 format!("Build {kind} / {} / C turns serving side",money(kind.build_cost_cents()))
             }
             Label::Status if view.path_tool.mode==PathTool::Carousel=>format!("Build carousel / {} / clear 3 x 3 footprint",money(park_sim::CAROUSEL_BUILD_COST_CENTS)),
+            Label::Status if matches!(view.path_tool.mode, PathTool::Scenery(_)) => {
+                let PathTool::Scenery(kind) = view.path_tool.mode else { unreachable!() };
+                format!("Plant {} / one clear land tile / free", kind.name())
+            },
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
                 "Raise terrain / click dry land / +1 step".into()
             }
@@ -1489,12 +1560,17 @@ pub(super) fn refresh(
                 )
             }
             Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"Round / no facing".into(),
-            Label::PathShape => format!(
-                "{} [C]",
-                crate::path_tools::shape_name(view.path_tool.slope)
-            ),
+            Label::PathShape if matches!(view.path_tool.mode, PathTool::Scenery(_)) => "Ground".into(),
+            Label::PathShape => format!("{} [C]", match view.path_tool.slope {
+                PathSlope::Flat => "Flat",
+                PathSlope::North => "N",
+                PathSlope::East => "E",
+                PathSlope::South => "S",
+                PathSlope::West => "W",
+            }),
             Label::PathHeight => {
-                if view.path_tool.mode==PathTool::Carousel {format!("Carousel height: {}",view.path_tool.height)}
+                if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
+                else if view.path_tool.mode==PathTool::Carousel {format!("Carousel height: {}",view.path_tool.height)}
                 else if matches!(view.path_tool.mode,PathTool::Service(_)) {
                     format!("Facility height: {}",view.path_tool.height)
                 } else if view.path_tool.mode == PathTool::Exit {
@@ -1670,6 +1746,8 @@ fn object_name(kind: ObjectKind) -> &'static str {
         ObjectKind::RideExit => "Ride exit",
         ObjectKind::Service => "Facility",
         ObjectKind::Carousel => "Carousel",
+        ObjectKind::SceneryTree => "Tree",
+        ObjectKind::FlowerBed => "Flower bed",
     }
 }
 

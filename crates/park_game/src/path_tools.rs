@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use park_sim::{
     MAX_PATH_HEIGHT, MAX_SLOPED_PATH_HEIGHT, ObjectId, ObjectKind, Park, PathDirection, PathSlope,
-    PlacementError, RideAccessError, RideId, ServiceKind, SurfaceId, TilePos,
+    PlacementError, RideAccessError, RideId, SceneryKind, ServiceKind, SurfaceId, TilePos,
 };
 
 use crate::terrain_tools::{self, TerrainPreview};
@@ -25,6 +25,7 @@ pub(super) enum PathTool {
     Exit,
     Service(ServiceKind),
     Carousel,
+    Scenery(SceneryKind),
     Demolish,
     RaiseTerrain,
     LowerTerrain,
@@ -83,6 +84,9 @@ impl ToolState {
     }
 
     pub fn adjust_height(&mut self, delta: i8) {
+        if matches!(self.mode, PathTool::Scenery(_)) {
+            return;
+        }
         self.height = (i16::from(self.height) + i16::from(delta))
             .clamp(0, i16::from(self.max_height())) as u8;
         self.clear_pointer();
@@ -101,7 +105,7 @@ impl ToolState {
     }
 
     pub fn cycle_shape(&mut self) {
-        if self.mode == PathTool::Carousel {
+        if matches!(self.mode, PathTool::Carousel | PathTool::Scenery(_)) {
             return;
         }
         if matches!(
@@ -160,7 +164,10 @@ impl ToolState {
             PathTool::Carousel => {
                 "Point at a clear 3 x 3 footprint.\nClick once to build the carousel."
             }
-            PathTool::Demolish => "Point to a path, gate or facility.\nClick once to remove it.",
+            PathTool::Scenery(_) => "Point to open grass or sand.\nClick once to plant scenery.",
+            PathTool::Demolish => {
+                "Point to a path, gate, facility or scenery.\nClick once to remove it."
+            }
             PathTool::RaiseTerrain => {
                 "Point to visible grass or sand.\nClick once to raise one step."
             }
@@ -229,6 +236,8 @@ pub(super) fn placement_message(error: PlacementError) -> String {
         PlacementError::CarouselRequiresDefinition => {
             "Choose Build carousel from Rides [Y].".into()
         }
+        PlacementError::SceneryRequiresTool => "Choose Tree or Flowers in Build.".into(),
+        PlacementError::SceneryRequiresLand => "Scenery needs grass or sand.".into(),
     }
 }
 
@@ -256,6 +265,47 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         return;
     }
     match view.path_tool.mode {
+        PathTool::Scenery(kind) => {
+            let Some(SurfaceId::Terrain(pos)) = view
+                .hovered
+                .filter(|_| view.view_mode == world::ViewMode::Surface)
+            else {
+                view.path_tool.hint = "Point to open visible land.\nScenery fills one tile.".into();
+                return;
+            };
+            let result = park.validate_scenery(pos, kind);
+            view.path_tool.hint = result.as_ref().map_or_else(
+                |error| placement_message(*error),
+                |_| {
+                    format!(
+                        "{} / tile {}, {}\nClick to plant it.",
+                        kind.name(),
+                        pos.x + 1,
+                        pos.y + 1
+                    )
+                },
+            );
+            if click {
+                match park.place_scenery(pos, kind) {
+                    Ok(id) => {
+                        view.selected = Some(SurfaceId::Object(id));
+                        view.hovered = view.selected;
+                        view.scene_dirty = true;
+                        view.path_notice = Some(format!(
+                            "{} #{} planted at {}, {}.",
+                            kind.name(),
+                            id.0,
+                            pos.x + 1,
+                            pos.y + 1
+                        ));
+                    }
+                    Err(error) => {
+                        view.path_notice =
+                            Some(format!("No scenery placed: {}", placement_message(error)))
+                    }
+                }
+            }
+        }
         PathTool::RaiseTerrain | PathTool::LowerTerrain => {
             terrain_tools::point_at(park, view, click)
         }
@@ -395,6 +445,8 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                             | ObjectKind::RideExit
                             | ObjectKind::Service
                             | ObjectKind::Carousel
+                            | ObjectKind::SceneryTree
+                            | ObjectKind::FlowerBed
                     )
                 }),
                 _ => None,
@@ -474,10 +526,12 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 }
             } else {
                 view.path_tool.hint =
-                    "Point to a path, gate or facility.\nTrack and land stay in place.".into();
+                    "Point to a path, gate, facility or scenery.\nTrack and land stay in place."
+                        .into();
                 if click {
-                    view.path_notice =
-                        Some("Nothing removed: select a visible path, gate or facility.".into());
+                    view.path_notice = Some(
+                        "Nothing removed: select a visible path, gate, facility or scenery.".into(),
+                    );
                 }
             }
         }
@@ -496,6 +550,8 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
                         | ObjectKind::Service
                         | ObjectKind::Carousel
                         | ObjectKind::Track
+                        | ObjectKind::SceneryTree
+                        | ObjectKind::FlowerBed
                 )
             }) =>
         {
@@ -511,7 +567,7 @@ pub(super) fn remove_selected(park: &mut Park, view: &mut ViewState) {
     if let Some(id) = target {
         remove_path(park, view, id);
     } else {
-        view.path_notice = Some("Select a visible path, track, gate or facility.".into());
+        view.path_notice = Some("Select a visible path, track, gate, facility or scenery.".into());
     }
 }
 
@@ -525,6 +581,8 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
                 | ObjectKind::Service
                 | ObjectKind::Carousel
                 | ObjectKind::Track
+                | ObjectKind::SceneryTree
+                | ObjectKind::FlowerBed
         )
     }) else {
         return;
@@ -616,6 +674,8 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
         ObjectKind::Service => "Facility",
         ObjectKind::Carousel => "Carousel",
         ObjectKind::Track => "Track",
+        ObjectKind::SceneryTree => "Tree",
+        ObjectKind::FlowerBed => "Flower bed",
         _ => "Path",
     }
 }
@@ -623,6 +683,37 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scenery_map_tools_plant_save_and_demolish() {
+        let mut park = Park::new(32, 32);
+        let pos = (0..park.height())
+            .flat_map(|y| (0..park.width()).map(move |x| TilePos { x, y }))
+            .find(|pos| park.validate_scenery(*pos, SceneryKind::Tree).is_ok())
+            .unwrap();
+        let mut view = ViewState::default();
+        view.path_tool
+            .set_mode(PathTool::Scenery(SceneryKind::Tree));
+        view.hovered = Some(SurfaceId::Terrain(pos));
+        let point = world::surface_center(&park, SurfaceId::Terrain(pos), view.rotation).unwrap();
+        point_at(&mut park, &mut view, point, false);
+        assert!(park.objects().is_empty(), "pointer preview must not plant");
+        point_at(&mut park, &mut view, point, true);
+        let id = match view.selected {
+            Some(SurfaceId::Object(id)) => id,
+            _ => panic!("tree was not selected"),
+        };
+        assert_eq!(park.object(id).unwrap().kind, ObjectKind::SceneryTree);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+        view.path_tool.set_mode(PathTool::Demolish);
+        view.hovered = Some(SurfaceId::Object(id));
+        point_at(&mut park, &mut view, point, true);
+        assert!(park.object(id).is_none());
+        assert_eq!(park.validate_scenery(pos, SceneryKind::FlowerBed), Ok(()));
+    }
 
     #[test]
     fn exit_tool_keeps_its_facing_separate_from_entrance_and_path_shape() {

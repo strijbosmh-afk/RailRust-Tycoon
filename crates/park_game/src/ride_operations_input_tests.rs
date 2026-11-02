@@ -196,12 +196,15 @@ fn app(directory: &SaveDirectory, park: Park, view: ViewState) -> App {
         .insert_resource(directory.session())
         .insert_resource(Time::<()>::default())
         .init_resource::<ButtonInput<KeyCode>>()
+        .add_message::<bevy::input::keyboard::KeyboardInput>()
         .add_systems(Startup, ui::setup)
         .add_systems(
             Update,
             (
                 ui::button_actions,
                 keyboard_input,
+                ui::names::keyboard_text,
+                ui::names::apply,
                 crate::coaster_testing::apply_commands,
                 crate::access_planning::apply_commands,
                 apply_commands,
@@ -1012,6 +1015,66 @@ fn palette_buttons_set_all_channels_and_allow_a_later_individual_edit() {
         directory.store().load().unwrap().ride_appearance(coaster),
         Some(customized)
     );
+}
+#[test]
+fn ride_name_text_buttons_and_save_follow_selected_owner() {
+    use bevy::input::{
+        ButtonState,
+        keyboard::{Key, KeyboardInput},
+    };
+    use ui::names::Command;
+    let (mut app, directory, coaster, carousel) = fixture();
+    let before = app.world().resource::<Simulation>().0.clone();
+    let window = app.world_mut().spawn_empty().id();
+    frame(&mut app, &[ui::Action::RideName(Command::Focus)], &[]);
+    assert!(app.world().resource::<ViewState>().ride_name_focused);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::KeyE,
+        logical_key: Key::Character("Éclair Loop".into()),
+        state: ButtonState::Pressed,
+        text: Some("Éclair Loop".into()),
+        repeat: false,
+        window,
+    });
+    frame(&mut app, &[], &[]);
+    app.world_mut().write_message(KeyboardInput {
+        key_code: KeyCode::Enter,
+        logical_key: Key::Enter,
+        state: ButtonState::Pressed,
+        text: None,
+        repeat: false,
+        window,
+    });
+    frame(&mut app, &[], &[]);
+    assert_eq!(
+        app.world().resource::<Simulation>().0.ride_name(coaster),
+        Some("Éclair Loop")
+    );
+    assert_eq!(
+        app.world().resource::<Simulation>().0.ride_name(carousel),
+        Some("Meadow Carousel")
+    );
+    frame(&mut app, &[ui::Action::BrowseRide(1)], &[]);
+    frame(&mut app, &[ui::Action::RideName(Command::Focus)], &[]);
+    assert_eq!(
+        app.world().resource::<ViewState>().ride_name_owner,
+        Some(carousel)
+    );
+    app.world_mut().resource_mut::<ViewState>().ride_name_draft = "Moonlight Round".into();
+    frame(&mut app, &[ui::Action::RideName(Command::Apply)], &[]);
+    assert_eq!(
+        app.world().resource::<Simulation>().0.ride_name(carousel),
+        Some("Moonlight Round")
+    );
+    let current = &app.world().resource::<Simulation>().0;
+    assert_eq!(current.cash_cents(), before.cash_cents());
+    assert_eq!(current.ticks(), before.ticks());
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    let restored = directory.store().load().unwrap();
+    assert_eq!(restored.ride_name(coaster), Some("Éclair Loop"));
+    assert_eq!(restored.ride_name(carousel), Some("Moonlight Round"));
 }
 #[test]
 fn color_tab_switch_close_and_capture_cannot_apply_conflicting_paint() {

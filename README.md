@@ -1,6 +1,8 @@
 # Parkbound
 
-Current locally verified **0.46.0 ride palette presets** on `codex/ride-palette-presets` ([draft PR #45](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/45)) add one-click Harvest, Seaside and Twilight choices to **Rides [Y] → Colors**. Each sets Structure, Supports and Vehicles for the selected ride; individual color controls still work afterward. Save format stays 23/23. All 794 release tests, the color restart proof, two inspected minimum-window captures and fresh Windows package integrity passed. See [the preset report](docs/RIDE_PALETTE_PRESETS_REPORT.md) for exact evidence and remaining checks. The 0.45 delivery below is the verified starting point.
+Current locally verified stage **0.47.0** adds independent Unicode ride names in **Rides [Y]** and buildable, removable trees and flower beds in **Build**. Names migrate strict saves from 23/23 to **24/24**; scenery uses ordinary saved park objects. All 801 release tests, strict formatting/Clippy, the Windows build, four final two-process save proof runs and three inspected minimum-window captures passed. See the [player guide](docs/RIDE_NAMES_SCENERY_GUIDE.md), [stage report](docs/RIDE_NAMES_SCENERY_REPORT.md), and [cross-PC handoff](RESUME_DEVELOPMENT.md). Runtime source `251cb8e94323c229440e9cb769284ec33b2c7c20` is on `codex/ride-names-scenery` in [draft PR #46](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/46).
+
+Previous locally verified **0.46.0 ride palette presets** on `codex/ride-palette-presets` ([draft PR #45](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/45)) add one-click Harvest, Seaside and Twilight choices to **Rides [Y] → Colors**. Each sets Structure, Supports and Vehicles for the selected ride; individual color controls still work afterward. Save format stays 23/23. All 794 release tests, the color restart proof, two inspected minimum-window captures and fresh Windows package integrity passed. See [the preset report](docs/RIDE_PALETTE_PRESETS_REPORT.md) for exact evidence and remaining checks. The 0.45 delivery below is the verified starting point.
 
 Latest verified delivery: **0.45.0 ride colors**, runtime `ac45883d73559130e04e1a955ec3860347471261` on `codex/ride-colors` in [draft PR #44](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/44). **Rides [Y] → Colors** sets Structure, Supports and Vehicles independently using nine named swatches, with Classic reset and Show in park. Painting is free during operation and persists per ride in **23/23** saves; versions 1–22 migrate explicitly. All **792 release tests (458 game / 334 simulation)**, strict checks/build, 38 packaged game processes, eight authentic migration/refusal processes, two sound restart processes, native PCM completion and thirteen inspected captures passed. Both exact-runtime Windows CI runs (40364975004 / 40364984526) passed all **46 steps**. [RIDE_COLORS_REPORT.md](docs/RIDE_COLORS_REPORT.md) records identities, scope and remaining acceptance.
 
@@ -68,7 +70,7 @@ Final runtime `d19346c` in [draft PR #23](https://github.com/strijbosmh-afk/Rail
 
 ## Play the Windows build
 
-The current build target is `dist/Parkbound-0.46.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. In **Rides [Y] → Colors**, choose Harvest, Seaside or Twilight to color all three ride parts together, then refine them individually. Save your park to retain the colors. **F10 / Help → Sound** retains its independent controls. See [the color guide](docs/RIDE_COLORS_GUIDE.md) and [preset report](docs/RIDE_PALETTE_PRESETS_REPORT.md) for current scope and verification. The adjacent `.zip.sha256` identifies the finished archive.
+The current build target is `dist/Parkbound-0.47.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. Use **Rides [Y]** to name each ride, and **Build → Tree/Flowers** to plant decorative scenery on clear land. Save the park to retain both. See [the stage guide](docs/RIDE_NAMES_SCENERY_GUIDE.md) and [report](docs/RIDE_NAMES_SCENERY_REPORT.md) for controls, scope and verification. The adjacent `.zip.sha256` identifies the finished archive.
 
 The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Each milestone report records its own named-build evidence.
 
@@ -76,7 +78,8 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 
 | Input | Action |
 | --- | --- |
-| Left click | Place/replace or erase one draft track piece in the editor; otherwise inspect, build, remove or edit terrain according to the selected tool. Holding does not paint. |
+| Left click | Place/replace or erase one draft track piece in the editor; otherwise inspect, build, plant scenery, remove or edit terrain according to the selected tool. Holding does not paint. |
+| Build → Tree / Flowers | Plant one free decorative object on a clear visible grass or sand tile; the ground height is used automatically. |
 | P / Path button | Enter public-path placement mode |
 | Z / Rides → Edit coaster track | Open/close saved track draft tools. Choose Station, Straight, Left/Right curve, Chain lift, Drop, Steep drop or Brake; Apply settles the visible quote for a complete safe loop; Clear removes only the free draft. |
 | Copy live button | Replace the draft with the installed coaster, even while running or occupied, as one undoable edit. Missing/faulted circuits leave the draft unchanged. |
@@ -87,7 +90,7 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | I / Gate button | Place the selected ride entrance beside its station or carousel edge |
 | K / Exit button | Place the selected ride exit beside its station or carousel edge; default facing South |
 | C / shape or facing button | Track editor: rotate incoming travel heading. Queue: cycle Flat/North/East/South/West. Gate/Exit/Service: rotate facing. Other construction modes retain their existing shape behavior. |
-| X / Demolish | Track editor: erase the visible draft piece at its own height. Outside the editor: remove visible paths, gates, services or an empty carousel using existing protection/refund rules. |
+| X / Demolish | Track editor: erase the visible draft piece at its own height. Outside the editor: remove visible paths, gates, services, planted scenery or an empty carousel using existing protection/refund rules. |
 | B / Raise button | Raise the visible Grass/Sand terrain column by one step |
 | V / Lower button | Lower the visible Grass/Sand terrain column by one step |
 | Page Up/Down / height buttons | Track entry height: lift 0–29, drop 1–30, steep drop 2–30, level pieces 0–30. Flat/gate 0–30; service/carousel base and ramp low end 0–29. Default 8. |
@@ -99,7 +102,7 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | G | Toggle the tile grid |
 | T / terrain preset button | Explicitly reset heights to the other terrain preset when clearance permits |
 | U / visibility button | Switch between Surface and Underground views |
-| Delete / Remove button | Remove the selected path, track piece, gate, service or empty carousel. Track and building refunds are shown before commitment; occupied rides reject removal and unfinished service visits cancel without payment |
+| Delete / Remove button | Remove the selected path, track piece, gate, service, planted scenery or empty carousel. Track and building refunds are shown before commitment; occupied rides reject removal and unfinished service visits cancel without payment |
 | R / Restore paths button | Restore missing public demonstration paths without replacing player pieces or resetting time/guests |
 | O / Open or Close button | Open the selected ride, or stop admission and return queued guests while passengers finish their cycle |
 | F / Find button | Center the selected ride: coaster at 150%, carousel at 350% zoom |
@@ -110,7 +113,7 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | Space | Pause or resume the previous simulation speed |
 | 1 / 2 / 3 | Set simulation speed to 1x / 2x / 4x |
 | Rides → Access | Inspect entrance/queue and exit/public-path readiness. Find existing gates or Prepare a suggested gate/queue/path; move to the ghost and click to build one tile with normal validation. |
-| Y / Rides button | Select a ride with Up/Down or arrows; Use ride/Y/Escape closes before O/F/F6/F7/J/I/K; Build carousel starts placement |
+| Y / Rides button | Select a ride with Up/Down or arrows; Edit name accepts Unicode and Apply/Enter saves it, while Default restores that ride's original name; Use ride/Y/Escape closes before O/F/F6/F7/J/I/K; Build carousel starts placement |
 | Rides → Operations | Close and empty the selected ride, then adjust station wait, coaster lift/brake settings or carousel cycle duration, minimum load (0–6) and extra loading wait (1–60 s). Reset restores both settings and policy for that ride. Save keeps the changes. |
 | Rides → Test | Run one isolated lap of a closed, stopped, empty installed coaster. View timing, speed, height and 0–100 layout estimates; passenger loading policy is excluded and the live park is unchanged. |
 | N / Finance button | Open or close the ledger; Page Up/Down changes transaction page; Escape closes |

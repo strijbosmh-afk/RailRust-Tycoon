@@ -30,11 +30,13 @@ pub(super) mod finance;
 mod journey;
 mod legacy;
 pub(super) mod loans;
+pub(crate) mod names;
 pub(super) mod opening;
 pub(super) mod operations;
 mod queues;
 pub(super) mod ride_choice;
 pub(super) mod ride_costs;
+mod scenery;
 pub(super) mod services;
 mod slopes;
 pub(super) mod starters;
@@ -59,7 +61,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters" | "write-opening" | "verify-opening" | "write-cashflow" | "verify-cashflow" | "write-ride-costs" | "verify-ride-costs" | "write-summary" | "verify-summary" | "write-loans" | "verify-loans" | "write-value" | "verify-value" | "write-visitors" | "verify-visitors" | "write-colors" | "verify-colors"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters" | "write-opening" | "verify-opening" | "write-cashflow" | "verify-cashflow" | "write-ride-costs" | "verify-ride-costs" | "write-summary" | "verify-summary" | "write-loans" | "verify-loans" | "write-value" | "verify-value" | "write-visitors" | "verify-visitors" | "write-colors" | "verify-colors" | "write-names" | "verify-names" | "write-scenery" | "verify-scenery"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -180,6 +182,10 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-opening" => opening::verify(&session)?,
             "write-colors" => colors::write(&session)?,
             "verify-colors" => colors::verify(&session)?,
+            "write-names" => names::write(&session)?,
+            "verify-names" => names::verify(&session)?,
+            "write-scenery" => scenery::write(&session)?,
+            "verify-scenery" => scenery::verify(&session)?,
             "write-visitors" => visitors::write(&session)?,
             "verify-visitors" => visitors::verify(&session)?,
             "write-value" => value::write(&session)?,

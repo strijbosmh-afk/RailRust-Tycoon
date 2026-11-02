@@ -233,6 +233,13 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
             .remove("ride_paints"),
         Some(serde_json::json!([]))
     );
+    assert_eq!(
+        current["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ride_names"),
+        Some(serde_json::json!([]))
+    );
     assert_eq!(current["park"], original["park"]);
     assert!(!p.visitor_flow_stats().enabled);
     let mut continuous = p.clone();
