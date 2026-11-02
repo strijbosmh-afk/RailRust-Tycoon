@@ -10,7 +10,9 @@ mod ride_dispatch;
 use ride_dispatch::VersionSixteenParkData;
 mod appearance;
 mod loans;
+mod names;
 use appearance::VersionTwentyTwoParkData;
+use names::VersionTwentyThreeParkData;
 mod visitors;
 use visitors::VersionTwentyOneParkData;
 mod loans_park;
@@ -47,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 23;
-pub const CONTENT_VERSION: u32 = 23;
+pub const SCHEMA_VERSION: u32 = 24;
+pub const CONTENT_VERSION: u32 = 24;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -135,6 +137,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(deserialize_with = "bounded_objects::<_,_,{crate::MAX_RIDE_RECORDS}>")]
+    ride_names: Vec<crate::RideName>,
     #[serde(deserialize_with = "bounded_objects::<_,_,{crate::MAX_RIDE_RECORDS}>")]
     ride_paints: Vec<crate::RideAppearance>,
     #[serde(deserialize_with = "strict_object")]
@@ -304,6 +308,7 @@ impl VersionNineParkData {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
@@ -469,6 +474,7 @@ impl VersionEightParkData {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
@@ -700,6 +706,7 @@ impl Park {
                 | 20
                 | 21
                 | 22
+                | 23
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -781,10 +788,20 @@ impl Park {
         } else if header.schema_version == 22 {
             let legacy: SaveEnvelope<VersionTwentyTwoParkData> = parse_save(bytes)?;
             legacy.park.migrate()
+        } else if header.schema_version == 23 {
+            let legacy: SaveEnvelope<VersionTwentyThreeParkData> = parse_save(bytes)?;
+            legacy.park.migrate()
         } else {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park
         };
+        if header.schema_version < 24
+            && data.objects.iter().any(|object| {
+                matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed)
+            })
+        {
+            return Err(invalid("scenery requires schema 24"));
+        }
         if header.schema_version < 15
             && data.finances.entries.iter().any(|entry| {
                 matches!(
@@ -1461,6 +1478,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
@@ -1493,6 +1511,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
@@ -1528,6 +1547,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
@@ -1691,6 +1711,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
         ParkData {
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: crate::visitors::VisitorFlow::default(),
             coaster_cars: crate::DEFAULT_COASTER_CARS,
@@ -1820,6 +1841,7 @@ impl ParkData {
             ride_costs: park.ride_costs.clone(),
             loans: park.loans,
             ride_paints: park.ride_paints.clone(),
+            ride_names: park.ride_names.clone(),
             visitors: park.visitors.clone(),
         }
     }
@@ -1868,6 +1890,7 @@ impl ParkData {
             ride_costs: self.ride_costs,
             loans: self.loans,
             ride_paints: self.ride_paints,
+            ride_names: self.ride_names,
             visitors: self.visitors,
             // Neither its contents nor diagnostic counters belong in JSON.
             path_cache: crate::crowds::PathCache::default(),
@@ -1879,6 +1902,7 @@ impl ParkData {
         let objects = validate_objects(&park)?;
         validate_guests(&park, &objects)?;
         crate::appearance::validate(&park).map_err(invalid)?;
+        crate::ride_names::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;
         park.circuit = circuit_data
             .map(|data| rebuild_circuit(&park, &objects, data))
@@ -1940,6 +1964,7 @@ fn validate_counts(park: &Park) -> Result<(), SaveError> {
 fn validate_objects(park: &Park) -> Result<BTreeMap<ObjectId, &SurfaceObject>, SaveError> {
     let mut objects = BTreeMap::new();
     let mut occupied: BTreeMap<(u32, u32), Vec<(u8, u16)>> = BTreeMap::new();
+    let mut scenery_count = 0;
     for object in &park.objects {
         if object.id.0 == 0 || objects.insert(object.id, object).is_some() {
             return Err(invalid("object identities must be nonzero and unique"));
@@ -1947,6 +1972,23 @@ fn validate_objects(park: &Park) -> Result<BTreeMap<ObjectId, &SurfaceObject>, S
         let tile = park
             .tile(object.pos)
             .ok_or_else(|| invalid("object lies outside the map"))?;
+        if matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
+            scenery_count += 1;
+            let expected_clearance = if object.kind == ObjectKind::SceneryTree {
+                3
+            } else {
+                1
+            };
+            if tile.terrain == crate::Terrain::Water
+                || object.height != tile.height
+                || object.clearance != expected_clearance
+                || object.axis != crate::Axis::X
+                || object.path_slope != crate::PathSlope::Flat
+                || object.queue_owner.is_some()
+            {
+                return Err(invalid("scenery must use its canonical land placement"));
+            }
+        }
         let top = u16::from(object.height) + u16::from(object.clearance);
         if object.clearance == 0 || top > u16::from(MAX_TERRAIN_HEIGHT) {
             return Err(invalid("object has an invalid height or clearance"));
@@ -1972,6 +2014,9 @@ fn validate_objects(park: &Park) -> Result<BTreeMap<ObjectId, &SurfaceObject>, S
             .entry((object.pos.x, object.pos.y))
             .or_default()
             .push((object.height, top));
+    }
+    if scenery_count > crate::MAX_SCENERY_OBJECTS {
+        return Err(invalid("scenery exceeds its supported save limit"));
     }
     if park.next_object_id == 0
         || objects

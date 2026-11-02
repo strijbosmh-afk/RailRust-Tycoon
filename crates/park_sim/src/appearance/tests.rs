@@ -192,6 +192,13 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
             .remove("ride_paints"),
         Some(serde_json::json!([]))
     );
+    assert_eq!(
+        current["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("ride_names"),
+        Some(serde_json::json!([]))
+    );
     assert_eq!(current["park"], original["park"]);
     let mut uninterrupted = p.clone();
     let mut resumed = p;

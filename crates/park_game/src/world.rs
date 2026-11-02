@@ -83,6 +83,9 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
         SurfaceId::Terrain(pos) => elevated_tile_center(park, pos, rotation),
         SurfaceId::Object(id) => {
             let object = park.object(id)?;
+            if matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
+                return elevated_tile_center(park, object.pos, rotation);
+            }
             if object.kind == ObjectKind::Carousel {
                 let c = carousel_render::owner(park, id)?;
                 return Some(carousel_render::center(
@@ -437,7 +440,10 @@ fn object_bounds(park: &Park, object: &SurfaceObject) -> (f32, f32, f32, f32) {
     let across = match object.kind {
         ObjectKind::Path | ObjectKind::RideEntrance | ObjectKind::RideExit => 0.34,
         ObjectKind::Track => 0.31,
-        ObjectKind::Service | ObjectKind::Carousel => 0.5,
+        ObjectKind::Service
+        | ObjectKind::Carousel
+        | ObjectKind::SceneryTree
+        | ObjectKind::FlowerBed => 0.5,
     };
     let (half_x, half_y) = match object_axis(object) {
         Axis::X => (0.5, across),
@@ -551,6 +557,13 @@ fn selectable_surfaces(park: &Park, id: SurfaceId, rotation: u8, mode: ViewMode)
 }
 
 fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -> Vec<Surface> {
+    if matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
+        return column_surfaces(park, object.pos, rotation)
+            .into_iter()
+            .flatten()
+            .take(1)
+            .collect();
+    }
     if object.kind == ObjectKind::Carousel {
         carousel_render::object_faces(park, object.id, rotation)
             .into_iter()
@@ -599,6 +612,38 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         .unwrap_or_default();
     for object in park.objects() {
         if !object_visible(park, object, mode) {
+            continue;
+        }
+        if matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
+            if let (Some(base), Some(top)) = (
+                elevated_tile_center(park, object.pos, rotation),
+                column_surfaces(park, object.pos, rotation)[0],
+            ) {
+                match object.kind {
+                    ObjectKind::SceneryTree => tree(mesh, base, top, object.id.0 as u32),
+                    ObjectKind::FlowerBed => {
+                        mesh.surface_ellipse(top, base, 19.0, 9.0, DETAIL_BIAS, rgb(74, 125, 69));
+                        for (dx, dy, ink) in [
+                            (-12.0, 1.0, rgb(237, 98, 128)),
+                            (-4.0, 5.0, rgb(245, 206, 87)),
+                            (6.0, 3.0, rgb(236, 132, 175)),
+                            (13.0, -2.0, rgb(255, 228, 120)),
+                            (-2.0, -4.0, rgb(239, 123, 119)),
+                        ] {
+                            mesh.surface_ellipse(
+                                top,
+                                base + Vec2::new(dx, dy),
+                                3.6,
+                                2.8,
+                                DETAIL_BIAS * 2.0,
+                                ink,
+                            );
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            mesh.end_group(PaintLayer::Object);
             continue;
         }
         if object.kind == ObjectKind::Carousel {
@@ -662,7 +707,9 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                     ObjectKind::RideEntrance
                     | ObjectKind::RideExit
                     | ObjectKind::Service
-                    | ObjectKind::Carousel,
+                    | ObjectKind::Carousel
+                    | ObjectKind::SceneryTree
+                    | ObjectKind::FlowerBed,
                     _,
                 ) => {
                     unreachable!("entrance faces are handled above")
@@ -754,7 +801,9 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
             ObjectKind::RideEntrance
             | ObjectKind::RideExit
             | ObjectKind::Service
-            | ObjectKind::Carousel => {
+            | ObjectKind::Carousel
+            | ObjectKind::SceneryTree
+            | ObjectKind::FlowerBed => {
                 unreachable!("entrance faces are handled above")
             }
             ObjectKind::Track => {

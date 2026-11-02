@@ -1,5 +1,7 @@
 # Asset provenance
 
+The 0.47 ride-name UI and buildable scenery use original project text, validation rules and procedural mesh primitives. Planted trees reuse the project's authored tree painter; flower beds use authored ellipses and colors. Player-name labels load the installed Windows Segoe UI face at runtime when available; no system font is copied or redistributed. No imported RollerCoaster Tycoon asset, texture, sound, font file or new dependency is added. [The stage report](RIDE_NAMES_SCENERY_REPORT.md) records the scope and verification.
+
 The 0.46 Harvest, Seaside and Twilight ride palettes combine colors already authored for 0.45. They add no imported artwork, audio, font, track design or dependency. [The preset report](RIDE_PALETTE_PRESETS_REPORT.md) records the exact combinations and delivery checks.
 
 Current 0.34 additions are original deterministic ride-appeal rules, current-challenge/soft-fit/reputation labels, schema migration and proof/capture fixtures. Existing procedural geometry and font are reused. No external model, texture, font, audio, original game data or package version is added. [GUEST_RIDE_APPEAL_REPORT.md](GUEST_RIDE_APPEAL_REPORT.md) records the contract and completed local source/runtime/migration/visual/package checks, with all 35 exact-source CI steps passed; historical entries retain their named-build scope. Add provenance before importing assets.

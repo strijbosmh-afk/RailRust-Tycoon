@@ -42,6 +42,7 @@ mod feedback_scenes;
 mod finance_scenes;
 mod journey_scenes;
 mod loan_scenes;
+mod name_scenery_scenes;
 mod opening_scenes;
 mod operations_scenes;
 mod queue_scenes;
@@ -70,6 +71,9 @@ enum Scene {
     ColorsReset,
     ColorsFaulted,
     ColorsUnderground,
+    NamesCoaster,
+    NamesCarousel,
+    Scenery,
     Sound,
     SoundMuted,
     Garden,
@@ -689,6 +693,9 @@ pub(super) fn configure(app: &mut App) {
                 Some("colors-reset") => Scene::ColorsReset,
                 Some("colors-faulted") => Scene::ColorsFaulted,
                 Some("colors-underground") => Scene::ColorsUnderground,
+                Some("names-coaster") => Scene::NamesCoaster,
+                Some("names-carousel") => Scene::NamesCarousel,
+                Some("scenery") => Scene::Scenery,
                 Some("sound") => Scene::Sound,
                 Some("sound-muted") => Scene::SoundMuted,
                 Some("garden") => Scene::Garden,
@@ -1210,6 +1217,12 @@ fn apply_preset(
             | Scene::ColorsUnderground
     ) {
         color_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if matches!(
+        capture.scene,
+        Scene::NamesCoaster | Scene::NamesCarousel | Scene::Scenery
+    ) {
+        name_scenery_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_visitors() {
         visitor_scenes::prepare(&mut sim.0, &mut view, capture.scene);

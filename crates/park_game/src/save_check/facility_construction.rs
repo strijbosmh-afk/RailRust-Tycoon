@@ -234,6 +234,7 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
     old["park"].as_object_mut().unwrap().remove("ride_costs");
     old["park"].as_object_mut().unwrap().remove("visitors");
     old["park"].as_object_mut().unwrap().remove("ride_paints");
+    old["park"].as_object_mut().unwrap().remove("ride_names");
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["park"].as_object_mut().unwrap().remove("ride_dispatch");
     old["content_version"] = 11.into();

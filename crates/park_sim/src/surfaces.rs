@@ -27,6 +27,35 @@ pub enum ObjectKind {
     RideExit,
     Service,
     Carousel,
+    SceneryTree,
+    FlowerBed,
+}
+
+pub const MAX_SCENERY_OBJECTS: usize = 512;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SceneryKind {
+    Tree,
+    FlowerBed,
+}
+impl SceneryKind {
+    pub const fn object_kind(self) -> ObjectKind {
+        match self {
+            Self::Tree => ObjectKind::SceneryTree,
+            Self::FlowerBed => ObjectKind::FlowerBed,
+        }
+    }
+    pub const fn clearance(self) -> u8 {
+        match self {
+            Self::Tree => 3,
+            Self::FlowerBed => 1,
+        }
+    }
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Tree => "Tree",
+            Self::FlowerBed => "Flower bed",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -86,6 +115,8 @@ pub enum PlacementError {
     EntranceRequiresRide,
     ServiceRequiresDefinition,
     CarouselRequiresDefinition,
+    SceneryRequiresTool,
+    SceneryRequiresLand,
     InsufficientFunds {
         required_cents: u64,
         available_cents: u64,
@@ -116,6 +147,8 @@ impl std::fmt::Display for PlacementError {
                 formatter,
                 "build the complete three by three carousel footprint"
             ),
+            Self::SceneryRequiresTool => write!(formatter, "use the scenery construction tool"),
+            Self::SceneryRequiresLand => write!(formatter, "scenery needs grass or sand"),
             Self::ServiceRequiresDefinition => write!(
                 formatter,
                 "a service needs a kind and an outward-facing counter"
@@ -229,6 +262,9 @@ impl Park {
         if kind == ObjectKind::Carousel {
             return Err(PlacementError::CarouselRequiresDefinition);
         }
+        if matches!(kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
+            return Err(PlacementError::SceneryRequiresTool);
+        }
         if kind == ObjectKind::Service {
             return Err(PlacementError::ServiceRequiresDefinition);
         }
@@ -239,6 +275,57 @@ impl Park {
         let id = self.insert_validated_object(pos, kind, axis, height, clearance, next_id);
         self.reconcile_ride_visits();
         Ok(id)
+    }
+
+    fn validate_scenery_placement(
+        &self,
+        pos: TilePos,
+        kind: SceneryKind,
+    ) -> Result<u64, PlacementError> {
+        let tile = self.tile(pos).ok_or(PlacementError::OutOfBounds { pos })?;
+        if tile.terrain == crate::Terrain::Water {
+            return Err(PlacementError::SceneryRequiresLand);
+        }
+        if self.objects.len() >= crate::saves::MAX_OBJECTS {
+            return Err(PlacementError::CapacityExceeded {
+                resource: "objects",
+                max: crate::saves::MAX_OBJECTS,
+            });
+        }
+        if self
+            .objects
+            .iter()
+            .filter(|object| matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed))
+            .count()
+            >= MAX_SCENERY_OBJECTS
+        {
+            return Err(PlacementError::CapacityExceeded {
+                resource: "scenery",
+                max: MAX_SCENERY_OBJECTS,
+            });
+        }
+        self.validate_object_placement(pos, kind.object_kind(), tile.height, kind.clearance())
+    }
+
+    pub fn validate_scenery(&self, pos: TilePos, kind: SceneryKind) -> Result<(), PlacementError> {
+        self.validate_scenery_placement(pos, kind).map(|_| ())
+    }
+
+    pub fn place_scenery(
+        &mut self,
+        pos: TilePos,
+        kind: SceneryKind,
+    ) -> Result<ObjectId, PlacementError> {
+        let next_id = self.validate_scenery_placement(pos, kind)?;
+        let height = self.tile(pos).expect("validated tile").height;
+        Ok(self.insert_validated_object(
+            pos,
+            kind.object_kind(),
+            Axis::X,
+            height,
+            kind.clearance(),
+            next_id,
+        ))
     }
 
     /// Preview the exact player path placement without changing authoritative
@@ -503,6 +590,9 @@ impl Park {
 }
 
 pub(crate) fn terrain_allows(kind: ObjectKind, height: u8, clearance: u8, terrain: u8) -> bool {
+    if matches!(kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
+        return height == terrain;
+    }
     height >= terrain
         || (kind == ObjectKind::Track
             && u16::from(height) + u16::from(clearance) <= u16::from(terrain))
@@ -512,6 +602,90 @@ pub(crate) fn terrain_allows(kind: ObjectKind, height: u8, clearance: u8, terrai
 mod tests {
     use super::*;
     use crate::{Guest, GuestId, GuestState, Speed, TerrainProfile};
+
+    #[test]
+    fn scenery_is_grounded_bounded_saved_and_removable() {
+        let mut park = Park::new(32, 32);
+        let tree_pos = TilePos { x: 3, y: 3 };
+        let flower_pos = TilePos { x: 4, y: 3 };
+        park.set_terrain_height(tree_pos, 8).unwrap();
+        park.set_terrain_height(flower_pos, 8).unwrap();
+        let before = park.clone();
+        assert_eq!(park.validate_scenery(tree_pos, SceneryKind::Tree), Ok(()));
+        assert_eq!(park, before, "preview must not mutate the park");
+        let tree = park.place_scenery(tree_pos, SceneryKind::Tree).unwrap();
+        let flower = park
+            .place_scenery(flower_pos, SceneryKind::FlowerBed)
+            .unwrap();
+        assert_eq!(park.object(tree).unwrap().kind, ObjectKind::SceneryTree);
+        assert_eq!(park.object(flower).unwrap().kind, ObjectKind::FlowerBed);
+        assert!(matches!(
+            park.validate_scenery(tree_pos, SceneryKind::FlowerBed),
+            Err(PlacementError::Occupied { .. })
+        ));
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+        assert!(matches!(
+            park.set_terrain_height(tree_pos, park.tile(tree_pos).unwrap().height + 1),
+            Err(crate::TerrainHeightError::ObjectIntersection { .. })
+        ));
+        assert!(matches!(
+            park.set_terrain_height(tree_pos, park.tile(tree_pos).unwrap().height - 1),
+            Err(crate::TerrainHeightError::ObjectIntersection { .. })
+        ));
+        assert!(park.remove_object(tree).is_some());
+        assert_eq!(
+            park.validate_scenery(tree_pos, SceneryKind::FlowerBed),
+            Ok(())
+        );
+        assert!(
+            park.place_scenery(tree_pos, SceneryKind::FlowerBed)
+                .unwrap()
+                .0
+                > flower.0
+        );
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+
+        let water_pos = TilePos { x: 5, y: 3 };
+        park.tiles[(water_pos.y * park.width + water_pos.x) as usize].terrain =
+            crate::Terrain::Water;
+        assert_eq!(
+            park.validate_scenery(water_pos, SceneryKind::Tree),
+            Err(PlacementError::SceneryRequiresLand)
+        );
+    }
+
+    #[test]
+    fn scenery_capacity_rejects_next_placement_without_allocating_an_id() {
+        let mut park = Park::new(32, 32);
+        let land: Vec<_> = (0..park.height)
+            .flat_map(|y| (0..park.width).map(move |x| TilePos { x, y }))
+            .filter(|pos| park.validate_scenery(*pos, SceneryKind::FlowerBed).is_ok())
+            .take(MAX_SCENERY_OBJECTS + 1)
+            .collect();
+        assert_eq!(land.len(), MAX_SCENERY_OBJECTS + 1);
+        for pos in &land[..MAX_SCENERY_OBJECTS] {
+            park.place_scenery(*pos, SceneryKind::FlowerBed).unwrap();
+        }
+        let snapshot = park.clone();
+        assert_eq!(
+            park.place_scenery(land[MAX_SCENERY_OBJECTS], SceneryKind::FlowerBed),
+            Err(PlacementError::CapacityExceeded {
+                resource: "scenery",
+                max: MAX_SCENERY_OBJECTS
+            })
+        );
+        assert_eq!(park, snapshot);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+    }
 
     #[test]
     fn player_path_preview_and_commit_share_rules_without_preview_side_effects() {

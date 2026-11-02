@@ -52,6 +52,7 @@ pub(super) struct VersionTwentyTwoParkData<O = SurfaceObject, G = Guest, R = cra
 impl VersionTwentyTwoParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            ride_names: Vec::new(),
             ride_paints: Vec::new(),
             visitors: self.visitors,
             loans: self.loans,

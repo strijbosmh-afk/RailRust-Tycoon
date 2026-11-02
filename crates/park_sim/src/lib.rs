@@ -48,8 +48,10 @@ pub use train_configuration::{
     TrainConfigurationError,
 };
 mod ride_dispatch;
+mod ride_names;
 mod ride_opening;
 mod ride_operations;
+pub use ride_names::{MAX_RIDE_NAME_BYTES, MAX_RIDE_NAME_CHARS, RideName, RideNameError};
 pub use ride_opening::RideOpeningError;
 mod ride_testing;
 mod saves;
@@ -120,8 +122,8 @@ pub use services::{
     ServiceError, ServiceId, ServiceKind, ServiceStats, ServiceVisit, ServiceVisitPhase,
 };
 pub use surfaces::{
-    Axis, MAX_PATH_HEIGHT, ObjectId, ObjectKind, PATH_CLEARANCE, PlacementError, SurfaceId,
-    SurfaceObject,
+    Axis, MAX_PATH_HEIGHT, MAX_SCENERY_OBJECTS, ObjectId, ObjectKind, PATH_CLEARANCE,
+    PlacementError, SceneryKind, SurfaceId, SurfaceObject,
 };
 pub use track_construction::{
     MAX_TRACK_DRAFT_PIECES, PaidTrackPiece, TRACK_REFUND_PERCENT, TrackBuildKind,
@@ -257,6 +259,7 @@ pub struct Park {
     cash_cents: u64,
     finances: FinanceLedger,
     ride_paints: Vec<RideAppearance>,
+    ride_names: Vec<RideName>,
     visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
@@ -293,6 +296,7 @@ impl PartialEq for Park {
             && self.cash_cents == other.cash_cents
             && self.finances == other.finances
             && self.ride_paints == other.ride_paints
+            && self.ride_names == other.ride_names
             && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
@@ -350,6 +354,7 @@ impl Park {
             cash_cents: INITIAL_PARK_CASH_CENTS,
             finances: FinanceLedger::default(),
             ride_paints: Vec::new(),
+            ride_names: Vec::new(),
             visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),

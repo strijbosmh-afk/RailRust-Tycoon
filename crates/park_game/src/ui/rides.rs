@@ -38,11 +38,8 @@ pub(crate) fn selected_id(park: &Park, view: &ViewState) -> Option<RideId> {
     }
 }
 
-pub(crate) fn name(park: &Park, id: RideId) -> &'static str {
-    match park.ride_kind(id) {
-        Some(RideKind::Carousel) => "Meadow Carousel",
-        _ => "Meadow Flyer",
-    }
+pub(crate) fn name(park: &Park, id: RideId) -> &str {
+    park.ride_name(id).unwrap_or("Ride unavailable")
 }
 
 pub(crate) fn construction_details(park: &Park, id: RideId) -> String {
@@ -103,6 +100,8 @@ pub(crate) struct RidesPanel;
 #[derive(Component)]
 pub(crate) enum RideLabel {
     Selected,
+    NameDraft,
+    NameNotice,
     Details,
     OperatingValue(OperatingField),
     OperatingStatus,
@@ -218,7 +217,7 @@ pub(super) fn setup(commands: &mut Commands) {
             button(p,"Down >",Action::BrowseRide(1),65.0);
         });
         p.spawn(Node { column_gap: px(16), align_items: AlignItems::Start, flex_grow: 1.0, ..row() }).with_children(|p| {
-            p.spawn(Node { width: px(408), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(10), ..default() }).with_children(|p| {
+            p.spawn(Node { width: px(408), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
                 p.spawn(Node{height:px(188),flex_shrink:0.0,..default()}).with_children(|p| {
                     operating_label(p, RideLabel::Details, 13.0, INK);
                 });
@@ -226,6 +225,15 @@ pub(super) fn setup(commands: &mut Commands) {
                 button(p,"Edit coaster track [Z]",Action::EditTrack,310.0);
                 label(p,&format!("Carousel: six seats; 3 x 3 tiles. Add gates.\nDemolition returns {}% of the amount paid.\nOne carousel at a time. Set height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
                 label(p,"After closing this panel: O open/close / F find\nF6-F7 ticket / J queue / I entrance / K exit\nSpace pauses from this panel or the park.",12.0,MUTED);
+                p.spawn(row()).with_children(|p| {
+                    button(p, "Edit name", Action::RideName(super::names::Command::Focus), 105.0);
+                    operating_label(p, RideLabel::NameDraft, 13.0, INK);
+                });
+                p.spawn(row()).with_children(|p| {
+                    button(p, "Apply name", Action::RideName(super::names::Command::Apply), 150.0);
+                    button(p, "Restore default", Action::RideName(super::names::Command::Reset), 150.0);
+                });
+                operating_label(p, RideLabel::NameNotice, 12.0, MUTED);
             });
             p.spawn(Node { width: px(356), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
                 p.spawn(row()).with_children(|p| {
@@ -395,6 +403,13 @@ pub(crate) fn refresh(
     for (kind, mut text) in &mut labels {
         let value = match kind {
             RideLabel::Selected => format!("{} / #{}", name(&sim.0, id), id.0),
+            RideLabel::NameDraft if view.ride_name_owner == Some(id) => format!(
+                "{}{}",
+                if view.ride_name_focused { "> " } else { "" },
+                view.ride_name_draft
+            ),
+            RideLabel::NameDraft => "Click Edit name to type".into(),
+            RideLabel::NameNotice => view.ride_name_notice.clone().unwrap_or_else(|| "Names are free; save the park afterward.".into()),
             RideLabel::Details => format!(
                 "{} / Ticket {}\nQueue: {}\nExit: {}\nSeats: {}/{} occupied / Completed {}\nRevenue {} / Reviews: {} ({} opinions)\n{}\n{}\n{}",
                 if sim.0.ride_is_open(id) {

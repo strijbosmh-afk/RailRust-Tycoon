@@ -325,6 +325,24 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-colors --save-dir $colorDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Colors verification failed" }
           Get-Content -LiteralPath (Join-Path $colorDirectory "verification-colors.txt")
+      - name: Verify player ride names and paid visitor continuation
+        shell: pwsh
+        run: |
+          $nameDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound names é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-names --save-dir $nameDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Names writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-names --save-dir $nameDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Names verification failed" }
+          Get-Content -LiteralPath (Join-Path $nameDirectory "verification-names.txt")
+      - name: Verify buildable scenery and continuation
+        shell: pwsh
+        run: |
+          $sceneryDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound scenery é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-scenery --save-dir $sceneryDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Scenery writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-scenery --save-dir $sceneryDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Scenery verification failed" }
+          Get-Content -LiteralPath (Join-Path $sceneryDirectory "verification-scenery.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:
