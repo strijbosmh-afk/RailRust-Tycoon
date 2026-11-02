@@ -19,7 +19,7 @@ fn guest_app(directory: &InputSaveDirectory, park: Park, view: ViewState) -> (Ap
         )
         .add_systems(
             Update,
-            (ui::refresh, ui::guests::refresh)
+            (ui::refresh, ui::guests::refresh, ui::guest_stats::refresh)
                 .chain()
                 .after(persistence::apply_save_action),
         );
@@ -36,6 +36,102 @@ fn text_for(app: &mut App, predicate: impl Fn(&ui::guests::GuestLabel) -> bool) 
         .1
         .0
         .clone()
+}
+
+fn stat_text_for(app: &mut App, predicate: impl Fn(&ui::guest_stats::StatLabel) -> bool) -> String {
+    let world = app.world_mut();
+    let mut labels = world.query::<(&ui::guest_stats::StatLabel, &Text)>();
+    labels
+        .iter(world)
+        .find(|(kind, _)| predicate(kind))
+        .unwrap()
+        .1
+        .0
+        .clone()
+}
+
+#[test]
+fn park_stats_and_flow_views_switch_without_changing_visitor_state() {
+    let directory = InputSaveDirectory::new();
+    let original = train_park();
+    let (mut app, _) = guest_app(
+        &directory,
+        original.clone(),
+        ViewState {
+            guests_open: true,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click_action(&mut app, ui::Action::GuestStatsView);
+    let view = app.world().resource::<ViewState>();
+    assert!(view.guests_open && view.guest_stats_view && !view.guest_flow_view);
+    assert!(
+        stat_text_for(&mut app, |kind| matches!(
+            kind,
+            ui::guest_stats::StatLabel::Headline
+        ))
+        .contains("12 active")
+    );
+    assert!(
+        stat_text_for(&mut app, |kind| matches!(
+            kind,
+            ui::guest_stats::StatLabel::Activity
+        ))
+        .contains("Currently")
+    );
+    click_action(&mut app, ui::Action::GuestFlowView);
+    let view = app.world().resource::<ViewState>();
+    assert!(view.guest_flow_view && !view.guest_stats_view);
+    click_action(&mut app, ui::Action::GuestFlowView);
+    assert!(!app.world().resource::<ViewState>().guest_flow_view);
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+}
+
+#[test]
+fn find_guest_centers_the_live_position_and_closes_the_modal_without_editing_park() {
+    let directory = InputSaveDirectory::new();
+    let original = train_park();
+    let id = original.guests()[0].id;
+    let (mut app, _) = guest_app(
+        &directory,
+        original.clone(),
+        ViewState {
+            guests_open: true,
+            selected_guest: Some(id),
+            rotation: 1,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click_action(&mut app, ui::Action::FindGuest);
+    let view = app.world().resource::<ViewState>();
+    assert!(!view.guests_open);
+    assert_eq!(view.focused_guest, Some(id));
+    assert_eq!(view.zoom, 3.0);
+    let point = world::guest_anchor(&original, id, view.rotation).unwrap();
+    let expected = point.truncate()
+        - Vec2::Y * f32::from(original.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+    assert_eq!(view.pan, expected.clamp(-view.pan_limit, view.pan_limit));
+    assert!(
+        world::selection_with_guest_mesh(
+            None,
+            None,
+            view.focused_guest,
+            &original,
+            view.rotation,
+            view.view_mode
+        )
+        .count_vertices()
+            > 0
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+    let mut stale = ViewState {
+        selected_guest: Some(park_sim::GuestId(u64::MAX)),
+        ..default()
+    };
+    assert!(!ui::guests::focus_selected(&original, &mut stale));
+    assert_eq!(stale.pan, Vec2::ZERO);
 }
 
 fn click_action(app: &mut App, action: ui::Action) {

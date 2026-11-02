@@ -40,6 +40,7 @@ mod economy_scenes;
 mod facility_construction_scenes;
 mod feedback_scenes;
 mod finance_scenes;
+mod guest_dashboard_scenes;
 mod journey_scenes;
 mod loan_scenes;
 mod name_scenery_scenes;
@@ -74,6 +75,8 @@ enum Scene {
     NamesCoaster,
     NamesCarousel,
     Scenery,
+    GuestStats,
+    GuestFound,
     Sound,
     SoundMuted,
     Garden,
@@ -697,6 +700,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("names-coaster") => Scene::NamesCoaster,
                 Some("names-carousel") => Scene::NamesCarousel,
                 Some("scenery") => Scene::Scenery,
+                Some("guest-stats") => Scene::GuestStats,
+                Some("guest-found") => Scene::GuestFound,
                 Some("sound") => Scene::Sound,
                 Some("sound-muted") => Scene::SoundMuted,
                 Some("garden") => Scene::Garden,
@@ -1232,6 +1237,9 @@ fn apply_preset(
         Scene::NamesCoaster | Scene::NamesCarousel | Scene::Scenery
     ) {
         name_scenery_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if matches!(capture.scene, Scene::GuestStats | Scene::GuestFound) {
+        guest_dashboard_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if capture.scene.is_visitors() {
         visitor_scenes::prepare(&mut sim.0, &mut view, capture.scene);
