@@ -2,6 +2,8 @@
 
 This two-stage delivery starts from the CI-verified 0.46.0 ride-palette branch. The product remains an original Rust park simulation for free Windows distribution. This development PC is excluded as a performance reference.
 
+Runtime source commit: `251cb8e94323c229440e9cb769284ec33b2c7c20` on `codex/ride-names-scenery`, stacked in [draft PR #46](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/46). Subsequent documentation-only commits preserve the executable identity recorded below.
+
 ## Stage 1: player ride names
 
 The coaster and each carousel have independent names under stable ride IDs. **Rides [Y]** exposes Edit name, Apply name and Default. Text entry accepts Unicode, handles Backspace, Ctrl+A and Enter, and suppresses game shortcuts while focused. Applying trims spaces and validates a nonempty, control-free value of at most 28 characters and 96 bytes. Invalid or stale-owner commands leave simulation state unchanged. Default names are canonical and are omitted from saved name records. Naming never changes cost, operation, visitor state, random state, track or appearance. Name labels load the installed Windows Segoe UI face for accented text; the original bundled UI face is the fallback when it is unavailable. Glyph coverage still depends on the system face for less common scripts.
