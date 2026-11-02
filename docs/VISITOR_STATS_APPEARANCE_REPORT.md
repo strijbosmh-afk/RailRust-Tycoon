@@ -2,6 +2,8 @@
 
 This stage follows the 0.47.0 ride names and scenery branch. The user-facing goal is to make visitor condition legible in **Guests [L]** and make visitors easier to distinguish on the map. This development PC remains excluded as a performance reference.
 
+Runtime source commit: `2f54b32c2227d7a9763f4e52a435e34899a61d35` on `codex/visitor-stats-appearance`, stacked in [draft PR #47](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/47). Subsequent documentation-only commits preserve the executable identity below.
+
 ## Implementation
 
 The guest list keeps stable-ID ordering and eight fixed rows per page. Each occupied row shows satisfaction, activity and a shirt swatch. The detail panel replaces the dense undifferentiated text block with four numeric, colored meters and grouped activity, finances, preferences, thought and selected-ride choice. Meter width and warning color are computed from authoritative guest fields at refresh; no simulation state is changed by opening or browsing the panel. Exact numbers and words remain available without color.
