@@ -1092,6 +1092,18 @@ pub fn selection_mesh(
     rotation: u8,
     mode: ViewMode,
 ) -> Mesh {
+    selection_with_guest_mesh(hover, selected, None, park, rotation, mode)
+}
+
+/// Selected visitor halo follows the authoritative position, including a ride seat.
+pub fn selection_with_guest_mesh(
+    hover: Option<SurfaceId>,
+    selected: Option<SurfaceId>,
+    focused_guest: Option<park_sim::GuestId>,
+    park: &Park,
+    rotation: u8,
+    mode: ViewMode,
+) -> Mesh {
     let mut mesh = Painter::default();
     if park.width() != park.height() {
         return mesh.finish();
@@ -1105,6 +1117,28 @@ pub fn selection_mesh(
                 mesh.surface_outline(surface, width, bias, ink);
             }
         }
+    }
+    if let Some(id) = focused_guest
+        && let Some(base) = guest_anchor(park, id, rotation)
+    {
+        let center = base.truncate();
+        let points = ellipse_points(center, 11.0, 5.0);
+        for index in 0..points.len() {
+            mesh.line(
+                points[index],
+                points[(index + 1) % points.len()],
+                2.4,
+                base.z + 0.038,
+                rgb(255, 216, 79),
+            );
+        }
+        mesh.line(
+            center + Vec2::new(0.0, 32.0),
+            center + Vec2::new(0.0, 40.0),
+            2.2,
+            base.z + 0.06,
+            rgb(255, 216, 79),
+        );
     }
     mesh.finish()
 }
@@ -1364,7 +1398,7 @@ fn paint_guest_visit_marker(mesh: &mut Painter, phase: RideVisitPhase, point: Ve
     }
 }
 
-fn guest_anchor(park: &Park, id: park_sim::GuestId, rotation: u8) -> Option<Vec3> {
+pub(crate) fn guest_anchor(park: &Park, id: park_sim::GuestId, rotation: u8) -> Option<Vec3> {
     let position = park.guest_position(id)?;
     Some(project_path_point(position.point, park.width(), rotation))
 }

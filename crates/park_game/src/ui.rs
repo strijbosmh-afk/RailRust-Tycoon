@@ -16,6 +16,7 @@ pub(crate) mod audio;
 pub(crate) mod designs;
 mod economy;
 pub(crate) mod finance;
+pub(crate) mod guest_stats;
 pub(super) mod guests;
 pub(crate) mod names;
 pub(crate) mod rides;
@@ -111,6 +112,8 @@ pub(super) enum Action {
     SelectGuest(Option<park_sim::GuestId>),
     GuestPage(i8),
     GuestFlowView,
+    GuestStatsView,
+    FindGuest,
     Visitor(visitor_flow::VisitorCommand),
     Services,
     CloseServices,
@@ -1000,6 +1003,8 @@ pub(super) fn button_actions(
                     | Action::SelectGuest(_)
                     | Action::GuestPage(_)
                     | Action::GuestFlowView
+                    | Action::GuestStatsView
+                    | Action::FindGuest
                     | Action::Visitor(_)
             )
         {
@@ -1103,6 +1108,17 @@ pub(super) fn button_actions(
             }
             Action::FinanceView if view.finance_open => view.finance_view_pending = true,
             Action::GuestFlowView if view.guests_open => view.guest_flow_pending = true,
+            Action::GuestStatsView if view.guests_open => view.guest_stats_pending = true,
+            Action::FindGuest
+                if view.guests_open && !view.guest_flow_view && !view.guest_stats_view =>
+            {
+                if let Some(park) = sim.as_ref().map(|sim| &sim.0)
+                    && guests::focus_selected(park, &mut view)
+                {
+                    view.set_modal(false, false, false, false);
+                    view.modal_transition_pending = true;
+                }
+            }
             Action::RidePaint(command) => {
                 if view.rides_open {
                     appearance::queue(
@@ -1167,6 +1183,8 @@ pub(super) fn button_actions(
             | Action::ServicePrice(_)
             | Action::ToggleService
             | Action::GuestFlowView
+            | Action::GuestStatsView
+            | Action::FindGuest
             | Action::Visitor(_) => {}
             Action::Finance
             | Action::CloseFinance

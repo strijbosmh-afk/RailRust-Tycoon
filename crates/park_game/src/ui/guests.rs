@@ -28,6 +28,7 @@ pub(crate) enum GuestMeterFill {
 pub(crate) enum GuestLabel {
     Summary,
     FlowView,
+    StatsView,
     Page,
     Row(usize),
     Title,
@@ -138,10 +139,24 @@ pub(super) fn setup(commands: &mut Commands) {
                         BackgroundColor(BUTTON),
                     ))
                     .with_children(|p| text(p, "Visitor flow", 12.0, GuestLabel::FlowView));
+                    p.spawn((
+                        Button,
+                        Action::GuestStatsView,
+                        Node {
+                            width: px(115),
+                            height: px(30),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON),
+                    ))
+                    .with_children(|p| text(p, "Park stats", 12.0, GuestLabel::StatsView));
                     button(p, "Close [L / Esc]", Action::CloseGuests, 140.0);
                 });
                 text(p, "Guest experience", 12.0, GuestLabel::Summary);
                 super::visitor_flow::setup(p);
+                super::guest_stats::setup(p);
                 p.spawn((
                     GuestInspection,
                     Node {
@@ -220,6 +235,7 @@ pub(super) fn setup(commands: &mut Commands) {
                         })
                         .with_children(|p| {
                             text(p, "Select a guest", 20.0, GuestLabel::Title);
+                            button(p, "Find", Action::FindGuest, 55.0);
                             p.spawn((
                                 GuestAvatar::Selected,
                                 Node {
@@ -448,6 +464,24 @@ fn resolve_selection(guests: &[&Guest], view: &mut ViewState) {
     view.guest_page = index / PAGE_SIZE;
 }
 
+/// Center the selected active visitor and keep a moving map marker on them.
+/// Failed/stale selections leave the camera and modal unchanged.
+pub(crate) fn focus_selected(park: &Park, view: &mut ViewState) -> bool {
+    let Some(id) = view.selected_guest else {
+        return false;
+    };
+    let Some(point) = crate::world::guest_anchor(park, id, view.rotation) else {
+        return false;
+    };
+    view.zoom = 3.0 * view.camera_span;
+    view.pan = (point.truncate()
+        - Vec2::Y * f32::from(park.max_surface_height()) * crate::world::HEIGHT_STEP * 0.5)
+        .clamp(-view.pan_limit, view.pan_limit);
+    view.focused_guest = Some(id);
+    view.hovered = None;
+    true
+}
+
 type Rows<'w, 's> = Query<
     'w,
     's,
@@ -494,17 +528,23 @@ type GuestPanels<'w, 's> = Query<
         With<GuestPanel>,
         Without<GuestInspection>,
         Without<super::visitor_flow::VisitorBody>,
+        Without<super::guest_stats::GuestStatsBody>,
         Without<GuestMeterFill>,
     ),
 >;
 type GuestBodies<'w, 's> = Query<
     'w,
     's,
-    (&'static mut Node, Has<super::visitor_flow::VisitorBody>),
+    (
+        &'static mut Node,
+        Has<super::visitor_flow::VisitorBody>,
+        Has<super::guest_stats::GuestStatsBody>,
+    ),
     (
         Or<(
             With<GuestInspection>,
             With<super::visitor_flow::VisitorBody>,
+            With<super::guest_stats::GuestStatsBody>,
         )>,
         Without<GuestMeterFill>,
     ),
@@ -532,11 +572,22 @@ pub(crate) fn refresh(
     }
     if std::mem::take(&mut view.guest_flow_pending) {
         view.guest_flow_view = !view.guest_flow_view;
+        if view.guest_flow_view {
+            view.guest_stats_view = false;
+        }
         view.visitor_pending = None;
         view.visitor_notice = None;
     }
-    for (mut node, is_flow) in &mut bodies {
-        node.display = if is_flow == view.guest_flow_view {
+    if std::mem::take(&mut view.guest_stats_pending) {
+        view.guest_stats_view = !view.guest_stats_view;
+        if view.guest_stats_view {
+            view.guest_flow_view = false;
+        }
+        view.visitor_pending = None;
+        view.visitor_notice = None;
+    }
+    for (mut node, is_flow, is_stats) in &mut bodies {
+        node.display = if is_flow == view.guest_flow_view && is_stats == view.guest_stats_view {
             Display::Flex
         } else {
             Display::None
@@ -585,6 +636,12 @@ pub(crate) fn refresh(
                 "Guest list"
             } else {
                 "Visitor flow"
+            }
+            .into(),
+            GuestLabel::StatsView => if view.guest_stats_view {
+                "Guest list"
+            } else {
+                "Park stats"
             }
             .into(),
             GuestLabel::Summary if view.guest_flow_view => format!(

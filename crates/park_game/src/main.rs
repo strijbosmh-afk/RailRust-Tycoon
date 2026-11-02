@@ -114,11 +114,14 @@ struct ViewState {
     service_commands: Vec<ui::services::ServiceCommand>,
     service_notice: Option<String>,
     selected_guest: Option<park_sim::GuestId>,
+    focused_guest: Option<park_sim::GuestId>,
     guest_page: usize,
     guest_browse_pending: i32,
     guest_page_pending: i32,
     guest_flow_view: bool,
     guest_flow_pending: bool,
+    guest_stats_view: bool,
+    guest_stats_pending: bool,
     visitor_pending: Option<ui::visitor_flow::VisitorCommand>,
     visitor_notice: Option<String>,
     modal_transition_pending: bool,
@@ -196,11 +199,14 @@ impl Default for ViewState {
             service_commands: Vec::new(),
             service_notice: None,
             selected_guest: None,
+            focused_guest: None,
             guest_page: 0,
             guest_browse_pending: 0,
             guest_page_pending: 0,
             guest_flow_view: false,
             guest_flow_pending: false,
+            guest_stats_view: false,
+            guest_stats_pending: false,
             visitor_pending: None,
             visitor_notice: None,
             modal_transition_pending: false,
@@ -558,6 +564,7 @@ fn main() -> AppExit {
                     ui::refresh,
                     ui::audio::refresh,
                     ui::guests::refresh,
+                    ui::guest_stats::refresh,
                     ui::visitor_flow::refresh,
                     ui::services::refresh,
                     ui::finance::refresh,
@@ -1424,6 +1431,7 @@ fn apply_camera(
 type SelectionSnapshot = (
     Option<SurfaceId>,
     Option<SurfaceId>,
+    Option<park_sim::GuestId>,
     u8,
     world::ViewMode,
     Option<path_tools::PathPreview>,
@@ -1468,6 +1476,9 @@ fn update_scene(
     view.hovered = view
         .hovered
         .filter(|id| sim.0.surface_position(*id).is_some());
+    view.focused_guest = view
+        .focused_guest
+        .filter(|id| sim.0.guest_position(*id).is_some());
     let terrain_changed = view.scene_dirty;
     if terrain_changed {
         landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
@@ -1476,6 +1487,7 @@ fn update_scene(
     let selection = (
         view.hovered,
         view.selected,
+        view.focused_guest,
         view.rotation,
         view.view_mode,
         view.path_tool.preview,
@@ -1486,11 +1498,15 @@ fn update_scene(
         view.track_editor.revision,
         view.track_editor.preview,
     );
-    if terrain_changed || *last_selection != Some(selection) {
+    if terrain_changed
+        || *last_selection != Some(selection)
+        || (view.focused_guest.is_some() && sim.is_changed())
+    {
         if let Some(mesh) = meshes.get_mut(&scene.selection) {
-            *mesh = world::selection_mesh(
+            *mesh = world::selection_with_guest_mesh(
                 view.hovered,
                 view.selected,
+                view.focused_guest,
                 &sim.0,
                 view.rotation,
                 view.view_mode,

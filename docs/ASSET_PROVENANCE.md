@@ -1,5 +1,7 @@
 # Asset provenance
 
+The 0.49 visitor overview uses original UI bars and labels derived from existing active guest state. The Find halo is original procedural line geometry at the guest's authoritative position. No borrowed icon, portrait, texture, font, external game asset or dependency is added. See [the visitor overview report](VISITOR_OVERVIEW_FIND_REPORT.md).
+
 The 0.48 visitor appearance and guest-stat panel use original Rust-drawn geometry, authored color palettes and interface labels. Looks are derived from stable guest IDs; no portrait, texture, model, external game asset, font file or dependency is added. The map billboard and guest-list swatch share the same shirt color. [The visitor stage report](VISITOR_STATS_APPEARANCE_REPORT.md) records verification and scope.
 
 The 0.47 ride-name UI and buildable scenery use original project text, validation rules and procedural mesh primitives. Planted trees reuse the project's authored tree painter; flower beds use authored ellipses and colors. Player-name labels load the installed Windows Segoe UI face at runtime when available; no system font is copied or redistributed. No imported RollerCoaster Tycoon asset, texture, sound, font file or new dependency is added. [The stage report](RIDE_NAMES_SCENERY_REPORT.md) records the scope and verification.
