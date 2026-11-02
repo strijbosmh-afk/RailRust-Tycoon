@@ -1,6 +1,6 @@
 //! Selected ride painting, with explicit, atomic commands and clear modal ownership.
 use super::*;
-use park_sim::{RideAppearance, RideKind, RidePaint};
+use park_sim::{RideAppearance, RideKind, RidePaint, RidePalettePreset};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Part {
     Structure,
@@ -11,6 +11,7 @@ pub(crate) enum Part {
 pub(crate) enum Command {
     Show,
     Step(Part, i8),
+    Preset(RidePalettePreset),
     Reset,
     Find,
     Conflict,
@@ -42,7 +43,7 @@ fn set(a: &mut RideAppearance, p: Part, v: RidePaint) {
 pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
     p.spawn((rides::RideSection(rides::RideTab::Colors),Node{display:Display::None,width:percent(100),flex_direction:FlexDirection::Column,row_gap:px(10),..default()})).with_children(|p|{
         label(p,"Make it your own",18.0,INK);
-        label(p,"Painting is free, including while a ride is open.\nChoose colors, then show the ride in the park.",12.0,MUTED);
+        label(p,"Painting is free, including while a ride is open.\nPick a palette or change each color separately.",12.0,MUTED);
         for (part,name) in [(Part::Structure,"Structure / rails or carousel deck"),(Part::Supports,"Supports / columns and mast"),(Part::Vehicles,"Vehicles / cars and carousel seats")]{
             p.spawn(Node{flex_direction:FlexDirection::Column,row_gap:px(4),..default()}).with_children(|p|{
                 label(p,name,12.0,INK);
@@ -54,6 +55,11 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                 });
             });
         }
+        p.spawn(row()).with_children(|p| {
+            for preset in RidePalettePreset::ALL {
+                button(p,preset.name(),Action::RidePaint(Command::Preset(preset)),112.0);
+            }
+        });
         button(p,"Restore classic colors",Action::RidePaint(Command::Reset),356.0);
         button(p,"Show in park",Action::RidePaint(Command::Find),356.0);
         p.spawn((Text::new(""),TextFont{font_size:12.0,..default()},TextColor(MUTED),PaintLabel::Notice));
@@ -114,6 +120,7 @@ pub(crate) fn apply(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
                     as usize],
             );
         }
+        Command::Preset(preset) => next = preset.appearance(id),
         Command::Reset => {
             next = RideAppearance {
                 ride: id,
@@ -129,7 +136,7 @@ pub(crate) fn apply(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
     view.paint_notice = Some(match sim.0.set_ride_appearance(next) {
         Ok(()) => {
             view.scene_dirty = true;
-            "Colors changed. Save the park to keep them.".into()
+            "Palette changed. Save the park to keep it.".into()
         }
         Err(e) => format!("Colors unchanged: {e}"),
     });

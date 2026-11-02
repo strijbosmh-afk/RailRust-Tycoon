@@ -970,6 +970,50 @@ fn colors_controls_preserve_selected_owner_money_and_atomic_browse_or_tab_transi
     assert_eq!(app.world().resource::<Simulation>().0, before);
 }
 #[test]
+fn palette_buttons_set_all_channels_and_allow_a_later_individual_edit() {
+    use park_sim::{RidePaint, RidePalettePreset};
+    use ui::appearance::{Command as C, Part};
+    let (mut app, directory, coaster, carousel) = fixture();
+    let before = app.world().resource::<Simulation>().0.clone();
+    frame(&mut app, &[ui::Action::RidePaint(C::Show)], &[]);
+    frame(
+        &mut app,
+        &[ui::Action::RidePaint(C::Preset(RidePalettePreset::Harvest))],
+        &[],
+    );
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(
+        park.ride_appearance(coaster),
+        Some(RidePalettePreset::Harvest.appearance(coaster))
+    );
+    assert_eq!(
+        park.ride_appearance(carousel).unwrap().structure,
+        RidePaint::Classic
+    );
+    assert_eq!(park.cash_cents(), before.cash_cents());
+    frame(
+        &mut app,
+        &[ui::Action::RidePaint(C::Step(Part::Vehicles, 1))],
+        &[],
+    );
+    let customized = app
+        .world()
+        .resource::<Simulation>()
+        .0
+        .ride_appearance(coaster)
+        .unwrap();
+    assert_eq!(customized.structure, RidePaint::Sunflower);
+    assert_eq!(customized.supports, RidePaint::Meadow);
+    assert_eq!(customized.vehicles, RidePaint::Lagoon);
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    assert_eq!(
+        directory.store().load().unwrap().ride_appearance(coaster),
+        Some(customized)
+    );
+}
+#[test]
 fn color_tab_switch_close_and_capture_cannot_apply_conflicting_paint() {
     use ui::appearance::{Command as C, Part};
     let (mut app, _directory, _, _) = fixture();

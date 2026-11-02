@@ -1,6 +1,6 @@
 # Product decisions
 
-Updated: 23 October 2026 for the 0.24.0 track construction slice; original planning baseline: 19 October 2026. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the acceptance register, [the development plan](../DEVELOPMENT_PLAN.md) defines milestones, and [the track construction report](TRACK_CONSTRUCTION_REPORT.md) records the current contract and validation; earlier named reports preserve historical evidence.
+Updated: 2 November 2026 for the 0.46.0 ride palette slice; original planning baseline: 19 October 2026. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) is the acceptance register, [the development plan](../DEVELOPMENT_PLAN.md) defines milestones, and [the preset report](RIDE_PALETTE_PRESETS_REPORT.md) records the current contract and validation; earlier named reports preserve historical evidence.
 
 ## Confirmed by the user
 
