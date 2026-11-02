@@ -8,6 +8,7 @@ use park_sim::{
     Axis, GuestState, ObjectKind, Park, PathSlope, RideVisitPhase, SurfaceId, SurfaceObject,
     Terrain, TilePos,
 };
+use std::collections::HashMap;
 
 mod atmosphere;
 mod carousel_render;
@@ -606,6 +607,10 @@ pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
 }
 
 fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) {
+    let mut columns: HashMap<TilePos, Vec<&SurfaceObject>> = HashMap::new();
+    for object in park.objects() {
+        columns.entry(object.pos).or_default().push(object);
+    }
     let appearance = park
         .ride()
         .and_then(|r| park.ride_appearance(r.id))
@@ -686,6 +691,15 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         }
         let surfaces = object_surfaces(park, object, rotation);
         let top = surfaces[0];
+        if object.kind == ObjectKind::Path && mode == ViewMode::Surface {
+            path_support(
+                mesh,
+                park,
+                object,
+                columns.get(&object.pos).map(Vec::as_slice).unwrap_or(&[]),
+                rotation,
+            );
+        }
         for surface in surfaces {
             let ink = match (object.kind, surface.kind) {
                 (ObjectKind::Path, SurfaceKind::Top) if object.queue_owner.is_some() => {
@@ -831,6 +845,64 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         }
         mesh.end_group(PaintLayer::Object);
     }
+}
+
+/// A bridge post makes the actual gap below a raised path legible. It is
+/// decoration only: path clearance, connections and picking stay authoritative.
+fn path_support(
+    mesh: &mut Painter,
+    park: &Park,
+    object: &SurfaceObject,
+    column: &[&SurfaceObject],
+    rotation: u8,
+) {
+    let Some(ground) = park.tile(object.pos).map(|tile| f32::from(tile.height)) else {
+        return;
+    };
+    let deck = object_base_at(object, Vec2::ZERO);
+    if deck - ground < 0.75 {
+        return;
+    }
+    // A crossing object may occupy the column below the path. Do not paint a
+    // cosmetic post through its validated space.
+    if column.iter().any(|other| {
+        other.id != object.id
+            && other.pos == object.pos
+            && f32::from(other.height) < deck
+            && f32::from(other.height) + f32::from(other.clearance) > ground
+    }) {
+        return;
+    }
+    let size = park.width();
+    let (x, y) = rotate(object.pos, size, rotation);
+    let u = x as f32;
+    let v = y as f32;
+    let width = 0.075;
+    let corners = [
+        (-width, -width),
+        (-width, width),
+        (width, width),
+        (width, -width),
+    ];
+    let upper = corners.map(|(du, dv)| project(u + du, v + dv, deck, size));
+    let lower = corners.map(|(du, dv)| project(u + du, v + dv, ground, size));
+    for (indices, ink) in [([1, 2], rgb(143, 105, 69)), ([2, 3], rgb(110, 77, 49))] {
+        let [a, b] = indices;
+        mesh.surface(
+            Surface {
+                vertices: [upper[a], upper[b], lower[b], lower[a]],
+                kind: SurfaceKind::LeftCliff,
+            },
+            ink,
+        );
+    }
+    mesh.surface(
+        Surface {
+            vertices: upper,
+            kind: SurfaceKind::Top,
+        },
+        rgb(173, 130, 84),
+    );
 }
 
 fn cutaway_painter(park: &Park, rotation: u8, grid: bool, record_groups: bool) -> Painter {
@@ -1857,6 +1929,53 @@ mod tests {
         assert_eq!(tile_center(first, 32, 2), Vec2::new(0.0, -496.0));
         assert_eq!(tile_center(first, 32, 3), Vec2::new(-992.0, 0.0));
         assert_eq!(tile_center(first, 32, 4), tile_center(first, 32, 0));
+    }
+
+    #[test]
+    fn raised_paths_get_grounded_posts_without_changing_path_faces() {
+        let pos = TilePos { x: 5, y: 5 };
+        let mut bridge = Park::new(12, 12);
+        let id = bridge.place_path(pos, 4).unwrap();
+        let object = bridge.object(id).unwrap();
+        for rotation in 0..4 {
+            let before = object_surfaces(&bridge, object, rotation);
+            let mut painter = Painter::default();
+            path_support(&mut painter, &bridge, object, &[object], rotation);
+            let post = painter.finish();
+            assert_eq!(post.count_vertices(), 18);
+            let roof = before[0].vertices[0].y;
+            let ground = tile_center(pos, 12, rotation).y;
+            assert!(positions(&post).iter().any(|point| point[1] > ground - 3.0));
+            assert!(positions(&post).iter().any(|point| point[1] < roof + 3.0));
+            assert_eq!(
+                before.map(|surface| surface.vertices),
+                object_surfaces(&bridge, object, rotation).map(|surface| surface.vertices)
+            );
+        }
+
+        let mut flush = Park::new(12, 12);
+        flush.set_terrain_height(pos, 4).unwrap();
+        let id = flush.place_path(pos, 4).unwrap();
+        let object = flush.object(id).unwrap();
+        let mut painter = Painter::default();
+        path_support(&mut painter, &flush, object, &[object], 0);
+        assert_eq!(painter.finish().count_vertices(), 0);
+
+        let mut crossing = Park::new(12, 12);
+        let track = crossing
+            .place_object(pos, ObjectKind::Track, Axis::X, 0, 2)
+            .unwrap();
+        let path = crossing.place_path(pos, 4).unwrap();
+        let path = crossing.object(path).unwrap();
+        let mut painter = Painter::default();
+        path_support(
+            &mut painter,
+            &crossing,
+            path,
+            &[path, crossing.object(track).unwrap()],
+            0,
+        );
+        assert_eq!(painter.finish().count_vertices(), 0);
     }
 
     #[test]

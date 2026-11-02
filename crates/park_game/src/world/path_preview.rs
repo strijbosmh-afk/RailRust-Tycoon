@@ -624,7 +624,10 @@ mod tests {
                 let mut painter = Painter::default();
                 paint_objects(&mut painter, &park, rotation, ViewMode::Surface);
                 let faces = object_surfaces(&park, park.object(id).unwrap(), rotation);
-                for point in painter.positions.iter().skip(18) {
+                // The raised ramp emits an 18-vertex support before its
+                // 18-vertex deck. Only the remaining detail strokes belong
+                // to the sloped roof.
+                for point in painter.positions.iter().skip(36) {
                     let point = Vec3::from_array(*point);
                     let depth = faces[0]
                         .hit_depth(point.truncate())

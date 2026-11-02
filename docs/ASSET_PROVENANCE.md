@@ -80,3 +80,7 @@ Version 0.32 starts at `04720f9b916a90c7ef8be994cb2c65dd88ee46fd` on `codex/ride
 ## Original starter coaster content (0.36)
 
 Pocket Oval, Meadow Winder and Meadow Climb are original project layouts authored with the production track specification API in crates/park_sim/examples/generate-starter-designs.rs. Their canonical version-1 JSON files live in designs/ and are bundled with the game. No external source layout, texture, model, music or game data was used. Their native previews and trains use the existing original procedural renderer.
+
+## Raised path bridge art (0.49.1)
+
+Version 0.49.1 adds project-authored timber bridge posts to the existing generated path geometry. No external art, dependency or save content is imported. See [BRIDGE_PERSPECTIVE_REPORT.md](BRIDGE_PERSPECTIVE_REPORT.md) for their bounded visual scope.

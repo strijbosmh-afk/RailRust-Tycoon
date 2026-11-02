@@ -409,6 +409,10 @@ Prioritize the user's visual/audio direction next: ride naming/palette presets, 
 
 The bounded RID-11 customization milestone is verified in [RIDE_COLORS_REPORT.md](docs/RIDE_COLORS_REPORT.md). Separate owner-bound structure/support/vehicle palettes, Classic reset and park focus preserve simulation/economy/physical geometry. Saves advance to 23/23 with authentic old-executable migration checks. All 792 release tests, strict checks/build, 38 packaged game processes, eight migration/refusal processes, two sound processes, native PCM completion and thirteen reviewed captures pass; both exact-source Windows CI runs pass all 46 steps. No broader feature-family criterion or full-game acceptance is closed by this slice. Next: ride names/palette presets, editable scenery and spatial/ride-specific sound, retaining the wider management roadmap and existing caps.
 
-## Ride palette presets — current 0.46.0
+## Ride palette presets — 0.46.0
 
 Three original named palettes apply the already saved Structure/Supports/Vehicles colors to one ride through the Rides panel. The existing per-part arrows continue to work after a preset. Save schema/content stays 23/23; this stage adds no external art or dependency. [RIDE_PALETTE_PRESETS_REPORT.md](docs/RIDE_PALETTE_PRESETS_REPORT.md) holds current verification. Next add bounded player ride names with explicit 23→24 migration, then continue editable scenery and ride-specific sound. RID-11 remains in progress until its broader criteria pass.
+
+## Raised path perspective — current 0.49.1 correction
+
+The [bridge perspective report](docs/BRIDGE_PERSPECTIVE_REPORT.md) records the visual correction for raised paths crossing lower land. Timber posts end at the underlying terrain and are omitted over occupied crossings. Path endpoint height rules, saves and simulation behavior stay 24/24. Continue visitor trends and needs after this corrective build; this PC remains excluded as a performance reference.
