@@ -8,7 +8,7 @@ mod admission;
 mod appearance;
 mod carousel;
 mod crowds;
-pub use appearance::{RideAppearance, RidePaint, RidePaintError};
+pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
 mod visitors;
 pub use visitors::{
     DepartedVisitors, VISITOR_ACTIVE_CAP, VISITOR_ARRIVAL_TICKS, VISITOR_LIFETIME_CAP,

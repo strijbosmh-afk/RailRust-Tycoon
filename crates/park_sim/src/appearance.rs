@@ -13,6 +13,36 @@ pub enum RidePaint {
     Charcoal,
     Cream,
 }
+/// Whole-ride starting palettes. After applying one, each channel stays editable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RidePalettePreset {
+    Harvest,
+    Seaside,
+    Twilight,
+}
+impl RidePalettePreset {
+    pub const ALL: [Self; 3] = [Self::Harvest, Self::Seaside, Self::Twilight];
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Harvest => "Harvest",
+            Self::Seaside => "Seaside",
+            Self::Twilight => "Twilight",
+        }
+    }
+    pub fn appearance(self, ride: RideId) -> RideAppearance {
+        let (structure, supports, vehicles) = match self {
+            Self::Harvest => (RidePaint::Sunflower, RidePaint::Meadow, RidePaint::Coral),
+            Self::Seaside => (RidePaint::Lagoon, RidePaint::Sky, RidePaint::Cream),
+            Self::Twilight => (RidePaint::Violet, RidePaint::Charcoal, RidePaint::Sky),
+        };
+        RideAppearance {
+            ride,
+            structure,
+            supports,
+            vehicles,
+        }
+    }
+}
 impl RidePaint {
     pub const ALL: [Self; 9] = [
         Self::Classic,
@@ -88,6 +118,13 @@ impl std::fmt::Display for RidePaintError {
 }
 impl std::error::Error for RidePaintError {}
 impl Park {
+    pub fn apply_ride_palette_preset(
+        &mut self,
+        ride: RideId,
+        preset: RidePalettePreset,
+    ) -> Result<(), RidePaintError> {
+        self.set_ride_appearance(preset.appearance(ride))
+    }
     pub fn ride_appearance(&self, ride: RideId) -> Option<RideAppearance> {
         self.ride_by_id(ride)?;
         Some(

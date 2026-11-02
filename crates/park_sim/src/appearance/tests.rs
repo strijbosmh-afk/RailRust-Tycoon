@@ -1,5 +1,45 @@
 use super::*;
 use crate::{Speed, TilePos};
+#[test]
+fn presets_are_owner_scoped_saved_and_leave_simulation_state_unchanged() {
+    let mut park = Park::new(32, 32);
+    park.install_train_fixture().unwrap();
+    let coaster = park.ride().unwrap().id;
+    let carousel = park.place_carousel(TilePos { x: 19, y: 22 }, 8).unwrap();
+    let before = without_paint(&park);
+    for preset in RidePalettePreset::ALL {
+        park.apply_ride_palette_preset(coaster, preset).unwrap();
+        assert_eq!(
+            park.ride_appearance(coaster),
+            Some(preset.appearance(coaster))
+        );
+        assert_eq!(
+            park.ride_appearance(carousel).unwrap().structure,
+            RidePaint::Classic
+        );
+        assert_eq!(without_paint(&park), before);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+    }
+    park.apply_ride_palette_preset(carousel, RidePalettePreset::Seaside)
+        .unwrap();
+    assert_eq!(
+        park.ride_appearance(carousel),
+        Some(RidePalettePreset::Seaside.appearance(carousel))
+    );
+    assert_eq!(
+        park.ride_appearance(coaster),
+        Some(RidePalettePreset::Twilight.appearance(coaster))
+    );
+    let saved = park.clone();
+    assert_eq!(
+        park.apply_ride_palette_preset(RideId(u64::MAX), RidePalettePreset::Harvest),
+        Err(RidePaintError::UnknownRide)
+    );
+    assert_eq!(park, saved);
+}
 fn without_paint(p: &Park) -> serde_json::Value {
     let mut v: serde_json::Value = serde_json::from_slice(&p.to_save_bytes().unwrap()).unwrap();
     v["park"].as_object_mut().unwrap().remove("ride_paints");

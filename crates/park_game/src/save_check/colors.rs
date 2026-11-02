@@ -72,6 +72,42 @@ pub(crate) fn paint(p: &mut Park, id: RideId, steps: [u8; 3]) -> Result<(), Stri
     }
     check(p)
 }
+fn apply_preset(
+    p: &mut Park,
+    id: RideId,
+    preset: park_sim::RidePalettePreset,
+) -> Result<(), String> {
+    let before = without_paint(p)?;
+    let mut app = App::new();
+    app.insert_resource(Simulation(p.clone()))
+        .insert_resource(ViewState {
+            rides_open: true,
+            selected_ride: Some(id),
+            speed: Speed::Paused,
+            ..Default::default()
+        })
+        .add_systems(Startup, ui::setup)
+        .add_systems(
+            Update,
+            (
+                ui::button_actions,
+                ui::appearance::apply,
+                ui::rides::refresh,
+                ui::appearance::refresh,
+            )
+                .chain(),
+        );
+    app.update();
+    click(&mut app, Command::Show)?;
+    click(&mut app, Command::Preset(preset))?;
+    *p = app.world().resource::<Simulation>().0.clone();
+    if p.ride_appearance(id) != Some(preset.appearance(id)) || without_paint(p)? != before {
+        return Err(
+            "Preset control changed unrelated state or selected an incorrect palette".into(),
+        );
+    }
+    check(p)
+}
 pub(crate) fn check(p: &Park) -> Result<(), String> {
     super::visitors::check(p)?;
     let data = p.to_save_bytes().map_err(|e| e.to_string())?;
@@ -99,6 +135,8 @@ pub(crate) fn install() -> Result<Park, String> {
     {
         return Err("Actual color choices differ".into());
     }
+    apply_preset(&mut p, coaster, park_sim::RidePalettePreset::Harvest)?;
+    apply_preset(&mut p, carousel, park_sim::RidePalettePreset::Seaside)?;
     Ok(p)
 }
 fn replay(p: &mut Park) -> Result<(), String> {

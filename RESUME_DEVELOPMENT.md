@@ -1,5 +1,7 @@
 # Resume development on another Windows PC
 
+Current locally verified **0.46.0 ride palette presets** are on `codex/ride-palette-presets`, runtime source `65a249efd759abe69aeeb6089611128ac0951d1a` in [draft PR #45](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/45), based on verified 0.45.0 / PR #44. **Rides [Y] → Colors** offers Harvest, Seaside and Twilight buttons that set all three existing paint channels for one ride. Individual swatches remain editable. The park save schema stays 23/23; no new persistent field or dependency is needed. All 794 release tests, strict checks/build, the color restart proof, two inspected minimum-window captures and fresh package integrity passed. The package's extracted executable passed two writer/verifier pairs from `C:\Windows`; see the report for an initial interrupted attempt and scope. [RIDE_PALETTE_PRESETS_REPORT.md](docs/RIDE_PALETTE_PRESETS_REPORT.md) records exact evidence. CI is in progress. Free-form ride naming is the next persistence stage.
+
 Latest verified delivery: **0.45.0 ride colors**, runtime `ac45883d73559130e04e1a955ec3860347471261` on `codex/ride-colors` in [draft PR #44](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/44). **Rides [Y] → Colors** sets Structure, Supports and Vehicles independently using nine named swatches, with Classic reset and Show in park. Painting is free during operation and persists per ride in **23/23** saves; versions 1–22 migrate explicitly. All **792 release tests (458 game / 334 simulation)**, strict checks/build, 38 packaged game processes, eight authentic migration/refusal processes, two sound restart processes, native PCM completion and thirteen inspected captures passed. Both exact-runtime Windows CI runs (40364975004 / 40364984526) passed all **46 steps**. [RIDE_COLORS_REPORT.md](docs/RIDE_COLORS_REPORT.md) records identities, scope and remaining acceptance.
 
 Previous locally verified delivery: **0.44.0 visuals and sound**, runtime `58ac6650713b7b9432b4b5ea7c0701693c8887cc` on `codex/visuals-and-sound` in [draft PR #43](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/43). Original music, ambience, ride effects and alerts have independent saved levels in **Help → Sound [F10]**. Ground details, flowers, fuller trees and animated water enrich the park. All **781 release tests (451 game / 330 simulation)**, strict checks/build, thirty-six packaged game proof processes, two sound restart processes, four bidirectional 0.43/0.44 visitor replays, native PCM device completion and twelve inspected captures passed. Saves remain **22/22**; sound settings are separate. [PRESENTATION_REPORT.md](docs/PRESENTATION_REPORT.md) records identities and scope. Both exact-runtime Windows CI runs 40214023575 and 40214020596 passed all 45 steps.
@@ -56,7 +58,7 @@ The current PC's checkout is:
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/park-company-value`, based on `codex/loans-and-interest` at `4a4889e`. Earlier milestone reports retain their source identities. Section 10 records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/ride-palette-presets`, based on `codex/ride-colors` at `a122c907c41ac19e3d7962bd31c5cfc7d56d7cb5` / PR #44. Earlier milestone reports retain their source identities. The current preset report records verification status. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -80,10 +82,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/park-company-value
+git switch --track origin/codex/ride-palette-presets
 ```
 
-If the branch already exists locally, use `git switch codex/park-company-value` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/ride-palette-presets` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -787,3 +789,7 @@ The 0.44 original music/ambience/ride/alert synthesis, F10 independent saved lev
 Continue the user's visual/sound focus with ride naming/palette presets, player-editable scenery and spatial/ride-specific audio. Keep admission/gate receipts, demand, staff, maintenance, research, scenarios and remaining ride families open. Physical input, human listening/longer device sessions, clean-PC behavior and representative performance remain open acceptance. Preserve all existing simulation/economy behavior and save/map caps.
 
 Preserve original-content requirements, catalog/draft/accounting boundaries and all three recorded PC paths. No reference PC is selected; this development PC remains excluded.
+
+## 12. Ride palette presets — current 0.46.0 stage
+
+Use Rides [Y] → Colors. Harvest, Seaside and Twilight set Structure, Supports and Vehicles together for the selected ride; the per-part arrows remain available afterward. Save the park to retain the resulting explicit paint values in existing strict 23/23 saves. Preset clicks are free and leave guest, ride-operation and financial state unchanged. Runtime source `65a249efd759abe69aeeb6089611128ac0951d1a` is pushed in draft PR #45, stacked on verified 0.45.0 / PR #44. All **794 release tests (459 game / 335 simulation)**, formatting, strict release Clippy and the production build passed. The executable SHA-256 is `41ae000c66e3747c4a808d3774f9c8fe6911e35a3d8e1a0570d37b97911769d9`. The production two-process color continuation passed with exact primary/backup slots and 3,600 future ticks; two 1024 × 680 coaster/carousel captures were inspected. The portable 0.46 ZIP verifies 75 payload hashes and 60 guides; its adjacent `.zip.sha256` is authoritative after guide refresh. Fresh Unicode/space extraction passed two independent writer/verifier pairs from `C:\Windows`; an initial attempt exited after partial files, as scoped in [RIDE_PALETTE_PRESETS_REPORT.md](docs/RIDE_PALETTE_PRESETS_REPORT.md). Raw receipts are in ignored `artifacts/ride-palette-presets-0.46.0/`, while ZIP and checksum are in ignored `dist/`. [Windows CI 41433509166](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/41433509166) is in progress at this checkpoint. Next implement bounded player ride names with explicit schema migration, then editable scenery and richer ride-specific sound. Keep all three PC paths above, map/save caps, original content, prior packages and the no-reference-PC policy.
