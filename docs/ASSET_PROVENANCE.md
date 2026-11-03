@@ -1,5 +1,7 @@
 # Asset provenance
 
+The 0.51 Rest pavilion is original project-authored procedural geometry inside the existing one-tile facility envelope. Energy, nausea and service labels are generated interface elements. No external art, font, texture or dependency was added. See [VISITOR_WELLNESS_REPORT.md](VISITOR_WELLNESS_REPORT.md).
+
 The 0.50 visitor history bars and triage controls are original interface geometry and text generated from existing guest state. No external artwork, font, asset or dependency was added. See [VISITOR_TRENDS_TRIAGE_REPORT.md](VISITOR_TRENDS_TRIAGE_REPORT.md).
 
 The 0.49 visitor overview uses original UI bars and labels derived from existing active guest state. The Find halo is original procedural line geometry at the guest's authoritative position. No borrowed icon, portrait, texture, font, external game asset or dependency is added. See [the visitor overview report](VISITOR_OVERVIEW_FIND_REPORT.md).

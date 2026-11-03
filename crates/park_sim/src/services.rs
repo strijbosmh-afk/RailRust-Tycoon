@@ -30,14 +30,17 @@ pub enum ServiceKind {
     Food,
     Drink,
     Toilet,
+    Rest,
 }
 impl ServiceKind {
-    pub const ALL: [Self; 3] = [Self::Food, Self::Drink, Self::Toilet];
+    pub const ALL: [Self; 4] = [Self::Food, Self::Drink, Self::Toilet, Self::Rest];
+    const BASIC_NEEDS: [Self; 3] = [Self::Food, Self::Drink, Self::Toilet];
     pub const fn build_cost_cents(self) -> u64 {
         match self {
             Self::Food => 12_000,
             Self::Drink => 8_000,
             Self::Toilet => 10_000,
+            Self::Rest => 14_000,
         }
     }
     pub const fn upkeep_cost_cents(self) -> u32 {
@@ -45,6 +48,7 @@ impl ServiceKind {
             Self::Food => 30,
             Self::Drink => 20,
             Self::Toilet => 10,
+            Self::Rest => 25,
         }
     }
     pub const fn supply_cost_cents(self) -> u32 {
@@ -52,6 +56,7 @@ impl ServiceKind {
             Self::Food => 60,
             Self::Drink => 25,
             Self::Toilet => 10,
+            Self::Rest => 20,
         }
     }
     pub const fn default_price_cents(self) -> u32 {
@@ -59,6 +64,7 @@ impl ServiceKind {
             Self::Food => 200,
             Self::Drink => 100,
             Self::Toilet => 0,
+            Self::Rest => 0,
         }
     }
     fn cadence(self) -> u64 {
@@ -66,6 +72,7 @@ impl ServiceKind {
             Self::Food => 90,
             Self::Drink => 60,
             Self::Toilet => 120,
+            Self::Rest => 120,
         }
     }
     fn need_thought(self) -> GuestThought {
@@ -73,6 +80,7 @@ impl ServiceKind {
             Self::Food => GuestThought::Hungry,
             Self::Drink => GuestThought::Thirsty,
             Self::Toilet => GuestThought::NeedsToilet,
+            Self::Rest => GuestThought::NeedsRest,
         }
     }
     fn relief_thought(self) -> GuestThought {
@@ -80,6 +88,7 @@ impl ServiceKind {
             Self::Food => GuestThought::AteFood,
             Self::Drink => GuestThought::HadDrink,
             Self::Toilet => GuestThought::UsedToilet,
+            Self::Rest => GuestThought::Rested,
         }
     }
 }
@@ -89,6 +98,7 @@ impl std::fmt::Display for ServiceKind {
             Self::Food => "Food",
             Self::Drink => "Drinks",
             Self::Toilet => "Toilets",
+            Self::Rest => "Rest",
         })
     }
 }
@@ -99,6 +109,13 @@ pub struct GuestNeeds {
     pub hunger: u8,
     pub thirst: u8,
     pub toilet: u8,
+    #[serde(default = "default_energy")]
+    pub energy: u8,
+    #[serde(default)]
+    pub nausea: u8,
+}
+const fn default_energy() -> u8 {
+    80
 }
 impl Default for GuestNeeds {
     fn default() -> Self {
@@ -106,6 +123,8 @@ impl Default for GuestNeeds {
             hunger: 20,
             thirst: 20,
             toilet: 20,
+            energy: default_energy(),
+            nausea: 0,
         }
     }
 }
@@ -117,6 +136,15 @@ impl GuestNeeds {
             hunger: sample(),
             thirst: sample(),
             toilet: sample(),
+            energy: 70 + sample() / 2,
+            nausea: sample() / 3,
+        }
+    }
+    pub(crate) fn for_legacy_guest(seed: u64, id: GuestId) -> Self {
+        Self {
+            energy: default_energy(),
+            nausea: 0,
+            ..Self::for_guest(seed, id)
         }
     }
     pub fn value(self, kind: ServiceKind) -> u8 {
@@ -124,6 +152,7 @@ impl GuestNeeds {
             ServiceKind::Food => self.hunger,
             ServiceKind::Drink => self.thirst,
             ServiceKind::Toilet => self.toilet,
+            ServiceKind::Rest => 100_u8.saturating_sub(self.energy).max(self.nausea),
         }
     }
     fn value_mut(&mut self, kind: ServiceKind) -> &mut u8 {
@@ -131,6 +160,16 @@ impl GuestNeeds {
             ServiceKind::Food => &mut self.hunger,
             ServiceKind::Drink => &mut self.thirst,
             ServiceKind::Toilet => &mut self.toilet,
+            ServiceKind::Rest => unreachable!("rest treats both energy and nausea"),
+        }
+    }
+    fn relieve(&mut self, kind: ServiceKind) {
+        match kind {
+            ServiceKind::Rest => {
+                self.energy = self.energy.max(90);
+                self.nausea = self.nausea.min(10);
+            }
+            _ => *self.value_mut(kind) = 20,
         }
     }
 }
@@ -251,6 +290,8 @@ pub struct GuestNeedsSummary {
     pub hungry_guests: usize,
     pub thirsty_guests: usize,
     pub toilet_guests: usize,
+    pub tired_guests: usize,
+    pub nauseous_guests: usize,
     pub critical_guests: usize,
     pub seeking: usize,
     pub waiting: usize,
@@ -488,6 +529,8 @@ impl Park {
             summary.hungry_guests += usize::from(guest.needs.hunger >= NEED_SEEK_THRESHOLD);
             summary.thirsty_guests += usize::from(guest.needs.thirst >= NEED_SEEK_THRESHOLD);
             summary.toilet_guests += usize::from(guest.needs.toilet >= NEED_SEEK_THRESHOLD);
+            summary.tired_guests += usize::from(guest.needs.energy <= 100 - NEED_SEEK_THRESHOLD);
+            summary.nauseous_guests += usize::from(guest.needs.nausea >= NEED_SEEK_THRESHOLD);
             summary.critical_guests += usize::from(
                 ServiceKind::ALL
                     .iter()
@@ -507,7 +550,7 @@ impl Park {
 
     pub(crate) fn step_needs(&mut self) {
         for guest in &mut self.guests {
-            for kind in ServiceKind::ALL {
+            for kind in ServiceKind::BASIC_NEEDS {
                 if !self.ticks.is_multiple_of(kind.cadence()) {
                     continue;
                 }
@@ -517,6 +560,19 @@ impl Park {
                 if old < NEED_CRITICAL_THRESHOLD && *value >= NEED_CRITICAL_THRESHOLD {
                     guest.satisfaction = guest.satisfaction.saturating_sub(5);
                     guest.think(kind.need_thought(), self.ticks);
+                }
+            }
+            if self.ticks.is_multiple_of(90) {
+                let old_energy = guest.needs.energy;
+                if guest.state == GuestState::Walking {
+                    guest.needs.energy = guest.needs.energy.saturating_sub(1);
+                } else if self.ticks.is_multiple_of(180) {
+                    guest.needs.energy = guest.needs.energy.saturating_add(1).min(100);
+                }
+                guest.needs.nausea = guest.needs.nausea.saturating_sub(1);
+                if old_energy > 15 && guest.needs.energy <= 15 {
+                    guest.satisfaction = guest.satisfaction.saturating_sub(5);
+                    guest.think(GuestThought::NeedsRest, self.ticks);
                 }
             }
             guest.service_cooldown = guest.service_cooldown.saturating_sub(1);
@@ -604,7 +660,7 @@ impl Park {
                 service.served += 1;
                 service.revenue_cents += u64::from(price);
                 service.supplies_cents += supply;
-                *guest.needs.value_mut(service.kind) = 20;
+                guest.needs.relieve(service.kind);
                 guest.satisfaction = guest.satisfaction.saturating_add(5).min(100);
                 guest.think(service.kind.relief_thought(), self.ticks);
                 guest.service_visit = None;
@@ -870,6 +926,8 @@ pub(crate) fn validate_services(park: &Park) -> Result<(), String> {
         if ServiceKind::ALL
             .iter()
             .any(|kind| guest.needs.value(*kind) > 100)
+            || guest.needs.energy > 100
+            || guest.needs.nausea > 100
             || guest.service_cooldown > SERVICE_COOLDOWN_TICKS
             || guest.services_used > MAX_SERVICE_USES
             || guest.service_spent_cents > guest.spent_cents
@@ -892,7 +950,8 @@ pub(crate) fn validate_services(park: &Park) -> Result<(), String> {
         let access = park.service_access(visit.service);
         if guest.ride_visit.is_some()
             || guest.service_cooldown != 0
-            || guest.needs.value(service.kind) < NEED_SEEK_THRESHOLD
+            || (service.kind != ServiceKind::Rest
+                && guest.needs.value(service.kind) < NEED_SEEK_THRESHOLD)
             || guest.current.is_none()
             || guest.state == GuestState::Lost
             || access.status != ServiceAccessStatus::Ready

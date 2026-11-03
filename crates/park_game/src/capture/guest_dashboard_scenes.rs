@@ -9,9 +9,33 @@ pub(super) fn prepare(
 ) {
     assert!(matches!(
         scene,
-        Scene::GuestStats | Scene::GuestTrends | Scene::GuestTriage | Scene::GuestFound
+        Scene::GuestStats
+            | Scene::GuestTrends
+            | Scene::GuestTriage
+            | Scene::RestFacility
+            | Scene::RestFacilityMap
+            | Scene::GuestFound
     ));
-    if matches!(
+    if matches!(scene, Scene::RestFacility | Scene::RestFacilityMap) {
+        let pos = TilePos { x: 12, y: 21 };
+        let id = park
+            .place_service(
+                pos,
+                8,
+                park_sim::PathDirection::North,
+                park_sim::ServiceKind::Rest,
+            )
+            .unwrap();
+        view.selected_service = Some(id);
+        view.guests_open = false;
+        if matches!(scene, Scene::RestFacilityMap) {
+            view.selected = park.service(id).unwrap().object.map(SurfaceId::Object);
+            view.zoom = 4.0;
+            view.pan = world::elevated_tile_center(park, pos, view.rotation)
+                .expect("Rest position")
+                - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+        }
+    } else if matches!(
         scene,
         Scene::GuestStats | Scene::GuestTrends | Scene::GuestTriage
     ) {
@@ -55,7 +79,7 @@ pub(super) fn prepare(
     view.speed = Speed::Paused;
     view.help = false;
     view.rides_open = false;
-    view.services_open = false;
+    view.services_open = matches!(scene, Scene::RestFacility);
     view.finance_open = false;
     view.designs_open = false;
     view.path_tool = ToolState::default();

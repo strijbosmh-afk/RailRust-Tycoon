@@ -238,16 +238,17 @@ fn needs_are_seeded_and_tick_order_applies_each_critical_crossing_once() {
         hunger: 84,
         thirst: 84,
         toilet: 84,
+        ..Default::default()
     };
     park.ticks = 360;
     park.step_needs();
     assert_eq!(
-        park.guests[0].needs,
-        GuestNeeds {
-            hunger: 85,
-            thirst: 85,
-            toilet: 85
-        }
+        (
+            park.guests[0].needs.hunger,
+            park.guests[0].needs.thirst,
+            park.guests[0].needs.toilet
+        ),
+        (85, 85, 85)
     );
     assert_eq!(park.guests[0].satisfaction, 55);
     assert_eq!(park.guests[0].thought, GuestThought::NeedsToilet);
@@ -255,6 +256,97 @@ fn needs_are_seeded_and_tick_order_applies_each_critical_crossing_once() {
     park.step_needs();
     assert_eq!(park.guests[0].satisfaction, 55);
     roundtrip(&park);
+}
+
+#[test]
+fn walking_spends_energy_waiting_recovers_it_and_nausea_eases_without_rng() {
+    let mut park = fixture();
+    let rng = park.crowd_rng;
+    park.guests[0].needs.energy = 41;
+    park.guests[0].needs.nausea = 60;
+    park.guests[0].state = GuestState::Walking;
+    park.ticks = 90;
+    park.step_needs();
+    assert_eq!(
+        (park.guests[0].needs.energy, park.guests[0].needs.nausea),
+        (40, 59)
+    );
+    park.guests[0].state = GuestState::Waiting;
+    park.ticks = 180;
+    park.step_needs();
+    assert_eq!(
+        (park.guests[0].needs.energy, park.guests[0].needs.nausea),
+        (41, 58)
+    );
+    assert_eq!(park.crowd_rng, rng);
+}
+
+#[test]
+fn low_energy_penalty_occurs_only_on_downward_crossing() {
+    let mut park = fixture();
+    park.guests[0].needs.energy = 16;
+    park.guests[0].state = GuestState::Walking;
+    let satisfaction = park.guests[0].satisfaction;
+    park.ticks = 90;
+    park.step_needs();
+    assert_eq!(park.guests[0].needs.energy, 15);
+    assert_eq!(park.guests[0].satisfaction, satisfaction - 5);
+    park.guests[0].state = GuestState::Waiting;
+    park.ticks = 270;
+    park.step_needs();
+    assert_eq!(park.guests[0].needs.energy, 15);
+    assert_eq!(park.guests[0].satisfaction, satisfaction - 5);
+}
+
+#[test]
+fn rest_facility_relieves_both_wellness_needs_after_full_paid_use() {
+    let mut park = fixture();
+    let rest = park
+        .place_service(
+            TilePos { x: 12, y: 21 },
+            8,
+            PathDirection::North,
+            ServiceKind::Rest,
+        )
+        .unwrap();
+    let target = park.guests[0].id;
+    let guest = park
+        .guests
+        .iter_mut()
+        .find(|guest| guest.id == target)
+        .unwrap();
+    guest.needs = GuestNeeds {
+        energy: 20,
+        nausea: 80,
+        ..Default::default()
+    };
+    seek(&mut park, |park| {
+        park.guests.iter().any(|guest| {
+            guest.id == target
+                && guest.service_visit.as_ref().is_some_and(|visit| {
+                    visit.service == rest && visit.phase == ServiceVisitPhase::Using
+                })
+        })
+    });
+    let index = park
+        .guests
+        .iter()
+        .position(|guest| guest.id == target)
+        .unwrap();
+    assert!(park.guests[index].needs.energy < 90);
+    let before_uses = park.guests[index].services_used;
+    let mut loaded = roundtrip(&park);
+    for _ in 0..SERVICE_USE_TICKS {
+        park.advance(Speed::Normal);
+        loaded.advance(Speed::Normal);
+        assert_eq!(park, loaded);
+    }
+    let guest = &park.guests[index];
+    assert_eq!((guest.needs.energy, guest.needs.nausea), (90, 10));
+    assert_eq!(guest.services_used, before_uses + 1);
+    assert_eq!(guest.thought, GuestThought::Rested);
+    assert_eq!(park.service(rest).unwrap().supplies_cents, 20);
+    ledger(&park);
 }
 
 #[test]
@@ -573,7 +665,7 @@ fn v7_migration_preserves_old_feedback_money_rng_and_strict_shape() {
     );
     assert_eq!(loaded.crowd_rng, source.crowd_rng);
     for guest in &loaded.guests {
-        assert_eq!(guest.needs, GuestNeeds::for_guest(42, guest.id));
+        assert_eq!(guest.needs, GuestNeeds::for_legacy_guest(42, guest.id));
     }
     let mut repeated = Park::from_save_bytes(&bytes).unwrap();
     for _ in 0..6000 {
@@ -731,6 +823,7 @@ fn active_service_visits_require_the_matching_need_to_remain_urgent() {
             ServiceKind::Food => "hunger",
             ServiceKind::Drink => "thirst",
             ServiceKind::Toilet => "toilet",
+            ServiceKind::Rest => unreachable!("fixture has only original services"),
         };
         json["park"]["guests"][index]["needs"][field] = json!(NEED_SEEK_THRESHOLD - 1);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
@@ -830,6 +923,7 @@ fn loading_above_critical_does_not_repeat_the_crossing_penalty() {
         hunger: 85,
         thirst: 90,
         toilet: 100,
+        ..Default::default()
     };
     park.guests[0].satisfaction = 45;
     let mut loaded = roundtrip(&park);
@@ -840,12 +934,12 @@ fn loading_above_critical_does_not_repeat_the_crossing_penalty() {
     assert_eq!(park, loaded);
     assert_eq!(park.guests[0].satisfaction, 45);
     assert_eq!(
-        park.guests[0].needs,
-        GuestNeeds {
-            hunger: 86,
-            thirst: 91,
-            toilet: 100
-        }
+        (
+            park.guests[0].needs.hunger,
+            park.guests[0].needs.thirst,
+            park.guests[0].needs.toilet
+        ),
+        (86, 91, 100)
     );
 }
 
@@ -874,6 +968,7 @@ fn critical_needs_continue_during_a_reserved_passenger_journey() {
         hunger: 84,
         thirst: 84,
         toilet: 84,
+        ..Default::default()
     };
     park.ticks = (park.ticks / 360 + 1) * 360 - 1;
     let satisfaction = park.guests[index].satisfaction;
@@ -886,14 +981,49 @@ fn critical_needs_continue_during_a_reserved_passenger_journey() {
         satisfaction.saturating_sub(15)
     );
     assert_eq!(
-        park.guests[index].needs,
-        GuestNeeds {
-            hunger: 85,
-            thirst: 85,
-            toilet: 85
-        }
+        (
+            park.guests[index].needs.hunger,
+            park.guests[index].needs.thirst,
+            park.guests[index].needs.toilet
+        ),
+        (85, 85, 85)
     );
     assert!(park.guests[index].service_visit.is_none());
     assert!(park.guests[index].ride_visit.is_some());
     roundtrip(&park);
+}
+
+#[test]
+fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields() {
+    let source = fixture();
+    let mut old: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
+    old["schema_version"] = json!(24);
+    old["content_version"] = json!(24);
+    for guest in old["park"]["guests"].as_array_mut().unwrap() {
+        let needs = guest["needs"].as_object_mut().unwrap();
+        needs.remove("energy");
+        needs.remove("nausea");
+    }
+    let old_bytes = serde_json::to_vec(&old).unwrap();
+    let migrated = Park::from_save_bytes(&old_bytes).unwrap();
+    for (before, after) in source.guests().iter().zip(migrated.guests()) {
+        assert_eq!(before.id, after.id);
+        assert_eq!(before.needs.hunger, after.needs.hunger);
+        assert_eq!(before.needs.thirst, after.needs.thirst);
+        assert_eq!(before.needs.toilet, after.needs.toilet);
+        assert_eq!((after.needs.energy, after.needs.nausea), (80, 0));
+    }
+    roundtrip(&migrated);
+    let mut forged = old.clone();
+    forged["park"]["guests"][0]["needs"]["energy"] = json!(80);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
+    let mut incomplete: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
+    incomplete["park"]["guests"][0]["needs"]
+        .as_object_mut()
+        .unwrap()
+        .remove("nausea");
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&incomplete).unwrap()).is_err());
+    let mut out_of_range: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
+    out_of_range["park"]["guests"][0]["needs"]["nausea"] = json!(101);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&out_of_range).unwrap()).is_err());
 }

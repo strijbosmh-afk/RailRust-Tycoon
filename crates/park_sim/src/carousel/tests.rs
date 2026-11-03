@@ -326,6 +326,66 @@ fn choice_respects_price_reachability_seed_and_stable_ride_ids() {
 }
 
 #[test]
+fn tired_or_nauseous_guests_wait_for_recovery_before_a_new_ride() {
+    let (mut park, _) = fixture(true);
+    let graph = crate::crowds::PathGraph::new(&park.objects);
+    for guest in &mut park.guests {
+        guest.next = None;
+        guest.destination = None;
+        guest.route.clear();
+        guest.wait_ticks = 0;
+        guest.progress = 0;
+        guest.state = crate::GuestState::Waiting;
+    }
+    let accesses = park
+        .all_rides()
+        .map(|ride| (ride.id, park.ride_access(ride.id)))
+        .collect();
+    let id = *park
+        .choose_guest_rides(&graph, &accesses)
+        .keys()
+        .next()
+        .unwrap();
+    let index = park.guests.iter().position(|guest| guest.id == id).unwrap();
+    park.guests[index].needs.energy = 25;
+    assert!(!park.choose_guest_rides(&graph, &accesses).contains_key(&id));
+    park.guests[index].needs.energy = 90;
+    park.guests[index].needs.nausea = 70;
+    assert!(!park.choose_guest_rides(&graph, &accesses).contains_key(&id));
+    park.guests[index].needs.nausea = 10;
+    assert!(park.choose_guest_rides(&graph, &accesses).contains_key(&id));
+}
+
+#[test]
+fn completed_ride_adds_family_specific_nausea_after_natural_decay() {
+    let (mut park, _) = fixture(true);
+    let coaster = park.ride().unwrap().id;
+    park.set_ride_open(coaster, true).unwrap();
+    for _ in 0..24_000 {
+        let before = park.guests.clone();
+        park.advance(Speed::Normal);
+        for (old, new) in before.iter().zip(&park.guests) {
+            if new.rides_completed == old.rides_completed {
+                continue;
+            }
+            let ride = old.ride_visit.as_ref().unwrap().ride;
+            let added: u8 = match park.ride_kind(ride).unwrap() {
+                RideKind::Coaster => 22,
+                RideKind::Carousel => 5,
+            };
+            let after_decay = if park.ticks.is_multiple_of(90) {
+                old.needs.nausea.saturating_sub(1)
+            } else {
+                old.needs.nausea
+            };
+            assert_eq!(new.needs.nausea, after_decay.saturating_add(added).min(100));
+            return;
+        }
+    }
+    panic!("neither open ride completed a passenger trip");
+}
+
+#[test]
 fn lifetime_capacity_and_malformed_footprints_are_strict() {
     let mut park = Park::new(32, 32);
     for _ in 0..MAX_CAROUSEL_RECORDS {

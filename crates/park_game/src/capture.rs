@@ -78,6 +78,8 @@ enum Scene {
     GuestStats,
     GuestTrends,
     GuestTriage,
+    RestFacility,
+    RestFacilityMap,
     GuestFound,
     Sound,
     SoundMuted,
@@ -705,6 +707,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("guest-stats") => Scene::GuestStats,
                 Some("guest-trends") => Scene::GuestTrends,
                 Some("guest-triage") => Scene::GuestTriage,
+                Some("rest-facility") => Scene::RestFacility,
+                Some("rest-facility-map") => Scene::RestFacilityMap,
                 Some("guest-found") => Scene::GuestFound,
                 Some("sound") => Scene::Sound,
                 Some("sound-muted") => Scene::SoundMuted,
@@ -1245,7 +1249,12 @@ fn apply_preset(
     }
     if matches!(
         capture.scene,
-        Scene::GuestStats | Scene::GuestTrends | Scene::GuestTriage | Scene::GuestFound
+        Scene::GuestStats
+            | Scene::GuestTrends
+            | Scene::GuestTriage
+            | Scene::RestFacility
+            | Scene::RestFacilityMap
+            | Scene::GuestFound
     ) {
         guest_dashboard_scenes::prepare(
             &mut sim.0,

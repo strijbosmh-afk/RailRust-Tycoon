@@ -4,7 +4,7 @@ use park_sim::{Guest, GuestState, Park, RideVisitPhase, ServiceVisitPhase};
 
 pub(crate) const PAGE_SIZE: usize = 8;
 pub(crate) const PANEL_WIDTH: f32 = 760.0;
-pub(crate) const PANEL_HEIGHT: f32 = 520.0;
+pub(crate) const PANEL_HEIGHT: f32 = 560.0;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) enum GuestFilter {
@@ -28,9 +28,13 @@ impl GuestFilter {
     fn matches(self, guest: &Guest) -> bool {
         match self {
             Self::All => true,
-            Self::Urgent => [guest.needs.hunger, guest.needs.thirst, guest.needs.toilet]
-                .into_iter()
-                .any(|value| value >= 70),
+            Self::Urgent => {
+                [guest.needs.hunger, guest.needs.thirst, guest.needs.toilet]
+                    .into_iter()
+                    .any(|value| value >= 70)
+                    || guest.needs.energy <= 30
+                    || guest.needs.nausea >= 70
+            }
             Self::Unhappy => guest.satisfaction < 40,
             Self::Lost => guest.state == GuestState::Lost,
         }
@@ -73,6 +77,8 @@ pub(crate) enum GuestMeterFill {
     Hunger,
     Thirst,
     Toilet,
+    Energy,
+    Nausea,
 }
 #[derive(Component)]
 pub(crate) enum GuestLabel {
@@ -328,6 +334,8 @@ pub(super) fn setup(commands: &mut Commands) {
                                 GuestMeterFill::Hunger,
                                 GuestMeterFill::Thirst,
                                 GuestMeterFill::Toilet,
+                                GuestMeterFill::Energy,
+                                GuestMeterFill::Nausea,
                             ] {
                                 meter(p, kind);
                             }
@@ -474,16 +482,18 @@ fn meter_value(guest: &Guest, kind: GuestMeterFill) -> (&'static str, u8) {
         GuestMeterFill::Hunger => ("Hunger", guest.needs.hunger),
         GuestMeterFill::Thirst => ("Thirst", guest.needs.thirst),
         GuestMeterFill::Toilet => ("Toilet", guest.needs.toilet),
+        GuestMeterFill::Energy => ("Energy", guest.needs.energy),
+        GuestMeterFill::Nausea => ("Nausea", guest.needs.nausea),
     }
 }
 
 fn meter_color(kind: GuestMeterFill, value: u8) -> Color {
     let warning = match kind {
-        GuestMeterFill::Mood => value <= 40,
+        GuestMeterFill::Mood | GuestMeterFill::Energy => value <= 40,
         _ => value >= 70,
     };
     let caution = match kind {
-        GuestMeterFill::Mood => value <= 65,
+        GuestMeterFill::Mood | GuestMeterFill::Energy => value <= 60,
         _ => value >= 40,
     };
     if warning {
@@ -799,6 +809,13 @@ mod triage_tests {
         guest.needs.hunger = 69;
         guest.needs.thirst = 69;
         guest.needs.toilet = 69;
+        assert!(!GuestFilter::Urgent.matches(&guest));
+        guest.needs.energy = 30;
+        assert!(GuestFilter::Urgent.matches(&guest));
+        guest.needs.energy = 31;
+        guest.needs.nausea = 70;
+        assert!(GuestFilter::Urgent.matches(&guest));
+        guest.needs.nausea = 69;
         assert!(!GuestFilter::Urgent.matches(&guest));
         guest.satisfaction = 39;
         assert!(GuestFilter::Unhappy.matches(&guest));

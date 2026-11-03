@@ -240,6 +240,10 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
             .remove("ride_names"),
         Some(serde_json::json!([]))
     );
+    for guest in current["park"]["guests"].as_array_mut().unwrap() {
+        guest["needs"].as_object_mut().unwrap().remove("energy");
+        guest["needs"].as_object_mut().unwrap().remove("nausea");
+    }
     assert_eq!(current["park"], original["park"]);
     assert!(!p.visitor_flow_stats().enabled);
     let mut continuous = p.clone();

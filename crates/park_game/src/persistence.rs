@@ -186,8 +186,12 @@ mod tests {
 
     fn session() -> SaveSession {
         SaveSession::at(std::env::temp_dir().join(format!(
-            "Parkbound application save test é {} {}",
+            "Parkbound application save test é {} {} {}",
             std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
             NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
         )))
     }

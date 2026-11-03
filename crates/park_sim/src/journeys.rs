@@ -394,6 +394,7 @@ impl Park {
                 let waited = visit.waited_ticks;
                 let path = *self.object(path_id).expect("protected transfer landing");
                 let tick = self.ticks;
+                let ride_kind = self.ride_kind(ride_id);
                 let (ride, guests) = self.ride_and_guests_mut(ride_id).unwrap();
                 let guest = &mut guests[index];
                 guest.current = Some(path.id);
@@ -411,6 +412,19 @@ impl Park {
                     ride.completed += 1;
                     guest.rides_completed = guest.rides_completed.saturating_add(1);
                     guest.rate_completed_trip(ride, fare, waited, tick);
+                    let added_nausea = match ride_kind {
+                        Some(crate::RideKind::Coaster) => 22,
+                        Some(crate::RideKind::Carousel) => 5,
+                        None => 0,
+                    };
+                    let before = guest.needs.nausea;
+                    guest.needs.nausea = guest.needs.nausea.saturating_add(added_nausea).min(100);
+                    if before < crate::NEED_CRITICAL_THRESHOLD
+                        && guest.needs.nausea >= crate::NEED_CRITICAL_THRESHOLD
+                    {
+                        guest.satisfaction = guest.satisfaction.saturating_sub(5);
+                        guest.think(crate::GuestThought::FeelingSick, tick);
+                    }
                 }
             }
         }

@@ -41,6 +41,8 @@ impl Park {
                 || guest.ride_cooldown != 0
                 || guest.next.is_some()
                 || guest.wait_ticks != 0
+                || guest.needs.energy <= 25
+                || guest.needs.nausea >= 70
             {
                 continue;
             }

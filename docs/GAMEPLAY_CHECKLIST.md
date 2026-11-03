@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Current 0.51.0 visitor wellness slice: Energy falls during walking and recovers while waiting; completed rides add nausea, which eases with time. A paid-build Rest pavilion can restore energy and lower nausea through the ordinary service and finance pipeline. Very tired or nauseous guests defer new ride choices; urgent triage and park statistics include both values. Saves migrate strictly to 25/25. See [VISITOR_WELLNESS_REPORT.md](VISITOR_WELLNESS_REPORT.md). Broader GST/UI and management requirements remain in progress.
+
 Current 0.50.0 visitor management slice: Guests [L] → Park stats adds a bounded, session-only 30-second chart for average satisfaction and the percentage with an urgent need. Guest list filters live visitors by urgent need, low satisfaction or lost state, with stable-ID paging and selection. Saves remain 24/24. See [VISITOR_TRENDS_TRIAGE_REPORT.md](VISITOR_TRENDS_TRIAGE_REPORT.md). Broader GST/UI requirements remain in progress.
 
 Prior 0.49.0 visitor management slice: Guests [L] → Park stats summarizes active satisfaction, 70+ urgent needs and live activity using numbers plus graphical bars; selected Guest → Find centers and marks the current position. See [VISITOR_OVERVIEW_FIND_REPORT.md](VISITOR_OVERVIEW_FIND_REPORT.md).

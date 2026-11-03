@@ -129,6 +129,7 @@ fn prepare_state(
                 park_sim::ServiceKind::Food => GuestThought::AteFood,
                 park_sim::ServiceKind::Drink => GuestThought::HadDrink,
                 park_sim::ServiceKind::Toilet => GuestThought::UsedToilet,
+                park_sim::ServiceKind::Rest => GuestThought::Rested,
             };
             services::seek(
                 park,

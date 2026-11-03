@@ -29,6 +29,18 @@ pub(crate) fn needs_after_tick(old: &Guest, tick: u64) -> (GuestNeeds, u8) {
             satisfaction = satisfaction.saturating_sub(5);
         }
     }
+    if tick.is_multiple_of(90) {
+        let old_energy = needs.energy;
+        if old.state == park_sim::GuestState::Walking {
+            needs.energy = needs.energy.saturating_sub(1);
+        } else if tick.is_multiple_of(180) {
+            needs.energy = needs.energy.saturating_add(1).min(100);
+        }
+        needs.nausea = needs.nausea.saturating_sub(1);
+        if old_energy > 15 && needs.energy <= 15 {
+            satisfaction = satisfaction.saturating_sub(5);
+        }
+    }
     (needs, satisfaction)
 }
 
@@ -37,6 +49,10 @@ fn relieved(needs: &mut GuestNeeds, kind: ServiceKind) {
         ServiceKind::Food => needs.hunger = 20,
         ServiceKind::Drink => needs.thirst = 20,
         ServiceKind::Toilet => needs.toilet = 20,
+        ServiceKind::Rest => {
+            needs.energy = needs.energy.max(90);
+            needs.nausea = needs.nausea.min(10);
+        }
     }
 }
 
@@ -48,6 +64,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         g.needs.hunger > 100
             || g.needs.thirst > 100
             || g.needs.toilet > 100
+            || g.needs.energy > 100
+            || g.needs.nausea > 100
             || (g.service_visit.is_some() && g.ride_visit.is_some())
     }) {
         return Err("needs bounds or exclusive visit roles are invalid".into());
@@ -62,10 +80,18 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || summary.hungry_guests != guests.iter().filter(|g| g.needs.hunger >= 60).count()
         || summary.thirsty_guests != guests.iter().filter(|g| g.needs.thirst >= 60).count()
         || summary.toilet_guests != guests.iter().filter(|g| g.needs.toilet >= 60).count()
+        || summary.tired_guests != guests.iter().filter(|g| g.needs.energy <= 40).count()
+        || summary.nauseous_guests != guests.iter().filter(|g| g.needs.nausea >= 60).count()
         || summary.critical_guests
             != guests
                 .iter()
-                .filter(|g| g.needs.hunger >= 85 || g.needs.thirst >= 85 || g.needs.toilet >= 85)
+                .filter(|g| {
+                    g.needs.hunger >= 85
+                        || g.needs.thirst >= 85
+                        || g.needs.toilet >= 85
+                        || g.needs.energy <= 15
+                        || g.needs.nausea >= 85
+                })
                 .count()
         || summary.seeking != phase_count(ServiceVisitPhase::Approaching)
         || summary.waiting != phase_count(ServiceVisitPhase::Waiting)
@@ -135,6 +161,7 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
                 ServiceKind::Food => GuestThought::AteFood,
                 ServiceKind::Drink => GuestThought::HadDrink,
                 ServiceKind::Toilet => GuestThought::UsedToilet,
+                ServiceKind::Rest => GuestThought::Rested,
             };
             if new.satisfaction != satisfaction.saturating_add(5).min(100)
                 || new.thought != thought
@@ -146,6 +173,19 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
                     "service relief changed satisfaction/thought/reviews incorrectly".into(),
                 );
             }
+        }
+        if new.rides_completed != old.rides_completed {
+            let ride = old
+                .ride_visit
+                .as_ref()
+                .ok_or("completed ride lacks its old visit")?
+                .ride;
+            let added = match park.ride_kind(ride) {
+                Some(park_sim::RideKind::Coaster) => 22,
+                Some(park_sim::RideKind::Carousel) => 5,
+                None => return Err("completed ride owner vanished".into()),
+            };
+            needs.nausea = needs.nausea.saturating_add(added).min(100);
         }
         if new.needs != needs {
             return Err(format!(

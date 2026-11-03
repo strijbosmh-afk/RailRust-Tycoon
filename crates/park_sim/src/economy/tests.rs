@@ -543,6 +543,10 @@ fn v5_passengers_migrate_free_with_exact_future_and_strict_old_shapes() {
     ] {
         seek(&mut source, |park| member(park, phase).is_some());
         crate::experience::tests::reset_feedback(&mut source);
+        for guest in &mut source.guests {
+            guest.needs.energy = 80;
+            guest.needs.nausea = 0;
+        }
         let legacy = v5_value(&source);
         let mut loaded = Park::from_save_bytes(&serde_json::to_vec(&legacy).unwrap()).unwrap();
         assert_eq!(loaded, source);
