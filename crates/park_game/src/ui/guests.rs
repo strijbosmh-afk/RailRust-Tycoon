@@ -6,6 +6,56 @@ pub(crate) const PAGE_SIZE: usize = 8;
 pub(crate) const PANEL_WIDTH: f32 = 760.0;
 pub(crate) const PANEL_HEIGHT: f32 = 520.0;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum GuestFilter {
+    #[default]
+    All,
+    Urgent,
+    Unhappy,
+    Lost,
+}
+
+impl GuestFilter {
+    pub(crate) fn next(self) -> Self {
+        match self {
+            Self::All => Self::Urgent,
+            Self::Urgent => Self::Unhappy,
+            Self::Unhappy => Self::Lost,
+            Self::Lost => Self::All,
+        }
+    }
+
+    fn matches(self, guest: &Guest) -> bool {
+        match self {
+            Self::All => true,
+            Self::Urgent => [guest.needs.hunger, guest.needs.thirst, guest.needs.toilet]
+                .into_iter()
+                .any(|value| value >= 70),
+            Self::Unhappy => guest.satisfaction < 40,
+            Self::Lost => guest.state == GuestState::Lost,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::All => "Filter: All",
+            Self::Urgent => "Filter: Urgent",
+            Self::Unhappy => "Filter: Unhappy",
+            Self::Lost => "Filter: Lost",
+        }
+    }
+}
+
+fn filtered_guests(park: &Park, filter: GuestFilter) -> Vec<&Guest> {
+    let mut guests: Vec<_> = park
+        .guests()
+        .iter()
+        .filter(|guest| filter.matches(guest))
+        .collect();
+    guests.sort_unstable_by_key(|guest| guest.id);
+    guests
+}
+
 #[derive(Component)]
 pub(crate) struct GuestPanel;
 #[derive(Component)]
@@ -29,6 +79,7 @@ pub(crate) enum GuestLabel {
     Summary,
     FlowView,
     StatsView,
+    Filter,
     Page,
     Row(usize),
     Title,
@@ -152,6 +203,19 @@ pub(super) fn setup(commands: &mut Commands) {
                         BackgroundColor(BUTTON),
                     ))
                     .with_children(|p| text(p, "Park stats", 12.0, GuestLabel::StatsView));
+                    p.spawn((
+                        Button,
+                        Action::CycleGuestFilter,
+                        Node {
+                            width: px(110),
+                            height: px(30),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON),
+                    ))
+                    .with_children(|p| text(p, "All guests", 11.0, GuestLabel::Filter));
                     button(p, "Close [L / Esc]", Action::CloseGuests, 140.0);
                 });
                 text(p, "Guest experience", 12.0, GuestLabel::Summary);
@@ -594,8 +658,7 @@ pub(crate) fn refresh(
         };
     }
     let flow = sim.0.visitor_flow_stats();
-    let mut guests: Vec<_> = sim.0.guests().iter().collect();
-    guests.sort_unstable_by_key(|guest| guest.id);
+    let guests = filtered_guests(&sim.0, view.guest_filter);
     resolve_selection(&guests, &mut view);
     let selected = view
         .selected_guest
@@ -644,6 +707,7 @@ pub(crate) fn refresh(
                 "Park stats"
             }
             .into(),
+            GuestLabel::Filter => view.guest_filter.label().into(),
             GuestLabel::Summary if view.guest_flow_view => format!(
                 "{} active guests / {} leaving / {} finishing visits\nArrival flow {} / {} lifetime departures",
                 flow.active,
@@ -652,9 +716,18 @@ pub(crate) fn refresh(
                 if flow.enabled { "on" } else { "off" },
                 flow.departed
             ),
+            GuestLabel::Summary if view.guest_stats_view => format!(
+                "{} active guests / Park average satisfaction {} / {} unhappy\nA live park-wide view; use Guest list to inspect visitors",
+                sim.0.guests().len(),
+                summary
+                    .average_satisfaction
+                    .map_or_else(|| "none".into(), |value| format!("{value}/100")),
+                summary.unhappy_guests,
+            ),
             GuestLabel::Summary => format!(
-                "{} guests / Average satisfaction {} / {} unhappy\n{} reviews: {} from {} opinions",
+                "Showing {} / {} guests / Park average satisfaction {} / {} unhappy\n{} reviews: {} from {} opinions",
                 guests.len(),
+                sim.0.guests().len(),
                 summary
                     .average_satisfaction
                     .map_or_else(|| "none".into(), |value| format!("{value}/100")),
@@ -708,5 +781,31 @@ pub(crate) fn refresh(
         if text.0 != value {
             text.0 = value;
         }
+    }
+}
+
+#[cfg(test)]
+mod triage_tests {
+    use super::*;
+
+    #[test]
+    fn filters_use_current_guest_condition_and_stable_identity() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(42).unwrap();
+        let mut guest = park.guests()[0].clone();
+        assert!(GuestFilter::All.matches(&guest));
+        guest.needs.hunger = 70;
+        assert!(GuestFilter::Urgent.matches(&guest));
+        guest.needs.hunger = 69;
+        guest.needs.thirst = 69;
+        guest.needs.toilet = 69;
+        assert!(!GuestFilter::Urgent.matches(&guest));
+        guest.satisfaction = 39;
+        assert!(GuestFilter::Unhappy.matches(&guest));
+        guest.state = GuestState::Lost;
+        assert!(GuestFilter::Lost.matches(&guest));
+        let all = filtered_guests(&park, GuestFilter::All);
+        assert_eq!(all.len(), park.guests().len());
+        assert!(all.windows(2).all(|pair| pair[0].id < pair[1].id));
     }
 }

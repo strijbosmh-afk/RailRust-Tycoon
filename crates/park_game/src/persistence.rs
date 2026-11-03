@@ -139,6 +139,7 @@ pub(super) fn perform_action(
                 )
             };
             let capture_active = view.capture_active;
+            let park_generation = view.park_generation.wrapping_add(1);
             *park = loaded;
             *view = ViewState {
                 speed: Speed::Paused,
@@ -147,6 +148,7 @@ pub(super) fn perform_action(
                 terrain_profile,
                 terrain_custom,
                 capture_active,
+                park_generation,
                 // Loading resets selection. Never let the same button press
                 // select a surface in the newly loaded park behind the UI.
                 ui_pointer_consumed: true,
@@ -247,6 +249,7 @@ mod tests {
         assert!(view.selected_ride.is_none());
         assert_eq!(view.ride_browse_pending, 0);
         assert!(view.scene_dirty && view.ui_pointer_consumed);
+        assert_eq!(view.park_generation, 1);
         assert!(!view.remove_path_pending && !view.toggle_train_pending);
         assert!(!view.terrain_change_pending && !view.dragging && !view.terrain_custom);
         assert_eq!(view.terrain_profile, TerrainProfile::Terraced);
@@ -278,6 +281,7 @@ mod tests {
         assert_eq!(park, initial);
         assert_eq!(view.speed, Speed::Fast);
         assert_eq!(view.rotation, 2);
+        assert_eq!(view.park_generation, 0);
         session
             .store
             .as_ref()

@@ -1,6 +1,8 @@
 # Gameplay checklist
 
-Current 0.49.0 visitor management slice: Guests [L] → Park stats summarizes active satisfaction, 70+ urgent needs and live activity using numbers plus graphical bars; selected Guest → Find centers and marks the current position. The dashboard is a present-time snapshot, with no saved trend history or new park fields. See [VISITOR_OVERVIEW_FIND_REPORT.md](VISITOR_OVERVIEW_FIND_REPORT.md). Broader GST/UI requirements remain in progress.
+Current 0.50.0 visitor management slice: Guests [L] → Park stats adds a bounded, session-only 30-second chart for average satisfaction and the percentage with an urgent need. Guest list filters live visitors by urgent need, low satisfaction or lost state, with stable-ID paging and selection. Saves remain 24/24. See [VISITOR_TRENDS_TRIAGE_REPORT.md](VISITOR_TRENDS_TRIAGE_REPORT.md). Broader GST/UI requirements remain in progress.
+
+Prior 0.49.0 visitor management slice: Guests [L] → Park stats summarizes active satisfaction, 70+ urgent needs and live activity using numbers plus graphical bars; selected Guest → Find centers and marks the current position. See [VISITOR_OVERVIEW_FIND_REPORT.md](VISITOR_OVERVIEW_FIND_REPORT.md).
 
 Current 0.48.0 visitor presentation stage: **Guests [L]** adds exact satisfaction/need meters, grouped activity/money/preference/ride-choice information and guest-ID-linked shirt swatches. Twelve original procedural map looks add skin, hair and accessory variation without new save state; schema/content stays 24/24. See [VISITOR_STATS_APPEARANCE_REPORT.md](VISITOR_STATS_APPEARANCE_REPORT.md). GST-03/04 and UI-02 remain in progress because the broader needs, behavior and management scope is unfinished.
 

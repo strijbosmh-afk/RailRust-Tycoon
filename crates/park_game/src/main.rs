@@ -118,10 +118,12 @@ struct ViewState {
     guest_page: usize,
     guest_browse_pending: i32,
     guest_page_pending: i32,
+    guest_filter: ui::guests::GuestFilter,
     guest_flow_view: bool,
     guest_flow_pending: bool,
     guest_stats_view: bool,
     guest_stats_pending: bool,
+    park_generation: u64,
     visitor_pending: Option<ui::visitor_flow::VisitorCommand>,
     visitor_notice: Option<String>,
     modal_transition_pending: bool,
@@ -203,10 +205,12 @@ impl Default for ViewState {
             guest_page: 0,
             guest_browse_pending: 0,
             guest_page_pending: 0,
+            guest_filter: default(),
             guest_flow_view: false,
             guest_flow_pending: false,
             guest_stats_view: false,
             guest_stats_pending: false,
+            park_generation: 0,
             visitor_pending: None,
             visitor_notice: None,
             modal_transition_pending: false,
@@ -500,6 +504,7 @@ fn main() -> AppExit {
         .insert_resource(Simulation(park))
         .insert_resource(view)
         .init_resource::<design_library::DesignLibrary>()
+        .init_resource::<ui::guest_stats::GuestStatsHistory>()
         .init_resource::<design_transfer::DialogPause>()
         .insert_non_send_resource(design_transfer::DialogThread::default())
         .insert_resource(SaveSession::from_arguments(std::env::args_os().skip(1)))
@@ -564,6 +569,7 @@ fn main() -> AppExit {
                     ui::refresh,
                     ui::audio::refresh,
                     ui::guests::refresh,
+                    ui::guest_stats::sample_history,
                     ui::guest_stats::refresh,
                     ui::visitor_flow::refresh,
                     ui::services::refresh,

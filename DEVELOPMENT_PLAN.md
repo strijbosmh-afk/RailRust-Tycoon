@@ -413,6 +413,10 @@ The bounded RID-11 customization milestone is verified in [RIDE_COLORS_REPORT.md
 
 Three original named palettes apply the already saved Structure/Supports/Vehicles colors to one ride through the Rides panel. The existing per-part arrows continue to work after a preset. Save schema/content stays 23/23; this stage adds no external art or dependency. [RIDE_PALETTE_PRESETS_REPORT.md](docs/RIDE_PALETTE_PRESETS_REPORT.md) holds current verification. Next add bounded player ride names with explicit 23→24 migration, then continue editable scenery and ride-specific sound. RID-11 remains in progress until its broader criteria pass.
 
-## Raised path perspective — current 0.49.1 correction
+## Raised path perspective — 0.49.1 correction
 
 The [bridge perspective report](docs/BRIDGE_PERSPECTIVE_REPORT.md) records the visual correction for raised paths crossing lower land. Timber posts end at the underlying terrain and are omitted over occupied crossings. Path endpoint height rules, saves and simulation behavior stay 24/24. Continue visitor trends and needs after this corrective build; this PC remains excluded as a performance reference.
+
+## Visitor trends and triage — 0.50.0
+
+The [visitor trends and triage report](docs/VISITOR_TRENDS_TRIAGE_REPORT.md) records a bounded, park-wide session history of satisfaction and urgent needs, plus live guest-list filters for urgent, unhappy and lost visitors. History samples every 30 simulation seconds, holds at most 24 points, pauses with the park and resets after loading another park. Filters use existing guest state and stable IDs; saved park schema/content remains 24/24. Next implement energy, nausea and rest as explicit guest needs with services and save migration, then assistance and fuller management. This PC remains excluded as a performance reference.

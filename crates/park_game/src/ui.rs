@@ -113,6 +113,7 @@ pub(super) enum Action {
     GuestPage(i8),
     GuestFlowView,
     GuestStatsView,
+    CycleGuestFilter,
     FindGuest,
     Visitor(visitor_flow::VisitorCommand),
     Services,
@@ -1004,6 +1005,7 @@ pub(super) fn button_actions(
                     | Action::GuestPage(_)
                     | Action::GuestFlowView
                     | Action::GuestStatsView
+                    | Action::CycleGuestFilter
                     | Action::FindGuest
                     | Action::Visitor(_)
             )
@@ -1109,6 +1111,14 @@ pub(super) fn button_actions(
             Action::FinanceView if view.finance_open => view.finance_view_pending = true,
             Action::GuestFlowView if view.guests_open => view.guest_flow_pending = true,
             Action::GuestStatsView if view.guests_open => view.guest_stats_pending = true,
+            Action::CycleGuestFilter if view.guests_open => {
+                view.guest_filter = view.guest_filter.next();
+                view.guest_page = 0;
+                view.guest_flow_view = false;
+                view.guest_flow_pending = false;
+                view.guest_stats_view = false;
+                view.guest_stats_pending = false;
+            }
             Action::FindGuest
                 if view.guests_open && !view.guest_flow_view && !view.guest_stats_view =>
             {
@@ -1184,6 +1194,7 @@ pub(super) fn button_actions(
             | Action::ToggleService
             | Action::GuestFlowView
             | Action::GuestStatsView
+            | Action::CycleGuestFilter
             | Action::FindGuest
             | Action::Visitor(_) => {}
             Action::Finance

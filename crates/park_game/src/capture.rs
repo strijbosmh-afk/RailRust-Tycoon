@@ -76,6 +76,8 @@ enum Scene {
     NamesCarousel,
     Scenery,
     GuestStats,
+    GuestTrends,
+    GuestTriage,
     GuestFound,
     Sound,
     SoundMuted,
@@ -701,6 +703,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("names-carousel") => Scene::NamesCarousel,
                 Some("scenery") => Scene::Scenery,
                 Some("guest-stats") => Scene::GuestStats,
+                Some("guest-trends") => Scene::GuestTrends,
+                Some("guest-triage") => Scene::GuestTriage,
                 Some("guest-found") => Scene::GuestFound,
                 Some("sound") => Scene::Sound,
                 Some("sound-muted") => Scene::SoundMuted,
@@ -1020,6 +1024,7 @@ pub(super) fn configure(app: &mut App) {
 type PresetResources<'w> = (
     Option<ResMut<'w, crate::design_library::DesignLibrary>>,
     Option<ResMut<'w, crate::sound::SoundSettings>>,
+    Option<ResMut<'w, crate::ui::guest_stats::GuestStatsHistory>>,
 );
 fn apply_preset(
     capture: Res<Capture>,
@@ -1031,7 +1036,7 @@ fn apply_preset(
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
-    let (library, mut sound) = resources;
+    let (library, mut sound, mut guest_history) = resources;
     view.capture_active = true;
     view.set_speed(Speed::Paused);
     // These controlled scenes build their own stopped, waiting or paid state.
@@ -1238,8 +1243,16 @@ fn apply_preset(
     ) {
         name_scenery_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
-    if matches!(capture.scene, Scene::GuestStats | Scene::GuestFound) {
-        guest_dashboard_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    if matches!(
+        capture.scene,
+        Scene::GuestStats | Scene::GuestTrends | Scene::GuestTriage | Scene::GuestFound
+    ) {
+        guest_dashboard_scenes::prepare(
+            &mut sim.0,
+            &mut view,
+            capture.scene,
+            guest_history.as_deref_mut(),
+        );
     }
     if capture.scene.is_visitors() {
         visitor_scenes::prepare(&mut sim.0, &mut view, capture.scene);
