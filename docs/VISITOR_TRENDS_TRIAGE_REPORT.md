@@ -4,7 +4,7 @@ This stage adds a bounded session history to **Guests → Park stats** and a liv
 
 The chart and filter use existing guest fields and original UI geometry. No save field, migration, external asset, dependency, cost or RNG draw is added. Park save schema/content remains **24/24**. There is no historical backfill: the chart begins when the game session starts, and opening an old save begins a new history for that loaded park. This preserves save compatibility and caps the memory and UI work regardless of park duration.
 
-Source is on `codex/visitor-trends-triage`, stacked on `codex/bridge-perspective-supports` ([PR #49](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/49)). GitHub carries source and guides; the portable Windows ZIP and raw receipts stay local under ignored `dist/` and `artifacts/visitor-trends-triage-0.50.0/`.
+Source commit **`242d0f4ab10be535e2050f77181861b4c675c9c8`** is on `codex/visitor-trends-triage` in [draft PR #50](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/50), stacked on `codex/bridge-perspective-supports` ([PR #49](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/49)). GitHub carries source and guides; the portable Windows ZIP and raw receipts stay local under ignored `dist/` and `artifacts/visitor-trends-triage-0.50.0/`.
 
 ## Verification
 
