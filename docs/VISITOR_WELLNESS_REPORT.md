@@ -4,7 +4,7 @@ This stage adds energy and nausea to authoritative guest state. Walking, waiting
 
 The Rest pavilion is original procedural geometry in the existing one-tile service envelope. No external art, font, dependency or wellness-specific navigation random draw is added. All new state is bounded to 0–100. The save pair advances to **25/25** with explicit field-shape checks: older schemas cannot smuggle wellness fields or Rest records, and current saves must include both new values. Versions 1–24 retain their historical fields and receive energy 80 / nausea 0 for existing guests. New guests use a deterministic per-ID seed independent of navigation RNG. Existing primary and backup locations and the 8 MiB file cap remain unchanged.
 
-Source is on `codex/visitor-wellness`, stacked on `codex/visitor-trends-triage` ([draft PR #50](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/50)). The local Windows ZIP remains in ignored `dist/`; raw verification receipts belong in ignored `artifacts/visitor-wellness-0.51.0/`.
+Runtime source `e4d0103256985a85ac577493ebbfe06098946d12` is on `codex/visitor-wellness` in [draft PR #51](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/51), stacked on `codex/visitor-trends-triage` ([draft PR #50](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/50)). The local Windows ZIP remains in ignored `dist/`; raw verification receipts belong in ignored `artifacts/visitor-wellness-0.51.0/`.
 
 ## Verification
 
