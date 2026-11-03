@@ -56,6 +56,9 @@ pub enum GuestThought {
     AteFood,
     HadDrink,
     UsedToilet,
+    NeedsRest,
+    Rested,
+    FeelingSick,
 }
 impl std::fmt::Display for GuestThought {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -83,6 +86,9 @@ impl std::fmt::Display for GuestThought {
             Self::AteFood => "That food helped",
             Self::HadDrink => "That drink helped",
             Self::UsedToilet => "I feel better after using the toilet",
+            Self::NeedsRest => "I need a place to rest",
+            Self::Rested => "I feel rested",
+            Self::FeelingSick => "That ride made me feel unwell",
         })
     }
 }

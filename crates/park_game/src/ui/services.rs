@@ -4,7 +4,7 @@ use park_sim::{Park, Service, ServiceId, ServiceKind};
 use super::*;
 
 pub(crate) const PANEL_WIDTH: f32 = 560.0;
-pub(crate) const PANEL_HEIGHT: f32 = 480.0;
+pub(crate) const PANEL_HEIGHT: f32 = 520.0;
 
 pub(crate) fn construction_details(park: &Park, service: &Service) -> String {
     match park.service_demolition_quote(service.id) {
@@ -97,6 +97,15 @@ pub(super) fn setup(commands: &mut Commands) {
                         );
                     }
                 });
+                p.spawn(row()).with_children(|p| {
+                    button(
+                        p,
+                        &format!("Build Rest {}", money(ServiceKind::Rest.build_cost_cents())),
+                        Action::BuildService(ServiceKind::Rest),
+                        166.0,
+                    );
+                    label(p, "Rest restores energy and eases nausea.", 11.0, MUTED);
+                });
                 label(
                     p,
                     &format!(
@@ -123,7 +132,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 .with_children(|p| {
                     text(
                         p,
-                        "Build food, drink or a toilet to meet guest needs.",
+                        "Build food, drink, toilets or rest to meet guest needs.",
                         ServiceLabel::Details,
                         12.0,
                     );
@@ -216,7 +225,7 @@ pub(crate) fn refresh(
         let value=match kind {
             ServiceLabel::Selected=>facility.map_or_else(||"No facilities".into(),|service|format!("{} #{}",service.kind,service.id.0)),
             ServiceLabel::Details=>facility.zip(stats.as_ref()).map_or_else(
-                ||"Build food, drink or a toilet to meet guest needs.\nEach serves one guest at a time on its public path.\nOpen facilities pay upkeep even when disconnected.\nClose a facility to stop future running costs.\nN opens park finances.".into(),
+                ||"Build food, drink, toilets or rest to meet guest needs.\nRest restores energy and eases nausea.\nOpen facilities pay upkeep even when disconnected.\nClose a facility to stop future running costs.\nN opens park finances.".into(),
                 |(service,stats)| {
                     let status=if stats.closed_for_funds {"Closed: park cannot cover costs".into()}else{stats.status.to_string()};
                     let per_minute=u64::from(service.kind.upkeep_cost_cents()) * (60*TICKS_PER_SECOND/u64::from(park_sim::SERVICE_UPKEEP_TICKS));

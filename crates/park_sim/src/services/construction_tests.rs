@@ -505,6 +505,10 @@ fn using_legacy_service_continues_with_zero_basis_and_a_new_paid_service_after_m
                 .is_some_and(|v| v.phase == ServiceVisitPhase::Using && v.progress == 45)
         })
     });
+    for guest in &mut legacy.guests {
+        guest.needs.energy = 80;
+        guest.needs.nausea = 0;
+    }
     let mut old = value(&legacy);
     crate::finances::tests::strip_service_construction_fields(&mut old);
     old["schema_version"] = json!(11);

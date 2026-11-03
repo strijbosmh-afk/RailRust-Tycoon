@@ -85,7 +85,7 @@ struct Snapshot {
     total: usize,
     satisfaction_sum: u64,
     mood: [usize; 3],
-    urgent: [usize; 3],
+    urgent: [usize; 5],
     urgent_any: usize,
     riding: usize,
     queueing: usize,
@@ -106,6 +106,8 @@ impl Snapshot {
                 guest.needs.hunger >= 70,
                 guest.needs.thirst >= 70,
                 guest.needs.toilet >= 70,
+                guest.needs.energy <= 30,
+                guest.needs.nausea >= 70,
             ];
             for (count, flagged) in stats.urgent.iter_mut().zip(urgent) {
                 *count += usize::from(flagged);
@@ -152,7 +154,7 @@ fn text(p: &mut ChildSpawnerCommands, initial: &str, size: f32, kind: StatLabel)
 
 fn stat_row(p: &mut ChildSpawnerCommands, kind: StatBar, color: Color) {
     p.spawn(Node {
-        height: px(34),
+        height: px(25),
         align_items: AlignItems::Center,
         column_gap: px(7),
         ..row()
@@ -204,7 +206,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         GuestStatsBody,
         Node {
             display: Display::None,
-            height: px(350),
+            height: px(390),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(11),
@@ -256,10 +258,10 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             ))
             .with_children(|p| {
                 label(p, "URGENT NEEDS", 12.0, INK);
-                for index in 0..3 {
+                for index in 0..5 {
                     stat_row(p, StatBar::Need(index), Color::srgb_u8(196, 75, 61));
                 }
-                label(p, "70+ urgency; one guest may need more", 10.0, MUTED);
+                label(p, "70+ urgency; energy 30 or less", 10.0, MUTED);
             });
         });
         text(p, "", 12.0, StatLabel::Activity);
@@ -328,7 +330,7 @@ pub(crate) fn refresh(
     }
     let stats = Snapshot::from_park(&sim.0);
     let mood_names = ["Low 0-39", "Mixed 40-69", "High 70-100"];
-    let need_names = ["Hunger", "Thirst", "Toilet"];
+    let need_names = ["Hunger", "Thirst", "Toilet", "Low energy", "Nausea"];
     for (kind, mut text) in &mut labels {
         text.0 = match kind {
             StatLabel::Headline => format!("Park-wide visitor snapshot / {} active", stats.total),

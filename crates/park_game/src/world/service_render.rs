@@ -55,6 +55,7 @@ pub(super) fn faces(
         ServiceKind::Food => [rgb(226, 139, 73), rgb(189, 92, 49), rgb(141, 68, 41)],
         ServiceKind::Drink => [rgb(86, 180, 210), rgb(47, 131, 169), rgb(33, 93, 135)],
         ServiceKind::Toilet => [rgb(129, 184, 161), rgb(78, 133, 112), rgb(51, 101, 83)],
+        ServiceKind::Rest => [rgb(154, 137, 194), rgb(109, 91, 157), rgb(79, 65, 121)],
     };
     let mut cuboid = |min: Vec3, max: Vec3, colors: [Ink; 3]| {
         let upper = [
@@ -117,6 +118,40 @@ pub(super) fn faces(
             Vec3::new(-0.14, 0.16, 2.91),
             dark,
         );
+    } else if kind == ServiceKind::Rest {
+        // An open pavilion and bench show the place to recover, while keeping
+        // the serving edge and one-tile picking footprint clear.
+        cuboid(
+            Vec3::new(-0.44, -0.44, 2.48),
+            Vec3::new(0.44, 0.44, 2.72),
+            accent,
+        );
+        for x in [-0.38, 0.31] {
+            for y in [-0.37, 0.30] {
+                cuboid(
+                    Vec3::new(x, y, 0.20),
+                    Vec3::new(x + 0.07, y + 0.07, 2.48),
+                    dark,
+                );
+            }
+        }
+        cuboid(
+            Vec3::new(-0.28, -0.34, 0.58),
+            Vec3::new(0.24, 0.29, 0.72),
+            accent,
+        );
+        cuboid(
+            Vec3::new(-0.29, -0.34, 0.72),
+            Vec3::new(-0.18, 0.29, 1.48),
+            cream,
+        );
+        for y in [-0.29, 0.20] {
+            cuboid(
+                Vec3::new(-0.22, y, 0.20),
+                Vec3::new(0.18, y + 0.09, 0.58),
+                dark,
+            );
+        }
     } else {
         // Counter, rear cabinet, corner posts and canopy. The open gap between
         // counter and canopy stays genuinely unpickable.
@@ -253,7 +288,7 @@ mod tests {
 
     #[test]
     fn facility_faces_picking_selection_and_ghosts_share_physical_geometry() {
-        for kind in [ServiceKind::Food, ServiceKind::Drink, ServiceKind::Toilet] {
+        for kind in ServiceKind::ALL {
             for facing in PathDirection::ALL {
                 let mut park = Park::new(12, 12);
                 let id = park
@@ -324,7 +359,7 @@ mod tests {
     fn service_art_is_distinct_with_finite_in_envelope_vertices_at_height_limits() {
         for height in [0, 29] {
             let mut kind_meshes = Vec::new();
-            for kind in [ServiceKind::Food, ServiceKind::Drink, ServiceKind::Toilet] {
+            for kind in ServiceKind::ALL {
                 let mut park = Park::new(12, 12);
                 let id = park
                     .place_service(TilePos { x: 5, y: 5 }, height, PathDirection::South, kind)
@@ -351,6 +386,7 @@ mod tests {
             }
             assert_ne!(kind_meshes[0], kind_meshes[1]);
             assert_ne!(kind_meshes[1], kind_meshes[2]);
+            assert_ne!(kind_meshes[2], kind_meshes[3]);
         }
     }
 

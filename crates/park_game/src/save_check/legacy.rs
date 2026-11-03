@@ -89,7 +89,11 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
             );
         }
         if old["schema_version"].as_u64().unwrap() <= 7
-            && (guest.needs != GuestNeeds::for_guest(seed, guest.id)
+            && (guest.needs.hunger != GuestNeeds::for_guest(seed, guest.id).hunger
+                || guest.needs.thirst != GuestNeeds::for_guest(seed, guest.id).thirst
+                || guest.needs.toilet != GuestNeeds::for_guest(seed, guest.id).toilet
+                || guest.needs.energy != 80
+                || guest.needs.nausea != 0
                 || guest.service_visit.is_some()
                 || guest.service_cooldown != 0
                 || guest.service_spent_cents != 0
@@ -98,6 +102,9 @@ fn require_defaults(park: &Park, old: &Value) -> Result<(), String> {
             return Err(
                 "legacy service defaults invented usage, money or inconsistent needs".into(),
             );
+        }
+        if (8..=24).contains(&version) && (guest.needs.energy != 80 || guest.needs.nausea != 0) {
+            return Err("legacy wellness defaults differ from schema-25 migration".into());
         }
     }
     if old["schema_version"].as_u64().unwrap() <= 7 && !park.services().is_empty() {

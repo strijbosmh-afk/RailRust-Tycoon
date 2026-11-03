@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 24;
-pub const CONTENT_VERSION: u32 = 24;
+pub const SCHEMA_VERSION: u32 = 25;
+pub const CONTENT_VERSION: u32 = 25;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -707,6 +707,7 @@ impl Park {
                 | 21
                 | 22
                 | 23
+                | 24
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -714,6 +715,7 @@ impl Park {
         if header.content_version != header.schema_version {
             return Err(SaveError::UnsupportedContent(header.content_version));
         }
+        validate_wellness_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -802,6 +804,22 @@ impl Park {
         {
             return Err(invalid("scenery requires schema 24"));
         }
+        if header.schema_version < 25
+            && (data
+                .services
+                .iter()
+                .any(|service| service.kind == crate::ServiceKind::Rest)
+                || data.guests.iter().any(|guest| {
+                    matches!(
+                        guest.thought,
+                        crate::GuestThought::NeedsRest
+                            | crate::GuestThought::Rested
+                            | crate::GuestThought::FeelingSick
+                    )
+                }))
+        {
+            return Err(invalid("wellness requires schema 25"));
+        }
         if header.schema_version < 15
             && data.finances.entries.iter().any(|entry| {
                 matches!(
@@ -833,6 +851,33 @@ fn parse_save<T: de::DeserializeOwned>(bytes: &[u8]) -> Result<T, SaveError> {
     let value = strict_object(&mut deserializer).map_err(json_error)?;
     deserializer.end().map_err(json_error)?;
     Ok(value)
+}
+
+fn validate_wellness_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 8 {
+        return Ok(());
+    }
+    let document: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let guests = document
+        .pointer("/park/guests")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| invalid("guest collection is missing"))?;
+    for guest in guests {
+        let needs = guest
+            .get("needs")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| invalid("guest needs are missing"))?;
+        let expected = if schema < 25 { 3 } else { 5 };
+        if needs.len() != expected
+            || !needs.contains_key("hunger")
+            || !needs.contains_key("thirst")
+            || !needs.contains_key("toilet")
+            || (schema >= 25 && (!needs.contains_key("energy") || !needs.contains_key("nausea")))
+        {
+            return Err(invalid("guest needs do not match save schema"));
+        }
+    }
+    Ok(())
 }
 
 /// Version one has no slope fields. Reject those fields instead of accepting
@@ -1458,7 +1503,7 @@ fn migrate_guest_experience<G: Into<Guest>>(guests: Vec<G>, seed: Option<u64>) -
         .map(|guest| {
             let mut guest = guest.into();
             guest.preferences = crate::GuestPreferences::for_guest(seed.unwrap_or(0), guest.id);
-            guest.needs = crate::GuestNeeds::for_guest(seed.unwrap_or(0), guest.id);
+            guest.needs = crate::GuestNeeds::for_legacy_guest(seed.unwrap_or(0), guest.id);
             guest
         })
         .collect()
@@ -1471,7 +1516,8 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             .into_iter()
             .map(|guest| {
                 let mut guest = guest.into();
-                guest.needs = crate::GuestNeeds::for_guest(self.crowd_seed.unwrap_or(0), guest.id);
+                guest.needs =
+                    crate::GuestNeeds::for_legacy_guest(self.crowd_seed.unwrap_or(0), guest.id);
                 guest
             })
             .collect();
@@ -2589,6 +2635,13 @@ mod tests {
         );
     }
 
+    fn reset_legacy_wellness(park: &mut Park) {
+        for guest in &mut park.guests {
+            guest.needs.energy = 80;
+            guest.needs.nausea = 0;
+        }
+    }
+
     #[test]
     fn empty_small_rectangular_and_maximum_maps_roundtrip_exactly() {
         for (width, height) in [(1, 1), (7, 3), (256, 256)] {
@@ -2620,6 +2673,7 @@ mod tests {
         assert_eq!(lost.train().unwrap().phase, TrainPhase::Fault);
         for mut original in [Park::new(2, 3), fixture(), live, lost] {
             crate::finances::tests::reset_finances(&mut original);
+            reset_legacy_wellness(&mut original);
             let old_data = legacy_value(&original);
             let old_bytes = serde_json::to_vec(&old_data).unwrap();
             let mut migrated = Park::from_save_bytes(&old_bytes).unwrap();
@@ -2672,6 +2726,7 @@ mod tests {
         lost.remove_object(track).unwrap();
         for mut original in [live, lost] {
             crate::finances::tests::reset_finances(&mut original);
+            reset_legacy_wellness(&mut original);
             let legacy = version_two_value(&original);
             let migrated = decode(&legacy).unwrap();
             assert_eq!(migrated, original);
@@ -2747,6 +2802,7 @@ mod tests {
         park.remove_object(removed).unwrap();
         for mut original in [seeking, moving, leaving, park] {
             crate::experience::tests::reset_feedback(&mut original);
+            reset_legacy_wellness(&mut original);
             let legacy = version_four_value(&original);
             let mut migrated = decode(&legacy).unwrap();
             assert_eq!(original, migrated);
@@ -2825,6 +2881,7 @@ mod tests {
         fault.remove_object(current).unwrap();
         for mut original in [live, fault] {
             crate::finances::tests::reset_finances(&mut original);
+            reset_legacy_wellness(&mut original);
             let legacy = version_three_value(&original);
             let mut migrated = decode(&legacy).unwrap();
             assert_eq!(migrated, original);

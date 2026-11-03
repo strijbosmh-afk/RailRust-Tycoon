@@ -13,6 +13,7 @@ pub(crate) fn cost(kind: ServiceKind) -> u64 {
         ServiceKind::Food => 12_000,
         ServiceKind::Drink => 8_000,
         ServiceKind::Toilet => 10_000,
+        ServiceKind::Rest => 14_000,
     }
 }
 
@@ -231,6 +232,11 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         serde_json::from_slice(&park.to_save_bytes().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
     old["schema_version"] = 11.into();
+    for guest in old["park"]["guests"].as_array_mut().unwrap() {
+        let needs = guest["needs"].as_object_mut().unwrap();
+        needs.remove("energy");
+        needs.remove("nausea");
+    }
     old["park"].as_object_mut().unwrap().remove("ride_costs");
     old["park"].as_object_mut().unwrap().remove("visitors");
     old["park"].as_object_mut().unwrap().remove("ride_paints");

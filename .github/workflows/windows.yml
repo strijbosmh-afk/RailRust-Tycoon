@@ -343,6 +343,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-scenery --save-dir $sceneryDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Scenery verification failed" }
           Get-Content -LiteralPath (Join-Path $sceneryDirectory "verification-scenery.txt")
+      - name: Verify natural Rest use and wellness continuation
+        shell: pwsh
+        run: |
+          $wellnessDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound wellness é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-wellness --save-dir $wellnessDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Wellness writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-wellness --save-dir $wellnessDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Wellness verification failed" }
+          Get-Content -LiteralPath (Join-Path $wellnessDirectory "verification-wellness.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

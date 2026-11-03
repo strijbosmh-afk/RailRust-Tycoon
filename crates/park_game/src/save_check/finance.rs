@@ -15,6 +15,7 @@ fn upkeep_cost(kind: ServiceKind) -> u64 {
         ServiceKind::Food => 30,
         ServiceKind::Drink => 20,
         ServiceKind::Toilet => 10,
+        ServiceKind::Rest => 25,
     }
 }
 fn supply_cost(kind: ServiceKind) -> u64 {
@@ -22,6 +23,7 @@ fn supply_cost(kind: ServiceKind) -> u64 {
         ServiceKind::Food => 60,
         ServiceKind::Drink => 25,
         ServiceKind::Toilet => 10,
+        ServiceKind::Rest => 20,
     }
 }
 fn income(kind: FinanceKind) -> bool {
@@ -608,6 +610,15 @@ fn continue_finance(park: &mut Park) -> Result<(), String> {
         .unwrap()
         .id;
     let auxiliary = install_auxiliaries(park)?;
+    // Long finance replays now include fatigue. Keep a real paid Rest facility
+    // available so subsequent ticket income remains reachable through play.
+    let rest_site = TilePos { x: 12, y: 21 };
+    let rest = park
+        .place_service(rest_site, 8, PathDirection::North, ServiceKind::Rest)
+        .map_err(|e| e.to_string())?;
+    if park.service_access(rest).status != park_sim::ServiceAccessStatus::Ready {
+        return Err("finance Rest facility lacks a matching public path".into());
+    }
     super::facility_construction::spend_down(park)?;
     let removed_id = auxiliary[0];
     let mut stage = 0;
@@ -637,6 +648,8 @@ fn continue_finance(park: &mut Park) -> Result<(), String> {
         if stage == 0 && park.services().iter().any(|s| s.closed_for_funds) {
             close_all(park)?;
             install_income_ride(park)?;
+            park.set_service_open(rest, true)
+                .map_err(|e| e.to_string())?;
             stage = 1;
             transitions.push((stage, elapsed));
         } else if stage == 1 && park.ride().unwrap().revenue_cents > initial_revenue {
@@ -670,8 +683,21 @@ fn continue_finance(park: &mut Park) -> Result<(), String> {
         || park.finance_stats().supplies_cents == 0
     {
         return Err(format!(
-            "finance replay incomplete: stage={stage}, transitions={transitions:?}, stats={:?}",
-            park.finance_stats()
+            "finance replay incomplete: stage={stage}, transitions={transitions:?}, stats={:?}, rest={:?}, rest_access={:?}, ride={:?}, guest state/visit/wellness/wallet={:?}",
+            park.finance_stats(),
+            park.service(rest),
+            park.service_access(rest),
+            park.ride(),
+            park.guests()
+                .iter()
+                .map(|guest| (
+                    guest.state,
+                    guest.service_visit.is_some(),
+                    guest.needs.energy,
+                    guest.needs.nausea,
+                    guest.wallet_cents
+                ))
+                .collect::<Vec<_>>()
         ));
     }
     bytes(park)?;
