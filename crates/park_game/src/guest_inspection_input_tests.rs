@@ -4,7 +4,8 @@ use park_sim::GuestId;
 
 fn guest_app(directory: &InputSaveDirectory, park: Park, view: ViewState) -> (App, Entity) {
     let (mut app, window) = persistence_input_app(directory, park, view);
-    app.add_systems(Startup, ui::setup)
+    app.init_resource::<ui::guest_stats::GuestStatsHistory>()
+        .add_systems(Startup, ui::setup)
         .add_systems(
             Update,
             (
@@ -19,7 +20,12 @@ fn guest_app(directory: &InputSaveDirectory, park: Park, view: ViewState) -> (Ap
         )
         .add_systems(
             Update,
-            (ui::refresh, ui::guests::refresh, ui::guest_stats::refresh)
+            (
+                ui::refresh,
+                ui::guests::refresh,
+                ui::guest_stats::sample_history,
+                ui::guest_stats::refresh,
+            )
                 .chain()
                 .after(persistence::apply_save_action),
         );
@@ -85,6 +91,35 @@ fn park_stats_and_flow_views_switch_without_changing_visitor_state() {
     assert!(view.guest_flow_view && !view.guest_stats_view);
     click_action(&mut app, ui::Action::GuestFlowView);
     assert!(!app.world().resource::<ViewState>().guest_flow_view);
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+}
+
+#[test]
+fn guest_triage_filter_cycles_and_handles_empty_groups_without_mutating_park() {
+    let directory = InputSaveDirectory::new();
+    let original = train_park();
+    let (mut app, _) = guest_app(
+        &directory,
+        original.clone(),
+        ViewState {
+            guests_open: true,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    for filter in [
+        ui::guests::GuestFilter::Urgent,
+        ui::guests::GuestFilter::Unhappy,
+        ui::guests::GuestFilter::Lost,
+        ui::guests::GuestFilter::All,
+    ] {
+        click_action(&mut app, ui::Action::CycleGuestFilter);
+        assert_eq!(app.world().resource::<ViewState>().guest_filter, filter);
+    }
+    assert_eq!(
+        app.world().resource::<ViewState>().selected_guest,
+        Some(original.guests()[0].id)
+    );
     assert_eq!(app.world().resource::<Simulation>().0, original);
 }
 
