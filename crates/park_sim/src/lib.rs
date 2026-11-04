@@ -22,6 +22,8 @@ mod finances;
 mod park_value;
 pub use park_value::ParkValue;
 mod loans;
+mod staff;
+pub use staff::{MECHANIC_WAGE_CENTS, MECHANIC_WAGE_TICKS, MechanicStatus};
 mod maintenance;
 pub use finance_summary::{OperatingProfit, ParkFinanceSummary};
 pub use loans::{LOAN_INTEREST_TICKS, LOAN_STEP_CENTS, LoanError, LoanStats, MAX_LOAN_CENTS};
@@ -266,6 +268,8 @@ pub struct Park {
     ride_paints: Vec<RideAppearance>,
     ride_names: Vec<RideName>,
     maintenance: Vec<maintenance::RideMaintenanceRecord>,
+    mechanic_hired: bool,
+    mechanic_wage_progress: u16,
     visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
@@ -304,6 +308,8 @@ impl PartialEq for Park {
             && self.ride_paints == other.ride_paints
             && self.ride_names == other.ride_names
             && self.maintenance == other.maintenance
+            && self.mechanic_hired == other.mechanic_hired
+            && self.mechanic_wage_progress == other.mechanic_wage_progress
             && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
@@ -363,6 +369,8 @@ impl Park {
             ride_paints: Vec::new(),
             ride_names: Vec::new(),
             maintenance: Vec::new(),
+            mechanic_hired: false,
+            mechanic_wage_progress: 0,
             visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),
@@ -498,6 +506,7 @@ impl Park {
             }
             self.ticks += 1;
             self.step_loan_interest();
+            self.step_mechanic_wages();
             self.step_ride_upkeep();
             self.step_service_upkeep();
             self.step_needs();
@@ -508,6 +517,7 @@ impl Park {
             self.step_carousels();
             self.reconcile_passenger_laps();
             self.step_maintenance();
+            self.step_mechanic_service();
             self.finish_visitor_departures();
         }
     }

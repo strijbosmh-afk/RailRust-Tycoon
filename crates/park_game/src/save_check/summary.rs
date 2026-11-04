@@ -52,12 +52,14 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let mut borrowed = ledger.archived.loan_borrowed_cents;
     let mut repaid = ledger.archived.loan_repaid_cents;
     let mut interest = ledger.archived.loan_interest_cents;
+    let mut wages = ledger.archived.wages_cents;
     for entry in &ledger.entries {
         let amount = entry.amount_cents;
         match entry.kind {
             FinanceKind::LoanBorrow => borrowed += amount,
             FinanceKind::LoanRepayment => repaid += amount,
             FinanceKind::LoanInterest => interest += amount,
+            FinanceKind::MechanicWage => wages += amount,
             FinanceKind::RideRevenue => ride_revenue += amount,
             FinanceKind::ServiceRevenue => service_revenue += amount,
             FinanceKind::RideUpkeep => ride_cost += amount,
@@ -78,6 +80,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     if report.loan_borrowed_cents != borrowed
         || report.loan_repaid_cents != repaid
         || report.loan_interest_cents != interest
+        || report.staff_wages_cents != wages
         || report.rides.revenue_cents != ride_revenue
         || report.rides.upkeep_cents != ride_cost
         || report.rides.supplies_cents != 0
@@ -86,11 +89,12 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || report.services.upkeep_cents != service_cost
         || report.services.supplies_cents != supplies
         || report.services.profit_cents != service_profit
-        || report.operating_profit_cents != ride_profit + service_profit
+        || report.operating_profit_cents != ride_profit + service_profit - i128::from(wages)
         || report.construction_cents != construction
         || report.refunds_cents != refunds
         || report.net_cash_cents
-            != ride_profit + service_profit + i128::from(refunds) - i128::from(construction)
+            != ride_profit + service_profit - i128::from(wages) + i128::from(refunds)
+                - i128::from(construction)
                 + i128::from(borrowed)
                 - i128::from(repaid)
                 - i128::from(interest)

@@ -11,6 +11,7 @@ pub enum FinanceKind {
     LoanBorrow,
     LoanRepayment,
     LoanInterest,
+    MechanicWage,
     RideUpkeep,
     RideRevenue,
     ServiceRevenue,
@@ -59,6 +60,7 @@ impl std::fmt::Display for FinanceKind {
             Self::LoanBorrow => "Loan borrowing",
             Self::LoanRepayment => "Loan repayment",
             Self::LoanInterest => "Loan interest",
+            Self::MechanicWage => "Mechanic wage",
             Self::RideUpkeep => "Ride upkeep",
             Self::RideRevenue => "Ride tickets",
             Self::ServiceRevenue => "Service sale",
@@ -92,6 +94,8 @@ pub struct FinanceEntry {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FinanceTotals {
+    #[serde(default)]
+    pub wages_cents: u64,
     pub loan_borrowed_cents: u64,
     pub loan_repaid_cents: u64,
     pub loan_interest_cents: u64,
@@ -105,6 +109,7 @@ pub struct FinanceTotals {
 impl FinanceTotals {
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
         let target = match kind {
+            FinanceKind::MechanicWage => &mut self.wages_cents,
             FinanceKind::LoanBorrow => &mut self.loan_borrowed_cents,
             FinanceKind::LoanRepayment => &mut self.loan_repaid_cents,
             FinanceKind::LoanInterest => &mut self.loan_interest_cents,
@@ -132,6 +137,7 @@ impl FinanceTotals {
             + i128::from(self.loan_borrowed_cents)
             - i128::from(self.loan_repaid_cents)
             - i128::from(self.loan_interest_cents)
+            - i128::from(self.wages_cents)
             - i128::from(self.upkeep_cents)
             - i128::from(self.supplies_cents)
             - i128::from(self.construction_cents))
@@ -366,6 +372,7 @@ impl FinanceLedger {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct FinanceStats {
+    pub wages_cents: u64,
     pub loan_borrowed_cents: u64,
     pub loan_repaid_cents: u64,
     pub loan_interest_cents: u64,
@@ -422,9 +429,13 @@ impl Park {
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .chain(std::iter::once(self.track_economy.refund_cents))
             .sum::<u64>();
-        let total_costs_cents =
-            upkeep_cents + supplies_cents + construction_cents + self.loans.interest_paid_cents;
+        let total_costs_cents = upkeep_cents
+            + supplies_cents
+            + construction_cents
+            + self.loans.interest_paid_cents
+            + self.mechanic_status().wages_paid_cents;
         FinanceStats {
+            wages_cents: self.mechanic_status().wages_paid_cents,
             loan_borrowed_cents: self.loans.borrowed_cents,
             loan_repaid_cents: self.loans.repaid_cents,
             loan_interest_cents: self.loans.interest_paid_cents,
@@ -457,7 +468,12 @@ impl Park {
                             self.ride_kind(ride.id).unwrap(),
                         )) * 2
                     })
-                    .sum::<u64>(),
+                    .sum::<u64>()
+                + if self.mechanic_hired {
+                    2 * crate::MECHANIC_WAGE_CENTS
+                } else {
+                    0
+                },
             retained_entries: self.finances.entries.len(),
             archived_entries: self.finances.archived_entries,
         }
@@ -756,9 +772,23 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
     minimum_archived += u128::from(u64::from(archived_loans.loan_interest_cents > 0));
     maximum_archived += u128::from(archived_loans.loan_interest_cents);
+    if !ledger
+        .archived
+        .wages_cents
+        .is_multiple_of(crate::MECHANIC_WAGE_CENTS)
+        || ledger.archived.wages_cents / crate::MECHANIC_WAGE_CENTS
+            > (ledger.archived_through_tick - ledger.opening_tick)
+                / u64::from(crate::MECHANIC_WAGE_TICKS)
+    {
+        return Err("archived mechanic wages exceed possible work time".into());
+    }
+    let archived_wages = u128::from(ledger.archived.wages_cents / crate::MECHANIC_WAGE_CENTS);
+    minimum_archived += archived_wages;
+    maximum_archived += archived_wages;
     archived_check.loan_borrowed_cents = archived_loans.loan_borrowed_cents;
     archived_check.loan_repaid_cents = archived_loans.loan_repaid_cents;
     archived_check.loan_interest_cents = archived_loans.loan_interest_cents;
+    archived_check.wages_cents = archived_loans.wages_cents;
     if archived_check != ledger.archived
         || (ledger.archived_entries == 0
             && (ledger.archived != FinanceTotals::default()
@@ -837,6 +867,16 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                     }
                 }
                 _ => unreachable!(),
+            }
+        } else if entry.kind == FinanceKind::MechanicWage {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || entry.amount_cents != crate::MECHANIC_WAGE_CENTS
+                || entry.tick == 0
+                || total.wages_cents / crate::MECHANIC_WAGE_CENTS + 1
+                    > (entry.tick - ledger.opening_tick) / u64::from(crate::MECHANIC_WAGE_TICKS)
+            {
+                return Err("mechanic wage receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;

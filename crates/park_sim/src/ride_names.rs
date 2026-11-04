@@ -169,6 +169,18 @@ mod tests {
         old["content_version"] = 23.into();
         old["park"].as_object_mut().unwrap().remove("ride_names");
         old["park"].as_object_mut().unwrap().remove("maintenance");
+        old["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("mechanic_hired");
+        old["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("mechanic_wage_progress");
+        old["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("wages_cents");
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();
         assert_eq!(migrated, park);
         assert_eq!(migrated.ride_name(id), Some("Meadow Flyer"));

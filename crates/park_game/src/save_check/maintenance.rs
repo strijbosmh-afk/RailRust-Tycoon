@@ -30,6 +30,16 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
     {
         return Err("service changed finance or failed to reset wear".into());
     }
+    park.set_mechanic_hired(true);
+    for _ in 0..park_sim::MECHANIC_WAGE_TICKS {
+        park.advance(Speed::Normal);
+    }
+    if !park.mechanic_status().hired
+        || park.mechanic_status().wages_paid_cents != park_sim::MECHANIC_WAGE_CENTS
+        || park.mechanic_status().wage_progress != 0
+    {
+        return Err("mechanic wage was not recorded at the fixed interval".into());
+    }
     let mut view = ViewState::default();
     if !persistence::perform_action(session, &mut park, &mut view, SaveAction::Save) {
         return Err(view.save_notice);
@@ -73,6 +83,8 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     if park
         .ride_maintenance_status(id)
         .is_none_or(|s| s.service_count != 1 || s.visits_since_service != 0)
+        || !park.mechanic_status().hired
+        || park.mechanic_status().wages_paid_cents != park_sim::MECHANIC_WAGE_CENTS
     {
         return Err("service count or trip baseline was not saved".into());
     }
@@ -87,7 +99,7 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
     if park != expected || fs::read(store.save_path()).map_err(|e| e.to_string())? != original {
         return Err("maintenance restart diverged or changed the primary slot".into());
     }
-    write_new(&store.directory().join("verification-maintenance.txt"), b"Saved ride service and exact 3600-tick restart: PASS\nOriginal primary slot unchanged: PASS\n")?;
+    write_new(&store.directory().join("verification-maintenance.txt"), b"Saved ride service, paid mechanic and exact 3600-tick restart: PASS\nOriginal primary slot unchanged: PASS\n")?;
     println!("Ride maintenance continuation verified.");
     Ok(())
 }

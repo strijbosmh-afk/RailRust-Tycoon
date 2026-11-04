@@ -29,6 +29,7 @@ pub struct ParkFinanceSummary {
     pub rides: OperatingProfit,
     pub services: OperatingProfit,
     pub operating_profit_cents: i128,
+    pub staff_wages_cents: u64,
     pub construction_cents: u64,
     pub refunds_cents: u64,
     pub loan_borrowed_cents: u64,
@@ -48,11 +49,13 @@ impl Park {
             stats.service_upkeep_cents,
             stats.supplies_cents,
         );
-        let operating_profit_cents = rides.profit_cents + services.profit_cents;
+        let operating_profit_cents =
+            rides.profit_cents + services.profit_cents - i128::from(stats.wages_cents);
         ParkFinanceSummary {
             rides,
             services,
             operating_profit_cents,
+            staff_wages_cents: stats.wages_cents,
             construction_cents: stats.construction_cents,
             refunds_cents: stats.demolition_refunds_cents,
             loan_borrowed_cents: self.loans.borrowed_cents,

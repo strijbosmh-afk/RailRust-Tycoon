@@ -307,8 +307,9 @@ pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
             money(report.services.supplies_cents)
         ),
         format!(
-            "Combined operating profit {}\nConstruction -{} / Refunds +{} / excluded from operating profit",
+            "Combined operating profit {} / Mechanic wages -{}\nConstruction -{} / Refunds +{} / excluded from operating profit",
             signed_cash(report.operating_profit_cents),
+            money(report.staff_wages_cents),
             money(report.construction_cents),
             money(report.refunds_cents)
         ),
@@ -368,6 +369,7 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::LoanBorrow => ("Loan borrowing", "+"),
         FinanceKind::LoanRepayment => ("Loan repayment", "-"),
         FinanceKind::LoanInterest => ("Loan interest", "-"),
+        FinanceKind::MechanicWage => ("Mechanic wage", "-"),
         FinanceKind::RideUpkeep => ("Ride upkeep", "-"),
         FinanceKind::RideRevenue => ("Ride tickets", "+"),
         FinanceKind::ServiceRevenue => ("Service sales", "+"),
