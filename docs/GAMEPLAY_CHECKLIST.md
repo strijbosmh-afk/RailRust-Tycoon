@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Current 0.54.0 close-view art slice: visitors gain shaded clothing, faces, shoes and bag straps; coaster cars gain side panels/lamps; the carousel gains a smoother rim and detailed mounts; all four services gain distinct small details. The render changes keep physical depth, preview, picking and paint rules, with park saves still 25/25. See [CHARACTER_RIDE_SERVICE_ART_REPORT.md](CHARACTER_RIDE_SERVICE_ART_REPORT.md). Broader ride, service and visitor content remains in progress.
+
 Current 0.53.0 presentation slice: normal maps gain rotated shoreline, terrain/cliff/path and tree material detail; the procedural score gains harmony and an answering arpeggio, while coaster/carousel audio pans and attenuates smoothly with the camera. Sound settings stay separate and saves remain 25/25. See [GRAPHICS_SOUND_OVERHAUL_REPORT.md](GRAPHICS_SOUND_OVERHAUL_REPORT.md). Full content, native listening and representative-hardware gates remain open.
 
 Current 0.52.0 service foundations and guest repair slice: elevated service buildings show terrain-aware posts when clear beneath them. Guests [L] can guide a selected lost visitor to the existing path tool at the correct height and remembered slope; the player completes and pays for repair. Services [M] shows a live strong-need count for the selected facility type. Saves remain 25/25. See [SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md](SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md). Staff assistance, litter and vomit remain open.

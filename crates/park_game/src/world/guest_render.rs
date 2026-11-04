@@ -11,9 +11,9 @@ use super::*;
 const APPEARANCES: usize = crate::visitor_look::LOOK_COUNT;
 const POSES: usize = WALK_TICKS as usize + 2;
 // A convex twelve-point shadow clipped by four edges has at most sixteen
-// vertices: 42 triangle vertices per supporting roof. A lost body has 126;
-// an ordinary body plus any visit marker stays below that bound.
-const MAX_GUEST_VERTICES: usize = 2 * 42 + 180;
+// vertices: 42 triangle vertices per supporting roof. Body and marker bounds
+// are measured once from their cached templates below.
+const MAX_SHADOW_VERTICES: usize = 2 * 42;
 const CLIPPED_POINTS: usize = 16;
 
 /// Algorithm counters, not allocator instrumentation or GPU measurements.
@@ -49,6 +49,7 @@ pub struct GuestRenderer {
     geometry_key: Option<(u32, u32, u8)>,
     bodies: Vec<BodyTemplate>,
     markers: Vec<BodyTemplate>,
+    max_guest_vertices: usize,
     shadow: [Vec2; 12],
     shadow_color: Ink,
     stats: GuestRenderStats,
@@ -94,7 +95,7 @@ impl GuestRenderer {
             *mesh = Self::empty_mesh();
         }
         let reserve = if square {
-            park.guests().len().saturating_mul(MAX_GUEST_VERTICES)
+            park.guests().len().saturating_mul(self.max_guest_vertices)
         } else {
             0
         };
@@ -231,6 +232,19 @@ impl GuestRenderer {
             ]
             .map(marker_template)
             .into();
+            self.max_guest_vertices = MAX_SHADOW_VERTICES
+                + self
+                    .bodies
+                    .iter()
+                    .map(|body| body.positions.len())
+                    .max()
+                    .unwrap_or(0)
+                + self
+                    .markers
+                    .iter()
+                    .map(|marker| marker.positions.len())
+                    .max()
+                    .unwrap_or(0);
         }
         let key = (park.width(), park.height(), rotation);
         if self.geometry_key == Some(key) && self.objects == park.objects() {
@@ -353,6 +367,13 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
             0.0,
             rgb(43, 62, 68),
         );
+        mesh.line(
+            Vec2::new(side + step - 1.1, 0.9),
+            Vec2::new(side + step + 1.5, 0.9),
+            1.25,
+            0.0003,
+            rgb(31, 49, 50),
+        );
     }
     let shirt = if lost {
         rgb(235, 112, 44)
@@ -370,12 +391,33 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
         0.001,
         shirt,
     );
+    let mut shirt_shadow = shirt;
+    for channel in &mut shirt_shadow[..3] {
+        *channel *= 0.68;
+    }
+    mesh.quad(
+        [
+            Vec2::new(2.4, 7.3),
+            Vec2::new(3.3, 7.0),
+            Vec2::new(3.8, 17.0),
+            Vec2::new(2.5, 16.8),
+        ],
+        0.0012,
+        shirt_shadow,
+    );
     mesh.line(
         Vec2::new(-2.3, 11.2),
         Vec2::new(2.2, 11.2),
         0.9,
         0.0015,
         rgb(247, 239, 217),
+    );
+    mesh.line(
+        Vec2::new(-2.6, 16.2),
+        Vec2::new(2.0, 10.1),
+        0.75,
+        0.0017,
+        rgb_from(look.bag),
     );
     let skin = rgb_from(look.skin);
     for side in [-1.0, 1.0] {
@@ -400,6 +442,22 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
         ),
         _ => mesh.ellipse(Vec2::new(1.4, 23.4), 2.0, 1.6, 0.0045, rgb_from(look.hair)),
     }
+    for x in [-1.05, 1.05] {
+        mesh.line(
+            Vec2::new(x - 0.28, 20.0),
+            Vec2::new(x + 0.28, 20.0),
+            0.6,
+            0.0047,
+            rgb(51, 47, 43),
+        );
+    }
+    mesh.line(
+        Vec2::new(-0.6, 18.1),
+        Vec2::new(0.6, 18.1),
+        0.55,
+        0.0048,
+        rgb(141, 86, 71),
+    );
     if lost {
         mesh.line(
             Vec2::new(0.0, 28.0),

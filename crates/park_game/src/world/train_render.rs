@@ -459,6 +459,41 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
             rotation,
         );
     }
+    // The inset side panel and narrow highlight make the car shape legible at
+    // close zoom within the track clearance while preserving ride paint.
+    for (lo, hi) in [(-0.219, -0.207), (0.207, 0.219)] {
+        slab(
+            &mut faces,
+            footprint(0.18, 0.72, lo, hi),
+            0.54,
+            0.72,
+            [rgb(196, 66, 54), rgb(142, 43, 44), rgb(101, 35, 42)],
+            size,
+            rotation,
+        );
+        slab(
+            &mut faces,
+            footprint(0.20, 0.70, lo, hi),
+            0.72,
+            0.745,
+            [rgb(251, 217, 129), rgb(181, 130, 63), rgb(132, 87, 44)],
+            size,
+            rotation,
+        );
+    }
+    // Two small lamps sit on the leading lip. They share the car's physical
+    // depth, so a foreground track or cliff can still hide them.
+    for (lo, hi) in [(-0.16, -0.10), (0.10, 0.16)] {
+        slab(
+            &mut faces,
+            footprint(0.94, 0.99, lo, hi),
+            0.84,
+            0.90,
+            [rgb(255, 235, 162), rgb(204, 160, 77), rgb(149, 109, 52)],
+            size,
+            rotation,
+        );
+    }
     slab(
         &mut faces,
         footprint(0.06, 0.19, -0.15, 0.15),
