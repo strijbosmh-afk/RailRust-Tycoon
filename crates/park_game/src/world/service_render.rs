@@ -50,13 +50,13 @@ pub(super) fn faces(
 ) -> Vec<Face> {
     let size = park.width();
     let mut result = Vec::with_capacity(160);
-    let cream = [rgb(242, 231, 191), rgb(205, 187, 146), rgb(171, 149, 107)];
+    let cream = [rgb(255, 239, 182), rgb(215, 185, 121), rgb(173, 139, 88)];
     let dark = [rgb(76, 101, 89), rgb(53, 77, 66), rgb(40, 62, 53)];
     let accent = match kind {
-        ServiceKind::Food => [rgb(226, 139, 73), rgb(189, 92, 49), rgb(141, 68, 41)],
-        ServiceKind::Drink => [rgb(86, 180, 210), rgb(47, 131, 169), rgb(33, 93, 135)],
-        ServiceKind::Toilet => [rgb(129, 184, 161), rgb(78, 133, 112), rgb(51, 101, 83)],
-        ServiceKind::Rest => [rgb(154, 137, 194), rgb(109, 91, 157), rgb(79, 65, 121)],
+        ServiceKind::Food => [rgb(248, 107, 52), rgb(191, 65, 39), rgb(137, 44, 34)],
+        ServiceKind::Drink => [rgb(43, 196, 235), rgb(25, 129, 192), rgb(23, 81, 149)],
+        ServiceKind::Toilet => [rgb(64, 195, 138), rgb(38, 137, 104), rgb(33, 92, 75)],
+        ServiceKind::Rest => [rgb(185, 93, 214), rgb(119, 63, 172), rgb(76, 44, 126)],
     };
     let mut cuboid = |min: Vec3, max: Vec3, colors: [Ink; 3]| {
         let upper = [
@@ -290,6 +290,23 @@ pub(super) fn faces(
             }
         }
     }
+    if matches!(kind, ServiceKind::Food | ServiceKind::Drink) {
+        // Bright striped valance faces the serving path; small alternating
+        // fabric panels stop short of the neighboring tile and use real depth.
+        for stripe in 0..6 {
+            let y = -0.43 + stripe as f32 * 0.145;
+            cuboid(
+                Vec3::new(0.445, y, 2.38),
+                Vec3::new(0.465, y + 0.083, 2.69),
+                if stripe % 2 == 0 { cream } else { accent },
+            );
+        }
+    }
+    cuboid(
+        Vec3::new(-0.065, -0.065, 2.72),
+        Vec3::new(0.065, 0.065, 2.85),
+        accent,
+    );
     result
 }
 

@@ -1014,9 +1014,9 @@ fn scene_painter(
                 elevated_tile_center(park, pos, rotation).expect("loop stays inside square park");
             let variation = (noise(pos) % 5) as i16 - 2;
             let color = match tile.terrain {
-                Terrain::Grass => varied(111, 156, 91, variation),
-                Terrain::Water => varied(58, 144, 154, variation),
-                Terrain::Sand => varied(213, 196, 145, variation),
+                Terrain::Grass => varied(75, 171, 58, variation),
+                Terrain::Water => varied(39, 167, 183, variation),
+                Terrain::Sand => varied(229, 202, 130, variation),
             };
             let surfaces = column_surfaces(park, pos, rotation);
             let top = surfaces[0].expect("every tile has a roof");
@@ -1122,9 +1122,9 @@ fn scene_painter(
             atmosphere::ground_details(&mut mesh, park, pos, center, top);
             if grid {
                 let stroke = match tile.terrain {
-                    Terrain::Grass => rgb(100, 143, 82),
-                    Terrain::Water => rgb(70, 150, 158),
-                    Terrain::Sand => rgb(201, 185, 137),
+                    Terrain::Grass => rgb(65, 151, 53),
+                    Terrain::Water => rgb(36, 145, 169),
+                    Terrain::Sand => rgb(207, 179, 109),
                 };
                 // Two edges per tile avoid double-width interior grid lines.
                 mesh.surface_line(
@@ -1683,7 +1683,7 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
         18.0 * scale,
         7.0 * scale,
         DETAIL_BIAS,
-        rgb(87, 129, 74),
+        rgb(61, 136, 59),
     );
     mesh.line(
         base,
@@ -1701,9 +1701,9 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
     );
     if seed.is_multiple_of(3) {
         for (height, width, ink) in [
-            (18.0, 19.0, rgb(47, 108, 76)),
-            (30.0, 16.0, rgb(55, 125, 83)),
-            (41.0, 11.0, rgb(77, 143, 89)),
+            (18.0, 19.0, rgb(33, 116, 61)),
+            (30.0, 16.0, rgb(42, 145, 72)),
+            (41.0, 11.0, rgb(74, 171, 85)),
         ] {
             mesh.triangle(
                 [
@@ -1730,21 +1730,21 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
             21.0 * scale,
             24.0 * scale,
             depth + 0.002,
-            rgb(51, 113, 72),
+            rgb(40, 130, 64),
         );
         mesh.ellipse(
             base + Vec2::new(-6.0, 40.0) * scale,
             17.0 * scale,
             20.0 * scale,
             depth + 0.003,
-            rgb(69, 133, 76),
+            rgb(53, 151, 71),
         );
         mesh.ellipse(
             base + Vec2::new(-7.0, 48.0) * scale,
             11.0 * scale,
             12.0 * scale,
             depth + 0.004,
-            rgb(94, 153, 85),
+            rgb(83, 178, 80),
         );
     }
     if !seed.is_multiple_of(3) {
