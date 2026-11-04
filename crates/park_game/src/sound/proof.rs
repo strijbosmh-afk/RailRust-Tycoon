@@ -2,7 +2,7 @@
 use super::*;
 use std::{ffi::OsString, fs, io::Read};
 const CLIPS: [(&str, usize, Option<usize>); 5] = [
-    ("parkbound-mix.wav", 20, None),
+    ("parkbound-mix.wav", 40, None),
     ("meadow-theme.wav", 8, Some(1)),
     ("park-ambience.wav", 8, Some(2)),
     ("ride-effects.wav", 8, Some(3)),
@@ -11,7 +11,9 @@ const CLIPS: [(&str, usize, Option<usize>); 5] = [
 fn demo(seconds: usize, bus: Option<usize>) -> Vec<u8> {
     let mut mixer = Mixer::default();
     mixer.state.coaster = 0.85;
+    mixer.state.coaster_pan = -0.7;
     mixer.state.carousel = true;
+    mixer.state.carousel_pan = 0.7;
     if let Some(bus) = bus {
         mixer.state.settings.levels = [0; 5];
         mixer.state.settings.levels[0] = 50;
@@ -126,7 +128,7 @@ fn verify(directory: &Path) -> Result<(), String> {
         let mut actual = Vec::new();
         fs::File::open(directory.join(name))
             .map_err(|e| e.to_string())?
-            .take(4 * 1024 * 1024 + 1)
+            .take(8 * 1024 * 1024 + 1)
             .read_to_end(&mut actual)
             .map_err(|e| e.to_string())?;
         if actual != demo(seconds, bus) {

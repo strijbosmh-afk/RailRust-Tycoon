@@ -1,5 +1,5 @@
 //! Presentation-only sound. Park simulation, saves and RNG are never mutated.
-use crate::{Simulation, ViewState, persistence::SaveSession};
+use crate::{Simulation, ViewState, persistence::SaveSession, world};
 use bevy::prelude::*;
 use std::{
     path::{Path, PathBuf},
@@ -224,17 +224,36 @@ fn update(
             )
         })
         .map_or(0.0, |t| t.speed as f32 / 96.0);
+    let camera =
+        view.pan + Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+    let spatial = |point: Option<Vec2>| {
+        point.map_or((0.0, 0.0), |point| {
+            let delta = (point - camera) * view.zoom;
+            let pan = (delta.x / 440.0).clamp(-1.0, 1.0);
+            let distance = delta.length() / 660.0;
+            (pan, 1.0 / (1.0 + distance * distance))
+        })
+    };
+    let (coaster_pan, coaster_presence) = spatial(world::leading_car_focus(&sim.0, view.rotation));
+    let running_carousel = sim
+        .0
+        .carousels()
+        .iter()
+        .find(|ride| ride.phase == park_sim::CarouselPhase::Running);
+    let (carousel_pan, carousel_presence) = spatial(
+        running_carousel.and_then(|ride| world::ride_focus(&sim.0, ride.ride.id, view.rotation)),
+    );
     let state = MixState {
         settings: settings.value,
         focused,
         paused: view.speed == park_sim::Speed::Paused,
         crowd: (sim.0.guests().len() as f32 / 64.0).min(1.0),
         coaster,
-        carousel: sim
-            .0
-            .carousels()
-            .iter()
-            .any(|r| r.phase == park_sim::CarouselPhase::Running),
+        coaster_pan,
+        coaster_presence,
+        carousel: running_carousel.is_some(),
+        carousel_pan,
+        carousel_presence,
     };
     if out.last != Some(state)
         && out

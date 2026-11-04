@@ -381,6 +381,15 @@ pub(super) fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
     (min.is_finite() && max.is_finite()).then_some((min + max) * 0.5)
 }
 
+/// The leading car's current world position for camera-relative sound.
+pub(crate) fn leading_car_focus(park: &Park, rotation: u8) -> Option<Vec2> {
+    if park.width() != park.height() {
+        return None;
+    }
+    let pose = park.train_cars().into_iter().next()?;
+    Some(projected(ground(pose.center), park.width(), rotation).truncate())
+}
+
 fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
     let mut faces = Vec::new();
     let rear = ground(pose.rear);

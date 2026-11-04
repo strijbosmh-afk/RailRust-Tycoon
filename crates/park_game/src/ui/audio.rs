@@ -39,7 +39,7 @@ pub(crate) fn setup(commands: &mut Commands) {
         .with_children(|p|{p.spawn((Node{width:px(600),padding:UiRect::all(px(24)),flex_direction:FlexDirection::Column,row_gap:px(16),..default()},BackgroundColor(PAPER),BorderRadius::all(px(12))))
             .with_children(|p|{
                 label(p,"The sounds of your park",23.0,INK);
-                label(p,"Original meadow music, birds, crowd, rides and gentle feedback.\nF10 opens/closes this window. Sound fades out when focus is lost.",12.0,MUTED);
+                label(p,"Layered meadow music, park ambience, camera-aware rides and gentle feedback.\nF10 opens/closes this window. Sound fades out when focus is lost.",12.0,MUTED);
                 for (i,name) in ["Master","Music","Ambience","Rides","Alerts & interface"].iter().enumerate(){
                     p.spawn(Node{justify_content:JustifyContent::SpaceBetween,..row()}).with_children(|p|{
                         p.spawn((Text::new(format!("{name}: --%")),TextFont{font_size:14.0,..default()},TextColor(INK),AudioLabel::Level(i)));

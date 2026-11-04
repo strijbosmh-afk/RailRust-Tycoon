@@ -34,6 +34,7 @@ pub use service_render::service_preview_mesh;
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
 pub(crate) use track_preview::{pick_track_draft, pick_track_plane, track_preview_mesh};
+pub(crate) use train_render::leading_car_focus;
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
@@ -806,6 +807,29 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                             rgb(240, 225, 160),
                         );
                     }
+                } else if park.width() <= 32 {
+                    // Sparse wood grain and fasteners add a material cue at
+                    // close zoom without changing the path footprint.
+                    for (along, across) in [(-0.34, -0.13), (0.08, 0.12)] {
+                        mesh.surface_line(
+                            top,
+                            point(along, across),
+                            point(along + 0.13, across),
+                            0.55,
+                            DETAIL_BIAS * 2.0,
+                            rgb(239, 207, 150),
+                        );
+                    }
+                    for along in [-0.39, 0.39] {
+                        mesh.surface_ellipse(
+                            top,
+                            point(along, min_across + 0.09),
+                            0.8,
+                            0.5,
+                            DETAIL_BIAS * 2.0,
+                            rgb(99, 72, 48),
+                        );
+                    }
                 }
             }
             ObjectKind::RideEntrance
@@ -1007,6 +1031,25 @@ fn scene_painter(
                     let a = surface.vertices[0].truncate();
                     let b = surface.vertices[1].truncate();
                     let face_height = a.y - surface.vertices[3].y;
+                    if size <= 32 && face_height > 4.0 {
+                        mesh.surface_line(
+                            surface,
+                            a - Vec2::Y * 1.5,
+                            b - Vec2::Y * 1.5,
+                            1.2,
+                            DETAIL_BIAS,
+                            rgb(190, 151, 101),
+                        );
+                        let crack = a.lerp(b, 0.23 + (noise(pos) % 4) as f32 * 0.11);
+                        mesh.surface_line(
+                            surface,
+                            crack - Vec2::Y * 4.0,
+                            crack + Vec2::new(2.5, -face_height.min(18.0)),
+                            0.7,
+                            DETAIL_BIAS * 2.0,
+                            rgb(98, 75, 52),
+                        );
+                    }
                     let mut layer = HEIGHT_STEP;
                     while layer < face_height {
                         mesh.surface_line(
@@ -1075,6 +1118,7 @@ fn scene_painter(
                 }
                 _ => {}
             }
+            atmosphere::shore_details(&mut mesh, park, pos, rotation, top);
             atmosphere::ground_details(&mut mesh, park, pos, center, top);
             if grid {
                 let stroke = match tile.terrain {
@@ -1531,6 +1575,15 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
                 ink,
             );
         }
+        for (dx, dy) in [(-7.0, 30.0), (3.0, 42.0), (-2.0, 54.0)] {
+            mesh.line(
+                base + Vec2::new(dx, dy) * scale,
+                base + Vec2::new(dx + 5.0, dy + 2.0) * scale,
+                1.1 * scale,
+                depth + 0.006,
+                rgb(132, 179, 105),
+            );
+        }
     } else {
         mesh.ellipse(
             base + Vec2::new(1.0, 34.0) * scale,
@@ -1575,6 +1628,15 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
             depth + 0.006,
             rgb(94, 95, 57),
         );
+        for (dx, dy, radius) in [(-14.0, 47.0, 3.4), (1.0, 55.0, 3.0), (9.0, 40.0, 2.5)] {
+            mesh.ellipse(
+                base + Vec2::new(dx, dy) * scale,
+                radius * scale,
+                radius * 0.65 * scale,
+                depth + 0.007,
+                rgb(151, 188, 112),
+            );
+        }
     }
 }
 
