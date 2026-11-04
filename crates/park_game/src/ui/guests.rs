@@ -92,6 +92,7 @@ pub(crate) enum GuestLabel {
     Details,
     Thought,
     Demand,
+    Repair,
     Meter(GuestMeterFill),
 }
 
@@ -306,6 +307,19 @@ pub(super) fn setup(commands: &mut Commands) {
                         .with_children(|p| {
                             text(p, "Select a guest", 20.0, GuestLabel::Title);
                             button(p, "Find", Action::FindGuest, 55.0);
+                            p.spawn((
+                                Button,
+                                Action::RepairGuestPath,
+                                Node {
+                                    width: px(100),
+                                    height: px(30),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    ..default()
+                                },
+                                BackgroundColor(BUTTON),
+                            ))
+                            .with_children(|p| text(p, "Lost only", 11.0, GuestLabel::Repair));
                             p.spawn((
                                 GuestAvatar::Selected,
                                 Node {
@@ -556,6 +570,46 @@ pub(crate) fn focus_selected(park: &Park, view: &mut ViewState) -> bool {
     true
 }
 
+/// Prepare the ordinary path tool at a lost guest's last valid level.
+/// The player still chooses and pays for any construction.
+pub(crate) fn prepare_repair(park: &Park, view: &mut ViewState) -> bool {
+    let Some(guest) = view
+        .selected_guest
+        .and_then(|id| park.guests().iter().find(|guest| guest.id == id))
+        .filter(|guest| guest.state == GuestState::Lost)
+    else {
+        return false;
+    };
+    if !focus_selected(park, view) {
+        return false;
+    }
+    view.set_modal(false, false, false, false);
+    view.modal_transition_pending = true;
+    view.path_tool.set_mode(PathTool::Build);
+    view.path_tool.height = guest.height;
+    view.path_tool.slope = if guest.current.is_none() {
+        guest.anchor_slope
+    } else {
+        park_sim::PathSlope::Flat
+    };
+    view.path_tool.hint = if guest.current.is_none() {
+        format!(
+            "Guest #{} lost at ({}, {}). Repair the missing {} path at height {}.",
+            guest.id.0,
+            guest.anchor.x,
+            guest.anchor.y,
+            crate::path_tools::shape_name(guest.anchor_slope),
+            guest.height
+        )
+    } else {
+        format!(
+            "Guest #{} is on a disconnected path. Join it to the public network at height {}.",
+            guest.id.0, guest.height
+        )
+    };
+    true
+}
+
 type Rows<'w, 's> = Query<
     'w,
     's,
@@ -770,6 +824,16 @@ pub(crate) fn refresh(
                 || "No guests in this park".into(),
                 |guest| format!("Guest #{}", guest.id.0),
             ),
+            GuestLabel::Repair => selected.map_or_else(
+                || "Lost only".into(),
+                |guest| {
+                    if guest.state == GuestState::Lost {
+                        "Repair path".into()
+                    } else {
+                        "Lost only".into()
+                    }
+                },
+            ),
             GuestLabel::Details => {
                 selected.map_or_else(String::new, |guest| details(guest, &sim.0))
             }
@@ -824,5 +888,63 @@ mod triage_tests {
         let all = filtered_guests(&park, GuestFilter::All);
         assert_eq!(all.len(), park.guests().len());
         assert!(all.windows(2).all(|pair| pair[0].id < pair[1].id));
+    }
+
+    #[test]
+    fn lost_guest_repair_prepares_the_missing_path_and_normal_recovery() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(42).unwrap();
+        let id = park.guests()[0].id;
+        let current = park.guests()[0].current.unwrap();
+        park.remove_object(current).unwrap();
+        let lost = park.guests().iter().find(|guest| guest.id == id).unwrap();
+        assert_eq!(lost.state, GuestState::Lost);
+        let anchor = lost.anchor;
+        let height = lost.height;
+        let slope = lost.anchor_slope;
+        let before = park.clone();
+        let mut view = ViewState {
+            guests_open: true,
+            selected_guest: Some(id),
+            ..Default::default()
+        };
+        assert!(prepare_repair(&park, &mut view));
+        assert!(!view.guests_open);
+        assert_eq!(view.focused_guest, Some(id));
+        assert_eq!(view.path_tool.mode, PathTool::Build);
+        assert_eq!(
+            (view.path_tool.height, view.path_tool.slope),
+            (height, slope)
+        );
+        assert!(
+            view.path_tool
+                .hint
+                .contains(&format!("({}, {})", anchor.x, anchor.y))
+        );
+        assert_eq!(park, before);
+        park.place_path(anchor, height).unwrap();
+        park.advance(park_sim::Speed::Normal);
+        assert_ne!(
+            park.guests()
+                .iter()
+                .find(|guest| guest.id == id)
+                .unwrap()
+                .state,
+            GuestState::Lost
+        );
+    }
+
+    #[test]
+    fn repair_action_ignores_a_guest_who_is_not_lost() {
+        let mut park = Park::new(32, 32);
+        park.install_crowd_fixture(42).unwrap();
+        let mut view = ViewState {
+            guests_open: true,
+            selected_guest: Some(park.guests()[0].id),
+            ..Default::default()
+        };
+        assert!(!prepare_repair(&park, &mut view));
+        assert!(view.guests_open);
+        assert_eq!(view.path_tool.mode, PathTool::Inspect);
     }
 }

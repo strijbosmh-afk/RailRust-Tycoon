@@ -1,5 +1,7 @@
 # Asset provenance
 
+The 0.52 terrain posts beneath elevated facilities are original procedural boxes using project-authored timber colors. Guest repair and service-need labels are generated UI text. No external art, font, texture or dependency is added. See [SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md](SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md).
+
 The 0.51 Rest pavilion is original project-authored procedural geometry inside the existing one-tile facility envelope. Energy, nausea and service labels are generated interface elements. No external art, font, texture or dependency was added. See [VISITOR_WELLNESS_REPORT.md](VISITOR_WELLNESS_REPORT.md).
 
 The 0.50 visitor history bars and triage controls are original interface geometry and text generated from existing guest state. No external artwork, font, asset or dependency was added. See [VISITOR_TRENDS_TRIAGE_REPORT.md](VISITOR_TRENDS_TRIAGE_REPORT.md).

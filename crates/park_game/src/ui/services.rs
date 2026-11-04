@@ -230,10 +230,11 @@ pub(crate) fn refresh(
                     let status=if stats.closed_for_funds {"Closed: park cannot cover costs".into()}else{stats.status.to_string()};
                     let per_minute=u64::from(service.kind.upkeep_cost_cents()) * (60*TICKS_PER_SECOND/u64::from(park_sim::SERVICE_UPKEEP_TICKS));
                     let operating_profit=stats.revenue_cents as i64-stats.upkeep_cents as i64-stats.supplies_cents as i64;
-                    format!("{status} / Faces {}\nSeeking {} / Waiting {} / Using {}\nServed {} / Sales +{}\nUpkeep -{} / Supplies -{}\nOperating profit {} / Net cash {}\n{}\nOpen upkeep {}/min / Supplies {}/completed use\nPrice refusals {} / N: park finances",
+                    let need_count=sim.0.guests().iter().filter(|guest|guest.needs.value(service.kind)>=park_sim::NEED_SEEK_THRESHOLD).count();
+                    format!("{status} / Faces {}\nSeeking {} / Waiting {} / Using {}\nServed {} / Sales +{}\nUpkeep -{} / Supplies -{}\nOperating profit {} / Net cash {}\n{}\nOpen upkeep {}/min / Supplies {}/completed use\nNeed {} guests / Price refusals {} / N: park finances",
                         direction_name(service.facing),stats.approaching,stats.waiting,stats.using,
                         compact_count(stats.served),money(stats.revenue_cents),money(stats.upkeep_cents),money(stats.supplies_cents),finance::signed_money(operating_profit),finance::signed_money(stats.profit_cents),construction_details(&sim.0,service),
-                        money(per_minute),money(u64::from(service.kind.supply_cost_cents())),compact_count(stats.unaffordable_rejections))
+                        money(per_minute),money(u64::from(service.kind.supply_cost_cents())),need_count,compact_count(stats.unaffordable_rejections))
                 }),
             ServiceLabel::Price=>facility.map_or_else(||"Price unavailable".into(),|service|format!("Price {}",money(u64::from(service.price_cents)))),
             ServiceLabel::Open=>if facility.is_some_and(|service|service.open){"Close [O]"}else{"Open [O]"}.into(),

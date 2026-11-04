@@ -42,13 +42,14 @@ pub(super) fn center(
 /// Every box remains inside the one-tile footprint and three-step clearance.
 /// Local +X faces the PUBLIC serving edge, independent of camera rotation.
 pub(super) fn faces(
+    park: &Park,
     object: &SurfaceObject,
     kind: ServiceKind,
     facing: PathDirection,
-    size: u32,
     rotation: u8,
 ) -> Vec<Face> {
-    let mut result = Vec::with_capacity(80);
+    let size = park.width();
+    let mut result = Vec::with_capacity(100);
     let cream = [rgb(242, 231, 191), rgb(205, 187, 146), rgb(171, 149, 107)];
     let dark = [rgb(76, 101, 89), rgb(53, 77, 66), rgb(40, 62, 53)];
     let accent = match kind {
@@ -83,6 +84,28 @@ pub(super) fn faces(
             );
         }
     };
+    let ground = park
+        .tile(object.pos)
+        .map_or(object.height, |tile| tile.height);
+    let crossing_below = park.objects().iter().any(|other| {
+        other.id != object.id
+            && other.pos == object.pos
+            && other.height < object.height
+            && u16::from(other.height) + u16::from(other.clearance) > u16::from(ground)
+    });
+    if object.height > ground && !crossing_below {
+        let bottom = f32::from(ground) - f32::from(object.height);
+        let timber = [rgb(168, 126, 82), rgb(121, 84, 54), rgb(91, 62, 43)];
+        for x in [-0.40, 0.30] {
+            for y in [-0.40, 0.30] {
+                cuboid(
+                    Vec3::new(x, y, bottom),
+                    Vec3::new(x + 0.10, y + 0.10, 0.0),
+                    timber,
+                );
+            }
+        }
+    }
     // Neutral entrance apron reaches the serving edge without extending out of
     // the reserved tile. Public path joins remain separate navigation geometry.
     cuboid(
@@ -239,13 +262,7 @@ pub fn service_preview_mesh(preview: Option<ServicePreview>, park: &Park, rotati
         path_slope: PathSlope::Flat,
         queue_owner: None,
     };
-    let faces = faces(
-        &object,
-        preview.kind,
-        preview.facing,
-        park.width(),
-        rotation,
-    );
+    let faces = faces(park, &object, preview.kind, preview.facing, rotation);
     let mut ink = if !preview.valid {
         rgb(225, 68, 63)
     } else if preview.demolish {
@@ -298,7 +315,7 @@ mod tests {
                     .object(park.service(id).unwrap().object.unwrap())
                     .unwrap();
                 for rotation in 0..4 {
-                    let faces = faces(object, kind, facing, park.width(), rotation);
+                    let faces = faces(&park, object, kind, facing, rotation);
                     assert!(!faces.is_empty());
                     let target = SurfaceId::Object(object.id);
                     for mode in [ViewMode::Surface, ViewMode::Underground] {
@@ -356,7 +373,7 @@ mod tests {
     }
 
     #[test]
-    fn service_art_is_distinct_with_finite_in_envelope_vertices_at_height_limits() {
+    fn service_art_and_foundations_are_distinct_with_finite_vertices_at_height_limits() {
         for height in [0, 29] {
             let mut kind_meshes = Vec::new();
             for kind in ServiceKind::ALL {
@@ -368,7 +385,7 @@ mod tests {
                     .object(park.service(id).unwrap().object.unwrap())
                     .unwrap();
                 let mut painter = Painter::default();
-                for face in faces(object, kind, PathDirection::South, 12, 0) {
+                for face in faces(&park, object, kind, PathDirection::South, 0) {
                     painter.surface(face.surface, face.ink);
                 }
                 let mesh = painter.finish();
@@ -380,7 +397,7 @@ mod tests {
                     let v = (sum - difference) * 0.5;
                     let h = (y + (sum - 11.0) * HALF_HEIGHT) / HEIGHT_STEP;
                     assert!((4.499..=5.501).contains(&u) && (4.499..=5.501).contains(&v));
-                    assert!((f32::from(height) - 0.001..f32::from(height) + 3.0).contains(&h));
+                    assert!((-0.001..f32::from(height) + 3.0).contains(&h));
                 }
                 kind_meshes.push(positions(&mesh).to_vec());
             }
@@ -388,6 +405,58 @@ mod tests {
             assert_ne!(kind_meshes[1], kind_meshes[2]);
             assert_ne!(kind_meshes[2], kind_meshes[3]);
         }
+    }
+
+    #[test]
+    fn raised_facility_posts_end_at_land_and_avoid_a_lower_crossing() {
+        let pos = TilePos { x: 5, y: 5 };
+        let mut raised = Park::new(12, 12);
+        raised.set_terrain_height(pos, 3).unwrap();
+        let id = raised
+            .place_service(pos, 8, PathDirection::North, ServiceKind::Rest)
+            .unwrap();
+        let object = raised
+            .object(raised.service(id).unwrap().object.unwrap())
+            .unwrap();
+        let supported = faces(&raised, object, ServiceKind::Rest, PathDirection::North, 0);
+
+        let mut flush = Park::new(12, 12);
+        flush.set_terrain_height(pos, 3).unwrap();
+        let flush_id = flush
+            .place_service(pos, 3, PathDirection::North, ServiceKind::Rest)
+            .unwrap();
+        let flush_object = flush
+            .object(flush.service(flush_id).unwrap().object.unwrap())
+            .unwrap();
+        let plain = faces(
+            &flush,
+            flush_object,
+            ServiceKind::Rest,
+            PathDirection::North,
+            0,
+        );
+        assert_eq!(supported.len(), plain.len() + 20);
+
+        let mut crossing = Park::new(12, 12);
+        crossing.set_terrain_height(pos, 3).unwrap();
+        crossing.place_path(pos, 3).unwrap();
+        let crossing_id = crossing
+            .place_service(pos, 8, PathDirection::North, ServiceKind::Rest)
+            .unwrap();
+        let crossing_object = crossing
+            .object(crossing.service(crossing_id).unwrap().object.unwrap())
+            .unwrap();
+        assert_eq!(
+            faces(
+                &crossing,
+                crossing_object,
+                ServiceKind::Rest,
+                PathDirection::North,
+                0
+            )
+            .len(),
+            plain.len()
+        );
     }
 
     #[test]
@@ -488,10 +557,10 @@ mod tests {
         assert!(rendered_object_surfaces(&park, &missing, 0).is_empty());
         for rotation in 0..4 {
             let faces = faces(
+                &park,
                 &object,
                 ServiceKind::Toilet,
                 PathDirection::West,
-                40,
                 rotation,
             );
             let chunks = build_static_chunks(&park, rotation, true, ViewMode::Underground);

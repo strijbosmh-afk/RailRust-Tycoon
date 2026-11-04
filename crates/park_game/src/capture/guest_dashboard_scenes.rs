@@ -12,6 +12,8 @@ pub(super) fn prepare(
         Scene::GuestStats
             | Scene::GuestTrends
             | Scene::GuestTriage
+            | Scene::GuestRepair
+            | Scene::GuestRepairMap
             | Scene::RestFacility
             | Scene::RestFacilityMap
             | Scene::GuestFound
@@ -34,6 +36,16 @@ pub(super) fn prepare(
             view.pan = world::elevated_tile_center(park, pos, view.rotation)
                 .expect("Rest position")
                 - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+        }
+    } else if matches!(scene, Scene::GuestRepair | Scene::GuestRepairMap) {
+        let id = park.guests()[0].id;
+        let path = park.guests()[0].current.unwrap();
+        park.remove_object(path).unwrap();
+        view.selected_guest = Some(id);
+        view.guest_filter = crate::ui::guests::GuestFilter::Lost;
+        view.guests_open = true;
+        if matches!(scene, Scene::GuestRepairMap) {
+            assert!(crate::ui::guests::prepare_repair(park, view));
         }
     } else if matches!(
         scene,
@@ -82,6 +94,8 @@ pub(super) fn prepare(
     view.services_open = matches!(scene, Scene::RestFacility);
     view.finance_open = false;
     view.designs_open = false;
-    view.path_tool = ToolState::default();
+    if !matches!(scene, Scene::GuestRepairMap) {
+        view.path_tool = ToolState::default();
+    }
     view.scene_dirty = true;
 }
