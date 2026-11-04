@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 25;
-pub const CONTENT_VERSION: u32 = 25;
+pub const SCHEMA_VERSION: u32 = 26;
+pub const CONTENT_VERSION: u32 = 26;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,6 +137,11 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(
+        default,
+        deserialize_with = "bounded_objects::<_,_,{crate::MAX_RIDE_RECORDS}>"
+    )]
+    maintenance: Vec<crate::maintenance::RideMaintenanceRecord>,
     #[serde(deserialize_with = "bounded_objects::<_,_,{crate::MAX_RIDE_RECORDS}>")]
     ride_names: Vec<crate::RideName>,
     #[serde(deserialize_with = "bounded_objects::<_,_,{crate::MAX_RIDE_RECORDS}>")]
@@ -306,6 +311,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -472,6 +478,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -708,6 +715,7 @@ impl Park {
                 | 22
                 | 23
                 | 24
+                | 25
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -716,6 +724,7 @@ impl Park {
             return Err(SaveError::UnsupportedContent(header.content_version));
         }
         validate_wellness_fields(bytes, header.schema_version)?;
+        validate_maintenance_field(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -851,6 +860,24 @@ fn parse_save<T: de::DeserializeOwned>(bytes: &[u8]) -> Result<T, SaveError> {
     let value = strict_object(&mut deserializer).map_err(json_error)?;
     deserializer.end().map_err(json_error)?;
     Ok(value)
+}
+
+fn validate_maintenance_field(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 24 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let present = value
+        .get("park")
+        .and_then(|park| park.get("maintenance"))
+        .is_some();
+    if schema < 26 && present {
+        return Err(invalid("maintenance requires schema 26"));
+    }
+    if schema == 26 && !present {
+        return Err(invalid("schema 26 requires maintenance"));
+    }
+    Ok(())
 }
 
 fn validate_wellness_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
@@ -1522,6 +1549,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -1555,6 +1583,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -1591,6 +1620,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -1755,6 +1785,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -1850,6 +1881,7 @@ impl ParkData {
     }
     fn from_park(park: &Park) -> Self {
         Self {
+            maintenance: park.maintenance.clone(),
             track_draft: park.track_draft.clone(),
             track_economy: park.track_economy.clone(),
             width: park.width,
@@ -1908,6 +1940,7 @@ impl ParkData {
         }
         let circuit_data = self.circuit;
         let mut park = Park {
+            maintenance: self.maintenance,
             track_draft: self.track_draft,
             track_economy: self.track_economy,
             width: self.width,
@@ -1949,6 +1982,7 @@ impl ParkData {
         validate_guests(&park, &objects)?;
         crate::appearance::validate(&park).map_err(invalid)?;
         crate::ride_names::validate(&park).map_err(invalid)?;
+        crate::maintenance::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;
         park.circuit = circuit_data
             .map(|data| rebuild_circuit(&park, &objects, data))
@@ -2636,6 +2670,7 @@ mod tests {
     }
 
     fn reset_legacy_wellness(park: &mut Park) {
+        park.maintenance.clear();
         for guest in &mut park.guests {
             guest.needs.energy = 80;
             guest.needs.nausea = 0;

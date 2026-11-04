@@ -10,6 +10,7 @@ pub enum RideOpeningError {
     UnknownRide(RideId),
     Unavailable,
     OperatingFunds(u32),
+    MaintenanceShutdown,
     Circuit(TrainError),
     Entrance(RideAccessStatus),
     Exit(RideExitStatus),
@@ -27,6 +28,7 @@ impl std::fmt::Display for RideOpeningError {
                 cents / 100,
                 cents % 100
             ),
+            Self::MaintenanceShutdown => f.write_str("Service this ride before reopening"),
             Self::Circuit(_) => f.write_str("Repair the installed coaster track"),
             Self::Entrance(status) => status.fmt(f),
             Self::Exit(RideExitStatus::PublicDisconnected) => {
@@ -50,6 +52,12 @@ impl Park {
             .ok_or(RideOpeningError::UnknownRide(id))?;
         if !self.ride_available(id) {
             return Err(RideOpeningError::Unavailable);
+        }
+        if self
+            .ride_maintenance_status(id)
+            .is_some_and(|status| status.shutdown)
+        {
+            return Err(RideOpeningError::MaintenanceShutdown);
         }
         if kind == RideKind::Coaster {
             self.validate_train_circuit()

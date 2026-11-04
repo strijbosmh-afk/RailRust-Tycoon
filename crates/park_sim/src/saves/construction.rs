@@ -196,6 +196,7 @@ pub(super) struct VersionTenParkData {
 impl VersionTenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),

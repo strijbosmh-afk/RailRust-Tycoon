@@ -64,6 +64,7 @@ pub(super) struct VersionTwelveParkData<O = SurfaceObject, G = Guest, R = crate:
 impl VersionTwelveParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),
@@ -137,6 +138,7 @@ pub(super) struct VersionFourteenParkData<O = SurfaceObject, G = Guest, R = crat
 impl VersionFourteenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            maintenance: Vec::new(),
             ride_costs: Vec::new(),
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),

@@ -168,6 +168,7 @@ mod tests {
         old["schema_version"] = 23.into();
         old["content_version"] = 23.into();
         old["park"].as_object_mut().unwrap().remove("ride_names");
+        old["park"].as_object_mut().unwrap().remove("maintenance");
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();
         assert_eq!(migrated, park);
         assert_eq!(migrated.ride_name(id), Some("Meadow Flyer"));
