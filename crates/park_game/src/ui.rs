@@ -115,6 +115,7 @@ pub(super) enum Action {
     GuestStatsView,
     CycleGuestFilter,
     FindGuest,
+    RepairGuestPath,
     Visitor(visitor_flow::VisitorCommand),
     Services,
     CloseServices,
@@ -1007,6 +1008,7 @@ pub(super) fn button_actions(
                     | Action::GuestStatsView
                     | Action::CycleGuestFilter
                     | Action::FindGuest
+                    | Action::RepairGuestPath
                     | Action::Visitor(_)
             )
         {
@@ -1129,6 +1131,13 @@ pub(super) fn button_actions(
                     view.modal_transition_pending = true;
                 }
             }
+            Action::RepairGuestPath
+                if view.guests_open && !view.guest_flow_view && !view.guest_stats_view =>
+            {
+                if let Some(park) = sim.as_ref().map(|sim| &sim.0) {
+                    guests::prepare_repair(park, &mut view);
+                }
+            }
             Action::RidePaint(command) => {
                 if view.rides_open {
                     appearance::queue(
@@ -1196,6 +1205,7 @@ pub(super) fn button_actions(
             | Action::GuestStatsView
             | Action::CycleGuestFilter
             | Action::FindGuest
+            | Action::RepairGuestPath
             | Action::Visitor(_) => {}
             Action::Finance
             | Action::CloseFinance

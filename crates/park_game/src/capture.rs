@@ -78,6 +78,8 @@ enum Scene {
     GuestStats,
     GuestTrends,
     GuestTriage,
+    GuestRepair,
+    GuestRepairMap,
     RestFacility,
     RestFacilityMap,
     GuestFound,
@@ -707,6 +709,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("guest-stats") => Scene::GuestStats,
                 Some("guest-trends") => Scene::GuestTrends,
                 Some("guest-triage") => Scene::GuestTriage,
+                Some("guest-repair") => Scene::GuestRepair,
+                Some("guest-repair-map") => Scene::GuestRepairMap,
                 Some("rest-facility") => Scene::RestFacility,
                 Some("rest-facility-map") => Scene::RestFacilityMap,
                 Some("guest-found") => Scene::GuestFound,
@@ -1252,6 +1256,8 @@ fn apply_preset(
         Scene::GuestStats
             | Scene::GuestTrends
             | Scene::GuestTriage
+            | Scene::GuestRepair
+            | Scene::GuestRepairMap
             | Scene::RestFacility
             | Scene::RestFacilityMap
             | Scene::GuestFound

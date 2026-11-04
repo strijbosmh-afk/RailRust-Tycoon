@@ -573,7 +573,7 @@ fn rendered_object_surfaces(park: &Park, object: &SurfaceObject, rotation: u8) -
     } else if object.kind == ObjectKind::Service {
         park.service_by_object(object.id)
             .map(|service| {
-                service_render::faces(object, service.kind, service.facing, park.width(), rotation)
+                service_render::faces(park, object, service.kind, service.facing, rotation)
             })
             .unwrap_or_default()
             .into_iter()
@@ -660,13 +660,9 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         }
         if object.kind == ObjectKind::Service {
             if let Some(service) = park.service_by_object(object.id) {
-                for face in service_render::faces(
-                    object,
-                    service.kind,
-                    service.facing,
-                    park.width(),
-                    rotation,
-                ) {
+                for face in
+                    service_render::faces(park, object, service.kind, service.facing, rotation)
+                {
                     mesh.surface(face.surface, face.ink);
                 }
                 mesh.end_group(PaintLayer::Object);
