@@ -51,6 +51,8 @@ impl VersionTwentyParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
             maintenance: Vec::new(),
+            mechanic_hired: false,
+            mechanic_wage_progress: 0,
             ride_costs: self.ride_costs,
             loans: crate::loans::LoanAccount::default(),
             ride_names: Vec::new(),

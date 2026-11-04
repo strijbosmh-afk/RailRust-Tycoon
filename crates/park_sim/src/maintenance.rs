@@ -169,6 +169,18 @@ mod tests {
             .remove("maintenance");
         assert!(Park::from_save_bytes(&serde_json::to_vec(&missing).unwrap()).is_err());
         let mut old = missing.clone();
+        old["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("mechanic_hired");
+        old["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("mechanic_wage_progress");
+        old["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("wages_cents");
         old["schema_version"] = 25.into();
         old["content_version"] = 25.into();
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();

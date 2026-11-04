@@ -106,6 +106,7 @@ pub(crate) enum RideLabel {
     OperatingValue(OperatingField),
     OperatingStatus,
     OperatingNotice,
+    MechanicAction,
     ToggleOpen,
     AccessChecklist,
     AccessAdvice,
@@ -260,8 +261,13 @@ pub(super) fn setup(commands: &mut Commands) {
                 operating_row(p, OperatingField::MinimumPassengers);
                 operating_row(p, OperatingField::MaxExtraWait);
                 p.spawn(row()).with_children(|p| {
-                    button(p, "Reset defaults", Action::RideOperating(OperationCommand::ResetDefaults), 170.0);
-                    button(p, "Service ride", Action::RideOperating(OperationCommand::ServiceRide), 170.0);
+                    button(p, "Reset", Action::RideOperating(OperationCommand::ResetDefaults), 100.0);
+                    button(p, "Service ride", Action::RideOperating(OperationCommand::ServiceRide), 105.0);
+                    p.spawn((Button,Action::RideOperating(OperationCommand::ToggleMechanic),Node {
+                        width:px(125),height:px(30),align_items:AlignItems::Center,justify_content:JustifyContent::Center,
+                        border:UiRect::all(px(1)),..default()
+                    },BackgroundColor(BUTTON),BorderColor::all(BORDER),BorderRadius::all(px(5))))
+                    .with_children(|p| operating_label(p,RideLabel::MechanicAction,12.0,INK));
                 });
                 p.spawn(Node { height: px(32), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingNotice, 12.0, MUTED));
@@ -451,7 +457,10 @@ pub(crate) fn refresh(
             RideLabel::OperatingNotice => view
                 .ride_operating_notice
                 .clone()
-                .unwrap_or_else(|| "Changes are included when you save the park.".into()),
+                .unwrap_or_else(|| if sim.0.mechanic_status().hired {
+                    "Mechanic hired / $2.00 per minute. Service is automatic on closed rides.".into()
+                } else { "Changes are included when you save the park.".into() }),
+            RideLabel::MechanicAction => if sim.0.mechanic_status().hired { "Dismiss mechanic" } else { "Hire mechanic" }.into(),
             RideLabel::ToggleOpen => if sim.0.ride_is_open(id) {
                 "Close ride to tune"
             } else {

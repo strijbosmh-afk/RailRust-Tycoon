@@ -223,7 +223,11 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
     let mut park = demonstration_park();
     park.set_train_open(false);
     let cash = park.cash_cents();
-    let ledger = serde_json::to_value(park.finance_ledger()).map_err(|e| e.to_string())?;
+    let mut ledger = serde_json::to_value(park.finance_ledger()).map_err(|e| e.to_string())?;
+    ledger["archived"]
+        .as_object_mut()
+        .unwrap()
+        .remove("wages_cents");
     let height = park.tile(LEGACY_SITE).unwrap().height;
     let id = park
         .place_service(LEGACY_SITE, height, PathDirection::North, ServiceKind::Food)
@@ -233,6 +237,14 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
             .map_err(|e| e.to_string())?;
     old["schema_version"] = 11.into();
     old["park"].as_object_mut().unwrap().remove("maintenance");
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mechanic_hired");
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mechanic_wage_progress");
     for guest in old["park"]["guests"].as_array_mut().unwrap() {
         let needs = guest["needs"].as_object_mut().unwrap();
         needs.remove("energy");

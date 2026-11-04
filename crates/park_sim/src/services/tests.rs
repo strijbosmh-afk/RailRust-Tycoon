@@ -1000,6 +1000,18 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
     old["schema_version"] = json!(24);
     old["content_version"] = json!(24);
     old["park"].as_object_mut().unwrap().remove("maintenance");
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mechanic_hired");
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mechanic_wage_progress");
+    old["park"]["finances"]["archived"]
+        .as_object_mut()
+        .unwrap()
+        .remove("wages_cents");
     for guest in old["park"]["guests"].as_array_mut().unwrap() {
         let needs = guest["needs"].as_object_mut().unwrap();
         needs.remove("energy");

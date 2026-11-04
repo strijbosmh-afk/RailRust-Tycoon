@@ -1208,3 +1208,34 @@ fn service_button_updates_only_selected_stopped_ride_and_survives_save() {
     click(&mut app, OperationCommand::ServiceRide);
     assert_eq!(app.world().resource::<Simulation>().0, open);
 }
+
+#[test]
+fn mechanic_button_hires_and_dismisses_without_touching_ride_settings() {
+    let (mut app, _directory, coaster, carousel) = fixture();
+    let before = app.world().resource::<Simulation>().0.clone();
+    click(&mut app, OperationCommand::ToggleMechanic);
+    let park = &app.world().resource::<Simulation>().0;
+    assert!(park.mechanic_status().hired);
+    assert_eq!(
+        park.ride_operating_settings(coaster),
+        before.ride_operating_settings(coaster)
+    );
+    assert_eq!(
+        park.ride_operating_settings(carousel),
+        before.ride_operating_settings(carousel)
+    );
+    let mut labels = app.world_mut().query::<(&ui::rides::RideLabel, &Text)>();
+    assert!(labels.iter(app.world()).any(|(kind, text)| matches!(
+        kind,
+        ui::rides::RideLabel::MechanicAction
+    ) && text.0 == "Dismiss mechanic"));
+    click(&mut app, OperationCommand::ToggleMechanic);
+    assert!(
+        !app.world()
+            .resource::<Simulation>()
+            .0
+            .mechanic_status()
+            .hired
+    );
+    assert_eq!(app.world().resource::<Simulation>().0, before);
+}

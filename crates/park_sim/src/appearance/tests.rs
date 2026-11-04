@@ -189,6 +189,18 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
         .as_object_mut()
         .unwrap()
         .remove("maintenance");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mechanic_hired");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("mechanic_wage_progress");
+    current["park"]["finances"]["archived"]
+        .as_object_mut()
+        .unwrap()
+        .remove("wages_cents");
     assert_eq!(
         current["park"]
             .as_object_mut()

@@ -23,6 +23,7 @@ pub(crate) enum OperationCommand {
     ResetDefaults,
     ToggleOpen,
     ServiceRide,
+    ToggleMechanic,
 }
 
 impl OperatingField {
@@ -157,6 +158,9 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: OperationC
     if command == OperationCommand::ServiceRide {
         return park.can_service_ride(id);
     }
+    if command == OperationCommand::ToggleMechanic {
+        return true;
+    }
     if park.ride_operating_settings_status(id).is_err() {
         return false;
     }
@@ -184,6 +188,7 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: OperationC
         }
         OperationCommand::ToggleOpen => true,
         OperationCommand::ServiceRide => true,
+        OperationCommand::ToggleMechanic => true,
     }
 }
 
@@ -228,6 +233,19 @@ pub(crate) fn perform_command(
     id: RideId,
     command: OperationCommand,
 ) -> bool {
+    if command == OperationCommand::ToggleMechanic {
+        let hired = !park.mechanic_status().hired;
+        park.set_mechanic_hired(hired);
+        view.ride_operating_notice = Some(
+            if hired {
+                "Mechanic hired / $2.00 per minute. Due closed rides are serviced automatically."
+            } else {
+                "Mechanic dismissed. Existing ride upkeep continues."
+            }
+            .into(),
+        );
+        return true;
+    }
     if command == OperationCommand::ServiceRide {
         return match park.service_ride(id) {
             Ok(()) => {
@@ -362,6 +380,7 @@ pub(crate) fn perform_command(
         OperationCommand::ResetDefaults => RideOperatingSettings::default(),
         OperationCommand::ToggleOpen => unreachable!(),
         OperationCommand::ServiceRide => unreachable!(),
+        OperationCommand::ToggleMechanic => unreachable!(),
     };
     match park.set_ride_operating_settings(id, requested) {
         Ok(changed) => {
