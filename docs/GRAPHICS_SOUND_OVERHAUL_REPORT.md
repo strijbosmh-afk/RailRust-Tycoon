@@ -6,6 +6,8 @@ The original score adds a second twenty-second melody phrase, a four-chord harmo
 
 No imported bitmap, audio recording, melody, font or new dependency is added. The sound settings file remains strict version 1 with a 4 KiB cap; park saves remain strict **25/25**. The visual details do not alter terrain or object collision, height, selection or navigation. Existing save compatibility and portable Windows distribution are preserved. This development PC is excluded as a performance reference; subjective listening on a target PC and native input remain acceptance work.
 
+Runtime source commit `dc3430fc1b739b9d72a50be661b4352bc90010d6` is on `codex/graphics-sound-overhaul` in [draft PR #53](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/53), stacked on `codex/service-foundations-guest-help` ([draft PR #52](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/52)).
+
 ## Verification scope
 
 Release tests cover four-rotation shoreline clipping and unchanged park bytes, stereo pan and far-ride silence, deterministic bounded PCM, all existing rendering/picking contracts and save migration/continuation. The production sound proof exports five WAV clips through actual settings controls, then recreates them byte-for-byte in a fresh process. Inspect normal-window garden, water, sound and raised-facility captures from the extracted Windows package. Record exact test counts, package hashes, proof results and GitHub handoff in [RESUME_DEVELOPMENT.md](../RESUME_DEVELOPMENT.md).
