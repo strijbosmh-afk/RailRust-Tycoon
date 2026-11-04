@@ -22,8 +22,13 @@ mod finances;
 mod park_value;
 pub use park_value::ParkValue;
 mod loans;
+mod maintenance;
 pub use finance_summary::{OperatingProfit, ParkFinanceSummary};
 pub use loans::{LOAN_INTEREST_TICKS, LOAN_STEP_CENTS, LoanError, LoanStats, MAX_LOAN_CENTS};
+pub use maintenance::{
+    MAINTENANCE_DUE_VISITS, MAINTENANCE_SHUTDOWN_VISITS, RideMaintenanceError,
+    RideMaintenanceStatus,
+};
 #[cfg(test)]
 #[path = "../test_support/pre_upkeep.rs"]
 pub(crate) mod legacy_cost_test_support;
@@ -260,6 +265,7 @@ pub struct Park {
     finances: FinanceLedger,
     ride_paints: Vec<RideAppearance>,
     ride_names: Vec<RideName>,
+    maintenance: Vec<maintenance::RideMaintenanceRecord>,
     visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
@@ -297,6 +303,7 @@ impl PartialEq for Park {
             && self.finances == other.finances
             && self.ride_paints == other.ride_paints
             && self.ride_names == other.ride_names
+            && self.maintenance == other.maintenance
             && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
@@ -355,6 +362,7 @@ impl Park {
             finances: FinanceLedger::default(),
             ride_paints: Vec::new(),
             ride_names: Vec::new(),
+            maintenance: Vec::new(),
             visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),
@@ -499,6 +507,7 @@ impl Park {
             self.step_train();
             self.step_carousels();
             self.reconcile_passenger_laps();
+            self.step_maintenance();
             self.finish_visitor_departures();
         }
     }

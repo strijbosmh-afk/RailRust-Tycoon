@@ -22,6 +22,7 @@ pub(crate) enum OperationCommand {
     Adjust(OperatingField, i8),
     ResetDefaults,
     ToggleOpen,
+    ServiceRide,
 }
 
 impl OperatingField {
@@ -153,6 +154,9 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: OperationC
             Err(RideOperatingError::Unavailable | RideOperatingError::UnknownRide(_))
         );
     }
+    if command == OperationCommand::ServiceRide {
+        return park.can_service_ride(id);
+    }
     if park.ride_operating_settings_status(id).is_err() {
         return false;
     }
@@ -179,6 +183,7 @@ pub(crate) fn command_enabled(park: &Park, view: &ViewState, command: OperationC
                     .is_some_and(|cars| cars != park_sim::DEFAULT_COASTER_CARS)
         }
         OperationCommand::ToggleOpen => true,
+        OperationCommand::ServiceRide => true,
     }
 }
 
@@ -223,6 +228,19 @@ pub(crate) fn perform_command(
     id: RideId,
     command: OperationCommand,
 ) -> bool {
+    if command == OperationCommand::ServiceRide {
+        return match park.service_ride(id) {
+            Ok(()) => {
+                view.ride_operating_notice =
+                    Some("Ride inspected and serviced. Save the park to keep it.".into());
+                true
+            }
+            Err(error) => {
+                view.ride_operating_notice = Some(format!("Ride unchanged: {error}"));
+                false
+            }
+        };
+    }
     if command == OperationCommand::ToggleOpen {
         if let Err(error @ (RideOperatingError::Unavailable | RideOperatingError::UnknownRide(_))) =
             park.ride_operating_settings_status(id)
@@ -343,6 +361,7 @@ pub(crate) fn perform_command(
         }
         OperationCommand::ResetDefaults => RideOperatingSettings::default(),
         OperationCommand::ToggleOpen => unreachable!(),
+        OperationCommand::ServiceRide => unreachable!(),
     };
     match park.set_ride_operating_settings(id, requested) {
         Ok(changed) => {

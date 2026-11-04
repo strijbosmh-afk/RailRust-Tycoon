@@ -377,6 +377,7 @@ impl Park {
         self.objects.retain(|o| !footprint.contains(&o.id));
         self.reconcile_ride_visits();
         self.record_ride_transaction(crate::FinanceKind::RideDemolitionRefund, id, refund);
+        self.maintenance.retain(|record| record.ride != id);
         Ok(())
     }
     pub fn carousel_seat_positions(&self, id: RideId) -> Vec<PathPoint> {

@@ -999,6 +999,7 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
     let mut old: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
     old["schema_version"] = json!(24);
     old["content_version"] = json!(24);
+    old["park"].as_object_mut().unwrap().remove("maintenance");
     for guest in old["park"]["guests"].as_array_mut().unwrap() {
         let needs = guest["needs"].as_object_mut().unwrap();
         needs.remove("energy");

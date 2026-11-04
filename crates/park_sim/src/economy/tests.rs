@@ -547,6 +547,7 @@ fn v5_passengers_migrate_free_with_exact_future_and_strict_old_shapes() {
             guest.needs.energy = 80;
             guest.needs.nausea = 0;
         }
+        source.maintenance.clear();
         let legacy = v5_value(&source);
         let mut loaded = Park::from_save_bytes(&serde_json::to_vec(&legacy).unwrap()).unwrap();
         assert_eq!(loaded, source);

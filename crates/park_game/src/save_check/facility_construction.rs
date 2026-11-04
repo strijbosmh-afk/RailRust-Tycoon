@@ -232,6 +232,7 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         serde_json::from_slice(&park.to_save_bytes().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
     old["schema_version"] = 11.into();
+    old["park"].as_object_mut().unwrap().remove("maintenance");
     for guest in old["park"]["guests"].as_array_mut().unwrap() {
         let needs = guest["needs"].as_object_mut().unwrap();
         needs.remove("energy");

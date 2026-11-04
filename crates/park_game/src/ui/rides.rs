@@ -259,7 +259,10 @@ pub(super) fn setup(commands: &mut Commands) {
                 operating_row(p, OperatingField::CycleDuration);
                 operating_row(p, OperatingField::MinimumPassengers);
                 operating_row(p, OperatingField::MaxExtraWait);
-                button(p, "Reset operating defaults", Action::RideOperating(OperationCommand::ResetDefaults), 356.0);
+                p.spawn(row()).with_children(|p| {
+                    button(p, "Reset defaults", Action::RideOperating(OperationCommand::ResetDefaults), 170.0);
+                    button(p, "Service ride", Action::RideOperating(OperationCommand::ServiceRide), 170.0);
+                });
                 p.spawn(Node { height: px(32), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingNotice, 12.0, MUTED));
                 });
@@ -435,6 +438,8 @@ pub(crate) fn refresh(
             },
             RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, journey.capacity) }),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
+            RideLabel::OperatingStatus if sim.0.ride_maintenance_status(id).is_some_and(|s| s.shutdown) => "Maintenance shutdown / close and service this ride.\nTrips finish before service becomes available.".into(),
+            RideLabel::OperatingStatus if sim.0.ride_maintenance_status(id).is_some_and(|s| s.inspection_due) => format!("Inspection due / {} guest trips since service.\nClose and empty the ride to service it.",sim.0.ride_maintenance_status(id).unwrap().visits_since_service),
             RideLabel::OperatingStatus if sim.0.ride_running_costs(id).is_some_and(|c|c.closed_for_funds) => format!("Funds closure / overdue {}.\nAdd funds and reopen manually.",money(u64::from(sim.0.ride_running_costs(id).unwrap().cost_per_interval_cents))),
             RideLabel::OperatingStatus => sim.0.ride_dispatch_progress(id).filter(|progress| progress.waiting_for_load).map_or_else(
                 || if sim.0.ride_is_open(id) || sim.0.ride_is_running(id) {

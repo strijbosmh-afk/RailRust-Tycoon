@@ -1157,3 +1157,54 @@ fn painted_ride_can_be_shown_and_saved_without_changing_pause_or_gameplay() {
     assert_eq!(app.world().resource::<Simulation>().0, painted);
     assert_eq!(app.world().resource::<ViewState>().speed, Speed::Paused);
 }
+
+#[test]
+fn service_button_updates_only_selected_stopped_ride_and_survives_save() {
+    let directory = SaveDirectory::new();
+    let (mut park, coaster, carousel) = two_rides();
+    for _ in 0..1_200 {
+        if park.can_service_ride(carousel) {
+            break;
+        }
+        park.advance(Speed::Normal);
+    }
+    assert!(park.can_service_ride(carousel));
+    let cash = park.cash_cents();
+    let ledger = park.finance_ledger().clone();
+    let mut app = app(
+        &directory,
+        park,
+        ViewState {
+            rides_open: true,
+            selected_ride: Some(carousel),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    click(&mut app, OperationCommand::ServiceRide);
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(
+        park.ride_maintenance_status(carousel)
+            .unwrap()
+            .service_count,
+        1
+    );
+    assert_eq!(
+        park.ride_maintenance_status(coaster).unwrap().service_count,
+        0
+    );
+    assert_eq!(park.cash_cents(), cash);
+    assert_eq!(*park.finance_ledger(), ledger);
+    let saved = park.clone();
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    assert_eq!(directory.store().load().unwrap(), saved);
+    let mut open = saved;
+    open.set_ride_open(carousel, true).unwrap();
+    app.world_mut().resource_mut::<Simulation>().0 = open.clone();
+    frame(&mut app, &[ui::Action::Rides], &[]);
+    frame(&mut app, &[], &[]);
+    click(&mut app, OperationCommand::ServiceRide);
+    assert_eq!(app.world().resource::<Simulation>().0, open);
+}

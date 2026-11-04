@@ -185,6 +185,10 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
     let p = Park::from_save_bytes(bytes).unwrap();
     let mut current: serde_json::Value =
         serde_json::from_slice(&p.to_save_bytes().unwrap()).unwrap();
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("maintenance");
     assert_eq!(
         current["park"]
             .as_object_mut()
