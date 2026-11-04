@@ -6,6 +6,8 @@ Guests [L] offers **Repair path** for a selected lost visitor. The action focuse
 
 This work adds no external artwork, font, asset, dependency, random draw, save field or change to the 25/25 save pair. It does not add automatic staff assistance, litter or vomit. Those remain later gameplay work. The full classic game and clean-PC acceptance remain open. This development PC is not a performance reference.
 
+Runtime source commit `00699ced0b66d6f9f6917f0e291f1832d5b61950` is on `codex/service-foundations-guest-help` in [draft PR #52](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/52), stacked on `codex/visitor-wellness` ([draft PR #51](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/51)).
+
 ## Verification scope
 
 Release tests cover the foundation mesh envelope and lower crossing, no-op repair for other guests, and a missing-path repair prepared without park mutation followed by ordinary path placement and guest recovery. The `rest-facility`, `rest-facility-map`, `guest-repair` and `guest-repair-map` captures were inspected at the minimum 1024 × 680 window. The packaged executable passed independent continuation proof pairs from a fresh Unicode/space extraction. Exact results, executable identity and GitHub branch are recorded in [RESUME_DEVELOPMENT.md](../RESUME_DEVELOPMENT.md).
