@@ -655,6 +655,7 @@ struct Capture {
     terrain_profile: TerrainProfile,
     view_mode: ViewMode,
     small_window: bool,
+    detail: bool,
     ticks: u32,
     started: Instant,
     frames: u32,
@@ -977,6 +978,7 @@ pub(super) fn configure(app: &mut App) {
     let small_window = arguments
         .iter()
         .any(|value| value == "--capture-small-window");
+    let detail = arguments.iter().any(|value| value == "--capture-detail");
     assert!(
         !scene.is_terrain_tool()
             || matches!(scene, Scene::TerrainUnderground)
@@ -1020,6 +1022,7 @@ pub(super) fn configure(app: &mut App) {
         terrain_profile,
         view_mode,
         small_window,
+        detail,
         ticks,
         started: Instant::now(),
         frames: 0,
@@ -1369,6 +1372,42 @@ fn apply_preset(
         // A loaded scene intentionally retains the normal load's fitted camera
         // and paused state, instead of modifying its terrain or simulating ahead.
     }
+    if capture.detail {
+        let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+        view.zoom = 3.5 * view.camera_span;
+        match capture.scene {
+            scene if scene.is_train() => {
+                view.pan = world::leading_car_focus(&sim.0, view.rotation)
+                    .expect("detail capture train")
+                    - elevation;
+            }
+            Scene::CarouselBuilt | Scene::DualRiding => {
+                let ride = sim
+                    .0
+                    .carousels()
+                    .iter()
+                    .find(|ride| !ride.objects.is_empty())
+                    .expect("detail capture carousel");
+                view.pan = world::ride_focus(&sim.0, ride.ride.id, view.rotation)
+                    .expect("detail capture focus")
+                    - elevation;
+            }
+            Scene::ServiceNeeds => {
+                let service = sim.0.services().first().expect("detail capture service");
+                let pos = sim
+                    .0
+                    .object(service.object.expect("detail capture service object"))
+                    .expect("detail capture service exists")
+                    .pos;
+                view.pan = world::elevated_tile_center(&sim.0, pos, view.rotation)
+                    .expect("detail capture service tile")
+                    - elevation;
+            }
+            Scene::Garden => {}
+            _ => panic!("--capture-detail requires a ride, service-needs or garden scene"),
+        }
+        view.scene_dirty = true;
+    }
     if capture.small_window
         && let Ok(mut window) = windows.single_mut()
     {
@@ -1664,6 +1703,7 @@ mod tests {
                 terrain_profile: TerrainProfile::Terraced,
                 view_mode: ViewMode::Surface,
                 small_window: false,
+                detail: false,
                 ticks: DEFAULT_CAPTURE_TICKS,
                 started: Instant::now(),
                 frames: 0,
@@ -1845,6 +1885,7 @@ mod tests {
                     terrain_profile: TerrainProfile::Flat,
                     view_mode: ViewMode::Surface,
                     small_window: false,
+                    detail: false,
                     ticks: 137,
                     started: Instant::now(),
                     frames: 0,

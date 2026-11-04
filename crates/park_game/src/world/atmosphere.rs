@@ -20,7 +20,7 @@ pub(super) fn ground_details(
                     12.0,
                     4.2,
                     DETAIL_BIAS,
-                    rgb(105, 151, 86),
+                    rgb(79, 184, 68),
                 );
                 mesh.surface_ellipse(
                     top,
@@ -28,7 +28,7 @@ pub(super) fn ground_details(
                     6.0,
                     2.0,
                     DETAIL_BIAS * 2.0,
-                    rgb(123, 166, 96),
+                    rgb(111, 204, 80),
                 );
             }
             Terrain::Sand if seed.is_multiple_of(3) => {
@@ -70,30 +70,30 @@ pub(super) fn ground_details(
                     rgb(93, 143, 77),
                 );
             }
-            if seed.is_multiple_of(29) && !park.objects().iter().any(|o| o.pos == pos) {
+            if seed.is_multiple_of(11) && !park.objects().iter().any(|o| o.pos == pos) {
                 for (dx, dy) in [(-7.0, -1.0), (0.0, 2.0), (5.0, -2.0)] {
                     let c = center + Vec2::new(dx, dy);
                     mesh.surface_ellipse(
                         top,
                         c + Vec2::new(1.0, -1.0),
-                        3.1,
-                        1.3,
+                        4.3,
+                        1.9,
                         DETAIL_BIAS,
-                        rgb(93, 140, 79),
+                        rgb(56, 144, 68),
                     );
                     mesh.surface_ellipse(
                         top,
                         c,
+                        2.1,
                         1.5,
-                        1.1,
                         DETAIL_BIAS * 2.0,
                         if seed.is_multiple_of(2) {
-                            rgb(243, 220, 158)
+                            rgb(255, 202, 63)
                         } else {
-                            rgb(197, 172, 203)
+                            rgb(234, 78, 166)
                         },
                     );
-                    mesh.surface_ellipse(top, c, 0.55, 0.4, DETAIL_BIAS * 3.0, rgb(229, 176, 87));
+                    mesh.surface_ellipse(top, c, 0.55, 0.4, DETAIL_BIAS * 3.0, rgb(255, 240, 104));
                 }
             }
         }

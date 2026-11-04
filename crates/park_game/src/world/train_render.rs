@@ -153,6 +153,20 @@ fn support_is_clear(park: &Park, id: ObjectId, point: Vec3) -> Option<f32> {
     (!occupied).then_some(bottom)
 }
 
+fn timber_brace(faces: &mut Vec<Face>, a: Vec3, b: Vec3, ink: [Ink; 3], size: u32, rotation: u8) {
+    let delta = b.truncate() - a.truncate();
+    let side = Vec2::new(-delta.y, delta.x).normalize_or_zero().extend(0.0);
+    slab(
+        faces,
+        strip(a, b, side, side, -0.025, 0.025),
+        0.0,
+        0.055,
+        ink,
+        size,
+        rotation,
+    );
+}
+
 fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8) {
     let middle = piece.samples.len() / 2;
     let a = ground(piece.samples[middle.saturating_sub(1)]);
@@ -169,13 +183,15 @@ fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8
         .unwrap_or_default();
     let colors = ride_colors::inks(
         paint.supports,
-        [rgb(134, 164, 157), rgb(80, 113, 111), rgb(56, 85, 87)],
+        [rgb(189, 121, 62), rgb(132, 74, 42), rgb(86, 47, 33)],
     );
+    let mut legs = Vec::with_capacity(2);
     for offset in [-0.23, 0.23] {
         let point = center + side * offset;
         let Some(bottom) = support_is_clear(park, piece.object, point) else {
             continue;
         };
+        legs.push((point, bottom));
         let ground_point = Vec3::new(point.x, point.y, bottom);
         let footprint = [
             ground_point + Vec3::new(-0.035, -0.035, 0.0),
@@ -201,6 +217,25 @@ fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8
             park.width(),
             rotation,
         );
+    }
+    // Braces belong to a clear pair of posts. Never bridge across another
+    // object under the track, even when the endpoints themselves are clear.
+    if let [(left, left_ground), (right, right_ground)] = legs.as_slice()
+        && support_is_clear(park, piece.object, center).is_some()
+    {
+        let mut level = left_ground.max(*right_ground) + 0.55;
+        let roof = left.z.min(right.z) - 0.22;
+        while level + 0.54 < roof {
+            let low_left = Vec3::new(left.x, left.y, level);
+            let low_right = Vec3::new(right.x, right.y, level);
+            let high_left = low_left + Vec3::Z * 0.54;
+            let high_right = low_right + Vec3::Z * 0.54;
+            timber_brace(faces, low_left, low_right, colors, park.width(), rotation);
+            timber_brace(faces, high_left, high_right, colors, park.width(), rotation);
+            timber_brace(faces, low_left, high_right, colors, park.width(), rotation);
+            timber_brace(faces, low_right, high_left, colors, park.width(), rotation);
+            level += 0.75;
+        }
     }
 }
 
@@ -271,7 +306,7 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                 0.25,
                 ride_colors::inks(
                     paint.structure,
-                    [rgb(228, 235, 212), rgb(148, 174, 166), rgb(108, 140, 139)],
+                    [rgb(232, 75, 48), rgb(154, 47, 34), rgb(98, 32, 27)],
                 ),
                 size,
                 rotation,
@@ -1074,9 +1109,14 @@ mod tests {
             .clone();
         let point = ground(piece.samples[piece.samples.len() / 2]);
         assert!(support_is_clear(&park, piece.object, point).is_some());
+        let clean = piece_faces(&park, &piece, 0);
+        assert!(clean.iter().any(|face| face.ink == rgb(189, 121, 62)));
         let pos = park.object(piece.object).unwrap().pos;
         park.place_object(pos, ObjectKind::Path, Axis::X, 3, 2)
             .unwrap();
         assert!(support_is_clear(&park, piece.object, point).is_none());
+        let blocked = piece_faces(&park, &piece, 0);
+        assert!(blocked.len() < clean.len());
+        assert!(!blocked.iter().any(|face| face.ink == rgb(189, 121, 62)));
     }
 }

@@ -81,6 +81,10 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
                         appearance.supports,
                         [rgb(246, 194, 83), rgb(193, 132, 48), rgb(143, 89, 35)],
                     ),
+                    (
+                        appearance.structure,
+                        [rgb(235, 76, 105), rgb(94, 89, 200), rgb(54, 186, 219)],
+                    ),
                 ] {
                     if let Some(i) = colors.iter().position(|c| *c == f.ink) {
                         f.ink = ride_colors::inks(paint, colors)[i];
@@ -95,7 +99,7 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
 /// Apron, raised circular deck, mast and small cap fit the full three-step
 /// envelope. Open sides keep seats and passengers visible from every angle.
 fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
-    let mut result = Vec::with_capacity(240);
+    let mut result = Vec::with_capacity(440);
     let center = Vec3::new(
         origin.x as f32 + 1.0,
         origin.y as f32 + 1.0,
@@ -104,6 +108,7 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
     let cream = [rgb(235, 221, 174), rgb(181, 161, 118), rgb(144, 124, 84)];
     let teal = [rgb(77, 159, 150), rgb(43, 113, 112), rgb(32, 84, 91)];
     let gold = [rgb(246, 194, 83), rgb(193, 132, 48), rgb(143, 89, 35)];
+    let festival = [rgb(235, 76, 105), rgb(94, 89, 200), rgb(54, 186, 219)];
     cuboid(
         &mut result,
         center + Vec3::new(-1.5, -1.5, 0.0),
@@ -152,6 +157,54 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
                 radial(a, 1.41, 0.12),
             ],
             teal[1 + i % 2],
+            size,
+            rotation,
+        );
+    }
+    // A faceted festival canopy leaves every third bay open so the moving
+    // mounts remain visible. The physical roof and valance stay below the
+    // existing three-step clearance and inside the three-by-three footprint.
+    let canopy = |angle: f32, radius: f32, z: f32| {
+        center + Vec3::new(angle.cos() * radius, angle.sin() * radius, z)
+    };
+    for i in 0..24 {
+        let a = i as f32 * std::f32::consts::TAU / 24.0;
+        let b = (i + 1) as f32 * std::f32::consts::TAU / 24.0;
+        if i % 3 != 2 {
+            face(
+                &mut result,
+                [
+                    canopy(a, 0.37, 2.87),
+                    canopy(a, 1.45, 2.10),
+                    canopy(b, 1.45, 2.10),
+                    canopy(b, 0.37, 2.87),
+                ],
+                festival[i % 3],
+                size,
+                rotation,
+            );
+        }
+        face(
+            &mut result,
+            [
+                canopy(a, 1.43, 2.10),
+                canopy(b, 1.43, 2.10),
+                canopy(b, 1.43, 1.94),
+                canopy(a, 1.43, 1.94),
+            ],
+            if i % 2 == 0 { gold[0] } else { teal[0] },
+            size,
+            rotation,
+        );
+    }
+    for i in 0..8 {
+        let angle = i as f32 * std::f32::consts::TAU / 8.0;
+        let point = canopy(angle, 1.42, 2.12);
+        cuboid(
+            &mut result,
+            point + Vec3::new(-0.045, -0.045, 0.0),
+            point + Vec3::new(0.045, 0.045, 0.14),
+            gold,
             size,
             rotation,
         );

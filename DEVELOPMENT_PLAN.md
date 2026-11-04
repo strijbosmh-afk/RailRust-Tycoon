@@ -1,5 +1,7 @@
 # Theme Park Simulation Development Plan
 
+The 0.58.0 vibrant ride art phase on `codex/vibrant-ride-art` follows the supplied saturated park reference with original procedural colors and more detailed coaster, carousel, service and garden meshes. It keeps 28/28 saves and ride paint/selection geometry. See [the player guide](docs/VIBRANT_RIDE_ART_GUIDE.md) and [stage report](docs/VIBRANT_RIDE_ART_REPORT.md). Next add park cleanliness, handyman work and more buildable ride variety. This PC is not a performance reference.
+
 The 0.57.0 mechanic routing phase on `codex/mechanic-service-routing` makes automatic service depend on a public route from park entry to a ride exit, saves an in-flight assignment, and draws the worker on paths. Strict saves migrate to 28/28. See [the player guide](docs/MECHANIC_SERVICE_ROUTING_GUIDE.md) and [stage report](docs/MECHANIC_SERVICE_ROUTING_REPORT.md). Next add handymen and visible cleanliness effects. This PC is not a performance reference.
 
 The 0.56.0 mechanic phase on `codex/mechanic-staff-wages` adds one park-wide mechanic, fixed wages with debt-free dismissal, and automatic service of eligible closed rides. Wage history is separate from ride/facility upkeep and strict saves migrate to 27/27. See [the player guide](docs/MECHANIC_STAFF_WAGES_GUIDE.md) and [stage report](docs/MECHANIC_STAFF_WAGES_REPORT.md). Next build physical staff movement and service access, then handymen and visible ground conditions. This PC is not a performance reference.
