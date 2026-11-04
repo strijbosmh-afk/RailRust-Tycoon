@@ -378,6 +378,9 @@ impl Park {
         self.reconcile_ride_visits();
         self.record_ride_transaction(crate::FinanceKind::RideDemolitionRefund, id, refund);
         self.maintenance.retain(|record| record.ride != id);
+        if self.mechanic_route.target == Some(id) {
+            self.mechanic_route.target = None;
+        }
         Ok(())
     }
     pub fn carousel_seat_positions(&self, id: RideId) -> Vec<PathPoint> {

@@ -192,6 +192,10 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
     current["park"]
         .as_object_mut()
         .unwrap()
+        .remove("mechanic_route");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
         .remove("mechanic_hired");
     current["park"]
         .as_object_mut()

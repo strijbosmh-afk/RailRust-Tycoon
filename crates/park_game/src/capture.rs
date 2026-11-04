@@ -93,6 +93,7 @@ enum Scene {
     Track,
     Crowd,
     VisitorLooks,
+    MechanicMap,
     Lost,
     Recovered,
     Train,
@@ -723,6 +724,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("track") => Scene::Track,
                 Some("crowd") => Scene::Crowd,
                 Some("visitor-looks") => Scene::VisitorLooks,
+                Some("mechanic-map") => Scene::MechanicMap,
                 Some("lost") => Scene::Lost,
                 Some("recovered") => Scene::Recovered,
                 Some("train") => Scene::Train,
@@ -1185,6 +1187,23 @@ fn apply_preset(
         };
         view.pan = world::tile_center(anchor, MAP_SIZE, view.rotation)
             + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
+    }
+    if matches!(capture.scene, Scene::MechanicMap) {
+        let entry = sim
+            .0
+            .objects()
+            .iter()
+            .find(|path| path.is_public_path() && path.pos == (TilePos { x: 13, y: 16 }))
+            .expect("capture public path")
+            .id;
+        sim.0.set_visitor_entry(entry).expect("capture entry");
+        sim.0.set_mechanic_hired(true);
+        sim.0.advance(Speed::Normal);
+        let point = sim.0.object(entry).expect("capture mechanic path").pos;
+        view.zoom = 3.0;
+        view.pan = world::tile_center(point, MAP_SIZE, view.rotation)
+            + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
+        view.scene_dirty = true;
     }
     if matches!(capture.scene, Scene::Path | Scene::Track) {
         let point = world::surface_center(&sim.0, view.selected.unwrap(), view.rotation)

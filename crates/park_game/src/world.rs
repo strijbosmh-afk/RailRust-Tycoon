@@ -1441,7 +1441,103 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             paint_guest_visit_marker(&mut mesh, phase, point, depth);
         }
     }
+    if let Some(point) = park.mechanic_position() {
+        let status = park.mechanic_status();
+        if let Some(current) = status.current_path.and_then(|id| park.object(id))
+            && object_visible(park, current, mode)
+        {
+            let base = project_path_point(point, park.width(), rotation);
+            for id in [status.current_path, status.next_path]
+                .into_iter()
+                .flatten()
+            {
+                if let Some(path) = park.object(id) {
+                    let roof = object_surfaces(park, path, rotation)[0];
+                    mesh.surface_ellipse(
+                        roof,
+                        base.truncate(),
+                        5.3,
+                        2.6,
+                        DETAIL_BIAS * 3.0,
+                        rgb(70, 119, 130),
+                    );
+                }
+            }
+            paint_mechanic_body(&mut mesh, base.truncate(), base.z + 0.04);
+        }
+    }
     mesh.finish()
+}
+
+/// Compact teal uniform, safety cap and orange tool case for the path-walking mechanic.
+fn paint_mechanic_body(mesh: &mut Painter, point: Vec2, depth: f32) {
+    for side in [-1.8, 1.8] {
+        mesh.line(
+            point + Vec2::new(side, 7.5),
+            point + Vec2::new(side, 0.7),
+            2.4,
+            depth,
+            rgb(35, 58, 69),
+        );
+    }
+    mesh.quad(
+        [
+            point + Vec2::new(-4.0, 7.0),
+            point + Vec2::new(4.0, 7.0),
+            point + Vec2::new(3.6, 17.0),
+            point + Vec2::new(-3.6, 17.0),
+        ],
+        depth + 0.001,
+        rgb(33, 126, 139),
+    );
+    mesh.line(
+        point + Vec2::new(-2.6, 10.1),
+        point + Vec2::new(2.6, 10.1),
+        1.2,
+        depth + 0.0013,
+        rgb(226, 170, 69),
+    );
+    mesh.quad(
+        [
+            point + Vec2::new(4.0, 7.0),
+            point + Vec2::new(8.0, 7.0),
+            point + Vec2::new(8.0, 12.5),
+            point + Vec2::new(4.0, 12.5),
+        ],
+        depth + 0.0016,
+        rgb(201, 117, 51),
+    );
+    mesh.line(
+        point + Vec2::new(-4.0, 15.0),
+        point + Vec2::new(-4.6, 9.2),
+        1.8,
+        depth + 0.002,
+        rgb(220, 169, 126),
+    );
+    mesh.ellipse(
+        point + Vec2::new(0.0, 20.2),
+        3.2,
+        3.4,
+        depth + 0.003,
+        rgb(220, 169, 126),
+    );
+    mesh.quad(
+        [
+            point + Vec2::new(-4.3, 22.0),
+            point + Vec2::new(4.3, 22.0),
+            point + Vec2::new(3.1, 24.4),
+            point + Vec2::new(-3.1, 24.4),
+        ],
+        depth + 0.004,
+        rgb(25, 89, 105),
+    );
+    mesh.line(
+        point + Vec2::new(-1.0, 18.6),
+        point + Vec2::new(1.0, 18.6),
+        0.7,
+        depth + 0.0045,
+        rgb(48, 60, 61),
+    );
 }
 
 fn guest_is_riding(guest: &park_sim::Guest) -> bool {

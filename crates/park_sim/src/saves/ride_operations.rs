@@ -44,6 +44,7 @@ impl VersionFifteenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
             maintenance: Vec::new(),
+            mechanic_route: crate::staff::MechanicRoute::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),

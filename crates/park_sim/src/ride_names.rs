@@ -172,6 +172,10 @@ mod tests {
         old["park"]
             .as_object_mut()
             .unwrap()
+            .remove("mechanic_route");
+        old["park"]
+            .as_object_mut()
+            .unwrap()
             .remove("mechanic_hired");
         old["park"]
             .as_object_mut()

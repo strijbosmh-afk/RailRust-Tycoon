@@ -236,14 +236,8 @@ pub(crate) fn perform_command(
     if command == OperationCommand::ToggleMechanic {
         let hired = !park.mechanic_status().hired;
         park.set_mechanic_hired(hired);
-        view.ride_operating_notice = Some(
-            if hired {
-                "Mechanic hired / $2.00 per minute. Due closed rides are serviced automatically."
-            } else {
-                "Mechanic dismissed. Existing ride upkeep continues."
-            }
-            .into(),
-        );
+        view.ride_operating_notice =
+            (!hired).then(|| "Mechanic dismissed. Existing ride upkeep continues.".into());
         return true;
     }
     if command == OperationCommand::ServiceRide {
