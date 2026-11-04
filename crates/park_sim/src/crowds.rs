@@ -253,6 +253,18 @@ impl Park {
         }
     }
 
+    pub(crate) fn public_path_route(
+        &self,
+        from: ObjectId,
+        to: ObjectId,
+    ) -> Option<VecDeque<ObjectId>> {
+        if let Some(graph) = &self.path_cache.graph {
+            graph.route(from, to)
+        } else {
+            PathGraph::new(&self.objects).route(from, to)
+        }
+    }
+
     pub fn crowd_stats(&self) -> CrowdStats {
         let mut stats = CrowdStats {
             total: self.guests.len(),

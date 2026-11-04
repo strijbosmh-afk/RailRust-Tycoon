@@ -352,6 +352,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-wellness --save-dir $wellnessDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Wellness verification failed" }
           Get-Content -LiteralPath (Join-Path $wellnessDirectory "verification-wellness.txt")
+      - name: Verify mechanic travel and service continuation
+        shell: pwsh
+        run: |
+          $mechanicRouteDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound mechanic route é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-mechanic-route --save-dir $mechanicRouteDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Mechanic route writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-mechanic-route --save-dir $mechanicRouteDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Mechanic route verification failed" }
+          Get-Content -LiteralPath (Join-Path $mechanicRouteDirectory "verification-mechanic-route.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

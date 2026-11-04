@@ -270,6 +270,7 @@ pub struct Park {
     maintenance: Vec<maintenance::RideMaintenanceRecord>,
     mechanic_hired: bool,
     mechanic_wage_progress: u16,
+    mechanic_route: staff::MechanicRoute,
     visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
@@ -310,6 +311,7 @@ impl PartialEq for Park {
             && self.maintenance == other.maintenance
             && self.mechanic_hired == other.mechanic_hired
             && self.mechanic_wage_progress == other.mechanic_wage_progress
+            && self.mechanic_route == other.mechanic_route
             && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
@@ -371,6 +373,7 @@ impl Park {
             maintenance: Vec::new(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
+            mechanic_route: staff::MechanicRoute::default(),
             visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),

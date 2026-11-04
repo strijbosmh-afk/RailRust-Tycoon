@@ -457,9 +457,18 @@ pub(crate) fn refresh(
             RideLabel::OperatingNotice => view
                 .ride_operating_notice
                 .clone()
-                .unwrap_or_else(|| if sim.0.mechanic_status().hired {
-                    "Mechanic hired / $2.00 per minute. Service is automatic on closed rides.".into()
-                } else { "Changes are included when you save the park.".into() }),
+                .unwrap_or_else(|| {
+                    let mechanic = sim.0.mechanic_status();
+                    if !mechanic.hired {
+                        "Changes are included when you save the park.".into()
+                    } else if let Some(target) = mechanic.target_ride {
+                        format!("Mechanic walking to ride #{} via public paths.", target.0)
+                    } else if mechanic.current_path.is_none() {
+                        "Mechanic waiting for a park entry public path.".into()
+                    } else {
+                        "Mechanic available / close due rides and connect their exit paths.".into()
+                    }
+                }),
             RideLabel::MechanicAction => if sim.0.mechanic_status().hired { "Dismiss mechanic" } else { "Hire mechanic" }.into(),
             RideLabel::ToggleOpen => if sim.0.ride_is_open(id) {
                 "Close ride to tune"

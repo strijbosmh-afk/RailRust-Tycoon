@@ -48,6 +48,7 @@ pub struct GuestRenderer {
     object_index: HashMap<ObjectId, usize>,
     geometry_key: Option<(u32, u32, u8)>,
     bodies: Vec<BodyTemplate>,
+    mechanic_body: Option<BodyTemplate>,
     markers: Vec<BodyTemplate>,
     max_guest_vertices: usize,
     shadow: [Vec2; 12],
@@ -96,6 +97,14 @@ impl GuestRenderer {
         }
         let reserve = if square {
             park.guests().len().saturating_mul(self.max_guest_vertices)
+                + if park.mechanic_position().is_some() {
+                    self.mechanic_body
+                        .as_ref()
+                        .map_or(0, |body| body.positions.len())
+                        + MAX_SHADOW_VERTICES
+                } else {
+                    0
+                }
         } else {
             0
         };
@@ -189,6 +198,28 @@ impl GuestRenderer {
                     }
                     self.stats.rendered_guests += 1;
                 }
+                if let Some(point) = park.mechanic_position() {
+                    let status = park.mechanic_status();
+                    if let Some(current) = status.current_path.and_then(|id| self.deck(id))
+                        && visible(park, current.object, mode)
+                    {
+                        let base = project_path_point(point, park.width(), rotation);
+                        for id in [status.current_path, status.next_path]
+                            .into_iter()
+                            .flatten()
+                        {
+                            if let Some(deck) = self.deck(id) {
+                                writer.shadow(
+                                    deck.roof,
+                                    base.truncate(),
+                                    &self.shadow,
+                                    rgb(70, 119, 130),
+                                );
+                            }
+                        }
+                        writer.body(self.mechanic_body.as_ref().expect("staff template"), base);
+                    }
+                }
             }
             let count = positions.len();
             normals.resize(count, [0.0, 0.0, 1.0]);
@@ -222,6 +253,8 @@ impl GuestRenderer {
                     self.stats.template_builds += 1;
                 }
             }
+            self.mechanic_body = Some(mechanic_template());
+            self.stats.template_builds += 1;
             self.markers = [
                 RideVisitPhase::Approaching,
                 RideVisitPhase::Queueing,
@@ -494,6 +527,15 @@ fn marker_template(phase: RideVisitPhase) -> BodyTemplate {
     }
 }
 
+fn mechanic_template() -> BodyTemplate {
+    let mut mesh = Painter::default();
+    paint_mechanic_body(&mut mesh, Vec2::ZERO, 0.0);
+    BodyTemplate {
+        positions: mesh.positions,
+        colors: mesh.colors,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use park_sim::{PathDirection, RideAccessStatus, Speed, TerrainProfile, diagnostics};
@@ -544,6 +586,29 @@ mod tests {
         park.apply_terrain_profile(TerrainProfile::Terraced);
         park.install_crowd_fixture(42).unwrap();
         park
+    }
+
+    #[test]
+    fn mechanic_body_and_shadow_match_oracle_in_every_view() {
+        let mut park = fixture();
+        let entry = park
+            .objects()
+            .iter()
+            .find(|path| path.is_public_path())
+            .unwrap()
+            .id;
+        park.set_visitor_entry(entry).unwrap();
+        park.set_mechanic_hired(true);
+        park.advance(Speed::Normal);
+        assert!(park.mechanic_position().is_some());
+        for rotation in 0..4 {
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                let mut renderer = GuestRenderer::default();
+                let mut mesh = GuestRenderer::empty_mesh();
+                renderer.update(&mut mesh, &park, rotation, mode);
+                equivalent(&mesh, &guest_mesh(&park, rotation, mode));
+            }
+        }
     }
 
     fn admission_fixture() -> Park {
@@ -1059,7 +1124,7 @@ mod tests {
             );
             assert_eq!(
                 renderer.stats().template_builds,
-                (APPEARANCES * POSES) as u64
+                (APPEARANCES * POSES + 1) as u64
             );
         }
     }
@@ -1127,7 +1192,7 @@ mod tests {
         }
         assert_eq!(
             renderer.stats().template_builds,
-            (APPEARANCES * POSES) as u64
+            (APPEARANCES * POSES + 1) as u64
         );
         assert_eq!(renderer.stats().deck_rebuilds, 4);
     }
@@ -1206,7 +1271,7 @@ mod tests {
         assert_eq!(renderer.stats().deck_rebuilds, 2);
         assert_eq!(
             renderer.stats().template_builds,
-            (APPEARANCES * POSES) as u64
+            (APPEARANCES * POSES + 1) as u64
         );
     }
 

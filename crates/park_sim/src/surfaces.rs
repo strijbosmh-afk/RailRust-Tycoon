@@ -514,6 +514,7 @@ impl Park {
         if removed.kind == ObjectKind::Path {
             self.reconcile_guests_after_removal(removed);
         }
+        self.reconcile_mechanic_after_removal(id);
         self.reconcile_train_after_removal(id);
         for ride in self.all_rides_mut() {
             if ride.entrance.is_some_and(|gate| gate.object == id) {

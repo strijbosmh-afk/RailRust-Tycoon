@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Current 0.57.0 staff route slice: one paid mechanic walks public, height-aware paths from the park entry to a closed inspection-due ride's exit before service. In-flight position and assignment survive strict 28/28 saves. The worker has a visible original uniform and Operations status. Manual service, guest path sharing, and one worker remain explicit limits; handymen, patrols and breakdown repairs remain open. See [MECHANIC_SERVICE_ROUTING_REPORT.md](MECHANIC_SERVICE_ROUTING_REPORT.md).
+
 Current 0.56.0 staff slice: one park-wide mechanic can be hired or dismissed, costs $1.00 per 900 employed ticks, and services inspection-due rides only after they are closed, stopped and empty. Wages have distinct finance receipts and strict 27/27 save continuation. Physical movement, patrols, more staff roles and safety breakdowns remain open. See [MECHANIC_STAFF_WAGES_REPORT.md](MECHANIC_STAFF_WAGES_REPORT.md).
 
 Current 0.55.0 maintenance slice: installed coaster and carousel rides accumulate completed guest trips since service, show an inspection notice at 120, stop new departures at 1,200 and require a closed, stationary manual service before reopening. Strict saves migrate to 26/26. Mechanic staffing, wages and physical access remain open. See [RIDE_MAINTENANCE_FOUNDATION_REPORT.md](RIDE_MAINTENANCE_FOUNDATION_REPORT.md).
