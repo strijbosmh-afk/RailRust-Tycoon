@@ -1305,6 +1305,13 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 depth,
                 rgb(43, 62, 68),
             );
+            mesh.line(
+                point + Vec2::new(side + step - 1.1, 0.9),
+                point + Vec2::new(side + step + 1.5, 0.9),
+                1.25,
+                depth + 0.0003,
+                rgb(31, 49, 50),
+            );
         }
         let look = crate::visitor_look::look(guest.id);
         let shirt = if guest.state == GuestState::Lost {
@@ -1329,12 +1336,33 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             depth + 0.001,
             shirt,
         );
+        let mut shirt_shadow = shirt;
+        for channel in &mut shirt_shadow[..3] {
+            *channel *= 0.68;
+        }
+        mesh.quad(
+            [
+                point + Vec2::new(2.4, 7.3),
+                point + Vec2::new(3.3, 7.0),
+                point + Vec2::new(3.8, 17.0),
+                point + Vec2::new(2.5, 16.8),
+            ],
+            depth + 0.0012,
+            shirt_shadow,
+        );
         mesh.line(
             point + Vec2::new(-2.3, 11.2),
             point + Vec2::new(2.2, 11.2),
             0.9,
             depth + 0.0015,
             rgb(247, 239, 217),
+        );
+        mesh.line(
+            point + Vec2::new(-2.6, 16.2),
+            point + Vec2::new(2.0, 10.1),
+            0.75,
+            depth + 0.0017,
+            rgb_from(look.bag),
         );
         let skin = rgb_from(look.skin);
         for side in [-1.0, 1.0] {
@@ -1377,6 +1405,22 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 rgb_from(look.hair),
             ),
         }
+        for x in [-1.05, 1.05] {
+            mesh.line(
+                point + Vec2::new(x - 0.28, 20.0),
+                point + Vec2::new(x + 0.28, 20.0),
+                0.6,
+                depth + 0.0047,
+                rgb(51, 47, 43),
+            );
+        }
+        mesh.line(
+            point + Vec2::new(-0.6, 18.1),
+            point + Vec2::new(0.6, 18.1),
+            0.55,
+            depth + 0.0048,
+            rgb(141, 86, 71),
+        );
         if guest.state == GuestState::Lost {
             mesh.line(
                 point + Vec2::new(0.0, 28.0),

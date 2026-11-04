@@ -49,7 +49,7 @@ pub(super) fn faces(
     rotation: u8,
 ) -> Vec<Face> {
     let size = park.width();
-    let mut result = Vec::with_capacity(100);
+    let mut result = Vec::with_capacity(160);
     let cream = [rgb(242, 231, 191), rgb(205, 187, 146), rgb(171, 149, 107)];
     let dark = [rgb(76, 101, 89), rgb(53, 77, 66), rgb(40, 62, 53)];
     let accent = match kind {
@@ -141,6 +141,19 @@ pub(super) fn faces(
             Vec3::new(-0.14, 0.16, 2.91),
             dark,
         );
+        // Door plaque and paired vents remain inside the one-tile cabin.
+        cuboid(
+            Vec3::new(0.316, -0.17, 2.08),
+            Vec3::new(0.335, 0.17, 2.30),
+            accent,
+        );
+        for y in [-0.27, 0.21] {
+            cuboid(
+                Vec3::new(0.304, y, 1.57),
+                Vec3::new(0.326, y + 0.06, 1.72),
+                dark,
+            );
+        }
     } else if kind == ServiceKind::Rest {
         // An open pavilion and bench show the place to recover, while keeping
         // the serving edge and one-tile picking footprint clear.
@@ -175,6 +188,18 @@ pub(super) fn faces(
                 dark,
             );
         }
+        for y in [-0.26, -0.10, 0.06, 0.22] {
+            cuboid(
+                Vec3::new(-0.17, y, 0.72),
+                Vec3::new(0.19, y + 0.045, 0.78),
+                cream,
+            );
+        }
+        cuboid(
+            Vec3::new(-0.07, -0.07, 2.14),
+            Vec3::new(0.07, 0.07, 2.43),
+            cream,
+        );
     } else {
         // Counter, rear cabinet, corner posts and canopy. The open gap between
         // counter and canopy stays genuinely unpickable.
@@ -224,6 +249,18 @@ pub(super) fn faces(
                 Vec3::new(0.23, 0.22, 1.38),
                 cream,
             );
+            cuboid(
+                Vec3::new(-0.245, -0.24, 1.46),
+                Vec3::new(-0.215, 0.24, 2.18),
+                dark,
+            );
+            for z in [1.66, 1.86, 2.06] {
+                cuboid(
+                    Vec3::new(-0.214, -0.16, z),
+                    Vec3::new(-0.195, 0.16, z + 0.045),
+                    cream,
+                );
+            }
         } else {
             // A tall dispenser and two contrasting cups make the drinks stall
             // recognizable by silhouette as well as its blue palette.
@@ -236,6 +273,18 @@ pub(super) fn faces(
                 cuboid(
                     Vec3::new(0.12, y, 1.23),
                     Vec3::new(0.23, y + 0.12, 1.55),
+                    cream,
+                );
+                cuboid(
+                    Vec3::new(0.16, y + 0.045, 1.55),
+                    Vec3::new(0.18, y + 0.07, 1.80),
+                    dark,
+                );
+            }
+            for y in [-0.11, 0.08] {
+                cuboid(
+                    Vec3::new(0.041, y, 1.74),
+                    Vec3::new(0.095, y + 0.045, 1.81),
                     cream,
                 );
             }

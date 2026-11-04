@@ -95,7 +95,7 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
 /// Apron, raised circular deck, mast and small cap fit the full three-step
 /// envelope. Open sides keep seats and passengers visible from every angle.
 fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
-    let mut result = Vec::with_capacity(110);
+    let mut result = Vec::with_capacity(240);
     let center = Vec3::new(
         origin.x as f32 + 1.0,
         origin.y as f32 + 1.0,
@@ -112,9 +112,11 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
         size,
         rotation,
     );
-    for i in 0..24 {
-        let a = i as f32 * std::f32::consts::TAU / 24.0;
-        let b = (i + 1) as f32 * std::f32::consts::TAU / 24.0;
+    // Forty-eight radial pieces keep the circular deck smooth at 400% zoom.
+    // Each brass rim segment belongs to the same physical deck surface.
+    for i in 0..48 {
+        let a = i as f32 * std::f32::consts::TAU / 48.0;
+        let b = (i + 1) as f32 * std::f32::consts::TAU / 48.0;
         let radial =
             |angle: f32, r: f32, z: f32| center + Vec3::new(angle.cos() * r, angle.sin() * r, z);
         face(
@@ -126,6 +128,18 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
                 radial(b, 0.08, 0.35),
             ],
             if i % 2 == 0 { teal[0] } else { cream[0] },
+            size,
+            rotation,
+        );
+        face(
+            &mut result,
+            [
+                radial(a, 1.32, 0.36),
+                radial(a, 1.41, 0.36),
+                radial(b, 1.41, 0.36),
+                radial(b, 1.32, 0.36),
+            ],
+            if i % 4 == 0 { cream[0] } else { gold[0] },
             size,
             rotation,
         );
@@ -241,6 +255,32 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
                 park.width(),
                 rotation,
             );
+            cuboid(
+                &mut surfaces,
+                p + Vec3::new(-0.28, -0.035, -0.12),
+                p + Vec3::new(-0.19, 0.035, 0.02),
+                gold,
+                park.width(),
+                rotation,
+            );
+            cuboid(
+                &mut surfaces,
+                p + Vec3::new(0.17, -0.055, 0.10),
+                p + Vec3::new(0.27, 0.055, 0.24),
+                gold,
+                park.width(),
+                rotation,
+            );
+            for y in [-0.077, 0.068] {
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(0.235, y, 0.11),
+                    p + Vec3::new(0.257, y + 0.012, 0.14),
+                    teal,
+                    park.width(),
+                    rotation,
+                );
+            }
             if let Some(passenger) = passengers.iter().find(|p| {
                 p.ride == carousel.ride.id
                     && usize::from(p.seat) == seat
