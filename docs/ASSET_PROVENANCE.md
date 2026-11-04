@@ -1,5 +1,7 @@
 # Asset provenance
 
+The 0.53 visual material marks and shoreline are project-authored geometry and colors. The harmonic score, stereo ride mix and revised cues are project-authored synthesis in Rust. No imported artwork, recording, melody, font, texture or dependency is added. See [GRAPHICS_SOUND_OVERHAUL_REPORT.md](GRAPHICS_SOUND_OVERHAUL_REPORT.md).
+
 The 0.52 terrain posts beneath elevated facilities are original procedural boxes using project-authored timber colors. Guest repair and service-need labels are generated UI text. No external art, font, texture or dependency is added. See [SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md](SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md).
 
 The 0.51 Rest pavilion is original project-authored procedural geometry inside the existing one-tile facility envelope. Energy, nausea and service labels are generated interface elements. No external art, font, texture or dependency was added. See [VISITOR_WELLNESS_REPORT.md](VISITOR_WELLNESS_REPORT.md).

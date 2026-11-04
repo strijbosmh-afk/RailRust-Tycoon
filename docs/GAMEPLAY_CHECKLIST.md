@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Current 0.53.0 presentation slice: normal maps gain rotated shoreline, terrain/cliff/path and tree material detail; the procedural score gains harmony and an answering arpeggio, while coaster/carousel audio pans and attenuates smoothly with the camera. Sound settings stay separate and saves remain 25/25. See [GRAPHICS_SOUND_OVERHAUL_REPORT.md](GRAPHICS_SOUND_OVERHAUL_REPORT.md). Full content, native listening and representative-hardware gates remain open.
+
 Current 0.52.0 service foundations and guest repair slice: elevated service buildings show terrain-aware posts when clear beneath them. Guests [L] can guide a selected lost visitor to the existing path tool at the correct height and remembered slope; the player completes and pays for repair. Services [M] shows a live strong-need count for the selected facility type. Saves remain 25/25. See [SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md](SERVICE_FOUNDATIONS_GUEST_REPAIR_REPORT.md). Staff assistance, litter and vomit remain open.
 
 Current 0.51.0 visitor wellness slice: Energy falls during walking and recovers while waiting; completed rides add nausea, which eases with time. A paid-build Rest pavilion can restore energy and lower nausea through the ordinary service and finance pipeline. Very tired or nauseous guests defer new ride choices; urgent triage and park statistics include both values. Saves migrate strictly to 25/25. See [VISITOR_WELLNESS_REPORT.md](VISITOR_WELLNESS_REPORT.md). Broader GST/UI and management requirements remain in progress.

@@ -17,7 +17,11 @@ pub(super) struct MixState {
     pub paused: bool,
     pub crowd: f32,
     pub coaster: f32,
+    pub coaster_pan: f32,
+    pub coaster_presence: f32,
     pub carousel: bool,
+    pub carousel_pan: f32,
+    pub carousel_presence: f32,
 }
 impl Default for MixState {
     fn default() -> Self {
@@ -27,7 +31,11 @@ impl Default for MixState {
             paused: false,
             crowd: 0.3,
             coaster: 0.0,
+            coaster_pan: 0.0,
+            coaster_presence: 1.0,
             carousel: false,
+            carousel_pan: 0.0,
+            carousel_presence: 1.0,
         }
     }
 }
@@ -41,6 +49,8 @@ pub(super) struct Mixer {
     noise: u32,
     wind: f32,
     gain: [f32; 5],
+    ride_pan: [f32; 2],
+    ride_presence: [f32; 2],
     voices: Vec<Voice>,
 }
 impl Default for Mixer {
@@ -51,6 +61,8 @@ impl Default for Mixer {
             noise: 0x7331a945,
             wind: 0.0,
             gain: [0.0; 5],
+            ride_pan: [0.0; 2],
+            ride_presence: [0.0; 2],
             voices: Vec::new(),
         }
     }
@@ -83,18 +95,38 @@ impl Mixer {
             for (g, t) in self.gain.iter_mut().zip(target) {
                 *g += (t - *g) * 0.001;
             }
+            for (index, (pan, presence)) in [
+                (self.state.coaster_pan, self.state.coaster_presence),
+                (self.state.carousel_pan, self.state.carousel_presence),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                self.ride_pan[index] += (pan.clamp(-1.0, 1.0) - self.ride_pan[index]) * 0.0007;
+                self.ride_presence[index] +=
+                    (presence.clamp(0.0, 1.0) - self.ride_presence[index]) * 0.0007;
+            }
             let clock = self.sample as f64 / f64::from(RATE);
             self.noise = self.noise.wrapping_mul(1664525).wrapping_add(1013904223);
             let n = (self.noise >> 8) as f32 / 8388608.0 - 1.0;
             self.wind += (n - self.wind) * 0.02;
-            // An original 32-note, 20-second meadow theme, with plucked melody
-            // and an eight-bar bass/harmony. The soft attack prevents clicks.
-            const MELODY: [i32; 32] = [
+            // Two original twenty-second phrases make a full A/B theme.
+            // Plucked attacks prevent clicks at each phrase boundary.
+            const MELODY_A: [i32; 32] = [
                 72, 76, 79, 76, 74, 72, 69, 67, 72, 74, 76, 79, 81, 79, 76, 74, 69, 72, 76, 72, 67,
                 69, 72, 74, 76, 74, 72, 69, 67, 71, 74, 79,
             ];
+            const MELODY_B: [i32; 32] = [
+                79, 81, 84, 81, 79, 76, 74, 72, 76, 79, 81, 79, 76, 74, 72, 69, 74, 76, 79, 76, 72,
+                74, 76, 72, 69, 72, 74, 76, 79, 76, 74, 72,
+            ];
             let beat = clock / 0.625;
-            let note = MELODY[beat as usize % 32];
+            let melody_notes = if (beat as usize / 32).is_multiple_of(2) {
+                &MELODY_A
+            } else {
+                &MELODY_B
+            };
+            let note = melody_notes[beat as usize % 32];
             let age = beat.fract() as f32 * 0.625;
             let env = (age * 60.0).min(1.0) * (-age * 7.0).exp();
             let f = frequency(note);
@@ -105,7 +137,30 @@ impl Mixer {
                 * 0.12;
             let bass = [48, 53, 57, 55][(beat as usize / 8) % 4];
             let b = frequency(bass);
-            let music = melody + (osc(self.sample, b) + 0.3 * osc(self.sample, b * 1.5)) * 0.038;
+            let bass_age = (beat / 2.0).fract() as f32 * 1.25;
+            let bass_env = (bass_age * 28.0).min(1.0) * (-bass_age * 2.3).exp();
+            let bass_line =
+                (osc(self.sample, b) + 0.22 * osc(self.sample, b * 2.0)) * bass_env * 0.038;
+            // Four original harmony beds and a light answering arpeggio add
+            // depth across both phrases of the forty-second theme.
+            const CHORDS: [[i32; 3]; 4] = [[60, 64, 67], [57, 60, 65], [55, 59, 62], [59, 62, 67]];
+            let bar = (clock / 5.0) as usize % CHORDS.len();
+            let bar_age = (clock % 5.0) as f32;
+            let pad_env = (bar_age / 0.35).min(1.0) * ((5.0 - bar_age) / 0.35).min(1.0);
+            let pad = CHORDS[bar]
+                .iter()
+                .map(|note| osc(self.sample, frequency(*note)))
+                .sum::<f32>()
+                * pad_env
+                * 0.008;
+            let arpeggio_beat = clock / 0.3125;
+            let arpeggio_age = arpeggio_beat.fract() as f32 * 0.3125;
+            let arpeggio_note = CHORDS[bar][arpeggio_beat as usize % 3] + 12;
+            let arpeggio = osc(self.sample, frequency(arpeggio_note))
+                * (arpeggio_age * 80.0).min(1.0)
+                * (-arpeggio_age * 13.0).exp()
+                * (0.006 + self.state.crowd * 0.012);
+            let music = melody + bass_line + pad + arpeggio;
             // Quiet smoothed wind/crowd texture and spaced bird chirps.
             let bird_age = ((clock + 2.0) % 7.0) as f32;
             let bird = if bird_age < 0.27 {
@@ -131,11 +186,14 @@ impl Mixer {
             };
             let carousel = if self.state.carousel && !self.state.paused {
                 let f = frequency([72, 76, 79, 84, 79, 76, 74, 71][(clock / 0.42) as usize % 8]);
-                osc(self.sample, f) * 0.045 * (1.0 - (clock / 0.42).fract() as f32)
+                (osc(self.sample, f) + 0.22 * osc(self.sample, f * 2.0))
+                    * 0.039
+                    * (1.0 - (clock / 0.42).fract() as f32)
             } else {
                 0.0
             };
-            let rides = rail + click + carousel;
+            let coaster = (rail + click) * self.ride_presence[0];
+            let carousel = carousel * self.ride_presence[1];
             let mut effects = 0.0;
             for v in &mut self.voices {
                 let age = v.age as f32 / RATE as f32;
@@ -148,20 +206,28 @@ impl Mixer {
                 };
                 if age < duration {
                     let env = (age * 120.0).min(1.0) * (1.0 - age / duration).powi(2);
-                    effects += sine(age, f) * env * amp;
+                    let transient = match v.cue {
+                        Cue::Build | Cue::Remove => n * (1.0 - age * 25.0).max(0.0) * 0.22,
+                        _ => 0.0,
+                    };
+                    effects += (sine(age, f) + 0.18 * sine(age, f * 2.0) + transient) * env * amp;
                 }
                 v.age += 1;
             }
             self.voices.retain(|v| v.age < RATE / 2);
             // Soft bounded mix leaves headroom even with twelve simultaneous cues.
-            let left = (music * self.gain[1]
-                + ambient * self.gain[2]
-                + rides * self.gain[3]
+            let left_rides = coaster * (1.0 - self.ride_pan[0] * 0.6)
+                + carousel * (1.0 - self.ride_pan[1] * 0.6);
+            let right_rides = coaster * (1.0 + self.ride_pan[0] * 0.6)
+                + carousel * (1.0 + self.ride_pan[1] * 0.6);
+            let left = ((music + arpeggio * 0.18) * self.gain[1]
+                + (ambient + bird * 0.12) * self.gain[2]
+                + left_rides * self.gain[3]
                 + effects * self.gain[4])
                 * self.gain[0];
-            let right = (music * self.gain[1]
-                + (ambient * 0.92 + bird * 0.08) * self.gain[2]
-                + rides * self.gain[3]
+            let right = ((music - arpeggio * 0.18) * self.gain[1]
+                + (ambient * 0.92 - bird * 0.08) * self.gain[2]
+                + right_rides * self.gain[3]
                 + effects * self.gain[4])
                 * self.gain[0];
             out.extend([left, right].map(|s| (s.clamp(-0.9, 0.9) * 32767.0) as i16));
@@ -220,5 +286,28 @@ mod tests {
         let w = wav(&x);
         assert_eq!(&w[0..4], b"RIFF");
         assert_eq!(w.len(), x.len() * 2 + 44);
+    }
+
+    #[test]
+    fn ride_pan_moves_energy_between_channels_and_presence_fades_far_rides() {
+        fn energy(pan: f32, presence: f32) -> (i64, i64) {
+            let mut mixer = Mixer::default();
+            mixer.state.settings.levels = [100, 0, 0, 100, 0];
+            mixer.state.coaster = 1.0;
+            mixer.state.coaster_pan = pan;
+            mixer.state.coaster_presence = presence;
+            let pcm = mixer.render(RATE as usize / 2);
+            pcm.chunks_exact(2).fold((0, 0), |(left, right), frame| {
+                (
+                    left + i64::from(frame[0]).abs(),
+                    right + i64::from(frame[1]).abs(),
+                )
+            })
+        }
+        let (left, right) = energy(-1.0, 1.0);
+        assert!(left > right * 2);
+        let (left, right) = energy(1.0, 1.0);
+        assert!(right > left * 2);
+        assert_eq!(energy(1.0, 0.0), (0, 0));
     }
 }
