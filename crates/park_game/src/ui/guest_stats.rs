@@ -70,6 +70,8 @@ pub(crate) enum StatLabel {
     Need(usize),
     Activity,
     TrendSummary,
+    Grounds,
+    HandymanAction,
 }
 
 #[derive(Component, Clone, Copy)]
@@ -206,7 +208,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         GuestStatsBody,
         Node {
             display: Display::None,
-            height: px(390),
+            height: px(430),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(11),
@@ -265,6 +267,30 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             });
         });
         text(p, "", 12.0, StatLabel::Activity);
+        p.spawn(Node {
+            column_gap: px(12),
+            align_items: AlignItems::Center,
+            ..row()
+        })
+        .with_children(|p| {
+            text(p, "", 12.0, StatLabel::Grounds);
+            p.spawn((
+                Button,
+                Action::ToggleHandyman,
+                Node {
+                    width: px(156),
+                    height: px(30),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border: UiRect::all(px(1)),
+                    ..default()
+                },
+                BackgroundColor(BUTTON),
+                BorderColor::all(BORDER),
+                BorderRadius::all(px(5)),
+            ))
+            .with_children(|p| text(p, "", 12.0, StatLabel::HandymanAction));
+        });
         p.spawn((
             Node {
                 height: px(88),
@@ -340,6 +366,27 @@ pub(crate) fn refresh(
                 "Currently {} guests have an urgent need.  {} riding / {} queueing / {} at services / {} lost.\nLive snapshot; choose Guest list to inspect someone.",
                 stats.urgent_any, stats.riding, stats.queueing, stats.services, stats.lost,
             ),
+            StatLabel::Grounds => {
+                let grounds = sim.0.grounds_status();
+                format!(
+                    "Grounds: {} litter / {} spills / {} cleaned  |  Handyman: {}",
+                    grounds.litter,
+                    grounds.vomit,
+                    grounds.cleaned,
+                    if grounds.assigned {
+                        "assigned"
+                    } else {
+                        "unassigned"
+                    }
+                )
+            }
+            StatLabel::HandymanAction => {
+                if sim.0.grounds_status().assigned {
+                    "Dismiss handyman".into()
+                } else {
+                    "Assign handyman".into()
+                }
+            }
             StatLabel::TrendSummary => {
                 let latest = history.samples.back().copied();
                 format!(

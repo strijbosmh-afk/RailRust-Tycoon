@@ -56,6 +56,7 @@ impl VersionTwentyThreeParkData {
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_names: Vec::new(),

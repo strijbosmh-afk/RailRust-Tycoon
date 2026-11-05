@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 28;
-pub const CONTENT_VERSION: u32 = 28;
+pub const SCHEMA_VERSION: u32 = 29;
+pub const CONTENT_VERSION: u32 = 29;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -139,6 +139,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     #[serde(default)]
     mechanic_route: crate::staff::MechanicRoute,
+    #[serde(default)]
+    grounds: crate::grounds::GroundsState,
     #[serde(default)]
     mechanic_hired: bool,
     #[serde(default)]
@@ -319,6 +321,7 @@ impl VersionNineParkData {
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -489,6 +492,7 @@ impl VersionEightParkData {
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -730,6 +734,7 @@ impl Park {
                 | 25
                 | 26
                 | 27
+                | 28
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -741,6 +746,7 @@ impl Park {
         validate_maintenance_field(bytes, header.schema_version)?;
         validate_staff_fields(bytes, header.schema_version)?;
         validate_mechanic_route_field(bytes, header.schema_version)?;
+        validate_grounds_field(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -928,6 +934,21 @@ fn validate_mechanic_route_field(bytes: &[u8], schema: u32) -> Result<(), SaveEr
     }
     if schema >= 28 && !present {
         return Err(invalid("schema 28 requires mechanic route"));
+    }
+    Ok(())
+}
+
+fn validate_grounds_field(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 8 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let present = value["park"].get("grounds").is_some();
+    if schema < 29 && present {
+        return Err(invalid("grounds state requires schema 29"));
+    }
+    if schema >= 29 && !present {
+        return Err(invalid("schema 29 requires grounds state"));
     }
     Ok(())
 }
@@ -1603,6 +1624,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -1640,6 +1662,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -1680,6 +1703,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -1848,6 +1872,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
         ParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
+            grounds: crate::grounds::GroundsState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -1945,6 +1970,7 @@ impl ParkData {
     }
     fn from_park(park: &Park) -> Self {
         Self {
+            grounds: park.grounds.clone(),
             mechanic_route: park.mechanic_route,
             mechanic_hired: park.mechanic_hired,
             mechanic_wage_progress: park.mechanic_wage_progress,
@@ -2007,6 +2033,7 @@ impl ParkData {
         }
         let circuit_data = self.circuit;
         let mut park = Park {
+            grounds: self.grounds,
             mechanic_route: self.mechanic_route,
             mechanic_hired: self.mechanic_hired,
             mechanic_wage_progress: self.mechanic_wage_progress,
@@ -2054,6 +2081,7 @@ impl ParkData {
         crate::ride_names::validate(&park).map_err(invalid)?;
         crate::maintenance::validate(&park).map_err(invalid)?;
         crate::staff::validate(&park).map_err(invalid)?;
+        crate::grounds::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;
         park.circuit = circuit_data
             .map(|data| rebuild_circuit(&park, &objects, data))

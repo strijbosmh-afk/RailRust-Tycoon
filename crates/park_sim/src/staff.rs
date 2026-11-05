@@ -316,6 +316,7 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("mechanic_route");
+        prior["park"].as_object_mut().unwrap().remove("grounds");
         assert_eq!(
             Park::from_save_bytes(&serde_json::to_vec(&prior).unwrap()).unwrap(),
             park
@@ -329,6 +330,8 @@ mod tests {
         old["content_version"] = 26.into();
         let body = old["park"].as_object_mut().unwrap();
         body.remove("mechanic_route");
+        body.remove("grounds");
+        prior["park"].as_object_mut().unwrap().remove("grounds");
         body.remove("mechanic_hired");
         body.remove("mechanic_wage_progress");
         body["finances"]["archived"]

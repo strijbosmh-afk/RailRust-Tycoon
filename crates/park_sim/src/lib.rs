@@ -19,6 +19,8 @@ mod economy;
 mod experience;
 mod finance_summary;
 mod finances;
+mod grounds;
+pub use grounds::{GROUND_MESS_CAP, GROUND_MESS_TICKS, GroundMess, GroundMessKind, GroundsStatus};
 mod park_value;
 pub use park_value::ParkValue;
 mod loans;
@@ -271,6 +273,7 @@ pub struct Park {
     mechanic_hired: bool,
     mechanic_wage_progress: u16,
     mechanic_route: staff::MechanicRoute,
+    grounds: grounds::GroundsState,
     visitors: visitors::VisitorFlow,
     loans: loans::LoanAccount,
     services: Vec<Service>,
@@ -312,6 +315,7 @@ impl PartialEq for Park {
             && self.mechanic_hired == other.mechanic_hired
             && self.mechanic_wage_progress == other.mechanic_wage_progress
             && self.mechanic_route == other.mechanic_route
+            && self.grounds == other.grounds
             && self.visitors == other.visitors
             && self.loans == other.loans
             && self.services == other.services
@@ -374,6 +378,7 @@ impl Park {
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             mechanic_route: staff::MechanicRoute::default(),
+            grounds: grounds::GroundsState::default(),
             visitors: visitors::VisitorFlow::default(),
             loans: loans::LoanAccount::default(),
             services: Vec::new(),
@@ -521,6 +526,7 @@ impl Park {
             self.reconcile_passenger_laps();
             self.step_maintenance();
             self.step_mechanic_service();
+            self.step_grounds();
             self.finish_visitor_departures();
         }
     }

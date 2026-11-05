@@ -27,6 +27,7 @@ pub(super) mod economy;
 pub(super) mod facility_construction;
 pub(super) mod feedback;
 pub(super) mod finance;
+mod grounds;
 mod journey;
 mod legacy;
 pub(super) mod loans;
@@ -64,7 +65,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters" | "write-opening" | "verify-opening" | "write-cashflow" | "verify-cashflow" | "write-ride-costs" | "verify-ride-costs" | "write-summary" | "verify-summary" | "write-loans" | "verify-loans" | "write-value" | "verify-value" | "write-visitors" | "verify-visitors" | "write-colors" | "verify-colors" | "write-names" | "verify-names" | "write-scenery" | "verify-scenery" | "write-wellness" | "verify-wellness" | "write-maintenance" | "verify-maintenance" | "write-mechanic" | "verify-mechanic" | "write-mechanic-route" | "verify-mechanic-route"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters" | "write-opening" | "verify-opening" | "write-cashflow" | "verify-cashflow" | "write-ride-costs" | "verify-ride-costs" | "write-summary" | "verify-summary" | "write-loans" | "verify-loans" | "write-value" | "verify-value" | "write-visitors" | "verify-visitors" | "write-colors" | "verify-colors" | "write-names" | "verify-names" | "write-scenery" | "verify-scenery" | "write-wellness" | "verify-wellness" | "write-maintenance" | "verify-maintenance" | "write-mechanic" | "verify-mechanic" | "write-mechanic-route" | "verify-mechanic-route" | "write-grounds" | "verify-grounds"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -173,6 +174,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-mechanic" => maintenance::verify(&session)?,
             "write-mechanic-route" => mechanic_route::write(&session)?,
             "verify-mechanic-route" => mechanic_route::verify(&session)?,
+            "write-grounds" => grounds::write(&session)?,
+            "verify-grounds" => grounds::verify(&session)?,
             "write-finance" => finance::write(&session)?,
             "verify-finance" => finance::verify(&session)?,
             "write-rides" => ride_choice::write(&session)?,

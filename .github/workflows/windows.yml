@@ -361,6 +361,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-mechanic-route --save-dir $mechanicRouteDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Mechanic route verification failed" }
           Get-Content -LiteralPath (Join-Path $mechanicRouteDirectory "verification-mechanic-route.txt")
+      - name: Verify grounds cleaning and continuation
+        shell: pwsh
+        run: |
+          $groundsDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound grounds é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-grounds --save-dir $groundsDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Grounds writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-grounds --save-dir $groundsDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Grounds verification failed" }
+          Get-Content -LiteralPath (Join-Path $groundsDirectory "verification-grounds.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

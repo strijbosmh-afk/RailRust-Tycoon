@@ -1004,6 +1004,7 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
         .as_object_mut()
         .unwrap()
         .remove("mechanic_route");
+    old["park"].as_object_mut().unwrap().remove("grounds");
     old["park"]
         .as_object_mut()
         .unwrap()
