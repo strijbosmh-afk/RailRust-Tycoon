@@ -9,6 +9,11 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
     };
     view.selected_guest = None;
     match scene {
+        Scene::VisitorsClosed => {
+            view.selected_guest = Some(visitors::paid_departure(p).unwrap());
+            p.set_park_open(false);
+            assert!(p.visitor_flow_stats().finishing_visits > 0);
+        }
         Scene::VisitorsPaid => view.selected_guest = Some(visitors::paid_departure(p).unwrap()),
         Scene::VisitorsTurnover | Scene::VisitorsFinance => {
             visitors::paid_departure(p).unwrap();
@@ -51,6 +56,7 @@ mod tests {
         for scene in [
             Scene::VisitorsOff,
             Scene::VisitorsReady,
+            Scene::VisitorsClosed,
             Scene::VisitorsPaid,
             Scene::VisitorsTurnover,
             Scene::VisitorsBlocked,

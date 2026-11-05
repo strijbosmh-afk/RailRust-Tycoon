@@ -15,6 +15,7 @@ pub(crate) enum VisitorLabel {
 pub(crate) enum VisitorCommand {
     SetEntry,
     Toggle,
+    TogglePark,
     SendHome,
     Conflict,
 }
@@ -61,21 +62,27 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         .with_children(|p| {
             button(
                 p,
-                "Use selected path",
+                "Set entry",
                 Action::Visitor(VisitorCommand::SetEntry),
-                200.0,
+                145.0,
             );
             button(
                 p,
                 "Toggle arrivals",
                 Action::Visitor(VisitorCommand::Toggle),
-                200.0,
+                145.0,
             );
             button(
                 p,
-                "Send selected home",
+                "Open / close park",
+                Action::Visitor(VisitorCommand::TogglePark),
+                145.0,
+            );
+            button(
+                p,
+                "Send guest home",
                 Action::Visitor(VisitorCommand::SendHome),
-                200.0,
+                145.0,
             );
         });
         p.spawn((
@@ -120,6 +127,15 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                 }
             })
         }
+        VisitorCommand::TogglePark => {
+            let open = !sim.0.visitor_flow_stats().park_open;
+            sim.0.set_park_open(open);
+            Ok(if open {
+                "Park opened. Enabled arrivals can resume after a full interval.".into()
+            } else {
+                "Park closed. Current guests finish rides/services, then leave by the entry.".into()
+            })
+        }
         VisitorCommand::SendHome => view
             .selected_guest
             .ok_or(park_sim::VisitorError::UnknownGuest)
@@ -144,12 +160,51 @@ pub(crate) fn refresh(
     }
     let s = sim.0.visitor_flow_stats();
     for (label, mut text) in &mut labels {
-        text.0=match label {
-            VisitorLabel::Entry=>format!("Entry: {} / {}\nSelect an ordinary public path in the park, then choose Use selected path.",s.entry.and_then(|id|sim.0.object(id)).map_or_else(||"not set".into(),|p|format!("({}, {}) at height {}",p.pos.x,p.pos.y,p.height)),if s.entry_ready{"connected"}else{"missing or isolated"}),
-            VisitorLabel::Totals=>format!("New arrivals {} / Departed {} / {} tracked visits\nDeparted visitors spent {} and left with {} of their own money.",s.spawned,s.departed,s.tracked,money(s.departed_spent_cents),money(s.departed_wallet_cents)),
-            VisitorLabel::Rules=>"One arrival per 30 simulation seconds, up to 64 active guests.\nTracked visits last 10 simulation minutes; existing larger crowds are preserved.\nDepartures finish current rides/services, then walk to entry. Space pauses activity.\nWallets are visitor money, not park income. Receipts and reviews stay after departure.".into(),
-            VisitorLabel::Selected=>view.selected_guest.map_or_else(||"No active guest selected. Choose one in Guest list first.".into(),|id|format!("Selected Guest #{}: {}\n{} leaving / {} finishing ride or service visits.",id.0,if sim.0.guest_is_leaving(id){"leaving after current visit"}else{"visiting"},s.leaving,s.finishing_visits)),
-            VisitorLabel::Notice=>view.visitor_notice.clone().unwrap_or_else(||"Arrivals are opt-in. If entry is removed, departures wait for a new entry.".into()),
+        text.0 = match label {
+            VisitorLabel::Entry => format!(
+                "Entry: {} / {}\nSelect an ordinary public path in the park, then choose Set entry.",
+                s.entry.and_then(|id| sim.0.object(id)).map_or_else(
+                    || "not set".into(),
+                    |p| format!("({}, {}) at height {}", p.pos.x, p.pos.y, p.height)
+                ),
+                if s.entry_ready {
+                    "connected"
+                } else {
+                    "missing or isolated"
+                }
+            ),
+            VisitorLabel::Totals => format!(
+                "New arrivals {} / Departed {} / {} tracked visits\nDeparted visitors spent {} and left with {} of their own money.",
+                s.spawned,
+                s.departed,
+                s.tracked,
+                money(s.departed_spent_cents),
+                money(s.departed_wallet_cents)
+            ),
+            VisitorLabel::Rules => format!(
+                "Park: {} / Arrivals: {}. One arrival per 30 simulation seconds, up to 64.\nTracked visits last 10 simulation minutes; existing larger crowds are preserved.\nClosing sends current guests home after rides/services; opening does not recall them.\nDepartures walk to entry. Space pauses activity. Wallets are visitor money.",
+                if s.park_open { "OPEN" } else { "CLOSED" },
+                if s.enabled { "enabled" } else { "disabled" }
+            ),
+            VisitorLabel::Selected => view.selected_guest.map_or_else(
+                || "No active guest selected. Choose one in Guest list first.".into(),
+                |id| {
+                    format!(
+                        "Selected Guest #{}: {}\n{} leaving / {} finishing ride or service visits.",
+                        id.0,
+                        if sim.0.guest_is_leaving(id) {
+                            "leaving after current visit"
+                        } else {
+                            "visiting"
+                        },
+                        s.leaving,
+                        s.finishing_visits
+                    )
+                },
+            ),
+            VisitorLabel::Notice => view.visitor_notice.clone().unwrap_or_else(|| {
+                "Arrivals are opt-in. If entry is removed, departures wait for a new entry.".into()
+            }),
         };
     }
 }

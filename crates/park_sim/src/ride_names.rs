@@ -169,6 +169,7 @@ mod tests {
             serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = 23.into();
         old["content_version"] = 23.into();
+        crate::legacy_cost_test_support::strip_park_open(&mut old);
         old["park"].as_object_mut().unwrap().remove("ride_names");
         old["park"].as_object_mut().unwrap().remove("maintenance");
         old["park"]

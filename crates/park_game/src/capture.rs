@@ -205,6 +205,7 @@ enum Scene {
     CostsFinance,
     VisitorsOff,
     VisitorsReady,
+    VisitorsClosed,
     VisitorsPaid,
     VisitorsTurnover,
     VisitorsBlocked,
@@ -395,6 +396,7 @@ impl Scene {
             self,
             Self::VisitorsOff
                 | Self::VisitorsReady
+                | Self::VisitorsClosed
                 | Self::VisitorsPaid
                 | Self::VisitorsTurnover
                 | Self::VisitorsBlocked
@@ -845,6 +847,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("costs-finance") => Scene::CostsFinance,
                 Some("visitors-off") => Scene::VisitorsOff,
                 Some("visitors-ready") => Scene::VisitorsReady,
+                Some("visitors-closed") => Scene::VisitorsClosed,
                 Some("visitors-paid") => Scene::VisitorsPaid,
                 Some("visitors-turnover") => Scene::VisitorsTurnover,
                 Some("visitors-blocked") => Scene::VisitorsBlocked,

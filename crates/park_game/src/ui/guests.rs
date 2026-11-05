@@ -773,10 +773,11 @@ pub(crate) fn refresh(
             .into(),
             GuestLabel::Filter => view.guest_filter.label().into(),
             GuestLabel::Summary if view.guest_flow_view => format!(
-                "{} active guests / {} leaving / {} finishing visits\nArrival flow {} / {} lifetime departures",
+                "{} active guests / {} leaving / {} finishing visits\nPark {} / arrival flow {} / {} lifetime departures",
                 flow.active,
                 flow.leaving,
                 flow.finishing_visits,
+                if flow.park_open { "open" } else { "closed" },
                 if flow.enabled { "on" } else { "off" },
                 flow.departed
             ),

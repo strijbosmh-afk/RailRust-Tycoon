@@ -406,6 +406,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-drop-tower --save-dir $towerDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Drop tower verification failed" }
           Get-Content -LiteralPath (Join-Path $towerDirectory "verification-drop-tower.txt")
+      - name: Verify park closing continuation
+        shell: pwsh
+        run: |
+          $closureDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound park closure é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-park-open --save-dir $closureDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Park closure writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-park-open --save-dir $closureDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Park closure verifier failed" }
+          Get-Content -LiteralPath (Join-Path $closureDirectory "verification-park-open.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

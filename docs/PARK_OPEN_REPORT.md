@@ -1,0 +1,13 @@
+# Park opening stage report — 0.64.0
+
+## Scope
+
+The visitor-flow panel has a separate Open / close park control and explicit park and arrival status. Closure resets the pending arrival interval, marks every active guest for departure and keeps rides and services in progress. Reopening allows opt-in arrivals after a full interval while existing departures continue. The park's ride and service controls, upkeep and finance ledger are independent of park admission. Missing entry paths continue to hold departures under the existing visitor rules.
+
+Strict park save schema/content advances to **34/34**. The new `park_open` field is required in version 34 and forbidden in earlier visitor-state saves. Version 33 and older parks default to open. Validation rejects a closed park containing a guest who is not leaving or a nonzero pending arrival interval. The production `write-park-open` / `verify-park-open` pair saves a closed park carrying a paid passenger mid-ride, loads it paused in another process and compares an exact 3,600-tick continuation without rewriting the primary save. Windows CI runs the pair.
+
+## Acceptance
+
+All **856 release tests (488 game / 368 simulation)**, formatting, strict release all-target Clippy and the Windows release build passed. Runtime source is commit `25f75f3c282ccdf625ca4861218f5c0d2480c482` in [draft PR #64](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/64), stacked on PR #63. Executable SHA-256: `0a362c48e96d5c1e60b2af74a1df38a1480b89bbbf4956de8e539cea9567d490`.
+
+A fresh Unicode/space extraction in `artifacts/park-opening-0.64.0/first proof é/` verified **112 payload hashes and 100 current guides**, then passed eight production game processes: park-open, drop-tower, patrol and wellness writer/verifier pairs. The park-open pair loaded a closed park with a paid passenger mid-ride, compared exactly 3,600 future ticks, confirmed no arrivals and completed departures, and left the original primary file unchanged. The 1024×680 `visitors-ready` and `visitors-closed` captures passed and were directly inspected: the four controls fit, the status changes from OPEN to CLOSED, and leaving/finishing counts are visible. Capture SHA-256 values: `701b08dda68a9c7da81caccceb344dfe571eb26ca495e25da9203fd88dfafb59` and `26c19dc99fa566f352181587344258c734dc4e9719a4e32cf7ce969dc6bd5f02`. The unsigned local ZIP is `dist/Parkbound-0.64.0-windows-x64.zip` with an adjacent `.zip.sha256`; refresh and recheck after final guide changes. This PC is not a performance reference. Native controls and clean target-PC acceptance remain separate. Scenario permission rules, park admission pricing and a park-wide ride shutdown remain future work.

@@ -31,6 +31,53 @@ fn arrivals_are_opt_in_timed_and_do_not_mint_park_cash() {
     );
 }
 #[test]
+fn closing_park_stops_arrivals_and_departing_guests_reopen_without_instant_arrival() {
+    let (mut p, _) = simple();
+    p.set_visitor_arrivals(true).unwrap();
+    for _ in 0..900 {
+        p.advance(Speed::Normal);
+    }
+    assert_eq!(p.guests().len(), 1);
+    let id = p.guests()[0].id;
+    p.set_park_open(false);
+    assert!(!p.visitor_flow_stats().park_open);
+    assert!(p.guest_is_leaving(id));
+    assert_eq!(p.visitor_flow_stats().arrival_progress, 0);
+    let saved = p.to_save_bytes().unwrap();
+    assert_eq!(Park::from_save_bytes(&saved).unwrap(), p);
+    for _ in 0..1200 {
+        p.advance(Speed::Normal);
+    }
+    assert_eq!(p.visitor_flow_stats().spawned, 1);
+    assert_eq!(p.visitor_flow_stats().departed, 1);
+    assert!(p.guests().is_empty());
+    p.set_park_open(true);
+    for _ in 0..899 {
+        p.advance(Speed::Normal);
+    }
+    assert!(p.guests().is_empty());
+    p.advance(Speed::Normal);
+    assert_eq!(p.guests().len(), 1);
+    assert!(p.guests()[0].id > id);
+}
+
+#[test]
+fn schema_33_defaults_to_open_but_schema_34_requires_explicit_status() {
+    let (p, _) = simple();
+    let mut json: serde_json::Value = serde_json::from_slice(&p.to_save_bytes().unwrap()).unwrap();
+    json["park"]["visitors"]
+        .as_object_mut()
+        .unwrap()
+        .remove("park_open");
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+    json["schema_version"] = serde_json::json!(33);
+    json["content_version"] = serde_json::json!(33);
+    let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
+    assert!(old.visitor_flow_stats().park_open);
+    json["park"]["visitors"]["park_open"] = serde_json::json!(false);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+}
+#[test]
 fn departures_walk_to_entry_and_keep_wallets_outside_park_income() {
     let (mut p, _) = simple();
     p.set_visitor_arrivals(true).unwrap();
@@ -192,6 +239,9 @@ fn strict_saves_reject_forged_retirement_and_missing_visitor_state() {
         p.advance(Speed::Normal);
     }
     let value: serde_json::Value = serde_json::from_slice(&p.to_save_bytes().unwrap()).unwrap();
+    let mut false_closure = value.clone();
+    false_closure["park"]["visitors"]["park_open"] = serde_json::json!(false);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&false_closure).unwrap()).is_err());
     for (path, bad) in [
         ("/park/visitors/arrival_progress", serde_json::json!(900)),
         ("/park/visitors/entry", serde_json::json!(999)),
