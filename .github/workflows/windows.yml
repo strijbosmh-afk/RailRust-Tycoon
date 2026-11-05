@@ -370,6 +370,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-grounds --save-dir $groundsDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Grounds verification failed" }
           Get-Content -LiteralPath (Join-Path $groundsDirectory "verification-grounds.txt")
+      - name: Verify paid handyman and bins continuation
+        shell: pwsh
+        run: |
+          $binDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound bins é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-handyman-bins --save-dir $binDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Handyman bin writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-handyman-bins --save-dir $binDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Handyman bin verification failed" }
+          Get-Content -LiteralPath (Join-Path $binDirectory "verification-handyman-bins.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

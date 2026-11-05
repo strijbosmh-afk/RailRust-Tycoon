@@ -1,5 +1,7 @@
 # Theme Park Simulation Development Plan
 
+The current 0.60.0 phase on `codex/paid-handyman-bins` gives the path-walking worker a separate $0.50 wage every 900 employed ticks and lets the player attach free four-litter bins to selected public paths. The worker empties reachable used bins. Strict saves advance to 30/30 with version-29 migration; [the guide](docs/PAID_HANDYMAN_BINS_GUIDE.md) and [report](docs/PAID_HANDYMAN_BINS_REPORT.md) define behavior and acceptance. Patrols, staff roster, paid bin construction and further ride families remain future work. This PC is not a performance reference.
+
 The 0.59.0 grounds phase on `codex/grounds-handyman` adds deterministic dirty paths, visitor satisfaction impact, a visible path-walking handyman, Park stats control and strict 29/29 continuation. Assignment has no wage yet. See [the player guide](docs/GROUNDS_HANDYMAN_GUIDE.md) and [stage report](docs/GROUNDS_HANDYMAN_REPORT.md). Next add paid handyman staffing, bins and patrol areas, then broaden the ride catalogue. This PC is not a performance reference.
 
 The 0.58.0 vibrant ride art phase on `codex/vibrant-ride-art` follows the supplied saturated park reference with original procedural colors and more detailed coaster, carousel, service and garden meshes. It keeps 28/28 saves and ride paint/selection geometry. See [the player guide](docs/VIBRANT_RIDE_ART_GUIDE.md) and [stage report](docs/VIBRANT_RIDE_ART_REPORT.md). Next add park cleanliness, handyman work and more buildable ride variety. This PC is not a performance reference.

@@ -12,6 +12,7 @@ pub enum FinanceKind {
     LoanRepayment,
     LoanInterest,
     MechanicWage,
+    HandymanWage,
     RideUpkeep,
     RideRevenue,
     ServiceRevenue,
@@ -61,6 +62,7 @@ impl std::fmt::Display for FinanceKind {
             Self::LoanRepayment => "Loan repayment",
             Self::LoanInterest => "Loan interest",
             Self::MechanicWage => "Mechanic wage",
+            Self::HandymanWage => "Handyman wage",
             Self::RideUpkeep => "Ride upkeep",
             Self::RideRevenue => "Ride tickets",
             Self::ServiceRevenue => "Service sale",
@@ -96,6 +98,8 @@ pub struct FinanceEntry {
 pub struct FinanceTotals {
     #[serde(default)]
     pub wages_cents: u64,
+    #[serde(default)]
+    pub handyman_wages_cents: u64,
     pub loan_borrowed_cents: u64,
     pub loan_repaid_cents: u64,
     pub loan_interest_cents: u64,
@@ -108,8 +112,22 @@ pub struct FinanceTotals {
 }
 impl FinanceTotals {
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
+        if kind == FinanceKind::HandymanWage {
+            let wages = self
+                .wages_cents
+                .checked_add(amount)
+                .ok_or("finance totals overflow")?;
+            let handyman = self
+                .handyman_wages_cents
+                .checked_add(amount)
+                .ok_or("finance totals overflow")?;
+            self.wages_cents = wages;
+            self.handyman_wages_cents = handyman;
+            return Ok(());
+        }
         let target = match kind {
             FinanceKind::MechanicWage => &mut self.wages_cents,
+            FinanceKind::HandymanWage => unreachable!(),
             FinanceKind::LoanBorrow => &mut self.loan_borrowed_cents,
             FinanceKind::LoanRepayment => &mut self.loan_repaid_cents,
             FinanceKind::LoanInterest => &mut self.loan_interest_cents,
@@ -429,13 +447,26 @@ impl Park {
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .chain(std::iter::once(self.track_economy.refund_cents))
             .sum::<u64>();
+        let wages_cents = self.finances.archived.wages_cents
+            + self
+                .finances
+                .entries
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        entry.kind,
+                        FinanceKind::MechanicWage | FinanceKind::HandymanWage
+                    )
+                })
+                .map(|entry| entry.amount_cents)
+                .sum::<u64>();
         let total_costs_cents = upkeep_cents
             + supplies_cents
             + construction_cents
             + self.loans.interest_paid_cents
-            + self.mechanic_status().wages_paid_cents;
+            + wages_cents;
         FinanceStats {
-            wages_cents: self.mechanic_status().wages_paid_cents,
+            wages_cents,
             loan_borrowed_cents: self.loans.borrowed_cents,
             loan_repaid_cents: self.loans.repaid_cents,
             loan_interest_cents: self.loans.interest_paid_cents,
@@ -772,23 +803,34 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
     minimum_archived += u128::from(u64::from(archived_loans.loan_interest_cents > 0));
     maximum_archived += u128::from(archived_loans.loan_interest_cents);
-    if !ledger
+    let archived_mechanic_wages = ledger
         .archived
         .wages_cents
-        .is_multiple_of(crate::MECHANIC_WAGE_CENTS)
-        || ledger.archived.wages_cents / crate::MECHANIC_WAGE_CENTS
+        .checked_sub(ledger.archived.handyman_wages_cents)
+        .ok_or("archived handyman wages exceed total wages")?;
+    if !archived_mechanic_wages.is_multiple_of(crate::MECHANIC_WAGE_CENTS)
+        || archived_mechanic_wages / crate::MECHANIC_WAGE_CENTS
             > (ledger.archived_through_tick - ledger.opening_tick)
                 / u64::from(crate::MECHANIC_WAGE_TICKS)
+        || !ledger
+            .archived
+            .handyman_wages_cents
+            .is_multiple_of(crate::HANDYMAN_WAGE_CENTS)
+        || ledger.archived.handyman_wages_cents / crate::HANDYMAN_WAGE_CENTS
+            > (ledger.archived_through_tick - ledger.opening_tick)
+                / u64::from(crate::HANDYMAN_WAGE_TICKS)
     {
-        return Err("archived mechanic wages exceed possible work time".into());
+        return Err("archived staff wages exceed possible work time".into());
     }
-    let archived_wages = u128::from(ledger.archived.wages_cents / crate::MECHANIC_WAGE_CENTS);
+    let archived_wages = u128::from(archived_mechanic_wages / crate::MECHANIC_WAGE_CENTS)
+        + u128::from(ledger.archived.handyman_wages_cents / crate::HANDYMAN_WAGE_CENTS);
     minimum_archived += archived_wages;
     maximum_archived += archived_wages;
     archived_check.loan_borrowed_cents = archived_loans.loan_borrowed_cents;
     archived_check.loan_repaid_cents = archived_loans.loan_repaid_cents;
     archived_check.loan_interest_cents = archived_loans.loan_interest_cents;
     archived_check.wages_cents = archived_loans.wages_cents;
+    archived_check.handyman_wages_cents = archived_loans.handyman_wages_cents;
     if archived_check != ledger.archived
         || (ledger.archived_entries == 0
             && (ledger.archived != FinanceTotals::default()
@@ -873,10 +915,22 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 || entry.service.is_some()
                 || entry.amount_cents != crate::MECHANIC_WAGE_CENTS
                 || entry.tick == 0
-                || total.wages_cents / crate::MECHANIC_WAGE_CENTS + 1
+                || total.wages_cents.saturating_sub(total.handyman_wages_cents)
+                    / crate::MECHANIC_WAGE_CENTS
+                    + 1
                     > (entry.tick - ledger.opening_tick) / u64::from(crate::MECHANIC_WAGE_TICKS)
             {
                 return Err("mechanic wage receipt is invalid".into());
+            }
+        } else if entry.kind == FinanceKind::HandymanWage {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || entry.amount_cents != crate::HANDYMAN_WAGE_CENTS
+                || entry.tick == 0
+                || total.handyman_wages_cents / crate::HANDYMAN_WAGE_CENTS + 1
+                    > (entry.tick - ledger.opening_tick) / u64::from(crate::HANDYMAN_WAGE_TICKS)
+            {
+                return Err("handyman wage receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;

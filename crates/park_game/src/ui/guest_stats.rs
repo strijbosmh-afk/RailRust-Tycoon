@@ -369,7 +369,7 @@ pub(crate) fn refresh(
             StatLabel::Grounds => {
                 let grounds = sim.0.grounds_status();
                 format!(
-                    "Grounds: {} litter / {} spills / {} cleaned  |  Handyman: {}",
+                    "Grounds: {} litter / {} spills / {} cleaned  |  Handyman: {}\nBins: {} ({} full) / {} emptied  |  Wages: ${}.{:02}",
                     grounds.litter,
                     grounds.vomit,
                     grounds.cleaned,
@@ -377,7 +377,12 @@ pub(crate) fn refresh(
                         "assigned"
                     } else {
                         "unassigned"
-                    }
+                    },
+                    grounds.bins,
+                    grounds.full_bins,
+                    grounds.bins_emptied,
+                    grounds.wages_paid_cents / 100,
+                    grounds.wages_paid_cents % 100,
                 )
             }
             StatLabel::HandymanAction => {

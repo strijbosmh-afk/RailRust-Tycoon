@@ -77,6 +77,7 @@ enum Scene {
     Scenery,
     GuestStats,
     GroundsStats,
+    BinsStats,
     GuestTrends,
     GuestTriage,
     GuestRepair,
@@ -96,6 +97,7 @@ enum Scene {
     VisitorLooks,
     MechanicMap,
     GroundsMap,
+    BinsMap,
     Lost,
     Recovered,
     Train,
@@ -712,6 +714,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("scenery") => Scene::Scenery,
                 Some("guest-stats") => Scene::GuestStats,
                 Some("grounds-stats") => Scene::GroundsStats,
+                Some("bins-stats") => Scene::BinsStats,
                 Some("guest-trends") => Scene::GuestTrends,
                 Some("guest-triage") => Scene::GuestTriage,
                 Some("guest-repair") => Scene::GuestRepair,
@@ -730,6 +733,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("visitor-looks") => Scene::VisitorLooks,
                 Some("mechanic-map") => Scene::MechanicMap,
                 Some("grounds-map") => Scene::GroundsMap,
+                Some("bins-map") => Scene::BinsMap,
                 Some("lost") => Scene::Lost,
                 Some("recovered") => Scene::Recovered,
                 Some("train") => Scene::Train,
@@ -1212,7 +1216,7 @@ fn apply_preset(
             + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
         view.scene_dirty = true;
     }
-    if matches!(capture.scene, Scene::GroundsMap) {
+    if matches!(capture.scene, Scene::GroundsMap | Scene::BinsMap) {
         let entry = sim
             .0
             .objects()
@@ -1221,6 +1225,10 @@ fn apply_preset(
             .expect("capture public path")
             .id;
         sim.0.set_visitor_entry(entry).expect("capture entry");
+        if matches!(capture.scene, Scene::BinsMap) {
+            assert_eq!(sim.0.toggle_ground_bin(entry), Ok(true));
+            view.selected = Some(SurfaceId::Object(entry));
+        }
         sim.0.set_handyman_assigned(true);
         sim.0.set_handyman_assigned(false);
         for _ in 0..12_000 {
@@ -1249,8 +1257,17 @@ fn apply_preset(
             "capture handyman must approach dirt"
         );
         assert!((7..=16).contains(&status.walk_progress));
-        let point = sim.0.object(dirt).expect("capture mess path").pos;
-        view.zoom = 3.0;
+        let focus = if matches!(capture.scene, Scene::BinsMap) {
+            entry
+        } else {
+            dirt
+        };
+        let point = sim.0.object(focus).expect("capture path").pos;
+        view.zoom = if matches!(capture.scene, Scene::BinsMap) {
+            4.0
+        } else {
+            3.0
+        };
         view.pan = world::tile_center(point, MAP_SIZE, view.rotation)
             + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
         view.scene_dirty = true;
@@ -1324,6 +1341,7 @@ fn apply_preset(
         capture.scene,
         Scene::GuestStats
             | Scene::GroundsStats
+            | Scene::BinsStats
             | Scene::GuestTrends
             | Scene::GuestTriage
             | Scene::GuestRepair

@@ -186,6 +186,10 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("wages_cents");
+        old["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("handyman_wages_cents");
         old["schema_version"] = 25.into();
         old["content_version"] = 25.into();
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();

@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 29;
-pub const CONTENT_VERSION: u32 = 29;
+pub const SCHEMA_VERSION: u32 = 30;
+pub const CONTENT_VERSION: u32 = 30;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -735,6 +735,7 @@ impl Park {
                 | 26
                 | 27
                 | 28
+                | 29
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -747,6 +748,7 @@ impl Park {
         validate_staff_fields(bytes, header.schema_version)?;
         validate_mechanic_route_field(bytes, header.schema_version)?;
         validate_grounds_field(bytes, header.schema_version)?;
+        validate_handyman_bin_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -949,6 +951,39 @@ fn validate_grounds_field(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
     }
     if schema >= 29 && !present {
         return Err(invalid("schema 29 requires grounds state"));
+    }
+    Ok(())
+}
+
+fn validate_handyman_bin_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 8 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let park = &value["park"];
+    let grounds = &park["grounds"];
+    let present = grounds.get("bins").is_some()
+        || grounds.get("bins_emptied").is_some()
+        || grounds.get("wage_progress").is_some()
+        || grounds["route"].get("target_bin").is_some()
+        || park["finances"]["archived"]
+            .get("handyman_wages_cents")
+            .is_some();
+    let complete = grounds.get("bins").is_some()
+        && grounds.get("bins_emptied").is_some()
+        && grounds.get("wage_progress").is_some()
+        && grounds["route"].get("target_bin").is_some()
+        && park["finances"]["archived"]
+            .get("handyman_wages_cents")
+            .is_some();
+    let receipt = park["finances"]["entries"]
+        .as_array()
+        .is_some_and(|entries| entries.iter().any(|entry| entry["kind"] == "HandymanWage"));
+    if schema < 30 && (present || receipt) {
+        return Err(invalid("handyman wages and bins require schema 30"));
+    }
+    if schema >= 30 && !complete {
+        return Err(invalid("schema 30 requires handyman wages and bins"));
     }
     Ok(())
 }

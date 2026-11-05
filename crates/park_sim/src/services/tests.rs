@@ -1017,6 +1017,10 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
         .as_object_mut()
         .unwrap()
         .remove("wages_cents");
+    old["park"]["finances"]["archived"]
+        .as_object_mut()
+        .unwrap()
+        .remove("handyman_wages_cents");
     for guest in old["park"]["guests"].as_array_mut().unwrap() {
         let needs = guest["needs"].as_object_mut().unwrap();
         needs.remove("energy");
