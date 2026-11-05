@@ -6,7 +6,7 @@ Beacon Drop is an original, player-built vertical flat ride in the existing 3×3
 
 New normal launches begin with flat terrain, a matching Flat control and build height 0. The existing demonstration structures remain available at their authored elevations. Loading a saved park keeps its saved terrain; it is not flattened.
 
-Strict park save schema/content advances to **33/33**. Version 32 reads without transformation; a tower cannot be smuggled into a version-32 file. The new production writer/verifier pair requires paid visits on both a carousel and a tower, saves a paid tower with its carriage raised, and compares an exact 3,600-tick continuation in a separate process while preserving the original primary file. Windows CI runs the pair.
+Strict park save schema/content advances to **33/33**. Version 32 reads without transformation; a tower cannot be smuggled into a version-32 file. The new production writer/verifier pair requires paid visits on both a carousel and a tower, saves a paid tower with its carriage raised, and compares an exact 3,600-tick continuation in a separate process while preserving the original primary file. Windows CI runs the pair. Runtime source is `cf6f56e74ea5ce228c47cda24fe0b201ef30c2c9` in [draft PR #63](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/63).
 
 ## Acceptance
 
