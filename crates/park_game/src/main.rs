@@ -124,6 +124,7 @@ struct ViewState {
     guest_stats_view: bool,
     guest_stats_pending: bool,
     handyman_toggle_pending: bool,
+    bin_toggle_pending: bool,
     park_generation: u64,
     visitor_pending: Option<ui::visitor_flow::VisitorCommand>,
     visitor_notice: Option<String>,
@@ -212,6 +213,7 @@ impl Default for ViewState {
             guest_stats_view: false,
             guest_stats_pending: false,
             handyman_toggle_pending: false,
+            bin_toggle_pending: false,
             park_generation: 0,
             visitor_pending: None,
             visitor_notice: None,
@@ -684,6 +686,26 @@ fn apply_grounds_action(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>
         view.handyman_toggle_pending = false;
         let assigned = sim.0.grounds_status().assigned;
         sim.0.set_handyman_assigned(!assigned);
+    }
+    if view.bin_toggle_pending {
+        view.bin_toggle_pending = false;
+        if view.edits_blocked() {
+            return;
+        }
+        view.ui_pointer_consumed = true;
+        let path = match view.selected {
+            Some(SurfaceId::Object(id)) => Some(id),
+            _ => None,
+        };
+        view.path_notice = Some(match path {
+            Some(id) => match sim.0.toggle_ground_bin(id) {
+                Ok(true) => "Bin placed on selected path.".into(),
+                Ok(false) => "Bin removed from selected path.".into(),
+                Err(error) => format!("Cannot change bin: {error}"),
+            },
+            None => "Select a public path first, then use Bin.".into(),
+        });
+        view.scene_dirty = true;
     }
 }
 

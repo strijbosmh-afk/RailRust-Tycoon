@@ -114,6 +114,7 @@ pub(super) enum Action {
     GuestFlowView,
     GuestStatsView,
     ToggleHandyman,
+    ToggleBin,
     CycleGuestFilter,
     FindGuest,
     RepairGuestPath,
@@ -453,7 +454,7 @@ pub(super) fn setup(mut commands: Commands) {
                 padding: UiRect::all(px(12)),
                 border: UiRect::all(px(1)),
                 flex_direction: FlexDirection::Column,
-                row_gap: px(4),
+                row_gap: px(3),
                 ..default()
             },
             GlobalZIndex(2),
@@ -532,6 +533,9 @@ pub(super) fn setup(mut commands: Commands) {
                     65.0,
                 );
             });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Bin on selected path", Action::ToggleBin, 204.0);
+            });
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
                 button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
@@ -543,7 +547,7 @@ pub(super) fn setup(mut commands: Commands) {
             ] {
                 p.spawn(Node {
                     width: percent(100),
-                    height: px(44),
+                    height: px(30),
                     flex_shrink: 0.0,
                     overflow: Overflow::clip(),
                     ..default()
@@ -1118,6 +1122,7 @@ pub(super) fn button_actions(
             Action::ToggleHandyman if view.guests_open && view.guest_stats_view => {
                 view.handyman_toggle_pending = true;
             }
+            Action::ToggleBin => view.bin_toggle_pending = true,
             Action::CycleGuestFilter if view.guests_open => {
                 view.guest_filter = view.guest_filter.next();
                 view.guest_page = 0;

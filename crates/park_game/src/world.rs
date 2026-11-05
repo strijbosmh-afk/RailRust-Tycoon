@@ -1263,6 +1263,50 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     if park.width() != park.height() {
         return mesh.finish();
     }
+    for bin in park.ground_bins() {
+        let Some(path) = park.object(bin.path) else {
+            continue;
+        };
+        if !object_visible(park, path, mode) {
+            continue;
+        }
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let foot = base.truncate() + Vec2::new(-11.0, 0.5);
+        mesh.surface_ellipse(roof, foot, 5.5, 2.6, DETAIL_BIAS * 3.0, rgb(55, 86, 66));
+        let depth = base.z + 0.045;
+        mesh.quad(
+            [
+                foot + Vec2::new(-4.5, 0.0),
+                foot + Vec2::new(4.5, 0.0),
+                foot + Vec2::new(3.8, 12.0),
+                foot + Vec2::new(-3.8, 12.0),
+            ],
+            depth,
+            rgb(35, 171, 168),
+        );
+        mesh.line(
+            foot + Vec2::new(-4.2, 11.6),
+            foot + Vec2::new(4.2, 11.6),
+            2.0,
+            depth + 0.001,
+            rgb(244, 220, 105),
+        );
+        mesh.ellipse(
+            foot + Vec2::new(0.0, 12.3),
+            3.2,
+            1.2,
+            depth + 0.002,
+            if bin.fill == park_sim::GROUND_BIN_CAPACITY {
+                rgb(237, 106, 62)
+            } else {
+                rgb(22, 91, 110)
+            },
+        );
+    }
     for mess in park.ground_messes() {
         let Some(path) = park.object(mess.path) else {
             continue;

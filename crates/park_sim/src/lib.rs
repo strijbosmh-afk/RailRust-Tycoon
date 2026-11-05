@@ -20,7 +20,11 @@ mod experience;
 mod finance_summary;
 mod finances;
 mod grounds;
-pub use grounds::{GROUND_MESS_CAP, GROUND_MESS_TICKS, GroundMess, GroundMessKind, GroundsStatus};
+pub use grounds::{
+    GROUND_BIN_CAP, GROUND_BIN_CAPACITY, GROUND_MESS_CAP, GROUND_MESS_TICKS, GroundBin,
+    GroundBinError, GroundMess, GroundMessKind, GroundsStatus, HANDYMAN_WAGE_CENTS,
+    HANDYMAN_WAGE_TICKS,
+};
 mod park_value;
 pub use park_value::ParkValue;
 mod loans;
@@ -515,6 +519,7 @@ impl Park {
             self.ticks += 1;
             self.step_loan_interest();
             self.step_mechanic_wages();
+            self.step_handyman_wages();
             self.step_ride_upkeep();
             self.step_service_upkeep();
             self.step_needs();

@@ -370,6 +370,7 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::LoanRepayment => ("Loan repayment", "-"),
         FinanceKind::LoanInterest => ("Loan interest", "-"),
         FinanceKind::MechanicWage => ("Mechanic wage", "-"),
+        FinanceKind::HandymanWage => ("Handyman wage", "-"),
         FinanceKind::RideUpkeep => ("Ride upkeep", "-"),
         FinanceKind::RideRevenue => ("Ride tickets", "+"),
         FinanceKind::ServiceRevenue => ("Service sales", "+"),

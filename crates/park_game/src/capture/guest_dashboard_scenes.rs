@@ -11,6 +11,7 @@ pub(super) fn prepare(
         scene,
         Scene::GuestStats
             | Scene::GroundsStats
+            | Scene::BinsStats
             | Scene::GuestTrends
             | Scene::GuestTriage
             | Scene::GuestRepair
@@ -48,7 +49,7 @@ pub(super) fn prepare(
         if matches!(scene, Scene::GuestRepairMap) {
             assert!(crate::ui::guests::prepare_repair(park, view));
         }
-    } else if matches!(scene, Scene::GroundsStats) {
+    } else if matches!(scene, Scene::GroundsStats | Scene::BinsStats) {
         let entry = park
             .objects()
             .iter()
@@ -56,6 +57,9 @@ pub(super) fn prepare(
             .expect("capture public path")
             .id;
         park.set_visitor_entry(entry).expect("capture entry");
+        if matches!(scene, Scene::BinsStats) {
+            assert_eq!(park.toggle_ground_bin(entry), Ok(true));
+        }
         park.set_handyman_assigned(true);
         park.set_handyman_assigned(false);
         for _ in 0..12_000 {

@@ -38,7 +38,11 @@ impl Park {
             next_path: self.mechanic_route.next,
             walk_progress: self.mechanic_route.progress,
             target_ride: self.mechanic_route.target,
-            wages_paid_cents: self.finances.archived.wages_cents
+            wages_paid_cents: self
+                .finances
+                .archived
+                .wages_cents
+                .saturating_sub(self.finances.archived.handyman_wages_cents)
                 + self
                     .finances
                     .entries
@@ -317,6 +321,10 @@ mod tests {
             .unwrap()
             .remove("mechanic_route");
         prior["park"].as_object_mut().unwrap().remove("grounds");
+        prior["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("handyman_wages_cents");
         assert_eq!(
             Park::from_save_bytes(&serde_json::to_vec(&prior).unwrap()).unwrap(),
             park
@@ -338,6 +346,10 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("wages_cents");
+        body["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("handyman_wages_cents");
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();
         assert_eq!(migrated, park);
         let mut smuggled = current.clone();

@@ -3,6 +3,31 @@ use crate::{ObjectId, PATH_UNITS, Park, PathDirection, PathPoint, WALK_TICKS};
 
 pub const GROUND_MESS_CAP: usize = 64;
 pub const GROUND_MESS_TICKS: u64 = 600;
+pub const GROUND_BIN_CAP: usize = 64;
+pub const GROUND_BIN_CAPACITY: u8 = 4;
+pub const HANDYMAN_WAGE_TICKS: u16 = 900;
+pub const HANDYMAN_WAGE_CENTS: u64 = 50;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GroundBin {
+    pub path: ObjectId,
+    pub fill: u8,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GroundBinError {
+    InvalidPath,
+    AtCapacity,
+}
+impl std::fmt::Display for GroundBinError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::InvalidPath => "select a public path",
+            Self::AtCapacity => "bin limit reached",
+        })
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum GroundMessKind {
@@ -29,6 +54,8 @@ pub(crate) struct HandymanRoute {
     progress: u16,
     #[serde(deserialize_with = "crate::saves::required_option")]
     target: Option<u64>,
+    #[serde(default)]
+    target_bin: Option<ObjectId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -38,6 +65,15 @@ pub(crate) struct GroundsState {
     pub assigned: bool,
     pub next_mess_id: u64,
     pub cleaned: u64,
+    #[serde(default)]
+    pub wage_progress: u16,
+    #[serde(default)]
+    pub bins_emptied: u64,
+    #[serde(
+        default,
+        deserialize_with = "crate::saves::bounded_objects::<_,_,GROUND_BIN_CAP>"
+    )]
+    pub bins: Vec<GroundBin>,
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,GROUND_MESS_CAP>")]
     pub messes: Vec<GroundMess>,
     #[serde(deserialize_with = "crate::saves::strict_object")]
@@ -51,6 +87,9 @@ impl Default for GroundsState {
             assigned: false,
             next_mess_id: 1,
             cleaned: 0,
+            wage_progress: 0,
+            bins_emptied: 0,
+            bins: Vec::new(),
             messes: Vec::new(),
             route: HandymanRoute::default(),
         }
@@ -64,10 +103,16 @@ pub struct GroundsStatus {
     pub litter: usize,
     pub vomit: usize,
     pub cleaned: u64,
+    pub wage_progress: u16,
+    pub wages_paid_cents: u64,
+    pub bins: usize,
+    pub full_bins: usize,
+    pub bins_emptied: u64,
     pub current_path: Option<ObjectId>,
     pub next_path: Option<ObjectId>,
     pub walk_progress: u16,
     pub target_mess: Option<u64>,
+    pub target_bin: Option<ObjectId>,
 }
 
 impl Park {
@@ -87,15 +132,65 @@ impl Park {
                 .filter(|mess| mess.kind == GroundMessKind::Vomit)
                 .count(),
             cleaned: state.cleaned,
+            wage_progress: state.wage_progress,
+            wages_paid_cents: self.finances.archived.handyman_wages_cents
+                + self
+                    .finances
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.kind == crate::FinanceKind::HandymanWage)
+                    .map(|entry| entry.amount_cents)
+                    .sum::<u64>(),
+            bins: state.bins.len(),
+            full_bins: state
+                .bins
+                .iter()
+                .filter(|bin| bin.fill == GROUND_BIN_CAPACITY)
+                .count(),
+            bins_emptied: state.bins_emptied,
             current_path: state.route.current,
             next_path: state.route.next,
             walk_progress: state.route.progress,
             target_mess: state.route.target,
+            target_bin: state.route.target_bin,
         }
     }
 
     pub fn ground_messes(&self) -> &[GroundMess] {
         &self.grounds.messes
+    }
+
+    pub fn ground_bins(&self) -> &[GroundBin] {
+        &self.grounds.bins
+    }
+
+    /// Attach or remove one free bin on an existing public path. Installing a
+    /// bin starts grounds activity even if no handyman has been assigned.
+    pub fn toggle_ground_bin(&mut self, path: ObjectId) -> Result<bool, GroundBinError> {
+        if self
+            .object(path)
+            .is_none_or(|object| !object.is_public_path())
+        {
+            return Err(GroundBinError::InvalidPath);
+        }
+        if let Ok(index) = self
+            .grounds
+            .bins
+            .binary_search_by_key(&path, |bin| bin.path)
+        {
+            self.grounds.bins.remove(index);
+            if self.grounds.route.target_bin == Some(path) {
+                self.grounds.route.target_bin = None;
+            }
+            return Ok(false);
+        }
+        if self.grounds.bins.len() == GROUND_BIN_CAP {
+            return Err(GroundBinError::AtCapacity);
+        }
+        let index = self.grounds.bins.partition_point(|bin| bin.path < path);
+        self.grounds.bins.insert(index, GroundBin { path, fill: 0 });
+        self.grounds.active = true;
+        Ok(true)
     }
 
     /// First assignment starts grounds activity for this park. Dismissing the
@@ -106,8 +201,23 @@ impl Park {
         }
         self.grounds.assigned = assigned;
         self.grounds.active |= assigned;
+        self.grounds.wage_progress = 0;
         self.grounds.route = HandymanRoute::default();
         true
+    }
+
+    pub(crate) fn step_handyman_wages(&mut self) {
+        if !self.grounds.assigned {
+            return;
+        }
+        if self.grounds.wage_progress + 1 < HANDYMAN_WAGE_TICKS {
+            self.grounds.wage_progress += 1;
+        } else if self.cash_cents < HANDYMAN_WAGE_CENTS {
+            self.set_handyman_assigned(false);
+        } else {
+            self.grounds.wage_progress = 0;
+            self.record_cash(crate::FinanceKind::HandymanWage, None, HANDYMAN_WAGE_CENTS);
+        }
     }
 
     pub(crate) fn step_grounds(&mut self) {
@@ -141,12 +251,22 @@ impl Park {
                     )
                 })
         {
-            self.grounds.messes.push(GroundMess {
-                id: self.grounds.next_mess_id,
-                path,
-                kind,
-            });
-            self.grounds.next_mess_id += 1;
+            if kind == GroundMessKind::Litter
+                && let Ok(index) = self
+                    .grounds
+                    .bins
+                    .binary_search_by_key(&path, |bin| bin.path)
+                && self.grounds.bins[index].fill < GROUND_BIN_CAPACITY
+            {
+                self.grounds.bins[index].fill += 1;
+            } else {
+                self.grounds.messes.push(GroundMess {
+                    id: self.grounds.next_mess_id,
+                    path,
+                    kind,
+                });
+                self.grounds.next_mess_id += 1;
+            }
         }
         if self.ticks.is_multiple_of(90) {
             for guest in &mut self.guests {
@@ -185,6 +305,7 @@ impl Park {
                 self.grounds.route.next = None;
                 self.grounds.route.progress = 0;
                 self.grounds.route.target = None;
+                self.grounds.route.target_bin = None;
             } else {
                 self.grounds.route.progress += 1;
                 if self.grounds.route.progress < WALK_TICKS {
@@ -203,21 +324,45 @@ impl Park {
                 .find(|mess| mess.id == id)
                 .and_then(|mess| self.public_path_route(current, mess.path).map(|_| id))
         });
-        let target = target.or_else(|| {
+        let target_bin = self.grounds.route.target_bin.filter(|id| {
             self.grounds
-                .messes
+                .bins
                 .iter()
-                .filter_map(|mess| {
-                    let route = self.public_path_route(current, mess.path)?;
-                    Some((route.len(), mess.id))
-                })
-                .min()
-                .map(|(_, id)| id)
+                .any(|bin| bin.path == *id && bin.fill > 0)
+                && self.public_path_route(current, *id).is_some()
         });
+        let choice = if target.is_some() {
+            target.map(|id| (Some(id), None))
+        } else if target_bin.is_some() {
+            target_bin.map(|id| (None, Some(id)))
+        } else {
+            None
+        };
+        let choice = choice.or_else(|| {
+            let mess = self.grounds.messes.iter().filter_map(|mess| {
+                let distance = self.public_path_route(current, mess.path)?.len();
+                Some(((distance, 0_u8, mess.id), (Some(mess.id), None)))
+            });
+            let bins = self
+                .grounds
+                .bins
+                .iter()
+                .filter(|bin| bin.fill > 0)
+                .filter_map(|bin| {
+                    let distance = self.public_path_route(current, bin.path)?.len();
+                    Some(((distance, 1_u8, bin.path.0), (None, Some(bin.path))))
+                });
+            mess.chain(bins)
+                .min_by_key(|(key, _)| *key)
+                .map(|(_, target)| target)
+        });
+        let (target, target_bin) = choice.unwrap_or((None, None));
         self.grounds.route.target = target;
+        self.grounds.route.target_bin = target_bin;
         let destination = target
             .and_then(|id| self.grounds.messes.iter().find(|mess| mess.id == id))
             .map(|mess| mess.path)
+            .or(target_bin)
             .or(entry);
         let Some(destination) = destination else {
             return;
@@ -228,23 +373,37 @@ impl Park {
                 self.grounds.cleaned = self.grounds.cleaned.saturating_add(1);
                 self.grounds.route.target = None;
             }
+            if let Some(path) = target_bin
+                && let Ok(index) = self
+                    .grounds
+                    .bins
+                    .binary_search_by_key(&path, |bin| bin.path)
+                && self.grounds.bins[index].fill > 0
+            {
+                self.grounds.bins[index].fill = 0;
+                self.grounds.bins_emptied = self.grounds.bins_emptied.saturating_add(1);
+                self.grounds.route.target_bin = None;
+            }
             return;
         }
         if let Some(mut route) = self.public_path_route(current, destination) {
             self.grounds.route.next = route.pop_front();
         } else {
             self.grounds.route.target = None;
+            self.grounds.route.target_bin = None;
         }
     }
 
     pub(crate) fn reconcile_grounds_after_removal(&mut self, removed: ObjectId) {
         self.grounds.messes.retain(|mess| mess.path != removed);
+        self.grounds.bins.retain(|bin| bin.path != removed);
         if self.grounds.route.current == Some(removed) {
             self.grounds.route = HandymanRoute::default();
         } else if self.grounds.route.next == Some(removed) {
             self.grounds.route.next = None;
             self.grounds.route.progress = 0;
             self.grounds.route.target = None;
+            self.grounds.route.target_bin = None;
         }
         if self
             .grounds
@@ -253,6 +412,15 @@ impl Park {
             .is_some_and(|id| !self.grounds.messes.iter().any(|mess| mess.id == id))
         {
             self.grounds.route.target = None;
+        }
+        if self.grounds.route.target_bin.is_some_and(|id| {
+            !self
+                .grounds
+                .bins
+                .iter()
+                .any(|bin| bin.path == id && bin.fill > 0)
+        }) {
+            self.grounds.route.target_bin = None;
         }
     }
 
@@ -293,11 +461,16 @@ impl Park {
 pub(crate) fn validate(park: &Park) -> Result<(), String> {
     let state = &park.grounds;
     if state.messes.len() > GROUND_MESS_CAP
+        || state.bins.len() > GROUND_BIN_CAP
+        || state.wage_progress >= HANDYMAN_WAGE_TICKS
+        || (!state.assigned && state.wage_progress != 0)
         || state.next_mess_id == 0
         || (!state.active
             && (state.assigned
                 || state.cleaned != 0
                 || state.next_mess_id != 1
+                || state.bins_emptied != 0
+                || !state.bins.is_empty()
                 || !state.messes.is_empty()
                 || state.route != HandymanRoute::default()))
         || (state.assigned && !state.active)
@@ -305,7 +478,10 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
         || state.route.progress >= WALK_TICKS
         || (state.route.next.is_none() && state.route.progress != 0)
         || (state.route.current.is_none()
-            && (state.route.next.is_some() || state.route.target.is_some()))
+            && (state.route.next.is_some()
+                || state.route.target.is_some()
+                || state.route.target_bin.is_some()))
+        || (state.route.target.is_some() && state.route.target_bin.is_some())
         || state
             .route
             .current
@@ -323,6 +499,10 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
             .route
             .target
             .is_some_and(|id| !state.messes.iter().any(|mess| mess.id == id))
+        || state
+            .route
+            .target_bin
+            .is_some_and(|id| !state.bins.iter().any(|bin| bin.path == id && bin.fill > 0))
     {
         return Err("grounds route or status is invalid".into());
     }
@@ -339,6 +519,18 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
             return Err("grounds mess identity or path is invalid".into());
         }
         previous = mess.id;
+    }
+    let mut prior_bin = None;
+    for bin in &state.bins {
+        if prior_bin.is_some_and(|id| id >= bin.path)
+            || bin.fill > GROUND_BIN_CAPACITY
+            || park
+                .object(bin.path)
+                .is_none_or(|path| !path.is_public_path())
+        {
+            return Err("grounds bin identity, path or fill is invalid".into());
+        }
+        prior_bin = Some(bin.path);
     }
     Ok(())
 }
@@ -413,6 +605,10 @@ mod tests {
         old["schema_version"] = 28.into();
         old["content_version"] = 28.into();
         old["park"].as_object_mut().unwrap().remove("grounds");
+        old["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("handyman_wages_cents");
         assert_eq!(
             Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap(),
             park
@@ -455,5 +651,120 @@ mod tests {
             Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
             park
         );
+    }
+
+    #[test]
+    fn handyman_wages_are_recorded_and_insufficient_cash_dismisses() {
+        let (mut paid, _, _) = park();
+        paid.set_handyman_assigned(true);
+        for _ in 0..HANDYMAN_WAGE_TICKS - 1 {
+            paid.advance(Speed::Normal);
+        }
+        assert_eq!(paid.grounds_status().wage_progress, HANDYMAN_WAGE_TICKS - 1);
+        assert_eq!(paid.grounds_status().wages_paid_cents, 0);
+        paid.advance(Speed::Normal);
+        assert_eq!(paid.grounds_status().wage_progress, 0);
+        assert_eq!(paid.grounds_status().wages_paid_cents, HANDYMAN_WAGE_CENTS);
+        assert_eq!(paid.finance_stats().wages_cents, HANDYMAN_WAGE_CENTS);
+        assert_eq!(
+            paid.cash_cents(),
+            crate::INITIAL_PARK_CASH_CENTS - HANDYMAN_WAGE_CENTS
+        );
+        assert_eq!(
+            Park::from_save_bytes(&paid.to_save_bytes().unwrap()).unwrap(),
+            paid
+        );
+        let (mut poor, _, _) = park();
+        poor.cash_cents = HANDYMAN_WAGE_CENTS - 1;
+        poor.set_handyman_assigned(true);
+        for _ in 0..HANDYMAN_WAGE_TICKS {
+            poor.advance(Speed::Normal);
+        }
+        assert!(!poor.grounds_status().assigned);
+        assert_eq!(poor.grounds_status().wage_progress, 0);
+        assert_eq!(poor.cash_cents(), HANDYMAN_WAGE_CENTS - 1);
+    }
+
+    #[test]
+    fn bins_capture_litter_worker_empties_and_demolition_reconciles() {
+        let (mut park, entry, dirt) = park();
+        assert_eq!(park.toggle_ground_bin(dirt), Ok(true));
+        assert!(park.grounds_status().active);
+        assert_eq!(
+            park.ground_bins(),
+            &[GroundBin {
+                path: dirt,
+                fill: 0
+            }]
+        );
+        park.grounds.bins[0].fill = GROUND_BIN_CAPACITY;
+        park.set_handyman_assigned(true);
+        park.advance(Speed::Normal);
+        assert_eq!(park.grounds_status().target_bin, Some(dirt));
+        assert_eq!(park.grounds_status().next_path, Some(dirt));
+        for _ in 0..8 {
+            park.advance(Speed::Normal);
+        }
+        let mut loaded = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+        for _ in 0..60 {
+            park.advance(Speed::Normal);
+            loaded.advance(Speed::Normal);
+            assert_eq!(loaded, park);
+        }
+        assert_eq!(park.ground_bins()[0].fill, 0);
+        assert_eq!(park.grounds_status().bins_emptied, 1);
+        assert_eq!(park.toggle_ground_bin(dirt), Ok(false));
+        assert!(park.ground_bins().is_empty());
+        assert_eq!(park.toggle_ground_bin(entry), Ok(true));
+        park.remove_object(entry).unwrap();
+        assert!(park.ground_bins().is_empty());
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+    }
+
+    #[test]
+    fn schema_29_migrates_paid_staff_and_bins_strictly() {
+        let (mut park, _, dirt) = park();
+        park.set_handyman_assigned(true);
+        park.advance(Speed::Normal);
+        let current: serde_json::Value =
+            serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        let mut prior = current.clone();
+        prior["schema_version"] = 29.into();
+        prior["content_version"] = 29.into();
+        let grounds = prior["park"]["grounds"].as_object_mut().unwrap();
+        grounds.remove("bins");
+        grounds.remove("bins_emptied");
+        grounds.remove("wage_progress");
+        grounds["route"]
+            .as_object_mut()
+            .unwrap()
+            .remove("target_bin");
+        prior["park"]["finances"]["archived"]
+            .as_object_mut()
+            .unwrap()
+            .remove("handyman_wages_cents");
+        let migrated = Park::from_save_bytes(&serde_json::to_vec(&prior).unwrap()).unwrap();
+        assert!(migrated.grounds_status().assigned);
+        assert_eq!(migrated.grounds_status().wage_progress, 0);
+        assert_eq!(migrated.ground_bins().len(), 0);
+        assert_eq!(
+            migrated.grounds_status().current_path,
+            park.grounds_status().current_path
+        );
+        let mut smuggled = prior.clone();
+        smuggled["park"]["grounds"]["bins"] = serde_json::json!([]);
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&smuggled).unwrap()).is_err());
+        let mut missing = current.clone();
+        missing["park"]["grounds"]
+            .as_object_mut()
+            .unwrap()
+            .remove("bins");
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&missing).unwrap()).is_err());
+        let mut invalid = current;
+        invalid["park"]["grounds"]["bins"] = serde_json::json!([{"path":dirt,"fill":255}]);
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&invalid).unwrap()).is_err());
     }
 }
