@@ -1,5 +1,7 @@
 # Resume development on another Windows PC
 
+**Current stage: 0.65.0 park admission and charging rules** on `codex/park-admission-rules`, stacked on 0.64.0 `codex/park-opening` / [draft PR #64](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/64). See [section 32](#32-park-admission-and-charging-rules--0650) for controls, strict saves, verification and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the other PC paths and safe switching steps. This development PC is not a performance reference.
+
 **Current stage: 0.64.0 park opening** on `codex/park-opening` in [draft PR #64](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/64), stacked on 0.63.0 `codex/drop-tower`. See [section 31](#31-park-opening--0640) for controls, save migration, verification and the next work. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists other PC paths and safe switching steps. This development PC is not a performance reference.
 
 **Current stage: 0.63.0 Beacon Drop** on `codex/drop-tower` in [draft PR #63](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/63), stacked on 0.62.0 `codex/handyman-patrol`. See [section 30](#30-beacon-drop--0630) for the controls, save version and verification. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the other PC paths and safe switching steps. This development PC is not a performance reference.
@@ -64,13 +66,13 @@ The previously used second-PC checkout is:
 C:\Users\michiel strijbos\Documents\ChatGPT\RailRust Tycoon
 ```
 
-The current PC's checkout is:
+Another previously used checkout is:
 
 ```text
 C:\Users\strij\OneDrive\Documenten\ChatGPT\RailRust Tycoon
 ```
 
-The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/handyman-patrol`, based on `codex/swing-ride` / PR #61. Earlier milestone reports retain their source identities. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
+The earlier second path is a **separate clone**, not evidence of shared OneDrive synchronization. Preserve all three paths and verify the actual folder, branch and commit before continuing. Current work uses `codex/park-admission-rules`, based on `codex/park-opening` / PR #64. Earlier milestone reports retain their source identities. Do not assume `main` contains the latest playable stage or dependent PRs have merged.
 
 For an existing shared checkout:
 
@@ -94,10 +96,10 @@ git branch -a
 
 # Only after the current branch is listed on origin:
 
-git switch --track origin/codex/handyman-patrol
+git switch --track origin/codex/park-admission-rules
 ```
 
-If the branch already exists locally, use `git switch codex/handyman-patrol` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
+If the branch already exists locally, use `git switch codex/park-admission-rules` instead. If it is absent from `origin`, finish/push the active PC's checkpoint before switching to an older branch unintentionally. Preserve local edits before branch changes; inspect divergence before any pull. Do not force-reset a checkout or overwrite another PC's work.
 
 Use this handoff sequence:
 
@@ -1030,3 +1032,15 @@ On another Windows PC, install the pinned `rust-toolchain.toml` toolchain and ru
 The next stage can add park admission price with wallet accounting and a finance receipt, then scenario-specific charging permissions. MGT-03 remains partial. Keep new games flat and preserve saved terrain on load.
 
 Final local source checks passed **856 release tests (488 game / 368 simulation)**, formatting, strict release all-target Clippy and the Windows release build. Executable SHA-256: **`0a362c48e96d5c1e60b2af74a1df38a1480b89bbbf4956de8e539cea9567d490`**. A fresh extracted package in `artifacts/park-opening-0.64.0/first proof é/` verified **112 payload hashes and 100 current guides**, then passed eight production game processes: park-open, drop-tower, patrol and wellness writer/verifier pairs. Closed-park replay compared exactly 3,600 future ticks from a paid mid-ride passenger, drained all visitors without new arrivals and left the original primary save unchanged. The two 1024×680 captures passed and were directly inspected: `visitors-ready` and `visitors-closed` fit all four controls and show the changed status and leaving/finishing counts. Capture SHA-256 values: `701b08dda68a9c7da81caccceb344dfe571eb26ca495e25da9203fd88dfafb59` and `26c19dc99fa566f352181587344258c734dc4e9719a4e32cf7ce969dc6bd5f02`. The unsigned ZIP is `dist/Parkbound-0.64.0-windows-x64.zip` with an adjacent `.zip.sha256`; refresh and recheck after guide changes. This PC provides no performance target.
+
+## 32. Park admission and charging rules — 0.65.0
+
+Continue from `codex/park-admission-rules` at <https://github.com/strijbosmh-afk/RailRust-Tycoon>, stacked on `codex/park-opening` / [draft PR #64](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/64). The active shared OneDrive checkout is **`C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`**. The source checkout and player save folder are different: park primary and `.bak` saves live in `%LOCALAPPDATA%\Parkbound\saves`. Close the game and copy both save files separately when moving a park. Let OneDrive finish syncing, then check branch, remote and commit before work. Stacked drafts may not be in `main`. This PC is excluded as a performance reference.
+
+In **Guests [L] → Visitor flow**, set a connected public-path entry, enable arrivals and keep the park open. **Entry -$0.50** and **Entry +$0.50** adjust a $0–$20 entry fee. A candidate arrives every 900 normal simulation ticks; a high fee can decline the candidate and increments **Turned away**. A paid entrant's wallet, guest spending, park cash, **Park entry** finance receipt, finance summary and cumulative entry income all move by the same amount. **Next charging rule** cycles Flexible, Free entry and Free rides. A rule change clears forbidden current prices, blocks new forbidden prices and preserves a passenger's previously locked fare. Returning to Flexible does not restore cleared prices. See [PARK_ADMISSION_RULES_GUIDE.md](docs/PARK_ADMISSION_RULES_GUIDE.md) and [PARK_ADMISSION_RULES_REPORT.md](docs/PARK_ADMISSION_RULES_REPORT.md).
+
+Strict park schema/content is **35/35**. Version 34 and older parks migrate as Flexible with free entry and no entry history; older executables cannot read version-35 saves. Current saves require price, rule, entry revenue, refusal count and archived entry totals. Guest/retired wallet totals reconcile to ride, service and park-entry sales and the finance ledger. `write-admission-rules` / `verify-admission-rules` is a separate-process proof with a declined high-price arrival, paid entry, a paid passenger already on the tower when Free rides is selected, and an exact 3,600-tick replay that leaves the original primary bytes unchanged. The willingness rule is deterministic but is intentionally a simple demand foundation. Scenario-authored locked rules, objectives, awards, advertising and park-wide ride shutdown remain open. New games start on flat terrain; loaded terrain is preserved.
+
+On another Windows PC, install the pinned `rust-toolchain.toml` toolchain and run `cargo fmt --all -- --check`, `cargo test --release --workspace --locked`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings` and `cargo build --release --locked -p park_game --bin parkbound`. Package with `scripts/package-windows.ps1`, verify a fresh Unicode/space extraction with `scripts/verify-windows-package.ps1`, and run the admission-rules, park-open, drop-tower and wellness writer/verifier pairs from the extracted executable. Capture and inspect `visitor-pricing`, `visitor-demand` and `visitor-free-rides` at 1024×680. Repack and recheck after guide changes. The unsigned ZIP and raw proof folders are ignored locally under `dist/` and `artifacts/park-admission-rules-0.65.0/`; GitHub holds code and guides. Native controls, a clean target PC and representative performance acceptance remain separate.
+
+Final local checks passed **861 release tests (489 game / 372 simulation)**, formatting, strict release all-target Clippy and the Windows release build. Executable SHA-256: **`9d06df24a8c0f60bf78aec236f0e59cef2ab89d253de099c0d5bc4af76316e29`**. The fresh Unicode/space extraction in `artifacts/park-admission-rules-0.65.0/third proof é/` verified **114 payload hashes and 102 current guides**, then passed eight production game processes: admission-rules, park-open, drop-tower and wellness writer/verifier pairs. Admission replay compared exactly 3,600 future ticks from an already paid tower passenger and left the primary slot unchanged. The three 1024×680 captures were directly inspected: `visitor-pricing` shows $3.00 entry and matching total revenue, `visitor-demand` shows a $20.00 price and one declined candidate, and `visitor-free-rides` shows the policy after clearing ride prices. Capture SHA-256 values are `89488a75d4ca440a03ec71707ad1a50b7f16601f7277e9fccda1e1109a14ef70`, `dc79ce5daa3d563a3a8eeff0cfadedd9afbe8160fdb8979c01b0feee4f3e6844` and `30a89535a2470c6607aea7373b355212b7b79264e378b1cd272bf8596c88902a`. The unsigned ZIP is `dist/Parkbound-0.65.0-windows-x64.zip` with an adjacent `.zip.sha256`; the package is rechecked after the final guide edits. This PC provides no performance target.

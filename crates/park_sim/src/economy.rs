@@ -11,6 +11,7 @@ pub const PRICE_STEP_CENTS: u32 = 50;
 pub enum EconomyError {
     UnknownRide(RideId),
     PriceTooHigh { price: u32, max: u32 },
+    ChargingRuleRestricted,
 }
 impl std::fmt::Display for EconomyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,6 +23,9 @@ impl std::fmt::Display for EconomyError {
                 max / 100,
                 max % 100
             ),
+            Self::ChargingRuleRestricted => {
+                f.write_str("Current charging rule requires free rides")
+            }
         }
     }
 }
@@ -70,6 +74,9 @@ impl Park {
     /// An immediate command, including when paused. Existing locked fares stay
     /// unchanged; the next admission and boarding checks use the new price.
     pub fn set_ride_ticket_price(&mut self, id: RideId, cents: u32) -> Result<(), EconomyError> {
+        if cents > 0 && self.visitors.charging_rule == crate::ChargingRule::FreeRides {
+            return Err(EconomyError::ChargingRuleRestricted);
+        }
         let ride = self
             .ride_by_id_mut(id)
             .ok_or(EconomyError::UnknownRide(id))?;
@@ -152,6 +159,17 @@ impl Park {
 pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
     let mut spent = park.visitors.departed.spent_cents;
     let mut service_spent = park.visitors.departed.service_spent_cents;
+    let retired_ride_spent = park
+        .visitors
+        .departed
+        .rides
+        .iter()
+        .try_fold(0_u64, |sum, ride| sum.checked_add(ride.spent_cents))
+        .ok_or("retired ride spending overflows")?;
+    let mut admission_spent = spent
+        .checked_sub(service_spent)
+        .and_then(|other| other.checked_sub(retired_ride_spent))
+        .ok_or("retired admission spending is inconsistent")?;
     let mut histories = BTreeMap::<RideId, (u64, u64)>::new();
     for row in &park.visitors.departed.rides {
         histories.insert(row.ride, (row.spent_cents, row.completed));
@@ -173,7 +191,6 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         service_spent = service_spent
             .checked_add(guest.service_spent_cents)
             .ok_or("service spending overflows")?;
-        let ride_spent = guest.spent_cents - guest.service_spent_cents;
         if guest.ride_history.len() > crate::MAX_RIDE_RECORDS {
             return Err("guest ride history exceeds its bound".into());
         }
@@ -212,9 +229,20 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
                 .checked_add(entry.completed)
                 .ok_or("ride completion sum overflows")?;
         }
-        if history_spent != ride_spent || history_completed != guest.rides_completed {
+        let ride_spent = history_spent;
+        let guest_admission = guest
+            .spent_cents
+            .checked_sub(guest.service_spent_cents)
+            .and_then(|other| other.checked_sub(ride_spent))
+            .ok_or("guest admission spending is inconsistent")?;
+        if guest_admission > u64::from(crate::MAX_PARK_ENTRY_PRICE_CENTS)
+            || history_completed != guest.rides_completed
+        {
             return Err("guest ride histories disagree with lifetime totals".into());
         }
+        admission_spent = admission_spent
+            .checked_add(guest_admission)
+            .ok_or("admission spending overflows")?;
         let passenger = guest
             .ride_visit
             .as_ref()
@@ -266,7 +294,11 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         .try_fold(0_u64, |sum, service| sum.checked_add(service.revenue_cents))
         .ok_or("service revenue overflows")?;
     if service_spent != service_revenue
-        || revenue.checked_add(service_revenue) != Some(spent)
+        || admission_spent != park.visitors.admission_revenue_cents
+        || revenue
+            .checked_add(service_revenue)
+            .and_then(|sales| sales.checked_add(admission_spent))
+            != Some(spent)
         || INITIAL_PARK_CASH_CENTS
             .checked_add(spent)
             .and_then(|funds| funds.checked_add(park.loans.borrowed_cents))

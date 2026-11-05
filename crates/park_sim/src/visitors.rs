@@ -6,6 +6,32 @@ pub const VISITOR_ARRIVAL_TICKS: u16 = 900;
 pub const VISITOR_STAY_TICKS: u64 = 18_000;
 pub const VISITOR_ACTIVE_CAP: usize = 64;
 pub const VISITOR_LIFETIME_CAP: u64 = 1_000_000;
+pub const MAX_PARK_ENTRY_PRICE_CENTS: u16 = 2_000;
+pub const PARK_ENTRY_PRICE_STEP_CENTS: u16 = 50;
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ChargingRule {
+    #[default]
+    Flexible,
+    FreeEntry,
+    FreeRides,
+}
+impl ChargingRule {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Flexible => Self::FreeEntry,
+            Self::FreeEntry => Self::FreeRides,
+            Self::FreeRides => Self::Flexible,
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Flexible => "Flexible",
+            Self::FreeEntry => "Free entry",
+            Self::FreeRides => "Free rides",
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -34,6 +60,14 @@ pub(crate) struct VisitorFlow {
     pub enabled: bool,
     #[serde(default = "park_open_default")]
     pub park_open: bool,
+    #[serde(default)]
+    pub entry_price_cents: u16,
+    #[serde(default, deserialize_with = "crate::saves::string_enum")]
+    pub charging_rule: ChargingRule,
+    #[serde(default)]
+    pub admission_revenue_cents: u64,
+    #[serde(default)]
+    pub turned_away: u64,
     pub arrival_progress: u16,
     pub spawned: u64,
     #[serde(deserialize_with = "crate::saves::strict_object")]
@@ -50,6 +84,10 @@ impl Default for VisitorFlow {
             entry: None,
             enabled: false,
             park_open: true,
+            entry_price_cents: 0,
+            charging_rule: ChargingRule::Flexible,
+            admission_revenue_cents: 0,
+            turned_away: 0,
             arrival_progress: 0,
             spawned: 0,
             departed: DepartedVisitors::default(),
@@ -82,6 +120,10 @@ pub struct VisitorFlowStats {
     pub entry: Option<ObjectId>,
     pub enabled: bool,
     pub park_open: bool,
+    pub entry_price_cents: u16,
+    pub charging_rule: ChargingRule,
+    pub admission_revenue_cents: u64,
+    pub turned_away: u64,
     pub active: usize,
     pub tracked: usize,
     pub leaving: usize,
@@ -99,6 +141,8 @@ pub enum VisitorError {
     EntryDisconnected,
     UnknownGuest,
     Capacity,
+    EntryPriceTooHigh,
+    ChargingRuleRestricted,
 }
 impl std::fmt::Display for VisitorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -107,6 +151,8 @@ impl std::fmt::Display for VisitorError {
             Self::EntryDisconnected => "Entry needs a connected public path neighbor",
             Self::UnknownGuest => "Select an active guest first",
             Self::Capacity => "Visitor tracking capacity is exhausted",
+            Self::EntryPriceTooHigh => "Entry price cannot exceed $20.00",
+            Self::ChargingRuleRestricted => "Current charging rule does not permit this price",
         })
     }
 }
@@ -125,6 +171,10 @@ impl Park {
             entry: self.visitors.entry,
             enabled: self.visitors.enabled,
             park_open: self.visitors.park_open,
+            entry_price_cents: self.visitors.entry_price_cents,
+            charging_rule: self.visitors.charging_rule,
+            admission_revenue_cents: self.visitors.admission_revenue_cents,
+            turned_away: self.visitors.turned_away,
             active: self.guests.len(),
             tracked: self.visitors.stays.len(),
             leaving: leaving.clone().count(),
@@ -193,6 +243,31 @@ impl Park {
             }
         }
     }
+    pub fn set_park_entry_price(&mut self, cents: u16) -> Result<(), VisitorError> {
+        if cents > MAX_PARK_ENTRY_PRICE_CENTS {
+            return Err(VisitorError::EntryPriceTooHigh);
+        }
+        if cents > 0 && self.visitors.charging_rule == ChargingRule::FreeEntry {
+            return Err(VisitorError::ChargingRuleRestricted);
+        }
+        self.visitors.entry_price_cents = cents;
+        Ok(())
+    }
+    pub fn set_charging_rule(&mut self, rule: ChargingRule) {
+        self.visitors.charging_rule = rule;
+        match rule {
+            ChargingRule::Flexible => {}
+            ChargingRule::FreeEntry => self.visitors.entry_price_cents = 0,
+            ChargingRule::FreeRides => {
+                if let Some(ride) = self.ride.as_mut() {
+                    ride.ticket_price_cents = 0;
+                }
+                for carousel in &mut self.carousels {
+                    carousel.ride.ticket_price_cents = 0;
+                }
+            }
+        }
+    }
     pub fn request_guest_departure(&mut self, id: GuestId) -> Result<(), VisitorError> {
         if !self.guests.iter().any(|g| g.id == id) {
             return Err(VisitorError::UnknownGuest);
@@ -229,11 +304,22 @@ impl Park {
         {
             return;
         }
-        let path = *self.object(self.visitors.entry.unwrap()).unwrap();
+        let price = self.visitors.entry_price_cents;
         let id = GuestId(self.next_guest_id);
         self.next_guest_id += 1;
         let seed = self.crowd_seed.unwrap_or(0);
-        self.guests.push(new_guest(id, path, seed));
+        self.visitors.arrival_progress = 0;
+        if price > entry_willingness(seed, id) {
+            self.visitors.turned_away += 1;
+            return;
+        }
+        let path = *self.object(self.visitors.entry.unwrap()).unwrap();
+        let mut guest = new_guest(id, path, seed);
+        guest.wallet_cents -= u32::from(price);
+        guest.spent_cents += u64::from(price);
+        self.guests.push(guest);
+        self.visitors.admission_revenue_cents += u64::from(price);
+        self.record_cash(crate::FinanceKind::ParkAdmission, None, u64::from(price));
         let i = self
             .visitors
             .stays
@@ -248,7 +334,6 @@ impl Park {
             },
         );
         self.visitors.spawned += 1;
-        self.visitors.arrival_progress = 0;
     }
     pub(crate) fn finish_visitor_departures(&mut self) {
         let Some(entry) = self.visitors.entry else {
@@ -298,6 +383,9 @@ impl Park {
         }
     }
 }
+fn entry_willingness(seed: u64, id: GuestId) -> u16 {
+    300 + ((id.0.wrapping_mul(37) ^ seed) % 1701) as u16
+}
 fn new_guest(id: GuestId, path: SurfaceObject, seed: u64) -> Guest {
     Guest {
         id,
@@ -341,6 +429,14 @@ pub(crate) fn validate(p: &Park) -> Result<(), String> {
         || (f.enabled && f.stays.len() != p.guests.len())
         || (!f.park_open && p.guests.iter().any(|g| !f.leaving(g.id)))
         || (!f.park_open && f.arrival_progress != 0)
+        || f.entry_price_cents > MAX_PARK_ENTRY_PRICE_CENTS
+        || (f.charging_rule == ChargingRule::FreeEntry && f.entry_price_cents != 0)
+        || (f.charging_rule == ChargingRule::FreeRides
+            && p.all_rides().any(|ride| ride.ticket_price_cents != 0))
+        || f.admission_revenue_cents
+            > f.spawned
+                .saturating_mul(u64::from(MAX_PARK_ENTRY_PRICE_CENTS))
+        || f.turned_away >= p.next_guest_id
         || f.arrival_progress >= VISITOR_ARRIVAL_TICKS
         || f.spawned > VISITOR_LIFETIME_CAP
         || a.count > VISITOR_LIFETIME_CAP
@@ -390,7 +486,14 @@ pub(crate) fn validate(p: &Park) -> Result<(), String> {
             .ok_or("retired spending overflows")?;
     }
     if ratings > u128::from(crate::experience::MAX_RATINGS)
-        || spent != a.spent_cents - a.service_spent_cents
+        || a.spent_cents
+            .checked_sub(a.service_spent_cents)
+            .and_then(|other| other.checked_sub(spent))
+            .is_none_or(|admission| {
+                admission
+                    > a.count
+                        .saturating_mul(u64::from(MAX_PARK_ENTRY_PRICE_CENTS))
+            })
         || (a.count == 0 && (!a.rides.is_empty() || a.services_used != 0))
     {
         return Err("retired receipts disagree with wallet history".into());

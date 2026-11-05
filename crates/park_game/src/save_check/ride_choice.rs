@@ -89,7 +89,11 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             ratings += history.rating_count;
             rating_total += history.rating_total;
         }
-        if spent != guest.spent_cents - guest.service_spent_cents
+        if guest
+            .spent_cents
+            .checked_sub(guest.service_spent_cents)
+            .and_then(|other| other.checked_sub(spent))
+            .is_none_or(|admission| admission > u64::from(park_sim::MAX_PARK_ENTRY_PRICE_CENTS))
             || completed != guest.rides_completed
             || ratings != guest.ratings_given
             || rating_total != guest.rating_total

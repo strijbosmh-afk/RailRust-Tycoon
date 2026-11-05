@@ -232,6 +232,10 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         .as_object_mut()
         .unwrap()
         .remove("handyman_wages_cents");
+    ledger["archived"]
+        .as_object_mut()
+        .unwrap()
+        .remove("admission_revenue_cents");
     let height = park.tile(LEGACY_SITE).unwrap().height;
     let id = park
         .place_service(LEGACY_SITE, height, PathDirection::North, ServiceKind::Food)

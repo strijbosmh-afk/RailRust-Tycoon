@@ -53,6 +53,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let mut repaid = ledger.archived.loan_repaid_cents;
     let mut interest = ledger.archived.loan_interest_cents;
     let mut wages = ledger.archived.wages_cents;
+    let mut admission = ledger.archived.admission_revenue_cents;
     for entry in &ledger.entries {
         let amount = entry.amount_cents;
         match entry.kind {
@@ -61,6 +62,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             FinanceKind::LoanInterest => interest += amount,
             FinanceKind::MechanicWage | FinanceKind::HandymanWage => wages += amount,
             FinanceKind::RideRevenue => ride_revenue += amount,
+            FinanceKind::ParkAdmission => admission += amount,
             FinanceKind::ServiceRevenue => service_revenue += amount,
             FinanceKind::RideUpkeep => ride_cost += amount,
             FinanceKind::ServiceUpkeep => service_cost += amount,
@@ -81,6 +83,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || report.loan_repaid_cents != repaid
         || report.loan_interest_cents != interest
         || report.staff_wages_cents != wages
+        || report.admission_revenue_cents != admission
         || report.rides.revenue_cents != ride_revenue
         || report.rides.upkeep_cents != ride_cost
         || report.rides.supplies_cents != 0
@@ -89,11 +92,13 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || report.services.upkeep_cents != service_cost
         || report.services.supplies_cents != supplies
         || report.services.profit_cents != service_profit
-        || report.operating_profit_cents != ride_profit + service_profit - i128::from(wages)
+        || report.operating_profit_cents
+            != ride_profit + service_profit + i128::from(admission) - i128::from(wages)
         || report.construction_cents != construction
         || report.refunds_cents != refunds
         || report.net_cash_cents
-            != ride_profit + service_profit - i128::from(wages) + i128::from(refunds)
+            != ride_profit + service_profit + i128::from(admission) - i128::from(wages)
+                + i128::from(refunds)
                 - i128::from(construction)
                 + i128::from(borrowed)
                 - i128::from(repaid)
