@@ -1264,6 +1264,37 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     if park.width() != park.height() {
         return mesh.finish();
     }
+    for id in park.handyman_patrol() {
+        let Some(path) = park
+            .object(*id)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        for offset in [Vec2::new(-9.0, -3.0), Vec2::new(9.0, -3.0)] {
+            mesh.surface_ellipse(
+                roof,
+                base.truncate() + offset,
+                6.5,
+                3.4,
+                DETAIL_BIAS * 3.0,
+                rgb(19, 87, 99),
+            );
+            mesh.surface_ellipse(
+                roof,
+                base.truncate() + offset,
+                4.5,
+                2.2,
+                DETAIL_BIAS * 4.0,
+                rgb(48, 232, 212),
+            );
+        }
+    }
     for bin in park.ground_bins() {
         let Some(path) = park.object(bin.path) else {
             continue;

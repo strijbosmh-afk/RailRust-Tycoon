@@ -22,8 +22,8 @@ mod finances;
 mod grounds;
 pub use grounds::{
     GROUND_BIN_CAP, GROUND_BIN_CAPACITY, GROUND_MESS_CAP, GROUND_MESS_TICKS, GroundBin,
-    GroundBinError, GroundMess, GroundMessKind, GroundsStatus, HANDYMAN_WAGE_CENTS,
-    HANDYMAN_WAGE_TICKS,
+    GroundBinError, GroundMess, GroundMessKind, GroundsStatus, HANDYMAN_PATROL_CAP,
+    HANDYMAN_WAGE_CENTS, HANDYMAN_WAGE_TICKS, PatrolError,
 };
 mod park_value;
 pub use park_value::ParkValue;

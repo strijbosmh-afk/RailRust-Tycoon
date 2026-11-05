@@ -1,0 +1,13 @@
+# Handyman patrol and duties — 0.62.0
+
+## Scope
+
+One path-walking paid handyman now has an optional, bounded patrol area and two independent duties. The area stores up to 64 sorted public-path identities; empty means whole-park coverage. The worker may use connected public paths outside the area for transit but chooses only eligible mess or used-bin tasks. Policy edits clear a target without teleporting the worker or undoing a partly walked edge. Removing a path removes its patrol mark. The live Park stats panel shows coverage gaps, switches duties and retains the existing assignment and wage controls. The Build panel toggles a selected path's mark; original cyan path marks appear in the world.
+
+The fields advance strict schema/content to **32/32**. Older records load with empty patrol and both duties enabled. Raw old-version records reject the new fields; current files require them, and validation rejects non-public, duplicate, unsorted or oversized patrol IDs and ineligible in-flight targets. The `write-patrol` / `verify-patrol` production pair uses naturally filled bins, a paid worker mid-edge, and an exact 3,600-tick independent-process replay without rewriting the primary slot. Windows CI runs that pair. `patrol-map` and `patrol-stats` captures exercise coverage and controls. Runtime source is `e2dc8f6eb0f2fe8524229a3437ef61fc7e01570c` in [draft PR #62](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/62).
+
+## Acceptance
+
+All **847 release tests (483 game / 364 simulation)** passed, along with formatting, strict release all-target Clippy and the production Windows build. Executable SHA-256: **`aa9209774d34bb3831ddfd9bd6eb3196b28e1904c9da71c4f7e1faef724033e3`**. A fresh Unicode/space extraction in `artifacts/handyman-patrol-0.62.0/third proof é/` verified **108 payload hashes and 96 current guides**. Four writer/verifier pairs passed in the extracted executable: patrol, handyman-bins, swing and wellness. The patrol pair compared exactly 3,600 future ticks and left the original primary save unchanged.
+
+Both 1024×680 captures were inspected. The contiguous cyan patrol marks are visible on raised paths in `patrol-map`; `patrol-stats` shows coverage, uncovered work and both duty switches without clipping. Capture SHA-256 values: `b7304034e41cb10638500159c5ee538d610ec338d6bfd5a184f31220cae00733` and `f764bf151335379e3b3da3d34eef7ffed98b257bcf1fd0987c37ceb7843bf4c5`. The unsigned local ZIP is `dist/Parkbound-0.62.0-windows-x64.zip`; it must be refreshed after documentation changes. This development PC is excluded as a performance reference. Native controls, clean target-PC acceptance and multiple staffed patrols remain future work.

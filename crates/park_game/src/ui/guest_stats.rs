@@ -72,6 +72,8 @@ pub(crate) enum StatLabel {
     TrendSummary,
     Grounds,
     HandymanAction,
+    CleaningAction,
+    BinDutyAction,
 }
 
 #[derive(Component, Clone, Copy)]
@@ -208,10 +210,10 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         GuestStatsBody,
         Node {
             display: Display::None,
-            height: px(430),
+            height: px(440),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
-            row_gap: px(11),
+            row_gap: px(8),
             ..default()
         },
     ))
@@ -291,9 +293,37 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             ))
             .with_children(|p| text(p, "", 12.0, StatLabel::HandymanAction));
         });
+        p.spawn(Node {
+            column_gap: px(10),
+            align_items: AlignItems::Center,
+            ..row()
+        })
+        .with_children(|p| {
+            for (action, kind) in [
+                (Action::ToggleCleaning, StatLabel::CleaningAction),
+                (Action::ToggleEmptyBins, StatLabel::BinDutyAction),
+            ] {
+                p.spawn((
+                    Button,
+                    action,
+                    Node {
+                        width: px(150),
+                        height: px(27),
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::all(px(1)),
+                        ..default()
+                    },
+                    BackgroundColor(BUTTON),
+                    BorderColor::all(BORDER),
+                    BorderRadius::all(px(5)),
+                ))
+                .with_children(|p| text(p, "", 11.0, kind));
+            }
+        });
         p.spawn((
             Node {
-                height: px(88),
+                height: px(67),
                 padding: UiRect::axes(px(10), px(6)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(5),
@@ -305,7 +335,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         .with_children(|p| {
             text(p, "", 11.0, StatLabel::TrendSummary);
             p.spawn(Node {
-                height: px(55),
+                height: px(36),
                 align_items: AlignItems::End,
                 column_gap: px(4),
                 ..row()
@@ -369,7 +399,7 @@ pub(crate) fn refresh(
             StatLabel::Grounds => {
                 let grounds = sim.0.grounds_status();
                 format!(
-                    "Grounds: {} litter / {} spills / {} cleaned  |  Handyman: {}\nBins: {} ({} full) / {} emptied  |  Wages: ${}.{:02}",
+                    "Grounds: {} litter / {} spills / {} cleaned  |  Handyman: {}\nBins: {} ({} full) / {} emptied  |  Wages: ${}.{:02}\nPatrol tiles: {} (empty = whole park)  |  Uncovered: {} mess / {} used bins",
                     grounds.litter,
                     grounds.vomit,
                     grounds.cleaned,
@@ -383,6 +413,9 @@ pub(crate) fn refresh(
                     grounds.bins_emptied,
                     grounds.wages_paid_cents / 100,
                     grounds.wages_paid_cents % 100,
+                    grounds.patrol_paths,
+                    grounds.uncovered_messes,
+                    grounds.uncovered_bins,
                 )
             }
             StatLabel::HandymanAction => {
@@ -392,6 +425,22 @@ pub(crate) fn refresh(
                     "Assign handyman".into()
                 }
             }
+            StatLabel::CleaningAction => format!(
+                "Cleaning: {}",
+                if sim.0.grounds_status().clean_enabled {
+                    "on"
+                } else {
+                    "off"
+                }
+            ),
+            StatLabel::BinDutyAction => format!(
+                "Empty bins: {}",
+                if sim.0.grounds_status().bins_enabled {
+                    "on"
+                } else {
+                    "off"
+                }
+            ),
             StatLabel::TrendSummary => {
                 let latest = history.samples.back().copied();
                 format!(

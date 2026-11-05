@@ -115,6 +115,9 @@ pub(super) enum Action {
     GuestStatsView,
     ToggleHandyman,
     ToggleBin,
+    TogglePatrol,
+    ToggleCleaning,
+    ToggleEmptyBins,
     CycleGuestFilter,
     FindGuest,
     RepairGuestPath,
@@ -535,7 +538,8 @@ pub(super) fn setup(mut commands: Commands) {
                 );
             });
             p.spawn(row()).with_children(|p| {
-                button(p, "Bin on selected path", Action::ToggleBin, 204.0);
+                button(p, "Bin on path", Action::ToggleBin, 100.0);
+                button(p, "Patrol path", Action::TogglePatrol, 100.0);
             });
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
@@ -1016,6 +1020,8 @@ pub(super) fn button_actions(
                     | Action::GuestFlowView
                     | Action::GuestStatsView
                     | Action::ToggleHandyman
+                    | Action::ToggleCleaning
+                    | Action::ToggleEmptyBins
                     | Action::CycleGuestFilter
                     | Action::FindGuest
                     | Action::RepairGuestPath
@@ -1128,6 +1134,13 @@ pub(super) fn button_actions(
                 view.handyman_toggle_pending = true;
             }
             Action::ToggleBin => view.bin_toggle_pending = true,
+            Action::TogglePatrol => view.patrol_toggle_pending = true,
+            Action::ToggleCleaning if view.guests_open && view.guest_stats_view => {
+                view.cleaning_toggle_pending = true;
+            }
+            Action::ToggleEmptyBins if view.guests_open && view.guest_stats_view => {
+                view.empty_bins_toggle_pending = true;
+            }
             Action::CycleGuestFilter if view.guests_open => {
                 view.guest_filter = view.guest_filter.next();
                 view.guest_page = 0;
@@ -1222,6 +1235,8 @@ pub(super) fn button_actions(
             | Action::FindGuest
             | Action::RepairGuestPath
             | Action::ToggleHandyman
+            | Action::ToggleCleaning
+            | Action::ToggleEmptyBins
             | Action::Visitor(_) => {}
             Action::Finance
             | Action::CloseFinance

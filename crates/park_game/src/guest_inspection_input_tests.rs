@@ -13,6 +13,7 @@ fn guest_app(directory: &InputSaveDirectory, park: Park, view: ViewState) -> (Ap
                 apply_path_actions,
                 apply_train_actions,
                 apply_price_actions,
+                apply_grounds_action,
             )
                 .chain()
                 .after(keyboard_input)
@@ -92,6 +93,64 @@ fn park_stats_and_flow_views_switch_without_changing_visitor_state() {
     click_action(&mut app, ui::Action::GuestFlowView);
     assert!(!app.world().resource::<ViewState>().guest_flow_view);
     assert_eq!(app.world().resource::<Simulation>().0, original);
+}
+
+#[test]
+fn park_stats_duties_and_selected_path_patrol_use_actual_buttons() {
+    let directory = InputSaveDirectory::new();
+    let park = train_park();
+    let path = park
+        .objects()
+        .iter()
+        .find(|object| object.is_public_path())
+        .unwrap()
+        .id;
+    let (mut app, _) = guest_app(
+        &directory,
+        park,
+        ViewState {
+            guests_open: true,
+            guest_stats_view: true,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click_action(&mut app, ui::Action::ToggleCleaning);
+    assert!(
+        !app.world()
+            .resource::<Simulation>()
+            .0
+            .grounds_status()
+            .clean_enabled
+    );
+    click_action(&mut app, ui::Action::ToggleEmptyBins);
+    assert!(
+        !app.world()
+            .resource::<Simulation>()
+            .0
+            .grounds_status()
+            .bins_enabled
+    );
+    {
+        let mut view = app.world_mut().resource_mut::<ViewState>();
+        view.guests_open = false;
+        view.guest_stats_view = false;
+        view.selected = Some(SurfaceId::Object(path));
+    }
+    frame(&mut app);
+    click_action(&mut app, ui::Action::TogglePatrol);
+    assert_eq!(
+        app.world().resource::<Simulation>().0.handyman_patrol(),
+        &[path]
+    );
+    click_action(&mut app, ui::Action::TogglePatrol);
+    assert!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .handyman_patrol()
+            .is_empty()
+    );
 }
 
 #[test]

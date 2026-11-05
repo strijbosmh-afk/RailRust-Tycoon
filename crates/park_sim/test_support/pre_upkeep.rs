@@ -13,6 +13,15 @@ pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
             ride.as_object_mut().unwrap().remove("kind");
         }
     }
+    if value["schema_version"].as_u64().is_some_and(|v| v <= 31)
+        && let Some(grounds) = value["park"]
+            .get_mut("grounds")
+            .and_then(|g| g.as_object_mut())
+    {
+        grounds.remove("patrol");
+        grounds.remove("clean_enabled");
+        grounds.remove("bins_enabled");
+    }
     if value["schema_version"].as_u64().is_some_and(|v| v <= 29) {
         let park = value["park"].as_object_mut().unwrap();
         if let Some(grounds) = park.get_mut("grounds").and_then(|g| g.as_object_mut()) {

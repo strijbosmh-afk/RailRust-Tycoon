@@ -59,6 +59,12 @@ fn schema_30_migrates_carousel_kind_and_current_requires_valid_kind() {
     let mut old = current.clone();
     old["schema_version"] = json!(30);
     old["content_version"] = json!(30);
+    for field in ["patrol", "clean_enabled", "bins_enabled"] {
+        old["park"]["grounds"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+    }
     old["park"]["carousels"][0]
         .as_object_mut()
         .unwrap()

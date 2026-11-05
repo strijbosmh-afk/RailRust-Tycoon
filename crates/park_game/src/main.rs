@@ -125,6 +125,9 @@ struct ViewState {
     guest_stats_pending: bool,
     handyman_toggle_pending: bool,
     bin_toggle_pending: bool,
+    patrol_toggle_pending: bool,
+    cleaning_toggle_pending: bool,
+    empty_bins_toggle_pending: bool,
     park_generation: u64,
     visitor_pending: Option<ui::visitor_flow::VisitorCommand>,
     visitor_notice: Option<String>,
@@ -214,6 +217,9 @@ impl Default for ViewState {
             guest_stats_pending: false,
             handyman_toggle_pending: false,
             bin_toggle_pending: false,
+            patrol_toggle_pending: false,
+            cleaning_toggle_pending: false,
+            empty_bins_toggle_pending: false,
             park_generation: 0,
             visitor_pending: None,
             visitor_notice: None,
@@ -714,6 +720,31 @@ fn apply_grounds_action(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>
             },
             None => "Select a public path first, then use Bin.".into(),
         });
+        view.scene_dirty = true;
+    }
+    if view.patrol_toggle_pending {
+        view.patrol_toggle_pending = false;
+        if !view.edits_blocked() {
+            view.ui_pointer_consumed = true;
+            view.path_notice = Some(match view.selected {
+                Some(SurfaceId::Object(id)) => match sim.0.toggle_handyman_patrol(id) {
+                    Ok(true) => "Path added to handyman patrol.".into(),
+                    Ok(false) => "Path removed from handyman patrol.".into(),
+                    Err(error) => format!("Cannot change patrol: {error}"),
+                },
+                _ => "Select a public path first, then use Patrol.".into(),
+            });
+            view.scene_dirty = true;
+        }
+    }
+    if view.cleaning_toggle_pending {
+        view.cleaning_toggle_pending = false;
+        sim.0.toggle_handyman_cleaning();
+        view.scene_dirty = true;
+    }
+    if view.empty_bins_toggle_pending {
+        view.empty_bins_toggle_pending = false;
+        sim.0.toggle_handyman_bins();
         view.scene_dirty = true;
     }
 }
