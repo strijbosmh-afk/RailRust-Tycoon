@@ -1,6 +1,6 @@
 # Gameplay checklist
 
-Current 0.60.0 grounds slice: the path-walking handyman receives a separate fixed wage; free four-litter path bins catch litter and the worker empties reachable used bins. Bin fill, wage progress and in-flight routes survive strict 30/30 saves. Patrol areas and a full staff roster remain open. See [PAID_HANDYMAN_BINS_REPORT.md](PAID_HANDYMAN_BINS_REPORT.md). The 0.59.0 foundation is recorded in [GROUNDS_HANDYMAN_REPORT.md](GROUNDS_HANDYMAN_REPORT.md).
+Current 0.61.0 attraction slice: Skyward Swing adds an independent six-seat paid pendulum ride beside the carousel, with distinct construction/upkeep/appeal, guest choice, maintenance, procedural art and strict 31/31 continuation. Broader thrill ride types and physical force modeling remain open. See [SWING_RIDE_REPORT.md](SWING_RIDE_REPORT.md). The 0.60.0 grounds phase is recorded in [PAID_HANDYMAN_BINS_REPORT.md](PAID_HANDYMAN_BINS_REPORT.md).
 
 Current 0.58.0 art slice: richer terrain/foliage and flowers, braced timber coaster supports and red rails, a partially open festival carousel canopy, and more colorful service stalls. The same physical ride/service meshes drive selection and previews; saves stay 28/28. See [VIBRANT_RIDE_ART_REPORT.md](VIBRANT_RIDE_ART_REPORT.md). More ride variety, native controls and target-PC visual acceptance remain open.
 
@@ -158,7 +158,7 @@ These are behavior families, not final catalogue counts or a promise to reuse or
 | ID | Stage | State | Intended behavior and observable acceptance |
 | --- | --- | --- | --- |
 | FAM-01 | 3 | I | Cyclic gentle flat ride: a complete loading, operating, and unloading cycle runs with configurable timing and price. Existing carousel passengers and ticket prices gain saved station/cycle timing in 0.31; source/runtime/visual/CI/package checks passed for the new settings; full-family/native acceptance remains open. |
-| FAM-02 | 6 | P | Thrill flat rides: rotation, swinging, and inversion cycles use the appropriate capacity, motion, and ratings. |
+| FAM-02 | 6 | I | Thrill flat rides: 0.61.0 adds one six-seat pendulum swing with independent construction, paid operation, guest choice, maintenance, rating and motion. Other rotation/swing/inversion families and physical force modeling remain open. |
 | FAM-03 | 6 | P | Vertical attractions: tower/drop/launch behavior respects height, travel bounds, loading, and operating mode. |
 | FAM-04 | 6 | P | Walking attractions: maze and course-based attractions route guests through their internal layout and return them to the exit. |
 | FAM-05 | 6 | P | Guided gentle rides and powered coasters: vehicles follow player-built routes with correct propulsion, spacing, and stations. |

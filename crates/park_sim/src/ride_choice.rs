@@ -66,10 +66,15 @@ impl Park {
                         .iter()
                         .find(|h| h.ride == ride.id)
                         .map_or(0, |h| h.completed);
+                    let family_penalty = match (self.ride_kind(ride.id), preferred) {
+                        (Some(RideKind::Swing), RideKind::Coaster) => 20,
+                        (Some(kind), preferred) if kind == preferred => 0,
+                        _ => 80,
+                    };
                     let score = route.len() as u128 * 10
                         + *queue as u128 * 10
                         + u128::from(ride.ticket_price_cents / 25)
-                        + u128::from(self.ride_kind(ride.id) != Some(preferred)) * 80
+                        + family_penalty
                         + u128::from(history) * 20
                         + u128::from(appeal.for_preference(preferred_challenge).total_penalty);
                     Some((refused, score, ride.id))

@@ -362,6 +362,14 @@ impl ViewState {
     }
 
     fn choose_carousel(&mut self) {
+        self.choose_flat_ride(park_sim::RideKind::Carousel);
+    }
+
+    fn choose_swing(&mut self) {
+        self.choose_flat_ride(park_sim::RideKind::Swing);
+    }
+
+    fn choose_flat_ride(&mut self, kind: park_sim::RideKind) {
         if !self.rides_open
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -373,6 +381,7 @@ impl ViewState {
         }
         self.set_rides_modal(false);
         self.modal_transition_pending = true;
+        self.path_tool.flat_ride_kind = kind;
         self.path_tool.set_mode(path_tools::PathTool::Carousel);
         self.track_editor.active = false;
         self.path_notice = None;

@@ -145,6 +145,7 @@ struct VersionTenCarousel {
 impl From<VersionTenCarousel> for crate::CarouselRide {
     fn from(old: VersionTenCarousel) -> Self {
         Self {
+            kind: crate::RideKind::Carousel,
             ride: old.ride,
             origin: old.origin,
             height: old.height,

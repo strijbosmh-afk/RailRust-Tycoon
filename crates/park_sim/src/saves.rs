@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 30;
-pub const CONTENT_VERSION: u32 = 30;
+pub const SCHEMA_VERSION: u32 = 31;
+pub const CONTENT_VERSION: u32 = 31;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -736,6 +736,7 @@ impl Park {
                 | 27
                 | 28
                 | 29
+                | 30
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -749,6 +750,7 @@ impl Park {
         validate_mechanic_route_field(bytes, header.schema_version)?;
         validate_grounds_field(bytes, header.schema_version)?;
         validate_handyman_bin_fields(bytes, header.schema_version)?;
+        validate_flat_ride_kind_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -984,6 +986,29 @@ fn validate_handyman_bin_fields(bytes: &[u8], schema: u32) -> Result<(), SaveErr
     }
     if schema >= 30 && !complete {
         return Err(invalid("schema 30 requires handyman wages and bins"));
+    }
+    Ok(())
+}
+
+fn validate_flat_ride_kind_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 9 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let Some(rides) = value["park"]["carousels"].as_array() else {
+        if schema < 31 && value["park"].get("carousels").is_none() {
+            return Ok(());
+        }
+        return Err(invalid("flat ride records are missing"));
+    };
+    for ride in rides {
+        let kind = ride.get("kind");
+        if schema < 31 && kind.is_some() {
+            return Err(invalid("swing ride requires schema 31"));
+        }
+        if schema >= 31 && kind.is_none() {
+            return Err(invalid("schema 31 requires flat ride kind"));
+        }
     }
     Ok(())
 }

@@ -1,4 +1,4 @@
-//! Bounded, persistent settings for the two supported ride families.
+//! Bounded, persistent settings for the supported ride families.
 use crate::{Park, RideId, RideKind};
 
 pub const MIN_STATION_WAIT_TICKS: u16 = 30;
@@ -69,7 +69,7 @@ impl std::fmt::Display for RideOperatingError {
             Self::InvalidLiftSpeed => f.write_str("Lift speed must be 12 to 48 in steps of 4"),
             Self::InvalidBrakeSpeed => f.write_str("Brake speed must be 8 to 40 in steps of 4"),
             Self::InvalidCycleDuration => {
-                f.write_str("Carousel cycle must be 12 to 60 seconds in steps of 6")
+                f.write_str("Flat ride cycle must be 12 to 60 seconds in steps of 6")
             }
             Self::UnsupportedSetting => {
                 f.write_str("This ride does not support that operating setting")
@@ -106,7 +106,7 @@ impl RideOperatingSettings {
         }
         let defaults = Self::default();
         if (kind == RideKind::Coaster && self.cycle_ticks != defaults.cycle_ticks)
-            || (kind == RideKind::Carousel
+            || (kind != RideKind::Coaster
                 && (self.lift_speed != defaults.lift_speed
                     || self.brake_speed != defaults.brake_speed))
         {

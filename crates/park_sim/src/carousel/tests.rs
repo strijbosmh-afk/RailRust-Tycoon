@@ -372,6 +372,7 @@ fn completed_ride_adds_family_specific_nausea_after_natural_decay() {
             let added: u8 = match park.ride_kind(ride).unwrap() {
                 RideKind::Coaster => 22,
                 RideKind::Carousel => 5,
+                RideKind::Swing => 12,
             };
             let after_decay = if park.ticks.is_multiple_of(90) {
                 old.needs.nausea.saturating_sub(1)

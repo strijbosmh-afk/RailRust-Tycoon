@@ -1,6 +1,6 @@
 //! Deliberate placement validates the complete three-by-three footprint.
 use super::*;
-use park_sim::{CAROUSEL_BUILD_COST_CENTS, CarouselError};
+use park_sim::{CarouselError, RideKind};
 
 fn build_error(error: CarouselError) -> String {
     match error {
@@ -17,6 +17,7 @@ fn build_error(error: CarouselError) -> String {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CarouselPreview {
+    pub kind: RideKind,
     pub origin: TilePos,
     pub height: u8,
     pub valid: bool,
@@ -25,15 +26,21 @@ pub(crate) struct CarouselPreview {
 
 pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     let height = view.path_tool.height;
+    let kind = view.path_tool.flat_ride_kind;
+    let cost = if kind == RideKind::Swing {
+        park_sim::SWING_BUILD_COST_CENTS
+    } else {
+        park_sim::CAROUSEL_BUILD_COST_CENTS
+    };
     let Some(origin) =
         world::pick_sloped_path_plane(point, park, view.rotation, height, PathSlope::Flat)
     else {
         view.path_tool.hint = format!(
             "Build {}\nOutside the park at this height.",
-            crate::ui::money(CAROUSEL_BUILD_COST_CENTS)
+            crate::ui::money(cost)
         );
         if click {
-            view.path_notice = Some("Carousel not placed: outside the park.".into());
+            view.path_notice = Some(format!("{kind} not placed: outside the park."));
         }
         return;
     };
@@ -45,15 +52,17 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         PathSlope::Flat,
         view.view_mode,
     );
-    let reason = park
-        .carousel_build_quote(origin, height)
-        .err()
-        .map(build_error)
-        .or_else(|| {
-            occluded.then(|| "Surface hidden here. Rotate or use underground view.".into())
-        });
+    let quote = if kind == RideKind::Swing {
+        park.swing_build_quote(origin, height)
+    } else {
+        park.carousel_build_quote(origin, height)
+    };
+    let reason = quote.err().map(build_error).or_else(|| {
+        occluded.then(|| "Surface hidden here. Rotate or use underground view.".into())
+    });
     if !occluded {
         view.path_tool.carousel_preview = Some(CarouselPreview {
+            kind,
             origin,
             height,
             valid: reason.is_none(),
@@ -62,7 +71,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
     }
     view.path_tool.hint = format!(
         "Build {} / Cash {}\n{}",
-        crate::ui::money(CAROUSEL_BUILD_COST_CENTS),
+        crate::ui::money(cost),
         crate::ui::money(park.cash_cents()),
         reason
             .as_deref()
@@ -73,10 +82,15 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         return;
     }
     if let Some(reason) = reason {
-        view.path_notice = Some(format!("Carousel not placed: {reason}"));
+        view.path_notice = Some(format!("{kind} not placed: {reason}"));
         return;
     }
-    match park.place_carousel(origin, height) {
+    let placed = if kind == RideKind::Swing {
+        park.place_swing(origin, height)
+    } else {
+        park.place_carousel(origin, height)
+    };
+    match placed {
         Ok(id) => {
             view.select_ride(id);
             let object = park.carousel(id).and_then(|c| c.objects.first()).copied();
@@ -86,10 +100,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
             view.path_tool.set_mode(PathTool::Inspect);
             view.path_notice = Some(format!(
                 "Built for {}.\nCash {} / add J/I/K access.",
-                crate::ui::money(CAROUSEL_BUILD_COST_CENTS),
+                crate::ui::money(cost),
                 crate::ui::money(park.cash_cents())
             ));
         }
-        Err(error) => view.path_notice = Some(format!("Carousel not placed: {error}")),
+        Err(error) => view.path_notice = Some(format!("{kind} not placed: {error}")),
     }
 }

@@ -93,6 +93,7 @@ pub fn surface_center(park: &Park, id: SurfaceId, rotation: u8) -> Option<Vec2> 
                 return Some(carousel_render::center(
                     c.origin,
                     c.height,
+                    c.kind,
                     park.width(),
                     rotation,
                 ));

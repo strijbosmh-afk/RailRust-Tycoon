@@ -5,6 +5,7 @@ pub const fn ride_upkeep_cost_cents(kind: RideKind) -> u32 {
     match kind {
         RideKind::Coaster => 100,
         RideKind::Carousel => 50,
+        RideKind::Swing => 80,
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]

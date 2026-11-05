@@ -139,6 +139,7 @@ pub(super) enum Action {
     RideAccess(crate::access_planning::AccessCommand),
     CoasterTest(crate::coaster_testing::TestCommand),
     BuildCarousel,
+    BuildSwing,
     EditTrack,
     Track(crate::track_tools::TrackCommand),
     Design(crate::design_library::DesignCommand),
@@ -833,6 +834,7 @@ pub(super) fn button_actions(
             match action {
                 Action::CloseRides if view.rides_open => Some(0),
                 Action::BuildCarousel if view.rides_open => Some(1),
+                Action::BuildSwing if view.rides_open => Some(4),
                 Action::EditTrack if view.rides_open => Some(3),
                 Action::Rides
                     if !view.help
@@ -853,6 +855,8 @@ pub(super) fn button_actions(
             }
         } else if transition == 1 {
             view.choose_carousel();
+        } else if transition == 4 {
+            view.choose_swing();
         } else {
             view.set_rides_modal(transition == 2);
         }
@@ -1084,6 +1088,7 @@ pub(super) fn button_actions(
             Action::Rides
             | Action::CloseRides
             | Action::BuildCarousel
+            | Action::BuildSwing
             | Action::EditTrack
             | Action::BrowseRide(_) => {}
             Action::Track(command) => crate::track_tools::queue(&mut view, *command),
@@ -1263,7 +1268,7 @@ pub(super) fn refresh(
             Label::RideName=>ride_id.map_or("Choose ride [Y]".into(),|id|rides::name(&sim.0,id).into()),
             Label::Train if ride_id.and_then(|id|sim.0.carousel(id)).is_some()=> {
                 let carousel=sim.0.carousel(ride_id.unwrap()).unwrap();
-                let phase=if sim.0.ride_is_running(carousel.ride.id){if carousel.open{"Spinning"}else{"Finishing cycle"}}else if carousel.open{"Boarding / waiting"}else{"Closed"};
+                let phase=if sim.0.ride_is_running(carousel.ride.id){if carousel.open{if carousel.kind==park_sim::RideKind::Swing {"Swinging"}else{"Spinning"}}else{"Finishing cycle"}}else if carousel.open{"Boarding / waiting"}else{"Closed"};
                 let seats=journey.as_ref().map_or(0,|s|s.boarding+s.riding+s.exiting);
                 format!("{phase}\nSeats {seats}/6 / Done {}",compact_count(journey.as_ref().map_or(0,|s|s.completed)))
             },
@@ -1468,7 +1473,11 @@ pub(super) fn refresh(
                 let PathTool::Service(kind)=view.path_tool.mode else {unreachable!()};
                 format!("Build {kind} / {} / C turns serving side",money(kind.build_cost_cents()))
             }
-            Label::Status if view.path_tool.mode==PathTool::Carousel=>format!("Build carousel / {} / clear 3 x 3 footprint",money(park_sim::CAROUSEL_BUILD_COST_CENTS)),
+            Label::Status if view.path_tool.mode==PathTool::Carousel=>{
+                let kind=view.path_tool.flat_ride_kind;
+                let cost=if kind==park_sim::RideKind::Swing {park_sim::SWING_BUILD_COST_CENTS}else{park_sim::CAROUSEL_BUILD_COST_CENTS};
+                format!("Build {kind} / {} / clear 3 x 3 footprint",money(cost))
+            },
             Label::Status if matches!(view.path_tool.mode, PathTool::Scenery(_)) => {
                 let PathTool::Scenery(kind) = view.path_tool.mode else { unreachable!() };
                 format!("Plant {} / one clear land tile / free", kind.name())
@@ -1616,7 +1625,7 @@ pub(super) fn refresh(
                     }),
                 )
             }
-            Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"Round / no facing".into(),
+            Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"3 x 3 / no facing".into(),
             Label::PathShape if matches!(view.path_tool.mode, PathTool::Scenery(_)) => "Ground".into(),
             Label::PathShape => format!("{} [C]", match view.path_tool.slope {
                 PathSlope::Flat => "Flat",
@@ -1627,7 +1636,7 @@ pub(super) fn refresh(
             }),
             Label::PathHeight => {
                 if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
-                else if view.path_tool.mode==PathTool::Carousel {format!("Carousel height: {}",view.path_tool.height)}
+                else if view.path_tool.mode==PathTool::Carousel {format!("Flat ride height: {}",view.path_tool.height)}
                 else if matches!(view.path_tool.mode,PathTool::Service(_)) {
                     format!("Facility height: {}",view.path_tool.height)
                 } else if view.path_tool.mode == PathTool::Exit {
@@ -1802,7 +1811,7 @@ fn object_name(kind: ObjectKind) -> &'static str {
         ObjectKind::RideEntrance => "Ride entrance",
         ObjectKind::RideExit => "Ride exit",
         ObjectKind::Service => "Facility",
-        ObjectKind::Carousel => "Carousel",
+        ObjectKind::Carousel => "Flat ride",
         ObjectKind::SceneryTree => "Tree",
         ObjectKind::FlowerBed => "Flower bed",
     }

@@ -26,7 +26,7 @@ impl Park {
                 self.track_economy.construction_cents,
                 self.track_economy.refund_cents,
             ),
-            RideKind::Carousel => {
+            RideKind::Carousel | RideKind::Swing => {
                 let carousel = self.carousel(id)?;
                 (
                     carousel.construction_cost_cents,

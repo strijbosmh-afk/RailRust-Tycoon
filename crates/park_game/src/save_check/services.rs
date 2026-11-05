@@ -183,6 +183,7 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
             let added = match park.ride_kind(ride) {
                 Some(park_sim::RideKind::Coaster) => 22,
                 Some(park_sim::RideKind::Carousel) => 5,
+                Some(park_sim::RideKind::Swing) => 12,
                 None => return Err("completed ride owner vanished".into()),
             };
             needs.nausea = needs.nausea.saturating_add(added).min(100);

@@ -50,6 +50,7 @@ impl Park {
                 layout_challenge(metrics)
             }
             RideKind::Carousel => 20,
+            RideKind::Swing => 55,
         };
         let reputation_rating_tenths = reputation(ride.rating_count, ride.rating_total);
         Some(RideAppealProfile {

@@ -194,6 +194,9 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
         .unwrap()
         .remove("mechanic_route");
     current["park"].as_object_mut().unwrap().remove("grounds");
+    for ride in current["park"]["carousels"].as_array_mut().unwrap() {
+        ride.as_object_mut().unwrap().remove("kind");
+    }
     current["park"]
         .as_object_mut()
         .unwrap()

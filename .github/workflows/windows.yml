@@ -379,6 +379,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-handyman-bins --save-dir $binDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Handyman bin verification failed" }
           Get-Content -LiteralPath (Join-Path $binDirectory "verification-handyman-bins.txt")
+      - name: Verify independent carousel and swing continuation
+        shell: pwsh
+        run: |
+          $swingDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound swing é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-swing --save-dir $swingDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Swing writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-swing --save-dir $swingDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Swing verification failed" }
+          Get-Content -LiteralPath (Join-Path $swingDirectory "verification-swing.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -760,7 +760,7 @@ fn park_value_view_shows_signed_equity_and_blocks_loan_commands_through_actual_b
     );
     assert_eq!(
         label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(0))),
-        "Recorded park value $0.00\nTrack $0.00 / Carousels $0.00 / Facilities $0.00"
+        "Recorded park value $0.00\nTrack $0.00 / Flat rides $0.00 / Facilities $0.00"
     );
     assert!(
         label(&mut app, |l| matches!(l, ui::finance::FinanceLabel::Row(2)))
