@@ -27,10 +27,10 @@ pub(crate) struct CarouselPreview {
 pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     let height = view.path_tool.height;
     let kind = view.path_tool.flat_ride_kind;
-    let cost = if kind == RideKind::Swing {
-        park_sim::SWING_BUILD_COST_CENTS
-    } else {
-        park_sim::CAROUSEL_BUILD_COST_CENTS
+    let cost = match kind {
+        RideKind::Swing => park_sim::SWING_BUILD_COST_CENTS,
+        RideKind::DropTower => park_sim::DROP_TOWER_BUILD_COST_CENTS,
+        _ => park_sim::CAROUSEL_BUILD_COST_CENTS,
     };
     let Some(origin) =
         world::pick_sloped_path_plane(point, park, view.rotation, height, PathSlope::Flat)
@@ -52,10 +52,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         PathSlope::Flat,
         view.view_mode,
     );
-    let quote = if kind == RideKind::Swing {
-        park.swing_build_quote(origin, height)
-    } else {
-        park.carousel_build_quote(origin, height)
+    let quote = match kind {
+        RideKind::Swing => park.swing_build_quote(origin, height),
+        RideKind::DropTower => park.drop_tower_build_quote(origin, height),
+        _ => park.carousel_build_quote(origin, height),
     };
     let reason = quote.err().map(build_error).or_else(|| {
         occluded.then(|| "Surface hidden here. Rotate or use underground view.".into())
@@ -85,10 +85,10 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         view.path_notice = Some(format!("{kind} not placed: {reason}"));
         return;
     }
-    let placed = if kind == RideKind::Swing {
-        park.place_swing(origin, height)
-    } else {
-        park.place_carousel(origin, height)
+    let placed = match kind {
+        RideKind::Swing => park.place_swing(origin, height),
+        RideKind::DropTower => park.place_drop_tower(origin, height),
+        _ => park.place_carousel(origin, height),
     };
     match placed {
         Ok(id) => {

@@ -36,6 +36,7 @@ mod color_scenes;
 mod construction_scenes;
 mod design_scenes;
 mod dispatch_scenes;
+mod drop_tower_scenes;
 mod economy_scenes;
 mod facility_construction_scenes;
 mod feedback_scenes;
@@ -65,6 +66,7 @@ mod visitor_scenes;
 #[derive(Clone, Copy)]
 enum Scene {
     Overview,
+    FlatStart,
     ColorsCoaster,
     ColorsCarousel,
     ColorsWorld,
@@ -185,6 +187,8 @@ enum Scene {
     Rides,
     SwingMap,
     SwingRides,
+    DropTowerMap,
+    DropTowerRides,
     OperationsCoaster,
     OperationsCarousel,
     OperationsRunning,
@@ -319,7 +323,10 @@ impl Scene {
             || self.is_train_configuration()
             || self.is_testing()
             || self.is_appeal()
-            || matches!(self, Self::SwingMap | Self::SwingRides)
+            || matches!(
+                self,
+                Self::SwingMap | Self::SwingRides | Self::DropTowerMap | Self::DropTowerRides
+            )
             || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
     }
 
@@ -706,6 +713,7 @@ pub(super) fn configure(app: &mut App) {
         .map(
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
                 Some("overview") => Scene::Overview,
+                Some("flat-start") => Scene::FlatStart,
                 Some("help") => Scene::Help,
                 Some("colors-coaster") => Scene::ColorsCoaster,
                 Some("colors-carousel") => Scene::ColorsCarousel,
@@ -826,6 +834,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("rides") => Scene::Rides,
                 Some("swing-map") => Scene::SwingMap,
                 Some("swing-rides") => Scene::SwingRides,
+                Some("drop-tower-map") => Scene::DropTowerMap,
+                Some("drop-tower-rides") => Scene::DropTowerRides,
                 Some("operations-coaster") => Scene::OperationsCoaster,
                 Some("opening-entrance") => Scene::OpeningEntrance,
                 Some("costs-ready") => Scene::CostsReady,
@@ -982,7 +992,11 @@ pub(super) fn configure(app: &mut App) {
                 _ => panic!("--capture-map must be flat or terraced"),
             },
         )
-        .unwrap_or(TerrainProfile::Terraced);
+        .unwrap_or(if matches!(scene, Scene::FlatStart) {
+            TerrainProfile::Flat
+        } else {
+            TerrainProfile::Terraced
+        });
     let view_mode = arguments
         .iter()
         .position(|value| value == "--capture-view")
@@ -1015,7 +1029,11 @@ pub(super) fn configure(app: &mut App) {
                 .filter(|value| *value <= 36_000)
                 .expect("--capture-ticks must be an integer between 0 and 36000")
         })
-        .unwrap_or(DEFAULT_CAPTURE_TICKS);
+        .unwrap_or(if matches!(scene, Scene::FlatStart) {
+            0
+        } else {
+            DEFAULT_CAPTURE_TICKS
+        });
 
     let directory = destination
         .parent()
@@ -1079,6 +1097,9 @@ fn apply_preset(
         sim.0 = crate::demonstration_park();
     }
     view.terrain_profile = capture.terrain_profile;
+    if matches!(capture.scene, Scene::FlatStart) {
+        view.path_tool.height = 0;
+    }
     sim.0
         .try_apply_terrain_profile(capture.terrain_profile)
         .expect("capture terrain must preserve fixture clearance");
@@ -1325,6 +1346,9 @@ fn apply_preset(
     if matches!(capture.scene, Scene::SwingMap | Scene::SwingRides) {
         swing_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
+    if matches!(capture.scene, Scene::DropTowerMap | Scene::DropTowerRides) {
+        drop_tower_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
     if capture.scene.is_train_configuration() {
         train_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
@@ -1464,7 +1488,7 @@ fn apply_preset(
                     .expect("detail capture train")
                     - elevation;
             }
-            Scene::CarouselBuilt | Scene::DualRiding | Scene::SwingMap => {
+            Scene::CarouselBuilt | Scene::DualRiding | Scene::SwingMap | Scene::DropTowerMap => {
                 let ride = sim
                     .0
                     .carousels()
@@ -1473,6 +1497,8 @@ fn apply_preset(
                         !ride.objects.is_empty()
                             && (!matches!(capture.scene, Scene::SwingMap)
                                 || ride.kind == park_sim::RideKind::Swing)
+                            && (!matches!(capture.scene, Scene::DropTowerMap)
+                                || ride.kind == park_sim::RideKind::DropTower)
                     })
                     .expect("detail capture flat ride");
                 view.pan = world::ride_focus(&sim.0, ride.ride.id, view.rotation)

@@ -179,10 +179,12 @@ impl ToolState {
         }
         .into();
         if self.mode == PathTool::Carousel {
-            let (name, cost) = if self.flat_ride_kind == park_sim::RideKind::Swing {
-                ("Swing ride", park_sim::SWING_BUILD_COST_CENTS)
-            } else {
-                ("Carousel", park_sim::CAROUSEL_BUILD_COST_CENTS)
+            let (name, cost) = match self.flat_ride_kind {
+                park_sim::RideKind::Swing => ("Swing ride", park_sim::SWING_BUILD_COST_CENTS),
+                park_sim::RideKind::DropTower => {
+                    ("Drop tower", park_sim::DROP_TOWER_BUILD_COST_CENTS)
+                }
+                _ => ("Carousel", park_sim::CAROUSEL_BUILD_COST_CENTS),
             };
             self.hint = format!(
                 "{name}: {} / 3 x 3.\n{}% paid cost back on demolition.",

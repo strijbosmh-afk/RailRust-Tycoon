@@ -397,6 +397,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-patrol --save-dir $patrolDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Patrol verifier failed" }
           Get-Content -LiteralPath (Join-Path $patrolDirectory "verification-patrol.txt")
+      - name: Verify independent drop tower continuation
+        shell: pwsh
+        run: |
+          $towerDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound drop tower é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-drop-tower --save-dir $towerDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Drop tower writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-drop-tower --save-dir $towerDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Drop tower verification failed" }
+          Get-Content -LiteralPath (Join-Path $towerDirectory "verification-drop-tower.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

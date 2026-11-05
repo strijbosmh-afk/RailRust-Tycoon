@@ -51,6 +51,7 @@ impl Park {
             }
             RideKind::Carousel => 20,
             RideKind::Swing => 55,
+            RideKind::DropTower => 72,
         };
         let reputation_rating_tenths = reputation(ride.rating_count, ride.rating_total);
         Some(RideAppealProfile {

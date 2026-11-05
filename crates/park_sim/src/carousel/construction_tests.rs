@@ -114,6 +114,80 @@ fn swing_seats_move_inside_envelope_and_resume_mid_cycle() {
     }
     assert_eq!(park, resumed);
 }
+
+#[test]
+fn drop_tower_has_its_own_cost_choice_and_refund() {
+    let mut park = Park::new(32, 32);
+    let carousel = park.place_carousel(TilePos { x: 2, y: 2 }, 0).unwrap();
+    let tower = park.place_drop_tower(TilePos { x: 8, y: 2 }, 0).unwrap();
+    assert_eq!(park.cash_cents(), 28_000);
+    assert_eq!(park.ride_kind(tower), Some(RideKind::DropTower));
+    assert_eq!(park.ride_name(tower), Some("Beacon Drop"));
+    assert_eq!(park.ride_capacity(tower), Some(6));
+    assert_eq!(
+        park.ride_running_costs(tower)
+            .unwrap()
+            .cost_per_interval_cents,
+        95
+    );
+    assert_eq!(
+        park.ride_appeal_profile(tower).unwrap().layout_challenge,
+        72
+    );
+    assert_eq!(park.carousel_demolition_quote(tower), Ok(21_000));
+    assert!(matches!(
+        park.drop_tower_build_quote(TilePos { x: 14, y: 2 }, 0),
+        Err(CarouselError::ActiveCarouselExists)
+    ));
+    saved(&park);
+    park.remove_carousel(tower).unwrap();
+    assert_eq!(park.cash_cents(), 49_000);
+    assert_eq!(park.ride_cashflow(tower).unwrap().refunds_cents, 21_000);
+    assert!(park.ride_available(carousel));
+    saved(&park);
+}
+
+#[test]
+fn drop_tower_lift_drop_and_schema_32_boundary() {
+    let mut park = Park::new(32, 32);
+    let id = park.place_drop_tower(TilePos { x: 8, y: 8 }, 0).unwrap();
+    park.set_ride_open(id, true).unwrap();
+    for _ in 0..crate::STATION_DWELL_TICKS + 1 {
+        park.advance(Speed::Normal);
+    }
+    assert!(park.ride_is_running(id));
+    let first = park.carousel_seat_positions(id);
+    for _ in 0..350 {
+        park.advance(Speed::Normal);
+    }
+    let peak = park.carousel_seat_positions(id);
+    assert!(peak[0].height > first[0].height + 180);
+    for _ in 0..270 {
+        park.advance(Speed::Normal);
+    }
+    let dropped = park.carousel_seat_positions(id);
+    assert!(dropped[0].height < peak[0].height);
+    for point in &peak {
+        assert!((0..=320).contains(&point.height));
+    }
+    let mut resumed = saved(&park);
+    for _ in 0..3_600 {
+        park.advance(Speed::Normal);
+        resumed.advance(Speed::Normal);
+    }
+    assert_eq!(park, resumed);
+
+    let mut old = value(&park);
+    old["schema_version"] = json!(32);
+    old["content_version"] = json!(32);
+    assert!(read(&old).is_err());
+    let mut legacy = Park::new(32, 32);
+    legacy.place_swing(TilePos { x: 8, y: 8 }, 0).unwrap();
+    let mut old = value(&legacy);
+    old["schema_version"] = json!(32);
+    old["content_version"] = json!(32);
+    assert_eq!(read(&old).unwrap(), legacy);
+}
 /// Establish valid elapsed, fixed-cost service history without running unrelated
 /// guest decisions hundreds of thousands of times in a construction boundary test.
 fn spend_to(park: &mut Park, target: u64) {

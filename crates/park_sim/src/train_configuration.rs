@@ -39,7 +39,7 @@ impl Park {
     pub fn ride_capacity(&self, id: RideId) -> Option<usize> {
         match self.ride_kind(id)? {
             RideKind::Coaster => Some(usize::from(self.coaster_cars * SEATS_PER_COASTER_CAR)),
-            RideKind::Carousel | RideKind::Swing => Some(crate::TRAIN_SEATS),
+            RideKind::Carousel | RideKind::Swing | RideKind::DropTower => Some(crate::TRAIN_SEATS),
         }
     }
 

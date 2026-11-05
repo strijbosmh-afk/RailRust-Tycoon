@@ -375,6 +375,10 @@ impl ViewState {
         self.choose_flat_ride(park_sim::RideKind::Swing);
     }
 
+    fn choose_drop_tower(&mut self) {
+        self.choose_flat_ride(park_sim::RideKind::DropTower);
+    }
+
     fn choose_flat_ride(&mut self, kind: park_sim::RideKind) {
         if !self.rides_open
             || self.capture_active
@@ -504,6 +508,9 @@ fn main() -> AppExit {
         eprintln!("Frame profiling failed: {error}");
         return AppExit::error();
     }
+    let capture_requested = arguments
+        .iter()
+        .any(|argument| argument == "--capture-frame");
     let park = match &render_scene {
         Some(scene) => match scene.build() {
             Ok(park) => park,
@@ -512,9 +519,14 @@ fn main() -> AppExit {
                 return AppExit::error();
             }
         },
-        None => demonstration_park(),
+        None if capture_requested => demonstration_park(),
+        None => new_game_park(),
     };
-    let mut view = ViewState::default();
+    let mut view = if render_scene.is_none() && !capture_requested {
+        new_game_view()
+    } else {
+        ViewState::default()
+    };
     if let Some(scene) = &render_scene {
         scene.apply_view(&park, &mut view);
     }
@@ -623,6 +635,23 @@ fn demonstration_park() -> Park {
     park.install_train_fixture()
         .expect("the demonstration train circuit must fit the initial park");
     park
+}
+
+fn new_game_park() -> Park {
+    let mut park = demonstration_park();
+    park.apply_terrain_profile(TerrainProfile::Flat);
+    park
+}
+
+fn new_game_view() -> ViewState {
+    ViewState {
+        terrain_profile: TerrainProfile::Flat,
+        path_tool: path_tools::ToolState {
+            height: 0,
+            ..default()
+        },
+        ..default()
+    }
 }
 
 fn setup_scene(

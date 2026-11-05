@@ -38,6 +38,7 @@ pub fn default_name(kind: RideKind) -> &'static str {
         RideKind::Carousel => "Meadow Carousel",
         RideKind::Coaster => "Meadow Flyer",
         RideKind::Swing => "Skyward Swing",
+        RideKind::DropTower => "Beacon Drop",
     }
 }
 

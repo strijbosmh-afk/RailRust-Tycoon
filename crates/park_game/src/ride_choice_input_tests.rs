@@ -286,6 +286,55 @@ fn carousel_build_button_closes_modal_without_clicking_through_and_builds_while_
 }
 
 #[test]
+fn drop_tower_button_prepares_paid_placement_without_clicking_through() {
+    let dir = InputSaveDirectory::new();
+    let park = train_park();
+    let mut app = app(
+        &dir,
+        park.clone(),
+        ViewState {
+            rides_open: true,
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    let button = app
+        .world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::BuildDropTower))
+        .id();
+    frame(&mut app);
+    let view = app.world().resource::<ViewState>();
+    assert!(!view.rides_open && view.modal_input_blocked);
+    assert_eq!(view.path_tool.mode, path_tools::PathTool::Carousel);
+    assert_eq!(view.path_tool.flat_ride_kind, park_sim::RideKind::DropTower);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    app.world_mut().despawn(button);
+    let point =
+        world::path_build_center(TilePos { x: 19, y: 22 }, &park, 0, 8, PathSlope::Flat).unwrap();
+    let mut view = app.world_mut().remove_resource::<ViewState>().unwrap();
+    let mut sim = app.world_mut().resource_mut::<Simulation>();
+    path_tools::point_at(&mut sim.0, &mut view, point, false);
+    assert_eq!(sim.0, park);
+    assert!(
+        view.path_tool
+            .hint
+            .contains("Build $420.00 / Cash $1000.00")
+    );
+    path_tools::point_at(&mut sim.0, &mut view, point, true);
+    let tower = sim.0.carousels().last().unwrap();
+    assert_eq!(tower.kind, park_sim::RideKind::DropTower);
+    assert_eq!(
+        tower.construction_cost_cents,
+        park_sim::DROP_TOWER_BUILD_COST_CENTS
+    );
+    assert_eq!(view.selected_ride, Some(tower.ride.id));
+    assert_eq!(
+        sim.0.cash_cents(),
+        park.cash_cents() - park_sim::DROP_TOWER_BUILD_COST_CENTS
+    );
+}
+
+#[test]
 fn footprint_rejection_is_atomic_and_world_inspection_selects_body_gate_and_queue_owner() {
     let mut park = train_park();
     let original = park.clone();

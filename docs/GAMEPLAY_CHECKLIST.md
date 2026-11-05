@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Current 0.63.0 attraction slice: Beacon Drop is a buildable six-seat vertical ride with a lift, hold, quick drop and braking return. It has separate construction/refund/upkeep, access, ticket revenue, reviews, moving chairs and saved continuation. Strict saves advance to 33/33. See [DROP_TOWER_REPORT.md](DROP_TOWER_REPORT.md). Taller towers, launch modes and force modeling remain open.
+
 Current 0.62.0 management slice: one paid handyman has up to 64 marked public-path patrol tiles, separately enabled cleaning and bin-emptying duties, visible cyan coverage and uncovered-work counts. Transit outside the area is allowed; work outside it is not. Strict saves advance to 32/32. See [HANDYMAN_PATROL_REPORT.md](HANDYMAN_PATROL_REPORT.md). Multiple staff and additional duties remain open.
 
 Current 0.61.0 attraction slice: Skyward Swing adds an independent six-seat paid pendulum ride beside the carousel, with distinct construction/upkeep/appeal, guest choice, maintenance, procedural art and strict 31/31 continuation. Broader thrill ride types and physical force modeling remain open. See [SWING_RIDE_REPORT.md](SWING_RIDE_REPORT.md). The 0.60.0 grounds phase is recorded in [PAID_HANDYMAN_BINS_REPORT.md](PAID_HANDYMAN_BINS_REPORT.md).
@@ -161,7 +163,7 @@ These are behavior families, not final catalogue counts or a promise to reuse or
 | --- | --- | --- | --- |
 | FAM-01 | 3 | I | Cyclic gentle flat ride: a complete loading, operating, and unloading cycle runs with configurable timing and price. Existing carousel passengers and ticket prices gain saved station/cycle timing in 0.31; source/runtime/visual/CI/package checks passed for the new settings; full-family/native acceptance remains open. |
 | FAM-02 | 6 | I | Thrill flat rides: 0.61.0 adds one six-seat pendulum swing with independent construction, paid operation, guest choice, maintenance, rating and motion. Other rotation/swing/inversion families and physical force modeling remain open. |
-| FAM-03 | 6 | P | Vertical attractions: tower/drop/launch behavior respects height, travel bounds, loading, and operating mode. |
+| FAM-03 | 6 | I | Version 0.63 adds a compact six-seat drop tower with bounded saved lift/hold/drop/brake travel, ordinary loading, paid operation and distinct art. Taller custom towers, launch modes and force modeling remain open. |
 | FAM-04 | 6 | P | Walking attractions: maze and course-based attractions route guests through their internal layout and return them to the exit. |
 | FAM-05 | 6 | P | Guided gentle rides and powered coasters: vehicles follow player-built routes with correct propulsion, spacing, and stations. |
 | FAM-06 | 6 | P | Transport: rail and suspended/cable-style families provide appropriate station stops and passenger transfers across reachable stations. |
