@@ -1,5 +1,7 @@
 # Grounds and handyman stage — 0.59.0
 
+Runtime source commit `c5c5d4ebb7cb49400355fae885f29b15ba570bdc` is on `codex/grounds-handyman` in [draft PR #59](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/59), stacked on PR #58.
+
 ## Delivered
 
 - Opt-in grounds activity creates deterministic litter or spills on occupied public paths at a bounded rate. The cap is 64 distinct dirty paths.
