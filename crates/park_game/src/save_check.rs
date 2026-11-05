@@ -15,6 +15,7 @@ use crate::{
 
 pub(super) mod access;
 mod admission;
+mod admission_rules;
 pub(super) mod appeal;
 pub(super) mod cashflow;
 mod coaster_testing;
@@ -70,7 +71,7 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             .get(index + 1)
             .and_then(|value| value.to_str())
             .filter(|value| matches!(*value,
-                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters" | "write-opening" | "verify-opening" | "write-cashflow" | "verify-cashflow" | "write-ride-costs" | "verify-ride-costs" | "write-summary" | "verify-summary" | "write-loans" | "verify-loans" | "write-value" | "verify-value" | "write-visitors" | "verify-visitors" | "write-colors" | "verify-colors" | "write-names" | "verify-names" | "write-scenery" | "verify-scenery" | "write-wellness" | "verify-wellness" | "write-maintenance" | "verify-maintenance" | "write-mechanic" | "verify-mechanic" | "write-mechanic-route" | "verify-mechanic-route" | "write-grounds" | "verify-grounds" | "write-handyman-bins" | "verify-handyman-bins" | "write-swing" | "verify-swing" | "write-patrol" | "verify-patrol" | "write-drop-tower" | "verify-drop-tower" | "write-park-open" | "verify-park-open"
+                "write" | "verify" | "write-paths" | "verify-paths" | "write-terrain" | "verify-terrain" | "write-slopes" | "verify-slopes" | "write-queues" | "verify-queues" | "write-admission" | "verify-admission" | "write-journey" | "verify-journey" | "write-economy" | "verify-economy" | "write-feedback" | "verify-feedback" | "verify-legacy" | "write-services" | "verify-services" | "write-finance" | "verify-finance" | "write-rides" | "verify-rides" | "write-construction" | "verify-construction" | "write-facility-construction" | "verify-facility-construction" | "write-track-construction" | "verify-track-construction" | "write-designs" | "verify-designs" | "write-design-transfer" | "verify-design-transfer" | "write-operations" | "verify-operations" | "write-access" | "verify-access" | "write-coaster-testing" | "verify-coaster-testing" | "write-dispatch" | "verify-dispatch" | "write-appeal" | "verify-appeal" | "write-trains" | "verify-trains" | "write-starters" | "verify-starters" | "write-opening" | "verify-opening" | "write-cashflow" | "verify-cashflow" | "write-ride-costs" | "verify-ride-costs" | "write-summary" | "verify-summary" | "write-loans" | "verify-loans" | "write-value" | "verify-value" | "write-visitors" | "verify-visitors" | "write-colors" | "verify-colors" | "write-names" | "verify-names" | "write-scenery" | "verify-scenery" | "write-wellness" | "verify-wellness" | "write-maintenance" | "verify-maintenance" | "write-mechanic" | "verify-mechanic" | "write-mechanic-route" | "verify-mechanic-route" | "write-grounds" | "verify-grounds" | "write-handyman-bins" | "verify-handyman-bins" | "write-swing" | "verify-swing" | "write-patrol" | "verify-patrol" | "write-drop-tower" | "verify-drop-tower" | "write-admission-rules" | "verify-admission-rules" | "write-park-open" | "verify-park-open"
             ))
             .ok_or("--save-check requires a documented write/verify proof mode or verify-legacy; see RESUME_DEVELOPMENT.md")?;
         if !arguments.iter().any(|value| value == "--save-dir") {
@@ -189,6 +190,8 @@ pub(super) fn run(arguments: Vec<OsString>) -> Option<AppExit> {
             "verify-swing" => swing::verify(&session)?,
             "write-drop-tower" => drop_tower::write(&session)?,
             "verify-drop-tower" => drop_tower::verify(&session)?,
+            "write-admission-rules" => admission_rules::write(&session)?,
+            "verify-admission-rules" => admission_rules::verify(&session)?,
             "write-park-open" => park_open::write(&session)?,
             "verify-park-open" => park_open::verify(&session)?,
             "write-finance" => finance::write(&session)?,

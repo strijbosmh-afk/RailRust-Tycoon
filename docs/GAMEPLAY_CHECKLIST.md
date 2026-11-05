@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Current 0.65.0 management slice: the player can price park entry, observe declined arrivals, and choose Flexible, Free entry or Free rides. Paid entry reconciles guest wallets, finance receipts, cash and strict 35/35 saves. Existing paid passengers finish under their locked fare after a rule change. See [PARK_ADMISSION_RULES_REPORT.md](PARK_ADMISSION_RULES_REPORT.md). Scenario-authored locked charging policies, objectives and awards remain open.
+
 Current 0.63.0 attraction slice: Beacon Drop is a buildable six-seat vertical ride with a lift, hold, quick drop and braking return. It has separate construction/refund/upkeep, access, ticket revenue, reviews, moving chairs and saved continuation. Strict saves advance to 33/33. See [DROP_TOWER_REPORT.md](DROP_TOWER_REPORT.md). Taller towers, launch modes and force modeling remain open.
 
 Current 0.62.0 management slice: one paid handyman has up to 64 marked public-path patrol tiles, separately enabled cleaning and bin-emptying duties, visible cyan coverage and uncovered-work counts. Transit outside the area is allowed; work outside it is not. Strict saves advance to 32/32. See [HANDYMAN_PATROL_REPORT.md](HANDYMAN_PATROL_REPORT.md). Multiple staff and additional duties remain open.

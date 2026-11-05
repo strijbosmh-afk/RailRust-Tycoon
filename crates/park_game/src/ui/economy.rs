@@ -16,6 +16,7 @@ fn compact_money(cents: u64) -> String {
 }
 
 pub(super) fn header(park: &Park, stats: Option<&RideEconomyStats>) -> String {
+    let finance = park.finance_stats();
     let wallets = park.guests().iter().map(|guest| guest.wallet_cents).fold(
         None::<(u32, u32)>,
         |range, wallet| {
@@ -37,9 +38,10 @@ pub(super) fn header(park: &Park, stats: Option<&RideEconomyStats>) -> String {
         "Cash {} / Revenue {} / Wallets {wallets} / Can pay {}/{}",
         compact_money(park.cash_cents()),
         compact_money(
-            park.finance_stats()
+            finance
                 .ride_revenue_cents
                 .saturating_add(park.guest_needs_summary().service_revenue_cents)
+                .saturating_add(finance.admission_revenue_cents)
         ),
         super::compact_count(stats.map_or(0, |stats| stats.affordable_guests) as u64),
         super::compact_count(park.guests().len() as u64),

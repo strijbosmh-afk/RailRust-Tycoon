@@ -206,6 +206,7 @@ pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
 }
 
 pub(crate) fn strip_park_open(value: &mut serde_json::Value) {
+    strip_admission_fields(value);
     if value["schema_version"].as_u64().is_some_and(|v| v <= 33)
         && let Some(flow) = value
             .get_mut("park")
@@ -213,6 +214,34 @@ pub(crate) fn strip_park_open(value: &mut serde_json::Value) {
             .and_then(serde_json::Value::as_object_mut)
     {
         flow.remove("park_open");
+    }
+}
+
+pub(crate) fn strip_admission_fields(value: &mut serde_json::Value) {
+    if value["schema_version"].as_u64().is_none_or(|v| v > 34) {
+        return;
+    }
+    if let Some(flow) = value
+        .get_mut("park")
+        .and_then(|park| park.get_mut("visitors"))
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        for field in [
+            "entry_price_cents",
+            "charging_rule",
+            "admission_revenue_cents",
+            "turned_away",
+        ] {
+            flow.remove(field);
+        }
+    }
+    if let Some(archived) = value
+        .get_mut("park")
+        .and_then(|park| park.get_mut("finances"))
+        .and_then(|finances| finances.get_mut("archived"))
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        archived.remove("admission_revenue_cents");
     }
 }
 

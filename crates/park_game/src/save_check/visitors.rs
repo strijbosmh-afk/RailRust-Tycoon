@@ -17,7 +17,8 @@ pub(crate) fn check(p: &Park) -> Result<(), String> {
         .sum::<u64>()
         + a.wallet_cents;
     let sales = p.all_rides().map(|r| r.revenue_cents).sum::<u64>()
-        + p.services().iter().map(|s| s.revenue_cents).sum::<u64>();
+        + p.services().iter().map(|s| s.revenue_cents).sum::<u64>()
+        + p.visitor_flow_stats().admission_revenue_cents;
     if spent != sales
         || wallets + spent
             != (p.guests().len() as u64 + a.count) * u64::from(INITIAL_GUEST_WALLET_CENTS)

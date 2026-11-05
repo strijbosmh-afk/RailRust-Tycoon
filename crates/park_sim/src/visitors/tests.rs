@@ -31,6 +31,78 @@ fn arrivals_are_opt_in_timed_and_do_not_mint_park_cash() {
     );
 }
 #[test]
+fn paid_entry_moves_wallet_money_to_separate_park_receipts() {
+    let (mut p, _) = simple();
+    p.set_park_entry_price(300).unwrap();
+    p.set_visitor_arrivals(true).unwrap();
+    for _ in 0..900 {
+        p.advance(Speed::Normal);
+    }
+    assert_eq!(p.guests().len(), 1);
+    assert_eq!(p.guests()[0].wallet_cents, 1700);
+    assert_eq!(p.guests()[0].spent_cents, 300);
+    assert_eq!(p.cash_cents(), 100_300);
+    assert_eq!(p.visitor_flow_stats().admission_revenue_cents, 300);
+    assert_eq!(p.finance_summary().admission_revenue_cents, 300);
+    assert_eq!(
+        p.finance_ledger().entries.last().unwrap().kind,
+        crate::FinanceKind::ParkAdmission
+    );
+    assert_eq!(
+        Park::from_save_bytes(&p.to_save_bytes().unwrap()).unwrap(),
+        p
+    );
+}
+
+#[test]
+fn high_entry_fee_declines_candidates_without_minting_money_or_guests() {
+    let (mut p, _) = simple();
+    p.set_park_entry_price(2_000).unwrap();
+    p.set_visitor_arrivals(true).unwrap();
+    for _ in 0..900 {
+        p.advance(Speed::Normal);
+    }
+    assert!(p.guests().is_empty());
+    assert_eq!(p.visitor_flow_stats().turned_away, 1);
+    assert_eq!(p.visitor_flow_stats().spawned, 0);
+    assert_eq!(p.cash_cents(), 100_000);
+    let before = p.to_save_bytes().unwrap();
+    let mut resumed = Park::from_save_bytes(&before).unwrap();
+    for _ in 0..900 {
+        p.advance(Speed::Normal);
+        resumed.advance(Speed::Normal);
+    }
+    assert_eq!(p, resumed);
+    assert_eq!(p.visitor_flow_stats().turned_away, 2);
+}
+
+#[test]
+fn charging_rules_reset_forbidden_prices_and_guard_future_changes() {
+    let (mut p, _) = simple();
+    let ride = p.place_carousel(TilePos { x: 12, y: 12 }, 0).unwrap();
+    p.set_ride_ticket_price(ride, 100).unwrap();
+    p.set_park_entry_price(500).unwrap();
+    p.set_charging_rule(ChargingRule::FreeEntry);
+    assert_eq!(p.visitor_flow_stats().entry_price_cents, 0);
+    assert_eq!(
+        p.set_park_entry_price(50),
+        Err(VisitorError::ChargingRuleRestricted)
+    );
+    p.set_charging_rule(ChargingRule::FreeRides);
+    assert_eq!(p.ride_by_id(ride).unwrap().ticket_price_cents, 0);
+    assert_eq!(
+        p.set_ride_ticket_price(ride, 50),
+        Err(crate::EconomyError::ChargingRuleRestricted)
+    );
+    p.set_park_entry_price(50).unwrap();
+    p.set_charging_rule(ChargingRule::Flexible);
+    p.set_ride_ticket_price(ride, 50).unwrap();
+    assert_eq!(
+        Park::from_save_bytes(&p.to_save_bytes().unwrap()).unwrap(),
+        p
+    );
+}
+#[test]
 fn closing_park_stops_arrivals_and_departing_guests_reopen_without_instant_arrival() {
     let (mut p, _) = simple();
     p.set_visitor_arrivals(true).unwrap();
@@ -72,9 +144,38 @@ fn schema_33_defaults_to_open_but_schema_34_requires_explicit_status() {
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
     json["schema_version"] = serde_json::json!(33);
     json["content_version"] = serde_json::json!(33);
+    crate::legacy_cost_test_support::strip_admission_fields(&mut json);
     let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
     assert!(old.visitor_flow_stats().park_open);
     json["park"]["visitors"]["park_open"] = serde_json::json!(false);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+}
+
+#[test]
+fn schema_34_defaults_to_free_flexible_entry_and_schema_35_requires_admission_state() {
+    let (p, _) = simple();
+    let mut json: serde_json::Value = serde_json::from_slice(&p.to_save_bytes().unwrap()).unwrap();
+    for field in [
+        "entry_price_cents",
+        "charging_rule",
+        "admission_revenue_cents",
+        "turned_away",
+    ] {
+        json["park"]["visitors"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+    }
+    json["park"]["finances"]["archived"]
+        .as_object_mut()
+        .unwrap()
+        .remove("admission_revenue_cents");
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+    json["schema_version"] = serde_json::json!(34);
+    json["content_version"] = serde_json::json!(34);
+    let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
+    assert_eq!(old, p);
+    json["park"]["visitors"]["entry_price_cents"] = serde_json::json!(0);
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
 }
 #[test]
@@ -296,13 +397,24 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         .as_object_mut()
         .unwrap()
         .remove("handyman_wages_cents");
+    current["schema_version"] = serde_json::json!(21);
+    crate::legacy_cost_test_support::strip_admission_fields(&mut current);
+    let mut old_default = serde_json::to_value(super::VisitorFlow::default()).unwrap();
+    for field in [
+        "entry_price_cents",
+        "charging_rule",
+        "admission_revenue_cents",
+        "turned_away",
+    ] {
+        old_default.as_object_mut().unwrap().remove(field);
+    }
     assert_eq!(
         current["park"]
             .as_object_mut()
             .unwrap()
             .remove("visitors")
             .unwrap(),
-        serde_json::to_value(super::VisitorFlow::default()).unwrap()
+        old_default
     );
     assert_eq!(
         current["park"]

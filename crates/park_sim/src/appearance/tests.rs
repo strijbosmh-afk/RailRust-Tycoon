@@ -189,6 +189,8 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
         .as_object_mut()
         .unwrap()
         .remove("park_open");
+    current["schema_version"] = serde_json::json!(22);
+    crate::legacy_cost_test_support::strip_admission_fields(&mut current);
     current["park"]
         .as_object_mut()
         .unwrap()

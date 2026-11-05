@@ -415,6 +415,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-park-open --save-dir $closureDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Park closure verifier failed" }
           Get-Content -LiteralPath (Join-Path $closureDirectory "verification-park-open.txt")
+      - name: Verify paid park admission and charging rules
+        shell: pwsh
+        run: |
+          $admissionDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound admission rules é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-admission-rules --save-dir $admissionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Admission rules writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-admission-rules --save-dir $admissionDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Admission rules verifier failed" }
+          Get-Content -LiteralPath (Join-Path $admissionDirectory "verification-admission-rules.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

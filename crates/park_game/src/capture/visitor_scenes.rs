@@ -9,6 +9,29 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
     };
     view.selected_guest = None;
     match scene {
+        Scene::VisitorPricing => {
+            p.set_park_entry_price(300).unwrap();
+            for _ in 0..900 {
+                p.advance(Speed::Normal);
+            }
+            view.selected_guest = p.guests().last().map(|g| g.id);
+            assert_eq!(p.visitor_flow_stats().admission_revenue_cents, 300);
+        }
+        Scene::VisitorDemand => {
+            p.set_park_entry_price(2_000).unwrap();
+            for _ in 0..900 {
+                p.advance(Speed::Normal);
+            }
+            assert_eq!(p.visitor_flow_stats().turned_away, 1);
+        }
+        Scene::VisitorFreeRides => {
+            p.set_park_entry_price(300).unwrap();
+            for _ in 0..900 {
+                p.advance(Speed::Normal);
+            }
+            p.set_charging_rule(park_sim::ChargingRule::FreeRides);
+            assert!(p.all_rides().all(|ride| ride.ticket_price_cents == 0));
+        }
         Scene::VisitorsClosed => {
             view.selected_guest = Some(visitors::paid_departure(p).unwrap());
             p.set_park_open(false);
@@ -56,6 +79,9 @@ mod tests {
         for scene in [
             Scene::VisitorsOff,
             Scene::VisitorsReady,
+            Scene::VisitorPricing,
+            Scene::VisitorDemand,
+            Scene::VisitorFreeRides,
             Scene::VisitorsClosed,
             Scene::VisitorsPaid,
             Scene::VisitorsTurnover,

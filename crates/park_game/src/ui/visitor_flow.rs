@@ -7,6 +7,7 @@ pub(crate) struct VisitorBody;
 pub(crate) enum VisitorLabel {
     Entry,
     Totals,
+    Pricing,
     Rules,
     Selected,
     Notice,
@@ -16,6 +17,9 @@ pub(crate) enum VisitorCommand {
     SetEntry,
     Toggle,
     TogglePark,
+    EntryDown,
+    EntryUp,
+    CycleRule,
     SendHome,
     Conflict,
 }
@@ -34,7 +38,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             height: px(350),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
-            row_gap: px(15),
+            row_gap: px(10),
             ..default()
         },
     ))
@@ -42,6 +46,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         for kind in [
             VisitorLabel::Entry,
             VisitorLabel::Totals,
+            VisitorLabel::Pricing,
             VisitorLabel::Rules,
             VisitorLabel::Selected,
         ] {
@@ -83,6 +88,30 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                 "Send guest home",
                 Action::Visitor(VisitorCommand::SendHome),
                 145.0,
+            );
+        });
+        p.spawn(Node {
+            justify_content: JustifyContent::SpaceBetween,
+            ..row()
+        })
+        .with_children(|p| {
+            button(
+                p,
+                "Entry -$0.50",
+                Action::Visitor(VisitorCommand::EntryDown),
+                145.0,
+            );
+            button(
+                p,
+                "Entry +$0.50",
+                Action::Visitor(VisitorCommand::EntryUp),
+                145.0,
+            );
+            button(
+                p,
+                "Next charging rule",
+                Action::Visitor(VisitorCommand::CycleRule),
+                185.0,
             );
         });
         p.spawn((
@@ -136,6 +165,30 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                 "Park closed. Current guests finish rides/services, then leave by the entry.".into()
             })
         }
+        VisitorCommand::EntryDown | VisitorCommand::EntryUp => {
+            let price = sim.0.visitor_flow_stats().entry_price_cents;
+            let next = if command == VisitorCommand::EntryDown {
+                price.saturating_sub(park_sim::PARK_ENTRY_PRICE_STEP_CENTS)
+            } else {
+                price
+                    .saturating_add(park_sim::PARK_ENTRY_PRICE_STEP_CENTS)
+                    .min(park_sim::MAX_PARK_ENTRY_PRICE_CENTS)
+            };
+            sim.0.set_park_entry_price(next).map(|_| {
+                format!(
+                    "Park entry set to {} for future arrivals.",
+                    money(u64::from(next))
+                )
+            })
+        }
+        VisitorCommand::CycleRule => {
+            let next = sim.0.visitor_flow_stats().charging_rule.next();
+            sim.0.set_charging_rule(next);
+            Ok(format!(
+                "Charging rule: {}. Restricted prices reset to zero; existing paid visits finish.",
+                next.label()
+            ))
+        }
         VisitorCommand::SendHome => view
             .selected_guest
             .ok_or(park_sim::VisitorError::UnknownGuest)
@@ -181,8 +234,15 @@ pub(crate) fn refresh(
                 money(s.departed_spent_cents),
                 money(s.departed_wallet_cents)
             ),
+            VisitorLabel::Pricing => format!(
+                "Entry price {} / Charging rule {} / {} declined entry\nLifetime park entry income {}. Price changes affect future arrivals only.",
+                money(u64::from(s.entry_price_cents)),
+                s.charging_rule.label(),
+                s.turned_away,
+                money(s.admission_revenue_cents)
+            ),
             VisitorLabel::Rules => format!(
-                "Park: {} / Arrivals: {}. One arrival per 30 simulation seconds, up to 64.\nTracked visits last 10 simulation minutes; existing larger crowds are preserved.\nClosing sends current guests home after rides/services; opening does not recall them.\nDepartures walk to entry. Space pauses activity. Wallets are visitor money.",
+                "Park: {} / Arrivals: {}. One candidate per 30 simulation seconds, up to 64.\nHigh entry prices can turn visitors away; admitted guests pay from their wallets.\nClosing sends current guests home after rides/services; opening does not recall them.\nFree entry blocks entry fees; Free rides blocks ride prices. Space pauses activity.",
                 if s.park_open { "OPEN" } else { "CLOSED" },
                 if s.enabled { "enabled" } else { "disabled" }
             ),

@@ -15,6 +15,7 @@ pub enum FinanceKind {
     HandymanWage,
     RideUpkeep,
     RideRevenue,
+    ParkAdmission,
     ServiceRevenue,
     ServiceUpkeep,
     ServiceSupplies,
@@ -31,6 +32,7 @@ impl FinanceKind {
             self,
             Self::LoanBorrow
                 | Self::RideRevenue
+                | Self::ParkAdmission
                 | Self::ServiceRevenue
                 | Self::RideDemolitionRefund
                 | Self::ServiceDemolitionRefund
@@ -65,6 +67,7 @@ impl std::fmt::Display for FinanceKind {
             Self::HandymanWage => "Handyman wage",
             Self::RideUpkeep => "Ride upkeep",
             Self::RideRevenue => "Ride tickets",
+            Self::ParkAdmission => "Park entry",
             Self::ServiceRevenue => "Service sale",
             Self::ServiceUpkeep => "Service upkeep",
             Self::ServiceSupplies => "Service supplies",
@@ -104,6 +107,8 @@ pub struct FinanceTotals {
     pub loan_repaid_cents: u64,
     pub loan_interest_cents: u64,
     pub ride_revenue_cents: u64,
+    #[serde(default)]
+    pub admission_revenue_cents: u64,
     pub service_revenue_cents: u64,
     pub upkeep_cents: u64,
     pub supplies_cents: u64,
@@ -132,6 +137,7 @@ impl FinanceTotals {
             FinanceKind::LoanRepayment => &mut self.loan_repaid_cents,
             FinanceKind::LoanInterest => &mut self.loan_interest_cents,
             FinanceKind::RideRevenue => &mut self.ride_revenue_cents,
+            FinanceKind::ParkAdmission => &mut self.admission_revenue_cents,
             FinanceKind::ServiceRevenue => &mut self.service_revenue_cents,
             FinanceKind::ServiceUpkeep | FinanceKind::RideUpkeep => &mut self.upkeep_cents,
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
@@ -150,6 +156,7 @@ impl FinanceTotals {
     fn balance(self, opening: u64) -> Option<u64> {
         (i128::from(opening)
             + i128::from(self.ride_revenue_cents)
+            + i128::from(self.admission_revenue_cents)
             + i128::from(self.service_revenue_cents)
             + i128::from(self.demolition_refunds_cents)
             + i128::from(self.loan_borrowed_cents)
@@ -399,6 +406,7 @@ pub struct FinanceStats {
     pub service_upkeep_cents: u64,
     pub cash_cents: u64,
     pub ride_revenue_cents: u64,
+    pub admission_revenue_cents: u64,
     pub service_revenue_cents: u64,
     pub upkeep_cents: u64,
     pub supplies_cents: u64,
@@ -475,6 +483,7 @@ impl Park {
             service_upkeep_cents,
             cash_cents: self.cash_cents,
             ride_revenue_cents,
+            admission_revenue_cents: self.visitors.admission_revenue_cents,
             service_revenue_cents,
             upkeep_cents,
             supplies_cents,
@@ -482,6 +491,7 @@ impl Park {
             demolition_refunds_cents,
             total_costs_cents,
             net_profit_cents: ride_revenue_cents as i64
+                + self.visitors.admission_revenue_cents as i64
                 + service_revenue_cents as i64
                 + demolition_refunds_cents as i64
                 - total_costs_cents as i64,
@@ -831,6 +841,11 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     archived_check.loan_interest_cents = archived_loans.loan_interest_cents;
     archived_check.wages_cents = archived_loans.wages_cents;
     archived_check.handyman_wages_cents = archived_loans.handyman_wages_cents;
+    let archived_admission = ledger.archived.admission_revenue_cents;
+    minimum_archived +=
+        u128::from(archived_admission).div_ceil(u128::from(crate::MAX_PARK_ENTRY_PRICE_CENTS));
+    maximum_archived += u128::from(archived_admission);
+    archived_check.admission_revenue_cents = archived_admission;
     if archived_check != ledger.archived
         || (ledger.archived_entries == 0
             && (ledger.archived != FinanceTotals::default()
@@ -863,7 +878,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             || (entry.tick == ledger.opening_tick
                 && !matches!(
                     entry.kind,
-                    FinanceKind::RideConstruction
+                    FinanceKind::ParkAdmission
+                        | FinanceKind::RideConstruction
                         | FinanceKind::RideDemolitionRefund
                         | FinanceKind::ServiceConstruction
                         | FinanceKind::ServiceDemolitionRefund
@@ -931,6 +947,14 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                     > (entry.tick - ledger.opening_tick) / u64::from(crate::HANDYMAN_WAGE_TICKS)
             {
                 return Err("handyman wage receipt is invalid".into());
+            }
+        } else if entry.kind == FinanceKind::ParkAdmission {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || entry.amount_cents > u64::from(crate::MAX_PARK_ENTRY_PRICE_CENTS)
+                || entry.tick == 0
+            {
+                return Err("park admission receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;
@@ -1095,6 +1119,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
     if ledger.next_entry_id != expected_id
         || balance != park.cash_cents
+        || total.admission_revenue_cents != park.visitors.admission_revenue_cents
         || ledger
             .opening_ride_revenue_cents
             .checked_add(total.ride_revenue_cents)
