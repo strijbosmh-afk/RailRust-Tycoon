@@ -67,7 +67,7 @@ impl Park {
                         .find(|h| h.ride == ride.id)
                         .map_or(0, |h| h.completed);
                     let family_penalty = match (self.ride_kind(ride.id), preferred) {
-                        (Some(RideKind::Swing), RideKind::Coaster) => 20,
+                        (Some(RideKind::Swing | RideKind::DropTower), RideKind::Coaster) => 20,
                         (Some(kind), preferred) if kind == preferred => 0,
                         _ => 80,
                     };

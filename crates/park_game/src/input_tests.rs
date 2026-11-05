@@ -32,6 +32,24 @@ mod terrain_input_tests;
 #[path = "track_input_tests.rs"]
 mod track_input_tests;
 
+#[test]
+fn fresh_park_starts_on_flat_ground_with_matching_terrain_control() {
+    let park = new_game_park();
+    let view = new_game_view();
+    assert_eq!(park.max_terrain_height(), 0);
+    assert_eq!(view.terrain_profile, TerrainProfile::Flat);
+    assert_eq!(view.path_tool.height, 0);
+    assert!(!view.terrain_custom);
+    assert!(
+        park.ride().is_some(),
+        "the starting coaster stays available"
+    );
+    assert_eq!(
+        Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+        park
+    );
+}
+
 fn crowd_park() -> Park {
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);
     park.apply_terrain_profile(TerrainProfile::Terraced);

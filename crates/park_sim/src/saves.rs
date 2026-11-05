@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 32;
-pub const CONTENT_VERSION: u32 = 32;
+pub const SCHEMA_VERSION: u32 = 33;
+pub const CONTENT_VERSION: u32 = 33;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -738,6 +738,7 @@ impl Park {
                 | 29
                 | 30
                 | 31
+                | 32
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -1030,6 +1031,9 @@ fn validate_flat_ride_kind_fields(bytes: &[u8], schema: u32) -> Result<(), SaveE
         }
         if schema >= 31 && kind.is_none() {
             return Err(invalid("schema 31 requires flat ride kind"));
+        }
+        if schema < 33 && kind.is_some_and(|value| value == "DropTower") {
+            return Err(invalid("drop tower requires schema 33"));
         }
     }
     Ok(())

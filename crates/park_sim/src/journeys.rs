@@ -416,6 +416,7 @@ impl Park {
                         Some(crate::RideKind::Coaster) => 22,
                         Some(crate::RideKind::Carousel) => 5,
                         Some(crate::RideKind::Swing) => 12,
+                        Some(crate::RideKind::DropTower) => 18,
                         None => 0,
                     };
                     let before = guest.needs.nausea;

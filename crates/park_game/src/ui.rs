@@ -143,6 +143,7 @@ pub(super) enum Action {
     CoasterTest(crate::coaster_testing::TestCommand),
     BuildCarousel,
     BuildSwing,
+    BuildDropTower,
     EditTrack,
     Track(crate::track_tools::TrackCommand),
     Design(crate::design_library::DesignCommand),
@@ -839,6 +840,7 @@ pub(super) fn button_actions(
                 Action::CloseRides if view.rides_open => Some(0),
                 Action::BuildCarousel if view.rides_open => Some(1),
                 Action::BuildSwing if view.rides_open => Some(4),
+                Action::BuildDropTower if view.rides_open => Some(5),
                 Action::EditTrack if view.rides_open => Some(3),
                 Action::Rides
                     if !view.help
@@ -861,6 +863,8 @@ pub(super) fn button_actions(
             view.choose_carousel();
         } else if transition == 4 {
             view.choose_swing();
+        } else if transition == 5 {
+            view.choose_drop_tower();
         } else {
             view.set_rides_modal(transition == 2);
         }
@@ -1095,6 +1099,7 @@ pub(super) fn button_actions(
             | Action::CloseRides
             | Action::BuildCarousel
             | Action::BuildSwing
+            | Action::BuildDropTower
             | Action::EditTrack
             | Action::BrowseRide(_) => {}
             Action::Track(command) => crate::track_tools::queue(&mut view, *command),
@@ -1283,7 +1288,7 @@ pub(super) fn refresh(
             Label::RideName=>ride_id.map_or("Choose ride [Y]".into(),|id|rides::name(&sim.0,id).into()),
             Label::Train if ride_id.and_then(|id|sim.0.carousel(id)).is_some()=> {
                 let carousel=sim.0.carousel(ride_id.unwrap()).unwrap();
-                let phase=if sim.0.ride_is_running(carousel.ride.id){if carousel.open{if carousel.kind==park_sim::RideKind::Swing {"Swinging"}else{"Spinning"}}else{"Finishing cycle"}}else if carousel.open{"Boarding / waiting"}else{"Closed"};
+                let phase=if sim.0.ride_is_running(carousel.ride.id){if carousel.open{match carousel.kind {park_sim::RideKind::Swing=>"Swinging",park_sim::RideKind::DropTower=>"Lifting / dropping",_=>"Spinning"}}else{"Finishing cycle"}}else if carousel.open{"Boarding / waiting"}else{"Closed"};
                 let seats=journey.as_ref().map_or(0,|s|s.boarding+s.riding+s.exiting);
                 format!("{phase}\nSeats {seats}/6 / Done {}",compact_count(journey.as_ref().map_or(0,|s|s.completed)))
             },
@@ -1490,7 +1495,7 @@ pub(super) fn refresh(
             }
             Label::Status if view.path_tool.mode==PathTool::Carousel=>{
                 let kind=view.path_tool.flat_ride_kind;
-                let cost=if kind==park_sim::RideKind::Swing {park_sim::SWING_BUILD_COST_CENTS}else{park_sim::CAROUSEL_BUILD_COST_CENTS};
+                let cost=match kind {park_sim::RideKind::Swing=>park_sim::SWING_BUILD_COST_CENTS,park_sim::RideKind::DropTower=>park_sim::DROP_TOWER_BUILD_COST_CENTS,_=>park_sim::CAROUSEL_BUILD_COST_CENTS};
                 format!("Build {kind} / {} / clear 3 x 3 footprint",money(cost))
             },
             Label::Status if matches!(view.path_tool.mode, PathTool::Scenery(_)) => {

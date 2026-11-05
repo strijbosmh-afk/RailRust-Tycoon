@@ -85,8 +85,8 @@ pub use admission::{
 };
 pub use carousel::{
     CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, CAROUSEL_RUN_TICKS, CAROUSEL_SEATS,
-    CarouselError, CarouselPhase, CarouselRide, MAX_CAROUSEL_RECORDS, MAX_RIDE_RECORDS, RideKind,
-    SWING_BUILD_COST_CENTS,
+    CarouselError, CarouselPhase, CarouselRide, DROP_TOWER_BUILD_COST_CENTS, MAX_CAROUSEL_RECORDS,
+    MAX_RIDE_RECORDS, RideKind, SWING_BUILD_COST_CENTS,
 };
 pub use crowds::{
     CrowdStats, Guest, GuestId, GuestPosition, GuestRideHistory, GuestState, PathCacheStats,
