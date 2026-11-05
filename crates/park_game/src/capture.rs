@@ -46,6 +46,7 @@ mod loan_scenes;
 mod name_scenery_scenes;
 mod opening_scenes;
 mod operations_scenes;
+mod patrol_scenes;
 mod queue_scenes;
 mod ride_choice_scenes;
 mod ride_cost_scenes;
@@ -99,6 +100,8 @@ enum Scene {
     MechanicMap,
     GroundsMap,
     BinsMap,
+    PatrolMap,
+    PatrolStats,
     Lost,
     Recovered,
     Train,
@@ -738,6 +741,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("mechanic-map") => Scene::MechanicMap,
                 Some("grounds-map") => Scene::GroundsMap,
                 Some("bins-map") => Scene::BinsMap,
+                Some("patrol-map") => Scene::PatrolMap,
+                Some("patrol-stats") => Scene::PatrolStats,
                 Some("lost") => Scene::Lost,
                 Some("recovered") => Scene::Recovered,
                 Some("train") => Scene::Train,
@@ -1313,6 +1318,9 @@ fn apply_preset(
     }
     if capture.scene.is_ride_choice() {
         ride_choice_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
+    if matches!(capture.scene, Scene::PatrolMap | Scene::PatrolStats) {
+        patrol_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
     if matches!(capture.scene, Scene::SwingMap | Scene::SwingRides) {
         swing_scenes::prepare(&mut sim.0, &mut view, capture.scene);

@@ -5,6 +5,7 @@ pub const GROUND_MESS_CAP: usize = 64;
 pub const GROUND_MESS_TICKS: u64 = 600;
 pub const GROUND_BIN_CAP: usize = 64;
 pub const GROUND_BIN_CAPACITY: u8 = 4;
+pub const HANDYMAN_PATROL_CAP: usize = 64;
 pub const HANDYMAN_WAGE_TICKS: u16 = 900;
 pub const HANDYMAN_WAGE_CENTS: u64 = 50;
 
@@ -19,6 +20,23 @@ pub struct GroundBin {
 pub enum GroundBinError {
     InvalidPath,
     AtCapacity,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PatrolError {
+    InvalidPath,
+    AtCapacity,
+}
+impl std::fmt::Display for PatrolError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::InvalidPath => "select a public path",
+            Self::AtCapacity => "patrol area limit reached",
+        })
+    }
+}
+
+const fn enabled() -> bool {
+    true
 }
 impl std::fmt::Display for GroundBinError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -74,6 +92,15 @@ pub(crate) struct GroundsState {
         deserialize_with = "crate::saves::bounded_objects::<_,_,GROUND_BIN_CAP>"
     )]
     pub bins: Vec<GroundBin>,
+    #[serde(
+        default,
+        deserialize_with = "crate::saves::bounded_vec::<_,_,HANDYMAN_PATROL_CAP>"
+    )]
+    pub patrol: Vec<ObjectId>,
+    #[serde(default = "enabled")]
+    pub clean_enabled: bool,
+    #[serde(default = "enabled")]
+    pub bins_enabled: bool,
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,GROUND_MESS_CAP>")]
     pub messes: Vec<GroundMess>,
     #[serde(deserialize_with = "crate::saves::strict_object")]
@@ -90,6 +117,9 @@ impl Default for GroundsState {
             wage_progress: 0,
             bins_emptied: 0,
             bins: Vec::new(),
+            patrol: Vec::new(),
+            clean_enabled: true,
+            bins_enabled: true,
             messes: Vec::new(),
             route: HandymanRoute::default(),
         }
@@ -108,6 +138,11 @@ pub struct GroundsStatus {
     pub bins: usize,
     pub full_bins: usize,
     pub bins_emptied: u64,
+    pub patrol_paths: usize,
+    pub clean_enabled: bool,
+    pub bins_enabled: bool,
+    pub uncovered_messes: usize,
+    pub uncovered_bins: usize,
     pub current_path: Option<ObjectId>,
     pub next_path: Option<ObjectId>,
     pub walk_progress: u16,
@@ -148,6 +183,19 @@ impl Park {
                 .filter(|bin| bin.fill == GROUND_BIN_CAPACITY)
                 .count(),
             bins_emptied: state.bins_emptied,
+            patrol_paths: state.patrol.len(),
+            clean_enabled: state.clean_enabled,
+            bins_enabled: state.bins_enabled,
+            uncovered_messes: state
+                .messes
+                .iter()
+                .filter(|mess| !self.can_clean_mess(mess))
+                .count(),
+            uncovered_bins: state
+                .bins
+                .iter()
+                .filter(|bin| bin.fill > 0 && !self.can_empty_bin(bin))
+                .count(),
             current_path: state.route.current,
             next_path: state.route.next,
             walk_progress: state.route.progress,
@@ -162,6 +210,65 @@ impl Park {
 
     pub fn ground_bins(&self) -> &[GroundBin] {
         &self.grounds.bins
+    }
+
+    pub fn handyman_patrol(&self) -> &[ObjectId] {
+        &self.grounds.patrol
+    }
+
+    fn in_handyman_patrol(&self, path: ObjectId) -> bool {
+        self.grounds.patrol.is_empty() || self.grounds.patrol.binary_search(&path).is_ok()
+    }
+
+    fn can_clean_mess(&self, mess: &GroundMess) -> bool {
+        self.grounds.clean_enabled && self.in_handyman_patrol(mess.path)
+    }
+
+    fn can_empty_bin(&self, bin: &GroundBin) -> bool {
+        self.grounds.bins_enabled && self.in_handyman_patrol(bin.path)
+    }
+
+    fn clear_handyman_target(&mut self) {
+        self.grounds.route.target = None;
+        self.grounds.route.target_bin = None;
+    }
+
+    /// Empty area means the whole connected park. Each edit preserves the
+    /// worker's current edge but discards a target that may no longer qualify.
+    pub fn toggle_handyman_patrol(&mut self, path: ObjectId) -> Result<bool, PatrolError> {
+        if self
+            .object(path)
+            .is_none_or(|object| !object.is_public_path())
+        {
+            return Err(PatrolError::InvalidPath);
+        }
+        if let Ok(index) = self.grounds.patrol.binary_search(&path) {
+            self.grounds.patrol.remove(index);
+            self.clear_handyman_target();
+            return Ok(false);
+        }
+        if self.grounds.patrol.len() == HANDYMAN_PATROL_CAP {
+            return Err(PatrolError::AtCapacity);
+        }
+        let index = self.grounds.patrol.partition_point(|id| *id < path);
+        self.grounds.patrol.insert(index, path);
+        self.grounds.active = true;
+        self.clear_handyman_target();
+        Ok(true)
+    }
+
+    pub fn toggle_handyman_cleaning(&mut self) -> bool {
+        self.grounds.active = true;
+        self.grounds.clean_enabled = !self.grounds.clean_enabled;
+        self.clear_handyman_target();
+        self.grounds.clean_enabled
+    }
+
+    pub fn toggle_handyman_bins(&mut self) -> bool {
+        self.grounds.active = true;
+        self.grounds.bins_enabled = !self.grounds.bins_enabled;
+        self.clear_handyman_target();
+        self.grounds.bins_enabled
     }
 
     /// Attach or remove one free bin on an existing public path. Installing a
@@ -322,13 +429,14 @@ impl Park {
                 .messes
                 .iter()
                 .find(|mess| mess.id == id)
+                .filter(|mess| self.can_clean_mess(mess))
                 .and_then(|mess| self.public_path_route(current, mess.path).map(|_| id))
         });
         let target_bin = self.grounds.route.target_bin.filter(|id| {
             self.grounds
                 .bins
                 .iter()
-                .any(|bin| bin.path == *id && bin.fill > 0)
+                .any(|bin| bin.path == *id && bin.fill > 0 && self.can_empty_bin(bin))
                 && self.public_path_route(current, *id).is_some()
         });
         let choice = if target.is_some() {
@@ -339,15 +447,20 @@ impl Park {
             None
         };
         let choice = choice.or_else(|| {
-            let mess = self.grounds.messes.iter().filter_map(|mess| {
-                let distance = self.public_path_route(current, mess.path)?.len();
-                Some(((distance, 0_u8, mess.id), (Some(mess.id), None)))
-            });
+            let mess = self
+                .grounds
+                .messes
+                .iter()
+                .filter(|mess| self.can_clean_mess(mess))
+                .filter_map(|mess| {
+                    let distance = self.public_path_route(current, mess.path)?.len();
+                    Some(((distance, 0_u8, mess.id), (Some(mess.id), None)))
+                });
             let bins = self
                 .grounds
                 .bins
                 .iter()
-                .filter(|bin| bin.fill > 0)
+                .filter(|bin| bin.fill > 0 && self.can_empty_bin(bin))
                 .filter_map(|bin| {
                     let distance = self.public_path_route(current, bin.path)?.len();
                     Some(((distance, 1_u8, bin.path.0), (None, Some(bin.path))))
@@ -397,6 +510,7 @@ impl Park {
     pub(crate) fn reconcile_grounds_after_removal(&mut self, removed: ObjectId) {
         self.grounds.messes.retain(|mess| mess.path != removed);
         self.grounds.bins.retain(|bin| bin.path != removed);
+        self.grounds.patrol.retain(|path| *path != removed);
         if self.grounds.route.current == Some(removed) {
             self.grounds.route = HandymanRoute::default();
         } else if self.grounds.route.next == Some(removed) {
@@ -471,6 +585,9 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
                 || state.next_mess_id != 1
                 || state.bins_emptied != 0
                 || !state.bins.is_empty()
+                || !state.patrol.is_empty()
+                || !state.clean_enabled
+                || !state.bins_enabled
                 || !state.messes.is_empty()
                 || state.route != HandymanRoute::default()))
         || (state.assigned && !state.active)
@@ -495,14 +612,18 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
                 .path_neighbors(state.route.current.unwrap())
                 .contains(&id)
         })
-        || state
-            .route
-            .target
-            .is_some_and(|id| !state.messes.iter().any(|mess| mess.id == id))
-        || state
-            .route
-            .target_bin
-            .is_some_and(|id| !state.bins.iter().any(|bin| bin.path == id && bin.fill > 0))
+        || state.route.target.is_some_and(|id| {
+            !state
+                .messes
+                .iter()
+                .any(|mess| mess.id == id && park.can_clean_mess(mess))
+        })
+        || state.route.target_bin.is_some_and(|id| {
+            !state
+                .bins
+                .iter()
+                .any(|bin| bin.path == id && bin.fill > 0 && park.can_empty_bin(bin))
+        })
     {
         return Err("grounds route or status is invalid".into());
     }
@@ -532,6 +653,20 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
         }
         prior_bin = Some(bin.path);
     }
+    if state.patrol.len() > HANDYMAN_PATROL_CAP {
+        return Err("handyman patrol exceeds its limit".into());
+    }
+    let mut prior_path = None;
+    for path in &state.patrol {
+        if prior_path.is_some_and(|prior| prior >= *path)
+            || park
+                .object(*path)
+                .is_none_or(|object| !object.is_public_path())
+        {
+            return Err("handyman patrol path is invalid".into());
+        }
+        prior_path = Some(*path);
+    }
     Ok(())
 }
 
@@ -546,6 +681,97 @@ mod tests {
         let dirt = park.place_path(TilePos { x: 6, y: 5 }, 0).unwrap();
         park.set_visitor_entry(entry).unwrap();
         (park, entry, dirt)
+    }
+
+    #[test]
+    fn patrol_limits_work_without_blocking_transit_and_duties_are_independent() {
+        let (mut park, _entry, near) = park();
+        let far = park.place_path(TilePos { x: 7, y: 5 }, 0).unwrap();
+        park.set_handyman_assigned(true);
+        park.grounds.messes = vec![
+            GroundMess {
+                id: 1,
+                path: near,
+                kind: GroundMessKind::Litter,
+            },
+            GroundMess {
+                id: 2,
+                path: far,
+                kind: GroundMessKind::Vomit,
+            },
+        ];
+        park.grounds.next_mess_id = 3;
+        assert_eq!(park.toggle_handyman_patrol(far), Ok(true));
+        park.advance(Speed::Normal);
+        assert_eq!(park.grounds_status().next_path, Some(near));
+        assert_eq!(park.grounds_status().target_mess, Some(2));
+        assert_eq!(park.grounds_status().uncovered_messes, 1);
+        for _ in 0..90 {
+            park.advance(Speed::Normal);
+        }
+        assert_eq!(park.ground_messes().len(), 1);
+        assert_eq!(park.ground_messes()[0].path, near);
+        assert_eq!(park.grounds_status().cleaned, 1);
+        assert!(!park.toggle_handyman_cleaning());
+        assert_eq!(park.toggle_handyman_patrol(far), Ok(false));
+        assert_eq!(park.toggle_ground_bin(near), Ok(true));
+        park.grounds.bins[0].fill = 2;
+        for _ in 0..90 {
+            park.advance(Speed::Normal);
+            if park.grounds.bins[0].fill == 0 {
+                break;
+            }
+        }
+        assert_eq!(park.grounds.bins[0].fill, 0);
+        assert_eq!(park.ground_messes().len(), 1);
+        assert!(!park.toggle_handyman_bins());
+        park.grounds.bins[0].fill = 1;
+        for _ in 0..90 {
+            park.advance(Speed::Normal);
+        }
+        assert_eq!(park.grounds.bins[0].fill, 1);
+        assert_eq!(park.grounds_status().uncovered_bins, 1);
+        assert!(park.grounds_status().uncovered_messes > 0);
+    }
+
+    #[test]
+    fn patrol_demolition_and_schema_31_migration_are_strict() {
+        let (mut park, _entry, path) = park();
+        let original = park.clone();
+        let mut old: serde_json::Value =
+            serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        old["schema_version"] = 31.into();
+        old["content_version"] = 31.into();
+        for field in ["patrol", "clean_enabled", "bins_enabled"] {
+            old["park"]["grounds"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+        }
+        assert_eq!(
+            Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap(),
+            original
+        );
+        old["park"]["grounds"]["patrol"] = serde_json::json!([]);
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).is_err());
+        let mut current: serde_json::Value =
+            serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        current["park"]["grounds"]
+            .as_object_mut()
+            .unwrap()
+            .remove("bins_enabled");
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
+        assert_eq!(park.toggle_handyman_patrol(path), Ok(true));
+        park.remove_object(path).unwrap();
+        assert!(park.handyman_patrol().is_empty());
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+        let mut forged: serde_json::Value =
+            serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        forged["park"]["grounds"]["patrol"] = serde_json::json!([path]);
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&forged).unwrap()).is_err());
     }
 
     #[test]
@@ -738,6 +964,9 @@ mod tests {
         grounds.remove("bins");
         grounds.remove("bins_emptied");
         grounds.remove("wage_progress");
+        grounds.remove("patrol");
+        grounds.remove("clean_enabled");
+        grounds.remove("bins_enabled");
         grounds["route"]
             .as_object_mut()
             .unwrap()

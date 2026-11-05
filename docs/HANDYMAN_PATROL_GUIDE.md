@@ -1,0 +1,7 @@
+# Handyman patrol and duties — player guide (0.62.0)
+
+Select a public path, then use **Build → Patrol path** to add or remove that tile from the handyman's patrol area. Cyan path marks show the selected area. Up to 64 path tiles may be marked. An empty area means the worker may cover the whole connected park. Marking and unmarking tiles is free; removing a marked path also removes it from the area.
+
+Open **Guests [L] → Park stats** to assign or dismiss the handyman and switch **Cleaning** and **Empty bins** independently. A worker can walk through public paths outside the marked area to reach an allowed task, but performs the enabled duties only on marked paths. Disabling both duties leaves an assigned worker idle while wages continue. The panel shows how many messy paths and used bins fall outside the current duty/area coverage. Existing bin capacity, wages and cleaning rules still apply.
+
+Patrol edits and duty changes discard a task that is no longer allowed. A worker already walking finishes the current path edge, then chooses an eligible target. The area, switches and in-flight position survive strict park saves **32/32**. Version 31 saves migrate to the historical whole-park, both-duties-on policy. Close the game and transfer the primary and `.bak` saves together when moving PCs. The shared OneDrive source checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; see [the cross-PC handoff](../RESUME_DEVELOPMENT.md).

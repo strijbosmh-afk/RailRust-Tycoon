@@ -388,6 +388,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-swing --save-dir $swingDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Swing verification failed" }
           Get-Content -LiteralPath (Join-Path $swingDirectory "verification-swing.txt")
+      - name: Verify handyman patrol and duties continuation
+        shell: pwsh
+        run: |
+          $patrolDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound patrol é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-patrol --save-dir $patrolDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Patrol writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-patrol --save-dir $patrolDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Patrol verifier failed" }
+          Get-Content -LiteralPath (Join-Path $patrolDirectory "verification-patrol.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:
