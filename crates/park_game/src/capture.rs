@@ -76,6 +76,7 @@ enum Scene {
     NamesCarousel,
     Scenery,
     GuestStats,
+    GroundsStats,
     GuestTrends,
     GuestTriage,
     GuestRepair,
@@ -94,6 +95,7 @@ enum Scene {
     Crowd,
     VisitorLooks,
     MechanicMap,
+    GroundsMap,
     Lost,
     Recovered,
     Train,
@@ -709,6 +711,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("names-carousel") => Scene::NamesCarousel,
                 Some("scenery") => Scene::Scenery,
                 Some("guest-stats") => Scene::GuestStats,
+                Some("grounds-stats") => Scene::GroundsStats,
                 Some("guest-trends") => Scene::GuestTrends,
                 Some("guest-triage") => Scene::GuestTriage,
                 Some("guest-repair") => Scene::GuestRepair,
@@ -726,6 +729,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("crowd") => Scene::Crowd,
                 Some("visitor-looks") => Scene::VisitorLooks,
                 Some("mechanic-map") => Scene::MechanicMap,
+                Some("grounds-map") => Scene::GroundsMap,
                 Some("lost") => Scene::Lost,
                 Some("recovered") => Scene::Recovered,
                 Some("train") => Scene::Train,
@@ -1208,6 +1212,49 @@ fn apply_preset(
             + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
         view.scene_dirty = true;
     }
+    if matches!(capture.scene, Scene::GroundsMap) {
+        let entry = sim
+            .0
+            .objects()
+            .iter()
+            .find(|path| path.is_public_path() && path.pos == (TilePos { x: 13, y: 16 }))
+            .expect("capture public path")
+            .id;
+        sim.0.set_visitor_entry(entry).expect("capture entry");
+        sim.0.set_handyman_assigned(true);
+        sim.0.set_handyman_assigned(false);
+        for _ in 0..12_000 {
+            if !sim.0.ground_messes().is_empty() {
+                break;
+            }
+            sim.0.advance(Speed::Normal);
+        }
+        assert!(
+            !sim.0.ground_messes().is_empty(),
+            "capture requires natural grounds mess"
+        );
+        let dirt = sim.0.ground_messes()[0].path;
+        sim.0.set_handyman_assigned(true);
+        for _ in 0..3_000 {
+            let status = sim.0.grounds_status();
+            if status.next_path == Some(dirt) && (7..=16).contains(&status.walk_progress) {
+                break;
+            }
+            sim.0.advance(Speed::Normal);
+        }
+        let status = sim.0.grounds_status();
+        assert_eq!(
+            status.next_path,
+            Some(dirt),
+            "capture handyman must approach dirt"
+        );
+        assert!((7..=16).contains(&status.walk_progress));
+        let point = sim.0.object(dirt).expect("capture mess path").pos;
+        view.zoom = 3.0;
+        view.pan = world::tile_center(point, MAP_SIZE, view.rotation)
+            + Vec2::Y * (8.0 - f32::from(sim.0.max_surface_height()) * 0.5) * world::HEIGHT_STEP;
+        view.scene_dirty = true;
+    }
     if matches!(capture.scene, Scene::Path | Scene::Track) {
         let point = world::surface_center(&sim.0, view.selected.unwrap(), view.rotation)
             .expect("selected capture object must have geometry");
@@ -1276,6 +1323,7 @@ fn apply_preset(
     if matches!(
         capture.scene,
         Scene::GuestStats
+            | Scene::GroundsStats
             | Scene::GuestTrends
             | Scene::GuestTriage
             | Scene::GuestRepair

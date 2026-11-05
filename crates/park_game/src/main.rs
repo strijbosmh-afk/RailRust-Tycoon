@@ -123,6 +123,7 @@ struct ViewState {
     guest_flow_pending: bool,
     guest_stats_view: bool,
     guest_stats_pending: bool,
+    handyman_toggle_pending: bool,
     park_generation: u64,
     visitor_pending: Option<ui::visitor_flow::VisitorCommand>,
     visitor_notice: Option<String>,
@@ -210,6 +211,7 @@ impl Default for ViewState {
             guest_flow_pending: false,
             guest_stats_view: false,
             guest_stats_pending: false,
+            handyman_toggle_pending: false,
             park_generation: 0,
             visitor_pending: None,
             visitor_notice: None,
@@ -454,6 +456,7 @@ struct SceneMeshes {
     selection: Handle<Mesh>,
     path_preview: Handle<Mesh>,
     guests: Handle<Mesh>,
+    grounds: Handle<Mesh>,
     train: Handle<Mesh>,
     guest_renderer: world::GuestRenderer,
 }
@@ -553,6 +556,7 @@ fn main() -> AppExit {
                     ui::appearance::apply,
                     ui::finance::apply_commands,
                     ui::visitor_flow::apply_commands,
+                    apply_grounds_action,
                     apply_service_actions,
                     track_tools::apply_commands,
                     pointer_input,
@@ -627,6 +631,7 @@ fn setup_scene(
     let mut guest_mesh = world::GuestRenderer::empty_mesh();
     guest_renderer.update(&mut guest_mesh, &sim.0, view.rotation, view.view_mode);
     let guests = meshes.add(guest_mesh);
+    let grounds = meshes.add(world::grounds_mesh(&sim.0, view.rotation, view.view_mode));
     let train = meshes.add(world::train_mesh(&sim.0, view.rotation, view.view_mode));
     let path_preview = meshes.add(world::path_preview_mesh(None, &sim.0, view.rotation));
     let preview_material = materials.add(ColorMaterial {
@@ -647,6 +652,11 @@ fn setup_scene(
         NoFrustumCulling,
     ));
     commands.spawn((
+        Mesh2d(grounds.clone()),
+        MeshMaterial2d(material.clone()),
+        NoFrustumCulling,
+    ));
+    commands.spawn((
         Mesh2d(path_preview.clone()),
         MeshMaterial2d(preview_material),
         NoFrustumCulling,
@@ -660,12 +670,21 @@ fn setup_scene(
         selection,
         path_preview,
         guests,
+        grounds,
         train,
         guest_renderer,
     });
     // Startup has already built this view. A later capture preset or edit can
     // dirty it again; a normal large preview need not build its geometry twice.
     view.scene_dirty = false;
+}
+
+fn apply_grounds_action(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.handyman_toggle_pending {
+        view.handyman_toggle_pending = false;
+        let assigned = sim.0.grounds_status().assigned;
+        sim.0.set_handyman_assigned(!assigned);
+    }
 }
 
 fn tick_simulation(
@@ -1545,6 +1564,9 @@ fn update_scene(
         }
         if let Some(mesh) = meshes.get_mut(&scene.train) {
             *mesh = world::train_mesh(&sim.0, view.rotation, view.view_mode);
+        }
+        if let Some(mesh) = meshes.get_mut(&scene.grounds) {
+            *mesh = world::grounds_mesh(&sim.0, view.rotation, view.view_mode);
         }
         *last_guests = Some(guest_snapshot);
     }

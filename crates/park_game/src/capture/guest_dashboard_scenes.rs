@@ -10,6 +10,7 @@ pub(super) fn prepare(
     assert!(matches!(
         scene,
         Scene::GuestStats
+            | Scene::GroundsStats
             | Scene::GuestTrends
             | Scene::GuestTriage
             | Scene::GuestRepair
@@ -47,6 +48,27 @@ pub(super) fn prepare(
         if matches!(scene, Scene::GuestRepairMap) {
             assert!(crate::ui::guests::prepare_repair(park, view));
         }
+    } else if matches!(scene, Scene::GroundsStats) {
+        let entry = park
+            .objects()
+            .iter()
+            .find(|path| path.is_public_path() && path.pos == (TilePos { x: 13, y: 16 }))
+            .expect("capture public path")
+            .id;
+        park.set_visitor_entry(entry).expect("capture entry");
+        park.set_handyman_assigned(true);
+        park.set_handyman_assigned(false);
+        for _ in 0..12_000 {
+            if !park.ground_messes().is_empty() {
+                break;
+            }
+            park.advance(Speed::Normal);
+        }
+        assert!(!park.ground_messes().is_empty());
+        park.set_handyman_assigned(true);
+        view.guests_open = true;
+        view.guest_stats_view = true;
+        view.guest_flow_view = false;
     } else if matches!(
         scene,
         Scene::GuestStats | Scene::GuestTrends | Scene::GuestTriage

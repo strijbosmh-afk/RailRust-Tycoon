@@ -226,6 +226,7 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         .as_object_mut()
         .unwrap()
         .remove("mechanic_route");
+    current["park"].as_object_mut().unwrap().remove("grounds");
     current["park"]
         .as_object_mut()
         .unwrap()

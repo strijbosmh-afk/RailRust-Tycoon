@@ -1258,6 +1258,146 @@ pub fn selection_with_guest_mesh(
 /// Moving people have their own mesh so a simulation tick never has to
 /// regenerate the static terrain. They are decorations of authoritative guest
 /// state for now; clicking through a person still inspects the path beneath.
+pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
+    let mut mesh = Painter::default();
+    if park.width() != park.height() {
+        return mesh.finish();
+    }
+    for mess in park.ground_messes() {
+        let Some(path) = park.object(mess.path) else {
+            continue;
+        };
+        if !object_visible(park, path, mode) {
+            continue;
+        }
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let point = base.truncate() + Vec2::new(7.0, -1.5);
+        match mess.kind {
+            park_sim::GroundMessKind::Litter => {
+                mesh.surface_ellipse(roof, point, 6.0, 2.4, DETAIL_BIAS * 3.0, rgb(112, 80, 66));
+                mesh.surface_ellipse(
+                    roof,
+                    point + Vec2::new(-2.3, 1.0),
+                    2.5,
+                    1.8,
+                    DETAIL_BIAS * 4.0,
+                    rgb(247, 204, 55),
+                );
+                mesh.surface_ellipse(
+                    roof,
+                    point + Vec2::new(2.5, -0.5),
+                    1.7,
+                    1.6,
+                    DETAIL_BIAS * 4.0,
+                    rgb(237, 77, 69),
+                );
+            }
+            park_sim::GroundMessKind::Vomit => {
+                mesh.surface_ellipse(roof, point, 7.3, 3.5, DETAIL_BIAS * 3.0, rgb(83, 127, 58));
+                mesh.surface_ellipse(
+                    roof,
+                    point + Vec2::new(1.2, 0.7),
+                    3.9,
+                    1.5,
+                    DETAIL_BIAS * 4.0,
+                    rgb(163, 184, 79),
+                );
+            }
+        }
+    }
+    if let Some(point) = park.handyman_position() {
+        let status = park.grounds_status();
+        if let Some(current) = status.current_path.and_then(|id| park.object(id))
+            && object_visible(park, current, mode)
+        {
+            let base = project_path_point(point, park.width(), rotation);
+            let feet = base.truncate();
+            for id in [status.current_path, status.next_path]
+                .into_iter()
+                .flatten()
+            {
+                if let Some(path) = park.object(id) {
+                    mesh.surface_ellipse(
+                        object_surfaces(park, path, rotation)[0],
+                        feet,
+                        5.0,
+                        2.5,
+                        DETAIL_BIAS * 3.0,
+                        rgb(57, 92, 69),
+                    );
+                }
+            }
+            let depth = base.z + 0.04;
+            for side in [-1.8, 1.8] {
+                mesh.line(
+                    feet + Vec2::new(side, 8.0),
+                    feet + Vec2::new(side, 0.7),
+                    2.4,
+                    depth,
+                    rgb(43, 61, 57),
+                );
+            }
+            mesh.quad(
+                [
+                    feet + Vec2::new(-4.0, 7.0),
+                    feet + Vec2::new(4.0, 7.0),
+                    feet + Vec2::new(3.4, 17.0),
+                    feet + Vec2::new(-3.4, 17.0),
+                ],
+                depth + 0.001,
+                rgb(58, 166, 92),
+            );
+            mesh.line(
+                feet + Vec2::new(-3.2, 11.2),
+                feet + Vec2::new(3.0, 11.2),
+                1.5,
+                depth + 0.0015,
+                rgb(246, 219, 87),
+            );
+            mesh.line(
+                feet + Vec2::new(3.0, 15.5),
+                feet + Vec2::new(6.7, 9.5),
+                1.6,
+                depth + 0.0017,
+                rgb(231, 179, 127),
+            );
+            mesh.ellipse(
+                feet + Vec2::new(0.0, 20.0),
+                3.2,
+                3.7,
+                depth + 0.002,
+                rgb(231, 179, 127),
+            );
+            mesh.ellipse(
+                feet + Vec2::new(0.0, 23.0),
+                4.0,
+                1.7,
+                depth + 0.003,
+                rgb(255, 225, 88),
+            );
+            mesh.line(
+                feet + Vec2::new(5.0, 15.0),
+                feet + Vec2::new(10.0, -2.0),
+                1.4,
+                depth + 0.004,
+                rgb(151, 91, 45),
+            );
+            mesh.line(
+                feet + Vec2::new(7.0, 1.0),
+                feet + Vec2::new(14.0, 0.0),
+                2.0,
+                depth + 0.005,
+                rgb(192, 153, 71),
+            );
+        }
+    }
+    mesh.finish()
+}
+
 pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     let mut mesh = Painter::default();
     if park.width() != park.height() {
