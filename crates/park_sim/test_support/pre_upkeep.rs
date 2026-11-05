@@ -2,6 +2,7 @@
 // never used by production readers or authentic old-binary migration proofs.
 pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
     use serde_json::json;
+    strip_park_open(value);
     if value["schema_version"].as_u64().is_some_and(|v| v <= 30)
         && let Some(rides) = value
             .get_mut("park")
@@ -202,6 +203,17 @@ pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
         id += 1;
     }
     ledger["next_entry_id"] = json!(id);
+}
+
+pub(crate) fn strip_park_open(value: &mut serde_json::Value) {
+    if value["schema_version"].as_u64().is_some_and(|v| v <= 33)
+        && let Some(flow) = value
+            .get_mut("park")
+            .and_then(|park| park.get_mut("visitors"))
+            .and_then(serde_json::Value::as_object_mut)
+    {
+        flow.remove("park_open");
+    }
 }
 
 fn project_pre_loan(value: &mut serde_json::Value) {

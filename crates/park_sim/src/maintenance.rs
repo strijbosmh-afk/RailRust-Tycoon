@@ -192,6 +192,7 @@ mod tests {
             .remove("handyman_wages_cents");
         old["schema_version"] = 25.into();
         old["content_version"] = 25.into();
+        crate::legacy_cost_test_support::strip_park_open(&mut old);
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();
         assert!(migrated.maintenance.is_empty());
         assert_eq!(

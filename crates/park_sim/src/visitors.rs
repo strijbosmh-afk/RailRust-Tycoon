@@ -26,18 +26,36 @@ pub(crate) struct VisitorStay {
     pub entered_tick: u64,
     pub leaving: bool,
 }
-#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct VisitorFlow {
     #[serde(deserialize_with = "crate::saves::required_option")]
     pub entry: Option<ObjectId>,
     pub enabled: bool,
+    #[serde(default = "park_open_default")]
+    pub park_open: bool,
     pub arrival_progress: u16,
     pub spawned: u64,
     #[serde(deserialize_with = "crate::saves::strict_object")]
     pub departed: DepartedVisitors,
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,256>")]
     pub stays: Vec<VisitorStay>,
+}
+fn park_open_default() -> bool {
+    true
+}
+impl Default for VisitorFlow {
+    fn default() -> Self {
+        Self {
+            entry: None,
+            enabled: false,
+            park_open: true,
+            arrival_progress: 0,
+            spawned: 0,
+            departed: DepartedVisitors::default(),
+            stays: Vec::new(),
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum WalkGoal {
@@ -63,6 +81,7 @@ impl VisitorFlow {
 pub struct VisitorFlowStats {
     pub entry: Option<ObjectId>,
     pub enabled: bool,
+    pub park_open: bool,
     pub active: usize,
     pub tracked: usize,
     pub leaving: usize,
@@ -105,6 +124,7 @@ impl Park {
         VisitorFlowStats {
             entry: self.visitors.entry,
             enabled: self.visitors.enabled,
+            park_open: self.visitors.park_open,
             active: self.guests.len(),
             tracked: self.visitors.stays.len(),
             leaving: leaving.clone().count(),
@@ -156,6 +176,23 @@ impl Park {
         self.visitors.enabled = enabled;
         Ok(())
     }
+    pub fn set_park_open(&mut self, open: bool) {
+        if self.visitors.park_open == open {
+            return;
+        }
+        self.visitors.park_open = open;
+        if !open {
+            self.visitors.arrival_progress = 0;
+            if !self.guests.is_empty() && self.crowd_seed.is_none() {
+                self.crowd_seed = Some(0);
+            }
+            let ids = self.guests.iter().map(|g| g.id).collect::<Vec<_>>();
+            for id in ids {
+                self.request_guest_departure(id)
+                    .expect("a current guest can always be marked for departure");
+            }
+        }
+    }
     pub fn request_guest_departure(&mut self, id: GuestId) -> Result<(), VisitorError> {
         if !self.guests.iter().any(|g| g.id == id) {
             return Err(VisitorError::UnknownGuest);
@@ -179,7 +216,7 @@ impl Park {
                 stay.leaving = true;
             }
         }
-        if !self.visitors.enabled || !self.visitor_entry_ready() {
+        if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
             return;
         }
         if self.visitors.arrival_progress < VISITOR_ARRIVAL_TICKS - 1 {
@@ -302,6 +339,8 @@ pub(crate) fn validate(p: &Park) -> Result<(), String> {
     if (p.crowd_seed.is_none()
         && (f.enabled || f.spawned != 0 || a.count != 0 || !f.stays.is_empty()))
         || (f.enabled && f.stays.len() != p.guests.len())
+        || (!f.park_open && p.guests.iter().any(|g| !f.leaving(g.id)))
+        || (!f.park_open && f.arrival_progress != 0)
         || f.arrival_progress >= VISITOR_ARRIVAL_TICKS
         || f.spawned > VISITOR_LIFETIME_CAP
         || a.count > VISITOR_LIFETIME_CAP

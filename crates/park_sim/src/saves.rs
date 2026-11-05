@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 33;
-pub const CONTENT_VERSION: u32 = 33;
+pub const SCHEMA_VERSION: u32 = 34;
+pub const CONTENT_VERSION: u32 = 34;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -739,6 +739,7 @@ impl Park {
                 | 30
                 | 31
                 | 32
+                | 33
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -754,6 +755,7 @@ impl Park {
         validate_handyman_bin_fields(bytes, header.schema_version)?;
         validate_handyman_patrol_fields(bytes, header.schema_version)?;
         validate_flat_ride_kind_fields(bytes, header.schema_version)?;
+        validate_park_open_field(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -1009,6 +1011,21 @@ fn validate_handyman_patrol_fields(bytes: &[u8], schema: u32) -> Result<(), Save
     }
     if schema >= 32 && count != fields.len() {
         return Err(invalid("schema 32 requires handyman patrol and duties"));
+    }
+    Ok(())
+}
+
+fn validate_park_open_field(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 21 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let present = value["park"]["visitors"].get("park_open").is_some();
+    if schema < 34 && present {
+        return Err(invalid("park opening requires schema 34"));
+    }
+    if schema >= 34 && !present {
+        return Err(invalid("schema 34 requires park opening state"));
     }
     Ok(())
 }

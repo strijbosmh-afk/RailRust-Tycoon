@@ -999,6 +999,7 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
     let mut old: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
     old["schema_version"] = json!(24);
     old["content_version"] = json!(24);
+    crate::legacy_cost_test_support::strip_park_open(&mut old);
     old["park"].as_object_mut().unwrap().remove("maintenance");
     old["park"]
         .as_object_mut()

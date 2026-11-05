@@ -59,6 +59,7 @@ fn schema_30_migrates_carousel_kind_and_current_requires_valid_kind() {
     let mut old = current.clone();
     old["schema_version"] = json!(30);
     old["content_version"] = json!(30);
+    crate::legacy_cost_test_support::strip_park_open(&mut old);
     for field in ["patrol", "clean_enabled", "bins_enabled"] {
         old["park"]["grounds"]
             .as_object_mut()
@@ -186,6 +187,7 @@ fn drop_tower_lift_drop_and_schema_32_boundary() {
     let mut old = value(&legacy);
     old["schema_version"] = json!(32);
     old["content_version"] = json!(32);
+    crate::legacy_cost_test_support::strip_park_open(&mut old);
     assert_eq!(read(&old).unwrap(), legacy);
 }
 /// Establish valid elapsed, fixed-cost service history without running unrelated

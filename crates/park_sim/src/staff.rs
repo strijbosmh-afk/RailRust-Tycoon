@@ -316,6 +316,7 @@ mod tests {
         let mut prior = current.clone();
         prior["schema_version"] = 27.into();
         prior["content_version"] = 27.into();
+        crate::legacy_cost_test_support::strip_park_open(&mut prior);
         prior["park"]
             .as_object_mut()
             .unwrap()
@@ -336,6 +337,7 @@ mod tests {
         let mut old = current.clone();
         old["schema_version"] = 26.into();
         old["content_version"] = 26.into();
+        crate::legacy_cost_test_support::strip_park_open(&mut old);
         let body = old["park"].as_object_mut().unwrap();
         body.remove("mechanic_route");
         body.remove("grounds");
