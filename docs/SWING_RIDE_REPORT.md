@@ -1,5 +1,7 @@
 # Skyward Swing stage report — 0.61.0
 
+Runtime source commit `9bdf23e62e3130b21c19a46c95361915d222babf` is on `codex/swing-ride` in [draft PR #61](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/61), stacked on PR #60.
+
 ## Scope
 
 This stage introduces an original swinging flat ride beside the existing carousel. Construction, clearance, entrance/queue/exit connectivity, boarding, six paid seats, guest choice, ride-specific income and upkeep, maintenance, reviews, paint, rename, demolition and save/load all use the established ride contracts. The motion and original procedural A-frame/gondola geometry differ from the carousel. No external asset or dependency is introduced.
