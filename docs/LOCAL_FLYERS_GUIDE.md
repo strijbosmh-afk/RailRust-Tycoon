@@ -1,0 +1,9 @@
+# Local flyer advertising — 0.66.0
+
+Open **Guests [L] → Visitor flow**. Set a connected public-path entry, enable arrivals and keep the park open. Choose **Run flyers $25** to buy a local flyer campaign. It costs $25.00 immediately, runs for five simulation minutes and lets a visitor consider entering every 15 simulation seconds instead of every 30. The panel shows the time remaining, campaigns bought and candidates who arrived during campaigns.
+
+The park can run one campaign at a time. The button refuses a second purchase while flyers are active or when the park lacks $25.00. Starting a campaign also requires the park to be open with arrivals enabled and a connected entry. Closing the park or disabling arrivals after purchase does not refund or pause the campaign; its clock continues with simulation time. Space pauses the whole simulation, including its clock. When the campaign expires, the usual 30-second candidate interval returns.
+
+Flyers increase the number of chances for a visitor to enter. The existing $0–$20 entry price, willingness check, active-guest limit and path requirements still apply. An arrival during a campaign can still decline a high price. The **Candidates during ads** count describes arrivals considered while flyers are active; it is not a claim that every one was caused by the campaign. Finance lists **Local flyers** as a separate $25.00 expense and includes it in operating profit and cash reconciliation.
+
+Campaign time, purchases and candidates are saved with the park in strict schema/content **36/36**. Version-35 and older parks load with no active campaign or advertising history. Older executables cannot read version-36 saves. Player primary and `.bak` saves live in `%LOCALAPPDATA%\Parkbound\saves`; the source checkout is separate. See [RESUME_DEVELOPMENT.md](../RESUME_DEVELOPMENT.md) to continue on another PC. New games still start on flat terrain.

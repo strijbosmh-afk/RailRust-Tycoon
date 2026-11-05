@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 35;
-pub const CONTENT_VERSION: u32 = 35;
+pub const SCHEMA_VERSION: u32 = 36;
+pub const CONTENT_VERSION: u32 = 36;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -741,6 +741,7 @@ impl Park {
                 | 32
                 | 33
                 | 34
+                | 35
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -758,6 +759,7 @@ impl Park {
         validate_flat_ride_kind_fields(bytes, header.schema_version)?;
         validate_park_open_field(bytes, header.schema_version)?;
         validate_admission_fields(bytes, header.schema_version)?;
+        validate_flyer_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -1061,6 +1063,36 @@ fn validate_admission_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError>
         return Err(invalid(
             "schema 35 requires park admission and charging rules",
         ));
+    }
+    Ok(())
+}
+
+fn validate_flyer_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 21 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let fields = [
+        "flyer_ticks_remaining",
+        "flyer_campaigns",
+        "flyer_candidates",
+    ];
+    let flow = &value["park"]["visitors"];
+    let count = fields
+        .iter()
+        .filter(|field| flow.get(**field).is_some())
+        .count();
+    let archived = value["park"]["finances"]["archived"]
+        .get("advertising_cents")
+        .is_some();
+    let receipt = value["park"]["finances"]["entries"]
+        .as_array()
+        .is_some_and(|entries| entries.iter().any(|entry| entry["kind"] == "Advertising"));
+    if schema < 36 && (count != 0 || archived || receipt) {
+        return Err(invalid("local flyers require schema 36"));
+    }
+    if schema >= 36 && (count != fields.len() || !archived) {
+        return Err(invalid("schema 36 requires local flyer state"));
     }
     Ok(())
 }

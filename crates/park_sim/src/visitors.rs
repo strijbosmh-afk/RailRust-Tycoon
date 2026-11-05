@@ -6,6 +6,9 @@ pub const VISITOR_ARRIVAL_TICKS: u16 = 900;
 pub const VISITOR_STAY_TICKS: u64 = 18_000;
 pub const VISITOR_ACTIVE_CAP: usize = 64;
 pub const VISITOR_LIFETIME_CAP: u64 = 1_000_000;
+pub const FLYER_CAMPAIGN_COST_CENTS: u64 = 2_500;
+pub const FLYER_CAMPAIGN_TICKS: u16 = 9_000;
+pub const FLYER_ARRIVAL_TICKS: u16 = 450;
 pub const MAX_PARK_ENTRY_PRICE_CENTS: u16 = 2_000;
 pub const PARK_ENTRY_PRICE_STEP_CENTS: u16 = 50;
 
@@ -68,6 +71,12 @@ pub(crate) struct VisitorFlow {
     pub admission_revenue_cents: u64,
     #[serde(default)]
     pub turned_away: u64,
+    #[serde(default)]
+    pub flyer_ticks_remaining: u16,
+    #[serde(default)]
+    pub flyer_campaigns: u64,
+    #[serde(default)]
+    pub flyer_candidates: u64,
     pub arrival_progress: u16,
     pub spawned: u64,
     #[serde(deserialize_with = "crate::saves::strict_object")]
@@ -88,6 +97,9 @@ impl Default for VisitorFlow {
             charging_rule: ChargingRule::Flexible,
             admission_revenue_cents: 0,
             turned_away: 0,
+            flyer_ticks_remaining: 0,
+            flyer_campaigns: 0,
+            flyer_candidates: 0,
             arrival_progress: 0,
             spawned: 0,
             departed: DepartedVisitors::default(),
@@ -124,6 +136,9 @@ pub struct VisitorFlowStats {
     pub charging_rule: ChargingRule,
     pub admission_revenue_cents: u64,
     pub turned_away: u64,
+    pub flyer_ticks_remaining: u16,
+    pub flyer_campaigns: u64,
+    pub flyer_candidates: u64,
     pub active: usize,
     pub tracked: usize,
     pub leaving: usize,
@@ -143,6 +158,9 @@ pub enum VisitorError {
     Capacity,
     EntryPriceTooHigh,
     ChargingRuleRestricted,
+    CampaignAlreadyActive,
+    CampaignNeedsArrivals,
+    CampaignUnaffordable,
 }
 impl std::fmt::Display for VisitorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -153,6 +171,9 @@ impl std::fmt::Display for VisitorError {
             Self::Capacity => "Visitor tracking capacity is exhausted",
             Self::EntryPriceTooHigh => "Entry price cannot exceed $20.00",
             Self::ChargingRuleRestricted => "Current charging rule does not permit this price",
+            Self::CampaignAlreadyActive => "Local flyers are already running",
+            Self::CampaignNeedsArrivals => "Open the park, set an entry and enable arrivals first",
+            Self::CampaignUnaffordable => "Not enough park cash for local flyers",
         })
     }
 }
@@ -175,6 +196,9 @@ impl Park {
             charging_rule: self.visitors.charging_rule,
             admission_revenue_cents: self.visitors.admission_revenue_cents,
             turned_away: self.visitors.turned_away,
+            flyer_ticks_remaining: self.visitors.flyer_ticks_remaining,
+            flyer_campaigns: self.visitors.flyer_campaigns,
+            flyer_candidates: self.visitors.flyer_candidates,
             active: self.guests.len(),
             tracked: self.visitors.stays.len(),
             leaving: leaving.clone().count(),
@@ -268,6 +292,28 @@ impl Park {
             }
         }
     }
+    pub fn start_flyer_campaign(&mut self) -> Result<(), VisitorError> {
+        if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
+            return Err(VisitorError::CampaignNeedsArrivals);
+        }
+        if self.visitors.flyer_ticks_remaining != 0 {
+            return Err(VisitorError::CampaignAlreadyActive);
+        }
+        if self.cash_cents < FLYER_CAMPAIGN_COST_CENTS {
+            return Err(VisitorError::CampaignUnaffordable);
+        }
+        if self.visitors.flyer_campaigns == u64::MAX {
+            return Err(VisitorError::Capacity);
+        }
+        self.visitors.flyer_ticks_remaining = FLYER_CAMPAIGN_TICKS;
+        self.visitors.flyer_campaigns += 1;
+        self.record_cash(
+            crate::FinanceKind::Advertising,
+            None,
+            FLYER_CAMPAIGN_COST_CENTS,
+        );
+        Ok(())
+    }
     pub fn request_guest_departure(&mut self, id: GuestId) -> Result<(), VisitorError> {
         if !self.guests.iter().any(|g| g.id == id) {
             return Err(VisitorError::UnknownGuest);
@@ -286,6 +332,8 @@ impl Park {
         Ok(())
     }
     pub(crate) fn step_visitor_arrivals(&mut self) {
+        let flyers_active = self.visitors.flyer_ticks_remaining > 0;
+        self.visitors.flyer_ticks_remaining -= u16::from(flyers_active);
         for stay in &mut self.visitors.stays {
             if self.ticks - stay.entered_tick >= VISITOR_STAY_TICKS {
                 stay.leaving = true;
@@ -294,7 +342,12 @@ impl Park {
         if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
             return;
         }
-        if self.visitors.arrival_progress < VISITOR_ARRIVAL_TICKS - 1 {
+        let arrival_ticks = if flyers_active {
+            FLYER_ARRIVAL_TICKS
+        } else {
+            VISITOR_ARRIVAL_TICKS
+        };
+        if self.visitors.arrival_progress < arrival_ticks - 1 {
             self.visitors.arrival_progress += 1;
             return;
         }
@@ -309,6 +362,9 @@ impl Park {
         self.next_guest_id += 1;
         let seed = self.crowd_seed.unwrap_or(0);
         self.visitors.arrival_progress = 0;
+        if flyers_active {
+            self.visitors.flyer_candidates += 1;
+        }
         if price > entry_willingness(seed, id) {
             self.visitors.turned_away += 1;
             return;
@@ -437,6 +493,10 @@ pub(crate) fn validate(p: &Park) -> Result<(), String> {
             > f.spawned
                 .saturating_mul(u64::from(MAX_PARK_ENTRY_PRICE_CENTS))
         || f.turned_away >= p.next_guest_id
+        || f.flyer_ticks_remaining > FLYER_CAMPAIGN_TICKS
+        || f.flyer_campaigns > p.ticks / u64::from(FLYER_CAMPAIGN_TICKS) + 1
+        || f.flyer_candidates > f.spawned.saturating_add(f.turned_away)
+        || (f.flyer_campaigns == 0 && (f.flyer_ticks_remaining != 0 || f.flyer_candidates != 0))
         || f.arrival_progress >= VISITOR_ARRIVAL_TICKS
         || f.spawned > VISITOR_LIFETIME_CAP
         || a.count > VISITOR_LIFETIME_CAP

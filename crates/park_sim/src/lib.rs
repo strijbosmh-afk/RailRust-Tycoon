@@ -11,7 +11,8 @@ mod crowds;
 pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
 mod visitors;
 pub use visitors::{
-    ChargingRule, DepartedVisitors, MAX_PARK_ENTRY_PRICE_CENTS, PARK_ENTRY_PRICE_STEP_CENTS,
+    ChargingRule, DepartedVisitors, FLYER_ARRIVAL_TICKS, FLYER_CAMPAIGN_COST_CENTS,
+    FLYER_CAMPAIGN_TICKS, MAX_PARK_ENTRY_PRICE_CENTS, PARK_ENTRY_PRICE_STEP_CENTS,
     VISITOR_ACTIVE_CAP, VISITOR_ARRIVAL_TICKS, VISITOR_LIFETIME_CAP, VISITOR_STAY_TICKS,
     VisitorError, VisitorFlowStats,
 };

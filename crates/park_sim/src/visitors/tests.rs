@@ -103,6 +103,106 @@ fn charging_rules_reset_forbidden_prices_and_guard_future_changes() {
     );
 }
 #[test]
+fn local_flyers_charge_once_double_candidate_pace_and_resume_exactly() {
+    let (mut park, _) = simple();
+    park.set_visitor_arrivals(true).unwrap();
+    park.set_park_entry_price(300).unwrap();
+    park.start_flyer_campaign().unwrap();
+    assert_eq!(park.cash_cents(), 97_500);
+    assert_eq!(
+        park.finance_stats().advertising_cents,
+        FLYER_CAMPAIGN_COST_CENTS
+    );
+    assert_eq!(park.finance_summary().operating_profit_cents, -2_500);
+    assert_eq!(
+        park.start_flyer_campaign(),
+        Err(VisitorError::CampaignAlreadyActive)
+    );
+    for _ in 0..449 {
+        park.advance(Speed::Normal);
+    }
+    assert!(park.guests().is_empty());
+    park.advance(Speed::Normal);
+    assert_eq!(park.visitor_flow_stats().flyer_candidates, 1);
+    assert_eq!(park.visitor_flow_stats().admission_revenue_cents, 300);
+    let mut resumed = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+    for _ in 0..2_137 {
+        park.advance(Speed::Normal);
+        resumed.advance(Speed::Normal);
+    }
+    assert_eq!(park, resumed);
+    for _ in 0..6_413 {
+        park.advance(Speed::Normal);
+        resumed.advance(Speed::Normal);
+    }
+    assert_eq!(park, resumed);
+    assert_eq!(park.visitor_flow_stats().flyer_ticks_remaining, 0);
+    assert_eq!(park.visitor_flow_stats().flyer_candidates, 20);
+    assert_eq!(park.visitor_flow_stats().spawned, 20);
+    assert_eq!(park.cash_cents(), 103_500);
+    for _ in 0..899 {
+        park.advance(Speed::Normal);
+    }
+    assert_eq!(park.visitor_flow_stats().spawned, 20);
+    park.advance(Speed::Normal);
+    assert_eq!(park.visitor_flow_stats().spawned, 21);
+    assert_eq!(
+        Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+        park
+    );
+}
+
+#[test]
+fn local_flyers_require_ready_arrivals_and_sufficient_cash() {
+    let (mut park, _) = simple();
+    let original = park.clone();
+    assert_eq!(
+        park.start_flyer_campaign(),
+        Err(VisitorError::CampaignNeedsArrivals)
+    );
+    assert_eq!(park, original);
+    park.set_visitor_arrivals(true).unwrap();
+    park.set_park_open(false);
+    assert_eq!(
+        park.start_flyer_campaign(),
+        Err(VisitorError::CampaignNeedsArrivals)
+    );
+    park.set_park_open(true);
+    park.cash_cents = FLYER_CAMPAIGN_COST_CENTS - 1;
+    assert_eq!(
+        park.start_flyer_campaign(),
+        Err(VisitorError::CampaignUnaffordable)
+    );
+    assert_eq!(park.visitor_flow_stats().flyer_campaigns, 0);
+}
+
+#[test]
+fn local_flyers_keep_time_and_cost_when_park_closes() {
+    let (mut park, _) = simple();
+    park.set_visitor_arrivals(true).unwrap();
+    park.start_flyer_campaign().unwrap();
+    park.set_park_open(false);
+    for _ in 0..900 {
+        park.advance(Speed::Normal);
+    }
+    assert_eq!(park.visitor_flow_stats().flyer_ticks_remaining, 8_100);
+    assert_eq!(park.visitor_flow_stats().flyer_candidates, 0);
+    assert_eq!(park.cash_cents(), 97_500);
+    let stopped = park.clone();
+    park.advance(Speed::Paused);
+    assert_eq!(park, stopped);
+    park.set_park_open(true);
+    for _ in 0..450 {
+        park.advance(Speed::Normal);
+    }
+    assert_eq!(park.visitor_flow_stats().flyer_candidates, 1);
+    assert_eq!(park.visitor_flow_stats().flyer_campaigns, 1);
+    assert_eq!(
+        Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+        park
+    );
+}
+#[test]
 fn closing_park_stops_arrivals_and_departing_guests_reopen_without_instant_arrival() {
     let (mut p, _) = simple();
     p.set_visitor_arrivals(true).unwrap();
@@ -173,9 +273,29 @@ fn schema_34_defaults_to_free_flexible_entry_and_schema_35_requires_admission_st
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
     json["schema_version"] = serde_json::json!(34);
     json["content_version"] = serde_json::json!(34);
+    crate::legacy_cost_test_support::strip_flyer_fields(&mut json);
     let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
     assert_eq!(old, p);
     json["park"]["visitors"]["entry_price_cents"] = serde_json::json!(0);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+}
+#[test]
+fn schema_35_migrates_idle_flyers_and_schema_36_requires_their_state() {
+    let (park, _) = simple();
+    let mut json: serde_json::Value =
+        serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+    json["schema_version"] = serde_json::json!(35);
+    json["content_version"] = serde_json::json!(35);
+    crate::legacy_cost_test_support::strip_flyer_fields(&mut json);
+    let mut current = json.clone();
+    current["schema_version"] = serde_json::json!(36);
+    current["content_version"] = serde_json::json!(36);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
+    assert_eq!(
+        Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap(),
+        park
+    );
+    json["park"]["visitors"]["flyer_campaigns"] = serde_json::json!(0);
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
 }
 #[test]
@@ -405,6 +525,9 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         "charging_rule",
         "admission_revenue_cents",
         "turned_away",
+        "flyer_ticks_remaining",
+        "flyer_campaigns",
+        "flyer_candidates",
     ] {
         old_default.as_object_mut().unwrap().remove(field);
     }

@@ -303,9 +303,10 @@ pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
             money(report.services.supplies_cents)
         ),
         format!(
-            "Combined operating profit {} / Entry +{} / Staff wages -{}\nConstruction -{} / Refunds +{} / excluded from operating profit",
+            "Combined operating profit {} / Entry +{} / Flyers -{} / Staff wages -{}\nConstruction -{} / Refunds +{} / excluded from operating profit",
             signed_cash(report.operating_profit_cents),
             money(report.admission_revenue_cents),
+            money(report.advertising_cents),
             money(report.staff_wages_cents),
             money(report.construction_cents),
             money(report.refunds_cents)
@@ -371,6 +372,7 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::RideUpkeep => ("Ride upkeep", "-"),
         FinanceKind::RideRevenue => ("Ride tickets", "+"),
         FinanceKind::ParkAdmission => ("Park entry", "+"),
+        FinanceKind::Advertising => ("Local flyers", "-"),
         FinanceKind::ServiceRevenue => ("Service sales", "+"),
         FinanceKind::ServiceUpkeep => ("Service upkeep", "-"),
         FinanceKind::ServiceSupplies => ("Service supplies", "-"),
@@ -549,12 +551,13 @@ pub(crate) fn refresh(
                 money(stats.open_upkeep_per_minute_cents)
             ),
             FinanceLabel::Categories => format!(
-                "Entry +{} / Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nConstruction -{} / Demolition refunds +{} / Interest -{}",
+                "Entry +{} / Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nFlyers -{} / Construction -{} / Demolition refunds +{} / Interest -{}",
                 money(stats.admission_revenue_cents),
                 money(stats.ride_revenue_cents),
                 money(stats.service_revenue_cents),
                 money(stats.ride_upkeep_cents),money(stats.service_upkeep_cents),
                 money(stats.supplies_cents),
+                money(stats.advertising_cents),
                 money(stats.construction_cents),
                 money(stats.demolition_refunds_cents),
                 money(stats.loan_interest_cents)
@@ -578,6 +581,7 @@ pub(crate) fn refresh(
                         .upkeep_cents
                         .saturating_add(ledger.archived.supplies_cents)
                         .saturating_add(ledger.archived.construction_cents)
+                        .saturating_add(ledger.archived.advertising_cents)
                 ),
                 money(ledger.archived.demolition_refunds_cents),
                 ledger.entries.len()
