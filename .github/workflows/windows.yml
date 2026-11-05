@@ -424,6 +424,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-admission-rules --save-dir $admissionDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Admission rules verifier failed" }
           Get-Content -LiteralPath (Join-Path $admissionDirectory "verification-admission-rules.txt")
+      - name: Verify local flyer campaign and expiry
+        shell: pwsh
+        run: |
+          $flyerDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound flyers é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-flyers --save-dir $flyerDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Flyer campaign writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-flyers --save-dir $flyerDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Flyer campaign verifier failed" }
+          Get-Content -LiteralPath (Join-Path $flyerDirectory "verification-flyers.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

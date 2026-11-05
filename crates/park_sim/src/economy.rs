@@ -334,6 +334,7 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             .and_then(|funds| funds.checked_sub(park.loans.repaid_cents))
             .and_then(|funds| funds.checked_sub(park.loans.interest_paid_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().wages_cents))
+            .and_then(|funds| funds.checked_sub(park.finance_stats().advertising_cents))
             != Some(park.cash_cents)
     {
         return Err("ride price, revenue, and park cash do not conserve funds".into());

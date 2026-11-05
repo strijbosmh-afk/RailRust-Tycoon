@@ -52,6 +52,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let loan = park.loan_stats();
     let ride = park.all_rides().map(|r| r.revenue_cents).sum::<u64>();
     let admission = park.visitor_flow_stats().admission_revenue_cents;
+    let advertising =
+        park.visitor_flow_stats().flyer_campaigns * park_sim::FLYER_CAMPAIGN_COST_CENTS;
     let revenue: u64 = park.services().iter().map(|s| s.revenue_cents).sum();
     let upkeep: u64 = park.services().iter().map(|s| s.upkeep_cents).sum::<u64>()
         + park
@@ -84,18 +86,27 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     if stats.cash_cents != park.cash_cents()
         || stats.ride_revenue_cents != ride
         || stats.admission_revenue_cents != admission
+        || stats.advertising_cents != advertising
         || stats.service_revenue_cents != revenue
         || stats.upkeep_cents != upkeep
         || stats.supplies_cents != supplies
         || stats.construction_cents != construction
         || stats.demolition_refunds_cents != refunds
-        || stats.total_costs_cents != upkeep + supplies + construction + loan.interest_paid_cents
+        || stats.total_costs_cents
+            != upkeep
+                + supplies
+                + construction
+                + loan.interest_paid_cents
+                + stats.wages_cents
+                + advertising
         || i128::from(stats.net_profit_cents)
             != i128::from(ride) + i128::from(admission) + i128::from(revenue) + i128::from(refunds)
                 - i128::from(upkeep)
                 - i128::from(supplies)
                 - i128::from(construction)
                 - i128::from(loan.interest_paid_cents)
+                - i128::from(stats.wages_cents)
+                - i128::from(advertising)
         || stats.retained_entries != ledger.entries.len()
         || stats.archived_entries != ledger.archived_entries
         || ledger.entries.len() > FINANCE_LEDGER_CAPACITY
@@ -132,6 +143,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         - i128::from(archived.construction_cents)
         - i128::from(archived.upkeep_cents)
         - i128::from(archived.supplies_cents)
+        - i128::from(archived.wages_cents)
+        - i128::from(archived.advertising_cents)
         + i128::from(archived.loan_borrowed_cents)
         - i128::from(archived.loan_repaid_cents)
         - i128::from(archived.loan_interest_cents);
@@ -147,6 +160,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::LoanRepayment
                     | FinanceKind::LoanInterest
                     | FinanceKind::ParkAdmission
+                    | FinanceKind::Advertising
             ) && (entry.ride.is_some() || entry.service.is_some()))
             || (!matches!(
                 entry.kind,
@@ -154,6 +168,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::LoanRepayment
                     | FinanceKind::LoanInterest
                     | FinanceKind::ParkAdmission
+                    | FinanceKind::Advertising
             ) && (matches!(
                 entry.kind,
                 FinanceKind::RideRevenue
@@ -192,6 +207,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || archived.admission_revenue_cents
             + total(&ledger.entries, FinanceKind::ParkAdmission, None)
             != admission
+        || archived.advertising_cents + total(&ledger.entries, FinanceKind::Advertising, None)
+            != park.finance_stats().advertising_cents
         || balance != i128::from(park.cash_cents())
         || ledger.opening_ride_revenue_cents
             + archived.ride_revenue_cents

@@ -8,6 +8,7 @@ pub(crate) enum VisitorLabel {
     Entry,
     Totals,
     Pricing,
+    Marketing,
     Rules,
     Selected,
     Notice,
@@ -20,6 +21,7 @@ pub(crate) enum VisitorCommand {
     EntryDown,
     EntryUp,
     CycleRule,
+    RunFlyers,
     SendHome,
     Conflict,
 }
@@ -35,7 +37,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         VisitorBody,
         Node {
             display: Display::None,
-            height: px(350),
+            height: px(380),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(10),
@@ -47,6 +49,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             VisitorLabel::Entry,
             VisitorLabel::Totals,
             VisitorLabel::Pricing,
+            VisitorLabel::Marketing,
             VisitorLabel::Rules,
             VisitorLabel::Selected,
         ] {
@@ -112,6 +115,12 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                 "Next charging rule",
                 Action::Visitor(VisitorCommand::CycleRule),
                 185.0,
+            );
+            button(
+                p,
+                "Run flyers $25",
+                Action::Visitor(VisitorCommand::RunFlyers),
+                145.0,
             );
         });
         p.spawn((
@@ -189,6 +198,10 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
                 next.label()
             ))
         }
+        VisitorCommand::RunFlyers => sim.0.start_flyer_campaign().map(|_| {
+            "Local flyers started for five simulation minutes; future candidates arrive twice as often."
+                .into()
+        }),
         VisitorCommand::SendHome => view
             .selected_guest
             .ok_or(park_sim::VisitorError::UnknownGuest)
@@ -241,8 +254,22 @@ pub(crate) fn refresh(
                 s.turned_away,
                 money(s.admission_revenue_cents)
             ),
+            VisitorLabel::Marketing => format!(
+                "Local flyers: {} / {} campaigns / {} candidates during ads\nCosts $25.00 for five simulation minutes. Arrivals are twice as frequent while active.",
+                if s.flyer_ticks_remaining == 0 {
+                    "inactive".into()
+                } else {
+                    format!(
+                        "{}:{:02} left",
+                        s.flyer_ticks_remaining / 1_800,
+                        (s.flyer_ticks_remaining % 1_800) / 30
+                    )
+                },
+                s.flyer_campaigns,
+                s.flyer_candidates
+            ),
             VisitorLabel::Rules => format!(
-                "Park: {} / Arrivals: {}. One candidate per 30 simulation seconds, up to 64.\nHigh entry prices can turn visitors away; admitted guests pay from their wallets.\nClosing sends current guests home after rides/services; opening does not recall them.\nFree entry blocks entry fees; Free rides blocks ride prices. Space pauses activity.",
+                "Park: {} / Arrivals: {}. One candidate per 30 simulation seconds, up to 64.\nFlyers shorten that interval to 15 seconds; capacity and entry price still apply.\nClosing sends current guests home after rides/services; opening does not recall them.\nFree entry blocks entry fees; Free rides blocks ride prices. Space pauses activity.",
                 if s.park_open { "OPEN" } else { "CLOSED" },
                 if s.enabled { "enabled" } else { "disabled" }
             ),
