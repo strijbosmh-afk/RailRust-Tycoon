@@ -1,6 +1,6 @@
 # Paid handyman and path bins — 0.60.0
 
-This stage continues the grounds model on `codex/paid-handyman-bins`, stacked on the 0.59.0 `codex/grounds-handyman` branch and [draft PR #59](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/59). Source repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
+Runtime source commit **`b5e611185c4f15dbd5291cf823d8af085136139a`** is on `codex/paid-handyman-bins` in [draft PR #60](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/60), stacked on the 0.59.0 `codex/grounds-handyman` branch and [draft PR #59](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/59). Source repository: <https://github.com/strijbosmh-afk/RailRust-Tycoon>.
 
 ## Delivered
 
