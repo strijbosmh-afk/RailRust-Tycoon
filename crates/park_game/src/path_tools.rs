@@ -55,6 +55,7 @@ pub(super) struct ToolState {
     pub terrain_preview: Option<TerrainPreview>,
     pub service_preview: Option<ServicePreview>,
     pub carousel_preview: Option<CarouselPreview>,
+    pub flat_ride_kind: park_sim::RideKind,
     pub hint: String,
 }
 
@@ -71,6 +72,7 @@ impl Default for ToolState {
             terrain_preview: None,
             service_preview: None,
             carousel_preview: None,
+            flat_ride_kind: park_sim::RideKind::Carousel,
             hint: "Choose a build tool.\nM opens facility settings.".into(),
         }
     }
@@ -162,7 +164,7 @@ impl ToolState {
                 "Place beside a public path.\nC turns its serving side toward it."
             }
             PathTool::Carousel => {
-                "Point at a clear 3 x 3 footprint.\nClick once to build the carousel."
+                "Point at a clear 3 x 3 footprint.\nClick once to build the ride."
             }
             PathTool::Scenery(_) => "Point to open grass or sand.\nClick once to plant scenery.",
             PathTool::Demolish => {
@@ -177,9 +179,14 @@ impl ToolState {
         }
         .into();
         if self.mode == PathTool::Carousel {
+            let (name, cost) = if self.flat_ride_kind == park_sim::RideKind::Swing {
+                ("Swing ride", park_sim::SWING_BUILD_COST_CENTS)
+            } else {
+                ("Carousel", park_sim::CAROUSEL_BUILD_COST_CENTS)
+            };
             self.hint = format!(
-                "Carousel: {} / 3 x 3.\n{}% paid cost back on demolition.",
-                crate::ui::money(park_sim::CAROUSEL_BUILD_COST_CENTS),
+                "{name}: {} / 3 x 3.\n{}% paid cost back on demolition.",
+                crate::ui::money(cost),
                 park_sim::CAROUSEL_REFUND_PERCENT
             );
         }
@@ -455,6 +462,7 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 if object.kind == ObjectKind::Carousel {
                     if let Some(c) = park.object_ride(object.id).and_then(|id| park.carousel(id)) {
                         view.path_tool.carousel_preview = Some(CarouselPreview {
+                            kind: c.kind,
                             origin: c.origin,
                             height: c.height,
                             valid: park.carousel_demolition_quote(c.ride.id).is_ok(),
@@ -594,13 +602,13 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
     }
     let refund = if object.kind == ObjectKind::Carousel {
         let Some(owner) = park.object_ride(id) else {
-            view.path_notice = Some("Carousel unavailable; nothing refunded.".into());
+            view.path_notice = Some("Flat ride unavailable; nothing refunded.".into());
             return;
         };
         match park.carousel_demolition_quote(owner) {
             Ok(amount) => Some(amount),
             Err(error) => {
-                view.path_notice = Some(format!("Carousel not removed: {error}"));
+                view.path_notice = Some(format!("Flat ride not removed: {error}"));
                 return;
             }
         }
@@ -672,7 +680,7 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
         ObjectKind::RideEntrance => "Entrance",
         ObjectKind::RideExit => "Exit",
         ObjectKind::Service => "Facility",
-        ObjectKind::Carousel => "Carousel",
+        ObjectKind::Carousel => "Flat ride",
         ObjectKind::Track => "Track",
         ObjectKind::SceneryTree => "Tree",
         ObjectKind::FlowerBed => "Flower bed",

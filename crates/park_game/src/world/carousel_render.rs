@@ -1,7 +1,7 @@
 //! Original open carousel. Reserved cells are never drawn as solid roofs.
 use super::*;
 use crate::path_tools::CarouselPreview;
-use park_sim::{ObjectId, PATH_UNITS, PathPoint, RideId};
+use park_sim::{ObjectId, PATH_UNITS, PathPoint, RideId, RideKind};
 type Face = service_render::Face;
 
 fn at(point: Vec3, size: u32, rotation: u8) -> Vec3 {
@@ -46,12 +46,17 @@ fn cuboid(result: &mut Vec<Face>, min: Vec3, max: Vec3, inks: [Ink; 3], size: u3
     }
 }
 
-pub(super) fn center(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec2 {
+pub(super) fn center(origin: TilePos, height: u8, kind: RideKind, size: u32, rotation: u8) -> Vec2 {
+    let (offset, elevation) = if kind == RideKind::Swing {
+        (1.5, 2.68)
+    } else {
+        (1.0, 2.72)
+    };
     at(
         Vec3::new(
-            origin.x as f32 + 1.0,
-            origin.y as f32 + 1.0,
-            f32::from(height) + 2.72,
+            origin.x as f32 + offset,
+            origin.y as f32 + offset,
+            f32::from(height) + elevation,
         ),
         size,
         rotation,
@@ -70,7 +75,11 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
         .filter(|c| c.objects.first() == Some(&object))
         .map_or_else(Vec::new, |c| {
             let appearance = park.ride_appearance(c.ride.id).unwrap_or_default();
-            let mut result = faces(c.origin, c.height, park.width(), rotation);
+            let mut result = if c.kind == RideKind::Swing {
+                swing_faces(c.origin, c.height, park.width(), rotation)
+            } else {
+                faces(c.origin, c.height, park.width(), rotation)
+            };
             for f in &mut result {
                 for (paint, colors) in [
                     (
@@ -85,6 +94,18 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
                         appearance.structure,
                         [rgb(235, 76, 105), rgb(94, 89, 200), rgb(54, 186, 219)],
                     ),
+                    (
+                        appearance.structure,
+                        [rgb(235, 76, 105), rgb(177, 44, 83), rgb(127, 30, 65)],
+                    ),
+                    (
+                        appearance.structure,
+                        [rgb(54, 186, 219), rgb(38, 130, 177), rgb(28, 89, 133)],
+                    ),
+                    (
+                        appearance.supports,
+                        [rgb(246, 194, 83), rgb(193, 132, 48), rgb(143, 89, 35)],
+                    ),
                 ] {
                     if let Some(i) = colors.iter().position(|c| *c == f.ink) {
                         f.ink = ride_colors::inks(paint, colors)[i];
@@ -94,6 +115,87 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
             }
             result
         })
+}
+
+/// Open A-frame swing with a striped apron, tall columns and overhead beam.
+/// The passenger gondola is dynamic and stays inside this three-step envelope.
+fn swing_faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
+    let mut result = Vec::with_capacity(120);
+    let center = Vec3::new(
+        origin.x as f32 + 1.5,
+        origin.y as f32 + 1.5,
+        f32::from(height),
+    );
+    let red = [rgb(235, 76, 105), rgb(177, 44, 83), rgb(127, 30, 65)];
+    let gold = [rgb(246, 194, 83), rgb(193, 132, 48), rgb(143, 89, 35)];
+    let blue = [rgb(54, 186, 219), rgb(38, 130, 177), rgb(28, 89, 133)];
+    let cream = [rgb(247, 230, 186), rgb(184, 159, 125), rgb(140, 113, 82)];
+    cuboid(
+        &mut result,
+        center + Vec3::new(-1.5, -1.5, 0.0),
+        center + Vec3::new(1.5, 1.5, 0.12),
+        cream,
+        size,
+        rotation,
+    );
+    for lane in 0..10 {
+        let y = -1.4 + lane as f32 * 0.28;
+        cuboid(
+            &mut result,
+            center + Vec3::new(-1.38, y, 0.12),
+            center + Vec3::new(1.38, y + 0.08, 0.135),
+            if lane % 2 == 0 { red } else { blue },
+            size,
+            rotation,
+        );
+    }
+    for x in [-1.15, 1.15] {
+        for y in [-1.22, 1.22] {
+            cuboid(
+                &mut result,
+                center + Vec3::new(x - 0.105, y - 0.105, 0.12),
+                center + Vec3::new(x + 0.105, y + 0.105, 2.53),
+                red,
+                size,
+                rotation,
+            );
+            cuboid(
+                &mut result,
+                center + Vec3::new(x - 0.18, y - 0.18, 0.12),
+                center + Vec3::new(x + 0.18, y + 0.18, 0.24),
+                gold,
+                size,
+                rotation,
+            );
+            cuboid(
+                &mut result,
+                center + Vec3::new(x - 0.15, y - 0.15, 2.47),
+                center + Vec3::new(x + 0.15, y + 0.15, 2.65),
+                gold,
+                size,
+                rotation,
+            );
+        }
+    }
+    for y in [-1.22, 1.22] {
+        cuboid(
+            &mut result,
+            center + Vec3::new(-1.28, y - 0.09, 2.48),
+            center + Vec3::new(1.28, y + 0.09, 2.62),
+            blue,
+            size,
+            rotation,
+        );
+    }
+    cuboid(
+        &mut result,
+        center + Vec3::new(-0.12, -1.35, 2.54),
+        center + Vec3::new(0.12, 1.35, 2.68),
+        gold,
+        size,
+        rotation,
+    );
+    result
 }
 
 /// Apron, raised circular deck, mast and small cap fit the full three-step
@@ -267,72 +369,118 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
             );
             let cream = ride_colors::inks(
                 appearance.vehicles,
-                [rgb(246, 231, 185), rgb(199, 173, 128), rgb(157, 129, 91)],
+                if carousel.kind == RideKind::Swing {
+                    [rgb(54, 186, 219), rgb(38, 130, 177), rgb(28, 89, 133)]
+                } else {
+                    [rgb(246, 231, 185), rgb(199, 173, 128), rgb(157, 129, 91)]
+                },
             );
             let teal = ride_colors::inks(
                 appearance.structure,
-                [rgb(63, 142, 143), rgb(40, 101, 113), rgb(27, 73, 86)],
+                if carousel.kind == RideKind::Swing {
+                    [rgb(235, 76, 105), rgb(177, 44, 83), rgb(127, 30, 65)]
+                } else {
+                    [rgb(63, 142, 143), rgb(40, 101, 113), rgb(27, 73, 86)]
+                },
             );
-            // Compact horse-like bench: legs, body, saddle and raised head.
-            for x in [-0.13, 0.10] {
+            if carousel.kind == RideKind::Swing {
+                let pivot = Vec3::new(
+                    carousel.origin.x as f32 + 1.5,
+                    p.y,
+                    f32::from(carousel.height) + 2.50,
+                );
+                for y in [-0.09, 0.09] {
+                    face(
+                        &mut surfaces,
+                        [
+                            pivot + Vec3::new(-0.025, y, 0.0),
+                            pivot + Vec3::new(0.025, y, 0.0),
+                            p + Vec3::new(0.025, y, 0.04),
+                            p + Vec3::new(-0.025, y, 0.04),
+                        ],
+                        gold[0],
+                        park.width(),
+                        rotation,
+                    );
+                }
                 cuboid(
                     &mut surfaces,
-                    p + Vec3::new(x, -0.065, -0.45),
-                    p + Vec3::new(x + 0.04, 0.065, -0.15),
-                    gold,
+                    p + Vec3::new(-0.18, -0.13, -0.19),
+                    p + Vec3::new(0.18, 0.13, -0.02),
+                    cream,
                     park.width(),
                     rotation,
                 );
-            }
-            cuboid(
-                &mut surfaces,
-                p + Vec3::new(-0.20, -0.12, -0.24),
-                p + Vec3::new(0.20, 0.12, -0.04),
-                cream,
-                park.width(),
-                rotation,
-            );
-            cuboid(
-                &mut surfaces,
-                p + Vec3::new(-0.07, -0.13, -0.04),
-                p + Vec3::new(0.08, 0.13, 0.0),
-                teal,
-                park.width(),
-                rotation,
-            );
-            cuboid(
-                &mut surfaces,
-                p + Vec3::new(0.13, -0.075, -0.12),
-                p + Vec3::new(0.24, 0.075, 0.20),
-                cream,
-                park.width(),
-                rotation,
-            );
-            cuboid(
-                &mut surfaces,
-                p + Vec3::new(-0.28, -0.035, -0.12),
-                p + Vec3::new(-0.19, 0.035, 0.02),
-                gold,
-                park.width(),
-                rotation,
-            );
-            cuboid(
-                &mut surfaces,
-                p + Vec3::new(0.17, -0.055, 0.10),
-                p + Vec3::new(0.27, 0.055, 0.24),
-                gold,
-                park.width(),
-                rotation,
-            );
-            for y in [-0.077, 0.068] {
                 cuboid(
                     &mut surfaces,
-                    p + Vec3::new(0.235, y, 0.11),
-                    p + Vec3::new(0.257, y + 0.012, 0.14),
+                    p + Vec3::new(-0.17, 0.10, -0.03),
+                    p + Vec3::new(0.17, 0.14, 0.28),
                     teal,
                     park.width(),
                     rotation,
                 );
+            } else {
+                // Compact horse-like bench: legs, body, saddle and raised head.
+                for x in [-0.13, 0.10] {
+                    cuboid(
+                        &mut surfaces,
+                        p + Vec3::new(x, -0.065, -0.45),
+                        p + Vec3::new(x + 0.04, 0.065, -0.15),
+                        gold,
+                        park.width(),
+                        rotation,
+                    );
+                }
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(-0.20, -0.12, -0.24),
+                    p + Vec3::new(0.20, 0.12, -0.04),
+                    cream,
+                    park.width(),
+                    rotation,
+                );
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(-0.07, -0.13, -0.04),
+                    p + Vec3::new(0.08, 0.13, 0.0),
+                    teal,
+                    park.width(),
+                    rotation,
+                );
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(0.13, -0.075, -0.12),
+                    p + Vec3::new(0.24, 0.075, 0.20),
+                    cream,
+                    park.width(),
+                    rotation,
+                );
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(-0.28, -0.035, -0.12),
+                    p + Vec3::new(-0.19, 0.035, 0.02),
+                    gold,
+                    park.width(),
+                    rotation,
+                );
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(0.17, -0.055, 0.10),
+                    p + Vec3::new(0.27, 0.055, 0.24),
+                    gold,
+                    park.width(),
+                    rotation,
+                );
+                for y in [-0.077, 0.068] {
+                    cuboid(
+                        &mut surfaces,
+                        p + Vec3::new(0.235, y, 0.11),
+                        p + Vec3::new(0.257, y + 0.012, 0.14),
+                        teal,
+                        park.width(),
+                        rotation,
+                    );
+                }
             }
             if let Some(passenger) = passengers.iter().find(|p| {
                 p.ride == carousel.ride.id
@@ -392,7 +540,11 @@ pub fn carousel_preview_mesh(preview: Option<CarouselPreview>, park: &Park, rota
     if park.width() != park.height() || park.tile(preview.origin).is_none() {
         return painter.finish();
     }
-    let surfaces = faces(preview.origin, preview.height, park.width(), rotation);
+    let surfaces = if preview.kind == RideKind::Swing {
+        swing_faces(preview.origin, preview.height, park.width(), rotation)
+    } else {
+        faces(preview.origin, preview.height, park.width(), rotation)
+    };
     let mut ink = if !preview.valid {
         rgb(225, 68, 63)
     } else if preview.demolish {
@@ -426,7 +578,7 @@ pub fn ride_focus(park: &Park, id: RideId, rotation: u8) -> Option<Vec2> {
         return None;
     }
     if let Some(c) = park.carousel(id).filter(|c| !c.objects.is_empty()) {
-        Some(center(c.origin, c.height, park.width(), rotation) - Vec2::Y * HEIGHT_STEP)
+        Some(center(c.origin, c.height, c.kind, park.width(), rotation) - Vec2::Y * HEIGHT_STEP)
     } else if park.ride().is_some_and(|ride| ride.id == id) {
         train_focus(park, rotation)
     } else {
@@ -445,6 +597,52 @@ mod tests {
             .unwrap()
             .as_float3()
             .unwrap()
+    }
+
+    #[test]
+    fn swing_art_preview_and_selection_fit_reserved_three_by_three_tiles() {
+        let mut park = Park::new(32, 32);
+        let origin = TilePos { x: 15, y: 17 };
+        let id = park.place_swing(origin, 8).unwrap();
+        let objects = park.carousel(id).unwrap().objects.clone();
+        let target = SurfaceId::Object(objects[0]);
+        for rotation in 0..4 {
+            let geometry = object_faces(&park, objects[0], rotation);
+            assert!(!geometry.is_empty());
+            let floor = &geometry[0].surface;
+            assert_eq!(
+                floor.vertices[0],
+                at(Vec3::new(15.0, 17.0, 8.12), 32, rotation)
+            );
+            assert_eq!(
+                floor.vertices[2],
+                at(Vec3::new(18.0, 20.0, 8.12), 32, rotation)
+            );
+            for cell in &objects[1..] {
+                assert!(object_faces(&park, *cell, rotation).is_empty());
+            }
+            for mode in [ViewMode::Surface, ViewMode::Underground] {
+                let center = surface_center(&park, target, rotation).unwrap();
+                assert_eq!(pick_surface(center, &park, rotation, mode), Some(target));
+                assert_eq!(
+                    selectable_surfaces(&park, target, rotation, mode).len(),
+                    geometry.len()
+                );
+            }
+            let ghost = carousel_preview_mesh(
+                Some(CarouselPreview {
+                    kind: RideKind::Swing,
+                    origin,
+                    height: 8,
+                    valid: true,
+                    demolish: false,
+                }),
+                &park,
+                rotation,
+            );
+            assert!(!positions(&ghost).is_empty());
+            assert!(positions(&ghost).iter().flatten().all(|v| v.is_finite()));
+        }
     }
 
     #[test]
@@ -482,6 +680,7 @@ mod tests {
             for valid in [true, false] {
                 let ghost = carousel_preview_mesh(
                     Some(CarouselPreview {
+                        kind: park_sim::RideKind::Carousel,
                         origin,
                         height: 8,
                         valid,

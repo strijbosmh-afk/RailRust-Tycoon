@@ -135,6 +135,7 @@ fn present(
         view.path_tool.mode = PathTool::Carousel;
         view.path_tool.height = 8;
         view.path_tool.carousel_preview = Some(path_tools::CarouselPreview {
+            kind: park_sim::RideKind::Carousel,
             origin: ride_choice::ORIGIN,
             height: 8,
             valid,

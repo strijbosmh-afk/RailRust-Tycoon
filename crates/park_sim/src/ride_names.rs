@@ -37,6 +37,7 @@ pub fn default_name(kind: RideKind) -> &'static str {
     match kind {
         RideKind::Carousel => "Meadow Carousel",
         RideKind::Coaster => "Meadow Flyer",
+        RideKind::Swing => "Skyward Swing",
     }
 }
 

@@ -53,6 +53,7 @@ mod service_scenes;
 mod slope_scenes;
 mod starter_scenes;
 mod summary_scenes;
+mod swing_scenes;
 mod terrain_scenes;
 mod testing_scenes;
 mod track_construction_scenes;
@@ -179,6 +180,8 @@ enum Scene {
     DualRiding,
     RideChoice,
     Rides,
+    SwingMap,
+    SwingRides,
     OperationsCoaster,
     OperationsCarousel,
     OperationsRunning,
@@ -313,6 +316,7 @@ impl Scene {
             || self.is_train_configuration()
             || self.is_testing()
             || self.is_appeal()
+            || matches!(self, Self::SwingMap | Self::SwingRides)
             || matches!(self, Self::DispatchWaiting | Self::DispatchPaid)
     }
 
@@ -815,6 +819,8 @@ pub(super) fn configure(app: &mut App) {
                 Some("dual-riding") => Scene::DualRiding,
                 Some("ride-choice") => Scene::RideChoice,
                 Some("rides") => Scene::Rides,
+                Some("swing-map") => Scene::SwingMap,
+                Some("swing-rides") => Scene::SwingRides,
                 Some("operations-coaster") => Scene::OperationsCoaster,
                 Some("opening-entrance") => Scene::OpeningEntrance,
                 Some("costs-ready") => Scene::CostsReady,
@@ -1308,6 +1314,9 @@ fn apply_preset(
     if capture.scene.is_ride_choice() {
         ride_choice_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
+    if matches!(capture.scene, Scene::SwingMap | Scene::SwingRides) {
+        swing_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+    }
     if capture.scene.is_train_configuration() {
         train_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
@@ -1447,13 +1456,17 @@ fn apply_preset(
                     .expect("detail capture train")
                     - elevation;
             }
-            Scene::CarouselBuilt | Scene::DualRiding => {
+            Scene::CarouselBuilt | Scene::DualRiding | Scene::SwingMap => {
                 let ride = sim
                     .0
                     .carousels()
                     .iter()
-                    .find(|ride| !ride.objects.is_empty())
-                    .expect("detail capture carousel");
+                    .find(|ride| {
+                        !ride.objects.is_empty()
+                            && (!matches!(capture.scene, Scene::SwingMap)
+                                || ride.kind == park_sim::RideKind::Swing)
+                    })
+                    .expect("detail capture flat ride");
                 view.pan = world::ride_focus(&sim.0, ride.ride.id, view.rotation)
                     .expect("detail capture focus")
                     - elevation;

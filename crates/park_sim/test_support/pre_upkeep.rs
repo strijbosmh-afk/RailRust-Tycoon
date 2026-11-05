@@ -2,6 +2,17 @@
 // never used by production readers or authentic old-binary migration proofs.
 pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
     use serde_json::json;
+    if value["schema_version"].as_u64().is_some_and(|v| v <= 30)
+        && let Some(rides) = value
+            .get_mut("park")
+            .and_then(|park| park.get_mut("carousels"))
+            .and_then(serde_json::Value::as_array_mut)
+    {
+        for ride in rides {
+            assert_eq!(ride["kind"], "Carousel");
+            ride.as_object_mut().unwrap().remove("kind");
+        }
+    }
     if value["schema_version"].as_u64().is_some_and(|v| v <= 29) {
         let park = value["park"].as_object_mut().unwrap();
         if let Some(grounds) = park.get_mut("grounds").and_then(|g| g.as_object_mut()) {

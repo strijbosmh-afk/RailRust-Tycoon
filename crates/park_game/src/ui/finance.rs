@@ -1,5 +1,5 @@
 //! Read-only financial history, shown newest first without changing ledger order.
-use park_sim::{FinanceEntry, FinanceKind, Park, RideCashflow, RideKind};
+use park_sim::{FinanceEntry, FinanceKind, Park, RideCashflow};
 
 use super::*;
 
@@ -268,11 +268,7 @@ pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
     format!(
         "Ride #{} / {} / {} / Net cash {}\nTickets +{} / Build -{} / Refunds +{} / Upkeep -{}",
         row.ride.0,
-        if row.kind == RideKind::Coaster {
-            "Coaster"
-        } else {
-            "Carousel"
-        },
+        row.kind,
         if !row.installed {
             "Not installed"
         } else if row.open {
@@ -334,7 +330,7 @@ pub(crate) fn value_rows(park: &Park) -> [String; 4] {
     let v = park.park_value();
     [
         format!(
-            "Recorded park value {}\nTrack {} / Carousels {} / Facilities {}",
+            "Recorded park value {}\nTrack {} / Flat rides {} / Facilities {}",
             money(v.park_cents),
             money(v.track_cents),
             money(v.carousel_cents),
@@ -516,7 +512,7 @@ pub(crate) fn refresh(
             FinanceLabel::View if value=>"Transactions".into(),
             FinanceLabel::ListHeading if value=>"RECORDED PARK / COMPANY BOOK VALUE".into(),
             FinanceLabel::Categories if value=>"Paid basis of assets still present, including closed rides and faulted track.\nUnpriced land/paths/free legacy assets have no recorded value; no depreciation.".into(),
-            FinanceLabel::History if value=>format!("{} paid track pieces / {} installed carousels / {} installed facilities\nDemolished assets leave this report; their cash history remains in Finance.\nBorrowing and principal repayment offset cash and debt, not business earnings.",valuation.paid_track_pieces,valuation.installed_carousels,valuation.installed_services),
+            FinanceLabel::History if value=>format!("{} paid track pieces / {} installed flat rides / {} installed facilities\nDemolished assets leave this report; their cash history remains in Finance.\nBorrowing and principal repayment offset cash and debt, not business earnings.",valuation.paid_track_pieces,valuation.installed_carousels,valuation.installed_services),
             FinanceLabel::Row(i) if value=>value_rows.get(*i).cloned().unwrap_or_default(),
             FinanceLabel::Footer if value=>"Book value can be negative. This is not a sale price or an operating-profit forecast.".into(),
             FinanceLabel::View if loans=>"Park value".into(),

@@ -10,18 +10,22 @@ pub const MAX_RIDE_RECORDS: usize = MAX_CAROUSEL_RECORDS + 1;
 pub const CAROUSEL_SEATS: usize = 6;
 pub const CAROUSEL_RUN_TICKS: u16 = 720;
 pub const CAROUSEL_BUILD_COST_CENTS: u64 = 30_000;
+pub const SWING_BUILD_COST_CENTS: u64 = 35_000;
 pub const CAROUSEL_REFUND_PERCENT: u8 = 50;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum RideKind {
     Coaster,
+    #[default]
     Carousel,
+    Swing,
 }
 impl std::fmt::Display for RideKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::Coaster => "Coaster",
             Self::Carousel => "Carousel",
+            Self::Swing => "Swing Ride",
         })
     }
 }
@@ -43,6 +47,10 @@ impl std::fmt::Display for CarouselPhase {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CarouselRide {
+    /// Historical flat-ride record. Version 31 adds Swing while preserving
+    /// the existing carousel layout and passenger/queue pipeline.
+    #[serde(default, deserialize_with = "crate::saves::string_enum")]
+    pub kind: RideKind,
     #[serde(deserialize_with = "crate::saves::strict_object")]
     pub ride: Ride,
     #[serde(deserialize_with = "crate::saves::strict_object")]
@@ -84,20 +92,20 @@ impl std::fmt::Display for CarouselError {
         match self {
             Self::Placement(e) => e.fmt(f),
             Self::ActiveCarouselExists => {
-                f.write_str("Remove the existing carousel before building another")
+                f.write_str("Remove the existing ride of this type before building another")
             }
             Self::HistoryFull => {
-                f.write_str("The park has reached its eight carousel history records")
+                f.write_str("The park has reached its eight flat-ride history records")
             }
-            Self::UnknownRide(id) => write!(f, "Ride #{} is not a carousel", id.0),
-            Self::Removed => f.write_str("This carousel has been removed"),
-            Self::Occupied => f.write_str("Let all passengers leave before removing the carousel"),
+            Self::UnknownRide(id) => write!(f, "Ride #{} is not a flat ride", id.0),
+            Self::Removed => f.write_str("This flat ride has been removed"),
+            Self::Occupied => f.write_str("Let all passengers leave before removing the flat ride"),
             Self::InsufficientFunds {
                 required_cents,
                 available_cents,
             } => write!(
                 f,
-                "Carousel costs ${}.{:02}; park cash is ${}.{:02}",
+                "Ride costs ${}.{:02}; park cash is ${}.{:02}",
                 required_cents / 100,
                 required_cents % 100,
                 available_cents / 100,
@@ -143,7 +151,7 @@ impl Park {
         if self.ride.as_ref().is_some_and(|r| r.id == id) {
             Some(RideKind::Coaster)
         } else {
-            self.carousel(id).map(|_| RideKind::Carousel)
+            self.carousel(id).map(|ride| ride.kind)
         }
     }
     pub fn object_ride(&self, id: ObjectId) -> Option<RideId> {
@@ -172,14 +180,16 @@ impl Park {
     pub(crate) fn ride_available(&self, id: RideId) -> bool {
         match self.ride_kind(id) {
             Some(RideKind::Coaster) => self.circuit.is_some(),
-            Some(RideKind::Carousel) => self.carousel(id).is_some_and(|c| !c.objects.is_empty()),
+            Some(RideKind::Carousel | RideKind::Swing) => {
+                self.carousel(id).is_some_and(|c| !c.objects.is_empty())
+            }
             None => false,
         }
     }
     pub fn ride_is_open(&self, id: RideId) -> bool {
         match self.ride_kind(id) {
             Some(RideKind::Coaster) => self.train.as_ref().is_some_and(|t| t.open),
-            Some(RideKind::Carousel) => self
+            Some(RideKind::Carousel | RideKind::Swing) => self
                 .carousel(id)
                 .is_some_and(|c| c.open && !c.objects.is_empty()),
             None => false,
@@ -188,7 +198,7 @@ impl Park {
     pub fn ride_is_running(&self, id: RideId) -> bool {
         match self.ride_kind(id) {
             Some(RideKind::Coaster) => self.train.as_ref().is_some_and(|t| t.departed),
-            Some(RideKind::Carousel) => self
+            Some(RideKind::Carousel | RideKind::Swing) => self
                 .carousel(id)
                 .is_some_and(|c| c.phase == CarouselPhase::Running),
             None => false,
@@ -206,7 +216,7 @@ impl Park {
         let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id).ok_or(RideAccessError::UnknownRide(id))? {
             RideKind::Coaster => self.set_train_open(open),
-            RideKind::Carousel => {
+            RideKind::Carousel | RideKind::Swing => {
                 let c = self.carousels.iter_mut().find(|c| c.ride.id == id).unwrap();
                 if c.objects.is_empty() {
                     return Err(RideAccessError::CircuitUnavailable);
@@ -244,7 +254,7 @@ impl Park {
                     t.dwell_ticks = settings.station_wait_ticks;
                 }
             }
-            Some(RideKind::Carousel) => {
+            Some(RideKind::Carousel | RideKind::Swing) => {
                 if let Some(c) = self.carousels.iter_mut().find(|c| c.ride.id == id)
                     && c.open
                 {
@@ -259,7 +269,22 @@ impl Park {
     }
     /// A read-only quote using the same validation as the placement command.
     pub fn carousel_build_quote(&self, origin: TilePos, height: u8) -> Result<u64, CarouselError> {
-        if self.carousels.iter().any(|c| !c.objects.is_empty()) {
+        self.flat_ride_build_quote(origin, height, RideKind::Carousel)
+    }
+    pub fn swing_build_quote(&self, origin: TilePos, height: u8) -> Result<u64, CarouselError> {
+        self.flat_ride_build_quote(origin, height, RideKind::Swing)
+    }
+    fn flat_ride_build_quote(
+        &self,
+        origin: TilePos,
+        height: u8,
+        kind: RideKind,
+    ) -> Result<u64, CarouselError> {
+        if self
+            .carousels
+            .iter()
+            .any(|c| c.kind == kind && !c.objects.is_empty())
+        {
             return Err(CarouselError::ActiveCarouselExists);
         }
         if self.carousels.len() >= MAX_CAROUSEL_RECORDS {
@@ -293,16 +318,32 @@ impl Park {
                 self.validate_object_placement(pos, ObjectKind::Carousel, height, 3)?;
             }
         }
-        if self.cash_cents < CAROUSEL_BUILD_COST_CENTS {
+        let cost = if kind == RideKind::Swing {
+            SWING_BUILD_COST_CENTS
+        } else {
+            CAROUSEL_BUILD_COST_CENTS
+        };
+        if self.cash_cents < cost {
             return Err(CarouselError::InsufficientFunds {
-                required_cents: CAROUSEL_BUILD_COST_CENTS,
+                required_cents: cost,
                 available_cents: self.cash_cents,
             });
         }
-        Ok(CAROUSEL_BUILD_COST_CENTS)
+        Ok(cost)
     }
     pub fn place_carousel(&mut self, origin: TilePos, height: u8) -> Result<RideId, CarouselError> {
-        let cost = self.carousel_build_quote(origin, height)?;
+        self.place_flat_ride(origin, height, RideKind::Carousel)
+    }
+    pub fn place_swing(&mut self, origin: TilePos, height: u8) -> Result<RideId, CarouselError> {
+        self.place_flat_ride(origin, height, RideKind::Swing)
+    }
+    fn place_flat_ride(
+        &mut self,
+        origin: TilePos,
+        height: u8,
+        kind: RideKind,
+    ) -> Result<RideId, CarouselError> {
+        let cost = self.flat_ride_build_quote(origin, height, kind)?;
         let id = RideId(self.next_ride_id);
         self.next_ride_id += 1;
         let mut objects = Vec::with_capacity(9);
@@ -327,6 +368,7 @@ impl Park {
             }
         }
         self.carousels.push(CarouselRide {
+            kind,
             ride: Ride::new(id),
             origin,
             height,
@@ -387,6 +429,30 @@ impl Park {
         let Some(c) = self.carousel(id).filter(|c| !c.objects.is_empty()) else {
             return Vec::new();
         };
+        if c.kind == RideKind::Swing {
+            let cycle_ticks = self
+                .ride_operating_settings(id)
+                .unwrap_or_default()
+                .cycle_ticks;
+            let phase = u32::from(c.progress) * 64 / u32::from(cycle_ticks);
+            let travel = if phase < 16 {
+                phase as i32 * 3
+            } else if phase < 48 {
+                96 - phase as i32 * 3
+            } else {
+                phase as i32 * 3 - 192
+            };
+            let rise = travel.unsigned_abs() as i32 / 3;
+            return (0..CAROUSEL_SEATS)
+                .map(|seat| PathPoint {
+                    x: (c.origin.x + 1) as i32 * PATH_UNITS + PATH_UNITS / 2 + travel,
+                    y: (c.origin.y + 1) as i32 * PATH_UNITS
+                        + PATH_UNITS / 2
+                        + (seat as i32 * 17 - 43),
+                    height: i32::from(c.height) * PATH_UNITS + 48 + rise,
+                })
+                .collect();
+        }
         // Six seats follow a symmetric 16-edge circle approximation. Integer
         // interpolation avoids platform-specific trigonometry and returns to
         // precisely the same boarding positions after a complete cycle.
@@ -483,12 +549,13 @@ impl Park {
 
 pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
     if park.carousels.len() > MAX_CAROUSEL_RECORDS
-        || park
-            .carousels
-            .iter()
-            .filter(|c| !c.objects.is_empty())
-            .count()
-            > 1
+        || [RideKind::Carousel, RideKind::Swing].iter().any(|kind| {
+            park.carousels
+                .iter()
+                .filter(|c| c.kind == *kind && !c.objects.is_empty())
+                .count()
+                > 1
+        })
     {
         return Err("carousel record or active capacity exceeds its limit".into());
     }
@@ -500,7 +567,13 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
         }
     }
     for c in &park.carousels {
-        if !matches!(c.construction_cost_cents, 0 | CAROUSEL_BUILD_COST_CENTS)
+        if c.kind == RideKind::Coaster
+            || !matches!(
+                c.construction_cost_cents,
+                0 | CAROUSEL_BUILD_COST_CENTS | SWING_BUILD_COST_CENTS
+            )
+            || (c.kind == RideKind::Carousel && c.construction_cost_cents == SWING_BUILD_COST_CENTS)
+            || (c.kind == RideKind::Swing && c.construction_cost_cents != SWING_BUILD_COST_CENTS)
             || c.demolition_refund_cents
                 != if c.objects.is_empty() {
                     c.construction_cost_cents * u64::from(CAROUSEL_REFUND_PERCENT) / 100

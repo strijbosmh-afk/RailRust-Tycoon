@@ -2,7 +2,10 @@
 use super::*;
 use crate::access_planning::AccessCommand;
 use crate::ride_operations::{OperatingField, OperationCommand};
-use park_sim::{CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, Park, RideId, RideKind};
+use park_sim::{
+    CAROUSEL_BUILD_COST_CENTS, CAROUSEL_REFUND_PERCENT, Park, RideId, RideKind,
+    SWING_BUILD_COST_CENTS,
+};
 use park_sim::{RideAccessBuildKind, RideAccessStatus, RideExitStatus};
 
 pub(crate) const PANEL_WIDTH: f32 = 820.0;
@@ -222,9 +225,12 @@ pub(super) fn setup(commands: &mut Commands) {
                 p.spawn(Node{height:px(188),flex_shrink:0.0,..default()}).with_children(|p| {
                     operating_label(p, RideLabel::Details, 13.0, INK);
                 });
-                button(p,&format!("Build carousel / {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,310.0);
+                p.spawn(row()).with_children(|p| {
+                    button(p,&format!("Carousel / {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,154.0);
+                    button(p,&format!("Swing / {}",money(SWING_BUILD_COST_CENTS)),Action::BuildSwing,154.0);
+                });
                 button(p,"Edit coaster track [Z]",Action::EditTrack,310.0);
-                label(p,&format!("Carousel: six seats; 3 x 3 tiles. Add gates.\nDemolition returns {}% of the amount paid.\nOne carousel at a time. Set height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
+                label(p,&format!("Both flat rides: six seats; 3 x 3 tiles. Add gates.\nDemolition returns {}% of the amount paid.\nOne of each may operate. Set height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
                 label(p,"After closing this panel: O open/close / F find\nF6-F7 ticket / J queue / I entrance / K exit\nSpace pauses from this panel or the park.",12.0,MUTED);
                 p.spawn(row()).with_children(|p| {
                     button(p, "Edit name", Action::RideName(super::names::Command::Focus), 105.0);

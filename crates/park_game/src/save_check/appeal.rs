@@ -28,25 +28,27 @@ pub(crate) fn inspect(park: &Park) -> Result<String, String> {
         let profile = park
             .ride_appeal_profile(ride.id)
             .ok_or("missing appeal profile")?;
-        let challenge = if park.ride_kind(ride.id) == Some(RideKind::Carousel) {
-            20
-        } else {
-            let specs = park.circuit().ok_or("missing appeal circuit")?.specs();
-            let mut drop = 0_u32;
-            let mut longest = 0_u32;
-            // Doubling covers a drop spanning the ordered circuit seam.
-            for piece in specs.iter().cycle().take(specs.len() * 2) {
-                let descent = piece.entry.height.saturating_sub(piece.exit.height);
-                drop = if descent > 0 {
-                    drop + u32::from(descent)
-                } else {
-                    0
-                };
-                longest = longest.max(drop);
+        let challenge = match park.ride_kind(ride.id) {
+            Some(RideKind::Carousel) => 20,
+            Some(RideKind::Swing) => 55,
+            _ => {
+                let specs = park.circuit().ok_or("missing appeal circuit")?.specs();
+                let mut drop = 0_u32;
+                let mut longest = 0_u32;
+                // Doubling covers a drop spanning the ordered circuit seam.
+                for piece in specs.iter().cycle().take(specs.len() * 2) {
+                    let descent = piece.entry.height.saturating_sub(piece.exit.height);
+                    drop = if descent > 0 {
+                        drop + u32::from(descent)
+                    } else {
+                        0
+                    };
+                    longest = longest.max(drop);
+                }
+                let density =
+                    specs.iter().filter(|p| p.kind == TrackKind::Curve).count() * 100 / specs.len();
+                (longest.min(12) * 5 + density as u32 * 2 / 5).min(100) as u8
             }
-            let density =
-                specs.iter().filter(|p| p.kind == TrackKind::Curve).count() * 100 / specs.len();
-            (longest.min(12) * 5 + density as u32 * 2 / 5).min(100) as u8
         };
         let reputation = ((u128::from(ride.rating_total) * 10 + 150)
             / (u128::from(ride.rating_count) + 5)) as u8;

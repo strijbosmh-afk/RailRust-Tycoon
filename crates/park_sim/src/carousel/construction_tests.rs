@@ -17,6 +17,97 @@ fn value(park: &Park) -> Value {
 fn read(value: &Value) -> Result<Park, crate::SaveError> {
     Park::from_save_bytes(&serde_json::to_vec(value).unwrap())
 }
+
+#[test]
+fn carousel_and_swing_can_operate_side_by_side_with_separate_cashflows() {
+    let mut park = Park::new(32, 32);
+    let carousel = park.place_carousel(TilePos { x: 2, y: 2 }, 0).unwrap();
+    let swing = park.place_swing(TilePos { x: 8, y: 2 }, 0).unwrap();
+    assert_eq!(park.cash_cents(), 35_000);
+    assert_eq!(park.ride_kind(carousel), Some(RideKind::Carousel));
+    assert_eq!(park.ride_kind(swing), Some(RideKind::Swing));
+    assert_eq!(park.ride_name(swing), Some("Skyward Swing"));
+    assert_eq!(park.ride_capacity(swing), Some(6));
+    assert_eq!(
+        park.ride_running_costs(swing)
+            .unwrap()
+            .cost_per_interval_cents,
+        80
+    );
+    assert_eq!(
+        park.ride_appeal_profile(swing).unwrap().layout_challenge,
+        55
+    );
+    assert!(matches!(
+        park.swing_build_quote(TilePos { x: 14, y: 2 }, 0),
+        Err(CarouselError::ActiveCarouselExists)
+    ));
+    assert_eq!(park.carousel_demolition_quote(swing), Ok(17_500));
+    saved(&park);
+    park.remove_carousel(swing).unwrap();
+    assert_eq!(park.cash_cents(), 52_500);
+    assert_eq!(park.ride_cashflow(swing).unwrap().refunds_cents, 17_500);
+    assert!(park.ride_available(carousel));
+    saved(&park);
+}
+
+#[test]
+fn schema_30_migrates_carousel_kind_and_current_requires_valid_kind() {
+    let mut park = Park::new(32, 32);
+    park.place_carousel(TilePos { x: 2, y: 2 }, 0).unwrap();
+    let current = value(&park);
+    let mut old = current.clone();
+    old["schema_version"] = json!(30);
+    old["content_version"] = json!(30);
+    old["park"]["carousels"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("kind");
+    assert_eq!(read(&old).unwrap(), park);
+    let mut smuggled = old.clone();
+    smuggled["park"]["carousels"][0]["kind"] = json!("Swing");
+    assert!(read(&smuggled).is_err());
+    let mut missing = current.clone();
+    missing["park"]["carousels"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("kind");
+    assert!(read(&missing).is_err());
+    let mut invalid = current.clone();
+    invalid["park"]["carousels"][0]["kind"] = json!("Coaster");
+    assert!(read(&invalid).is_err());
+    let mut invalid = current;
+    invalid["park"]["carousels"][0]["kind"] = json!("Swing");
+    assert!(read(&invalid).is_err());
+}
+
+#[test]
+fn swing_seats_move_inside_envelope_and_resume_mid_cycle() {
+    let mut park = Park::new(32, 32);
+    let id = park.place_swing(TilePos { x: 8, y: 8 }, 0).unwrap();
+    park.set_ride_open(id, true).unwrap();
+    for _ in 0..crate::STATION_DWELL_TICKS + 1 {
+        park.advance(Speed::Normal);
+    }
+    assert!(park.ride_is_running(id));
+    let first = park.carousel_seat_positions(id);
+    for _ in 0..150 {
+        park.advance(Speed::Normal);
+    }
+    let moved = park.carousel_seat_positions(id);
+    assert_ne!(first, moved);
+    for point in moved {
+        assert!((480..=660).contains(&point.x));
+        assert!((480..=660).contains(&point.y));
+        assert!((0..180).contains(&point.height));
+    }
+    let mut resumed = saved(&park);
+    for _ in 0..3_600 {
+        park.advance(Speed::Normal);
+        resumed.advance(Speed::Normal);
+    }
+    assert_eq!(park, resumed);
+}
 /// Establish valid elapsed, fixed-cost service history without running unrelated
 /// guest decisions hundreds of thousands of times in a construction boundary test.
 fn spend_to(park: &mut Park, target: u64) {

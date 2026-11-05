@@ -30,8 +30,8 @@ impl OperatingField {
     pub(crate) fn supported(self, kind: RideKind) -> bool {
         match self {
             Self::StationWait | Self::MinimumPassengers | Self::MaxExtraWait => true,
-            Self::Cars | Self::LiftSpeed | Self::BrakeSpeed => kind != RideKind::Carousel,
-            Self::CycleDuration => kind == RideKind::Carousel,
+            Self::Cars | Self::LiftSpeed | Self::BrakeSpeed => kind == RideKind::Coaster,
+            Self::CycleDuration => kind != RideKind::Coaster,
         }
     }
 

@@ -415,6 +415,7 @@ impl Park {
                     let added_nausea = match ride_kind {
                         Some(crate::RideKind::Coaster) => 22,
                         Some(crate::RideKind::Carousel) => 5,
+                        Some(crate::RideKind::Swing) => 12,
                         None => 0,
                     };
                     let before = guest.needs.nausea;
