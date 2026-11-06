@@ -44,6 +44,14 @@ fn fresh_park_starts_on_flat_ground_with_matching_terrain_control() {
         park.ride().is_some(),
         "the starting coaster stays available"
     );
+    assert_eq!(park.circuit().unwrap().specs()[0].entry.height, 0);
+    assert!(
+        park.objects()
+            .iter()
+            .filter(|object| object.is_public_path())
+            .all(|object| object.height == 0)
+    );
+    assert!(park.guests().iter().all(|guest| guest.height == 0));
     assert_eq!(
         Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
         park

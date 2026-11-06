@@ -325,6 +325,24 @@ impl Park {
         self.install_train_circuit(&fixture_specs())
     }
 
+    /// The playable starter circuit uses the same shape as the proof fixture,
+    /// with its station and low track on flat ground instead of eight steps up.
+    pub fn install_ground_starter_coaster(&mut self) -> Result<(), TrainError> {
+        if (self.width(), self.height()) != (32, 32) {
+            return Err(PlacementError::FixtureMapSize {
+                width: self.width(),
+                height: self.height(),
+            }
+            .into());
+        }
+        let mut specs = fixture_specs();
+        for piece in &mut specs {
+            piece.entry.height -= 8;
+            piece.exit.height -= 8;
+        }
+        self.install_train_circuit(&specs)
+    }
+
     /// Install a validated closed circuit, committing objects and train only
     /// after all ports, grades, lengths, terrain and occupied spaces succeed.
     /// This proof supports one circuit. Replacing a live circuit is not editing.
@@ -752,6 +770,29 @@ mod tests {
         let mut park = Park::new(32, 32);
         park.install_train_fixture().unwrap();
         park
+    }
+
+    #[test]
+    fn playable_starter_coaster_begins_on_flat_ground_and_completes_a_lap() {
+        let mut park = Park::new(32, 32);
+        park.install_ground_starter_crowd(42).unwrap();
+        park.install_ground_starter_coaster().unwrap();
+        assert_eq!(park.circuit().unwrap().specs()[0].entry.height, 0);
+        assert_eq!(park.max_terrain_height(), 0);
+        assert_eq!(park.max_surface_height(), 8);
+        assert!(park.guests().iter().all(|guest| guest.height == 0));
+        assert!(
+            park.objects()
+                .iter()
+                .filter(|object| object.is_public_path())
+                .all(|object| object.height == 0)
+        );
+        finish_lap(&mut park);
+        assert_eq!(park.train().unwrap().laps, 1);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
     }
 
     fn advance(park: &mut Park, ticks: usize) {

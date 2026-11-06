@@ -17,6 +17,7 @@ pub enum FinanceKind {
     RideRevenue,
     ParkAdmission,
     Advertising,
+    RadioAdvertising,
     ServiceRevenue,
     ServiceUpkeep,
     ServiceSupplies,
@@ -70,6 +71,7 @@ impl std::fmt::Display for FinanceKind {
             Self::RideRevenue => "Ride tickets",
             Self::ParkAdmission => "Park entry",
             Self::Advertising => "Local flyers",
+            Self::RadioAdvertising => "Radio ads",
             Self::ServiceRevenue => "Service sale",
             Self::ServiceUpkeep => "Service upkeep",
             Self::ServiceSupplies => "Service supplies",
@@ -142,7 +144,7 @@ impl FinanceTotals {
             FinanceKind::LoanInterest => &mut self.loan_interest_cents,
             FinanceKind::RideRevenue => &mut self.ride_revenue_cents,
             FinanceKind::ParkAdmission => &mut self.admission_revenue_cents,
-            FinanceKind::Advertising => &mut self.advertising_cents,
+            FinanceKind::Advertising | FinanceKind::RadioAdvertising => &mut self.advertising_cents,
             FinanceKind::ServiceRevenue => &mut self.service_revenue_cents,
             FinanceKind::ServiceUpkeep | FinanceKind::RideUpkeep => &mut self.upkeep_cents,
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
@@ -480,7 +482,8 @@ impl Park {
             + construction_cents
             + self.loans.interest_paid_cents
             + wages_cents
-            + self.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS;
+            + self.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS
+            + self.visitors.radio_campaigns * crate::RADIO_CAMPAIGN_COST_CENTS;
         FinanceStats {
             wages_cents,
             loan_borrowed_cents: self.loans.borrowed_cents,
@@ -492,7 +495,8 @@ impl Park {
             cash_cents: self.cash_cents,
             ride_revenue_cents,
             admission_revenue_cents: self.visitors.admission_revenue_cents,
-            advertising_cents: self.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS,
+            advertising_cents: self.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS
+                + self.visitors.radio_campaigns * crate::RADIO_CAMPAIGN_COST_CENTS,
             service_revenue_cents,
             upkeep_cents,
             supplies_cents,
@@ -856,12 +860,11 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     maximum_archived += u128::from(archived_admission);
     archived_check.admission_revenue_cents = archived_admission;
     let archived_advertising = ledger.archived.advertising_cents;
-    if !archived_advertising.is_multiple_of(crate::FLYER_CAMPAIGN_COST_CENTS) {
+    if !archived_advertising.is_multiple_of(500) {
         return Err("archived advertising cost is invalid".into());
     }
-    let archived_campaigns = archived_advertising / crate::FLYER_CAMPAIGN_COST_CENTS;
-    minimum_archived += u128::from(archived_campaigns);
-    maximum_archived += u128::from(archived_campaigns);
+    minimum_archived += u128::from(archived_advertising.div_ceil(crate::RADIO_CAMPAIGN_COST_CENTS));
+    maximum_archived += u128::from(archived_advertising / crate::FLYER_CAMPAIGN_COST_CENTS);
     archived_check.advertising_cents = archived_advertising;
     if archived_check != ledger.archived
         || (ledger.archived_entries == 0
@@ -897,6 +900,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                     entry.kind,
                     FinanceKind::ParkAdmission
                         | FinanceKind::Advertising
+                        | FinanceKind::RadioAdvertising
                         | FinanceKind::RideConstruction
                         | FinanceKind::RideDemolitionRefund
                         | FinanceKind::ServiceConstruction
@@ -980,6 +984,13 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 || entry.amount_cents != crate::FLYER_CAMPAIGN_COST_CENTS
             {
                 return Err("advertising receipt is invalid".into());
+            }
+        } else if entry.kind == FinanceKind::RadioAdvertising {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || entry.amount_cents != crate::RADIO_CAMPAIGN_COST_CENTS
+            {
+                return Err("radio advertising receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;
@@ -1135,6 +1146,32 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         expected_id = expected_id.checked_add(1).ok_or("finance ID overflow")?;
         tick = entry.tick;
     }
+    let retained_flyers = ledger
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == FinanceKind::Advertising)
+        .count() as u64;
+    let retained_radio = ledger
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == FinanceKind::RadioAdvertising)
+        .count() as u64;
+    let archived_flyers = park
+        .visitors
+        .flyer_campaigns
+        .checked_sub(retained_flyers)
+        .ok_or("flyer receipts exceed purchases")?;
+    let archived_radio = park
+        .visitors
+        .radio_campaigns
+        .checked_sub(retained_radio)
+        .ok_or("radio receipts exceed purchases")?;
+    if ledger.archived.advertising_cents
+        != archived_flyers * crate::FLYER_CAMPAIGN_COST_CENTS
+            + archived_radio * crate::RADIO_CAMPAIGN_COST_CENTS
+    {
+        return Err("archived advertising does not match campaign purchases".into());
+    }
     if total.loan_borrowed_cents != park.loans.borrowed_cents
         || total.loan_repaid_cents != park.loans.repaid_cents
         || total.loan_interest_cents != park.loans.interest_paid_cents
@@ -1147,6 +1184,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         || total.admission_revenue_cents != park.visitors.admission_revenue_cents
         || total.advertising_cents
             != park.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS
+                + park.visitors.radio_campaigns * crate::RADIO_CAMPAIGN_COST_CENTS
         || ledger
             .opening_ride_revenue_cents
             .checked_add(total.ride_revenue_cents)

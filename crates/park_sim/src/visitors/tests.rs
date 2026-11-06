@@ -203,6 +203,109 @@ fn local_flyers_keep_time_and_cost_when_park_closes() {
     );
 }
 #[test]
+fn radio_ads_change_gate_decisions_without_minting_guest_money_and_overlap_flyers() {
+    let (mut park, _) = simple();
+    park.set_visitor_arrivals(true).unwrap();
+    park.set_park_entry_price(500).unwrap();
+    park.start_radio_campaign().unwrap();
+    assert_eq!(park.cash_cents(), 96_000);
+    assert_eq!(
+        park.start_radio_campaign(),
+        Err(VisitorError::RadioAlreadyActive)
+    );
+    for _ in 0..900 {
+        park.advance(Speed::Normal);
+    }
+    assert_eq!(park.visitor_flow_stats().radio_candidates, 1);
+    assert_eq!(park.visitor_flow_stats().radio_admissions, 1);
+    assert_eq!(park.guests()[0].wallet_cents, 1_500);
+    assert_eq!(park.guests()[0].spent_cents, 500);
+    park.start_flyer_campaign().unwrap();
+    assert_eq!(park.finance_stats().advertising_cents, 6_500);
+    let mut resumed = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+    for _ in 0..9_000 {
+        park.advance(Speed::Normal);
+        resumed.advance(Speed::Normal);
+    }
+    assert_eq!(park, resumed);
+    assert_eq!(park.visitor_flow_stats().radio_ticks_remaining, 0);
+    assert_eq!(park.visitor_flow_stats().flyer_ticks_remaining, 0);
+    assert!(park.visitor_flow_stats().radio_admissions > 1);
+    assert!(
+        park.visitor_flow_stats().radio_candidates < park.visitor_flow_stats().flyer_candidates
+    );
+    assert_eq!(park.finance_summary().advertising_cents, 6_500);
+    park.to_save_bytes().unwrap();
+}
+
+#[test]
+fn radio_ads_require_arrivals_cash_and_keep_time_when_closed() {
+    let (mut park, _) = simple();
+    assert_eq!(
+        park.start_radio_campaign(),
+        Err(VisitorError::CampaignNeedsArrivals)
+    );
+    park.set_visitor_arrivals(true).unwrap();
+    park.cash_cents = RADIO_CAMPAIGN_COST_CENTS - 1;
+    assert_eq!(
+        park.start_radio_campaign(),
+        Err(VisitorError::RadioUnaffordable)
+    );
+    park.cash_cents = 100_000;
+    park.start_radio_campaign().unwrap();
+    park.set_park_open(false);
+    for _ in 0..900 {
+        park.advance(Speed::Normal);
+    }
+    assert_eq!(park.visitor_flow_stats().radio_ticks_remaining, 8_100);
+    assert_eq!(park.visitor_flow_stats().radio_candidates, 0);
+    let paused = park.clone();
+    park.advance(Speed::Paused);
+    assert_eq!(park, paused);
+}
+
+#[test]
+fn schema_36_migrates_idle_radio_and_schema_37_requires_radio_state() {
+    let (park, _) = simple();
+    let mut json: serde_json::Value =
+        serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+    json["schema_version"] = serde_json::json!(36);
+    json["content_version"] = serde_json::json!(36);
+    crate::legacy_cost_test_support::strip_radio_fields(&mut json);
+    assert_eq!(
+        Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap(),
+        park
+    );
+    let mut current = json.clone();
+    current["schema_version"] = serde_json::json!(37);
+    current["content_version"] = serde_json::json!(37);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
+    json["park"]["visitors"]["radio_campaigns"] = serde_json::json!(0);
+    assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+}
+
+#[test]
+fn schema_36_preserves_an_active_paid_flyer_campaign() {
+    let (mut park, _) = simple();
+    park.set_visitor_arrivals(true).unwrap();
+    park.start_flyer_campaign().unwrap();
+    for _ in 0..450 {
+        park.advance(Speed::Normal);
+    }
+    let mut json: serde_json::Value =
+        serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+    json["schema_version"] = serde_json::json!(36);
+    json["content_version"] = serde_json::json!(36);
+    crate::legacy_cost_test_support::strip_radio_fields(&mut json);
+    let loaded = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
+    assert_eq!(loaded, park);
+    assert_eq!(loaded.visitor_flow_stats().flyer_ticks_remaining, 8_550);
+    assert_eq!(
+        loaded.finance_stats().advertising_cents,
+        FLYER_CAMPAIGN_COST_CENTS
+    );
+}
+#[test]
 fn closing_park_stops_arrivals_and_departing_guests_reopen_without_instant_arrival() {
     let (mut p, _) = simple();
     p.set_visitor_arrivals(true).unwrap();
@@ -528,6 +631,10 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         "flyer_ticks_remaining",
         "flyer_campaigns",
         "flyer_candidates",
+        "radio_ticks_remaining",
+        "radio_campaigns",
+        "radio_candidates",
+        "radio_admissions",
     ] {
         old_default.as_object_mut().unwrap().remove(field);
     }

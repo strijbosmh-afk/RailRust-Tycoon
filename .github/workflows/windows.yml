@@ -433,6 +433,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-flyers --save-dir $flyerDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Flyer campaign verifier failed" }
           Get-Content -LiteralPath (Join-Path $flyerDirectory "verification-flyers.txt")
+      - name: Verify radio advertising and overlapping campaigns
+        shell: pwsh
+        run: |
+          $radioDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound radio é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-radio --save-dir $radioDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Radio campaign writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-radio --save-dir $radioDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Radio campaign verifier failed" }
+          Get-Content -LiteralPath (Join-Path $radioDirectory "verification-radio.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

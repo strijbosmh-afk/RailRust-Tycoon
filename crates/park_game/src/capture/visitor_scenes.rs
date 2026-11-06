@@ -42,6 +42,17 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
             assert_eq!(p.visitor_flow_stats().flyer_ticks_remaining, 6_300);
             assert_eq!(p.finance_stats().advertising_cents, 2_500);
         }
+        Scene::VisitorRadio | Scene::VisitorRadioFinance => {
+            p.set_park_entry_price(900).unwrap();
+            p.start_radio_campaign().unwrap();
+            p.start_flyer_campaign().unwrap();
+            for _ in 0..2_700 {
+                p.advance(Speed::Normal);
+            }
+            assert_eq!(p.visitor_flow_stats().radio_candidates, 6);
+            assert!(p.visitor_flow_stats().radio_admissions > 0);
+            assert_eq!(p.finance_stats().advertising_cents, 6_500);
+        }
         Scene::VisitorsClosed => {
             view.selected_guest = Some(visitors::paid_departure(p).unwrap());
             p.set_park_open(false);
@@ -69,7 +80,10 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
     view.rides_open = false;
     view.services_open = false;
     view.designs_open = false;
-    view.finance_open = matches!(scene, Scene::VisitorsFinance | Scene::VisitorFlyersFinance);
+    view.finance_open = matches!(
+        scene,
+        Scene::VisitorsFinance | Scene::VisitorFlyersFinance | Scene::VisitorRadioFinance
+    );
     view.finance_view = FinanceView::ParkSummary;
     view.guests_open = !view.finance_open;
     view.guest_flow_view = true;
@@ -94,6 +108,8 @@ mod tests {
             Scene::VisitorFreeRides,
             Scene::VisitorFlyers,
             Scene::VisitorFlyersFinance,
+            Scene::VisitorRadio,
+            Scene::VisitorRadioFinance,
             Scene::VisitorsClosed,
             Scene::VisitorsPaid,
             Scene::VisitorsTurnover,
