@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 36;
-pub const CONTENT_VERSION: u32 = 36;
+pub const SCHEMA_VERSION: u32 = 37;
+pub const CONTENT_VERSION: u32 = 37;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -742,6 +742,7 @@ impl Park {
                 | 33
                 | 34
                 | 35
+                | 36
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -760,6 +761,7 @@ impl Park {
         validate_park_open_field(bytes, header.schema_version)?;
         validate_admission_fields(bytes, header.schema_version)?;
         validate_flyer_fields(bytes, header.schema_version)?;
+        validate_radio_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -1093,6 +1095,38 @@ fn validate_flyer_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
     }
     if schema >= 36 && (count != fields.len() || !archived) {
         return Err(invalid("schema 36 requires local flyer state"));
+    }
+    Ok(())
+}
+
+fn validate_radio_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 21 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let fields = [
+        "radio_ticks_remaining",
+        "radio_campaigns",
+        "radio_candidates",
+        "radio_admissions",
+    ];
+    let flow = &value["park"]["visitors"];
+    let count = fields
+        .iter()
+        .filter(|field| flow.get(**field).is_some())
+        .count();
+    let receipt = value["park"]["finances"]["entries"]
+        .as_array()
+        .is_some_and(|entries| {
+            entries
+                .iter()
+                .any(|entry| entry["kind"] == "RadioAdvertising")
+        });
+    if schema < 37 && (count != 0 || receipt) {
+        return Err(invalid("radio advertising requires schema 37"));
+    }
+    if schema >= 37 && count != fields.len() {
+        return Err(invalid("schema 37 requires radio advertising state"));
     }
     Ok(())
 }

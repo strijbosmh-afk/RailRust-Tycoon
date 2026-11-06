@@ -52,8 +52,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let loan = park.loan_stats();
     let ride = park.all_rides().map(|r| r.revenue_cents).sum::<u64>();
     let admission = park.visitor_flow_stats().admission_revenue_cents;
-    let advertising =
-        park.visitor_flow_stats().flyer_campaigns * park_sim::FLYER_CAMPAIGN_COST_CENTS;
+    let advertising = park.visitor_flow_stats().flyer_campaigns
+        * park_sim::FLYER_CAMPAIGN_COST_CENTS
+        + park.visitor_flow_stats().radio_campaigns * park_sim::RADIO_CAMPAIGN_COST_CENTS;
     let revenue: u64 = park.services().iter().map(|s| s.revenue_cents).sum();
     let upkeep: u64 = park.services().iter().map(|s| s.upkeep_cents).sum::<u64>()
         + park
@@ -161,6 +162,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::LoanInterest
                     | FinanceKind::ParkAdmission
                     | FinanceKind::Advertising
+                    | FinanceKind::RadioAdvertising
             ) && (entry.ride.is_some() || entry.service.is_some()))
             || (!matches!(
                 entry.kind,
@@ -169,6 +171,7 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::LoanInterest
                     | FinanceKind::ParkAdmission
                     | FinanceKind::Advertising
+                    | FinanceKind::RadioAdvertising
             ) && (matches!(
                 entry.kind,
                 FinanceKind::RideRevenue
@@ -207,7 +210,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || archived.admission_revenue_cents
             + total(&ledger.entries, FinanceKind::ParkAdmission, None)
             != admission
-        || archived.advertising_cents + total(&ledger.entries, FinanceKind::Advertising, None)
+        || archived.advertising_cents
+            + total(&ledger.entries, FinanceKind::Advertising, None)
+            + total(&ledger.entries, FinanceKind::RadioAdvertising, None)
             != park.finance_stats().advertising_cents
         || balance != i128::from(park.cash_cents())
         || ledger.opening_ride_revenue_cents

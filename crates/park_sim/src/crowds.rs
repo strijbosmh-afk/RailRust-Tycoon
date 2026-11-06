@@ -327,29 +327,52 @@ impl Park {
         let mut candidate = self.clone();
         candidate.install_overlap_fixture()?;
         candidate.restore_crowd_paths()?;
-        if candidate.crowd_seed.is_none() {
-            candidate.crowd_seed = Some(seed);
-            candidate.crowd_rng = seed;
+        candidate.seed_fixture_guests(seed, FIXTURE_HEIGHT)?;
+        *self = candidate;
+        Ok(())
+    }
+
+    /// Seed the playable flat starter park with ground-level paths and guests.
+    /// The elevated overlap fixture remains available to rendering diagnostics.
+    pub fn install_ground_starter_crowd(&mut self, seed: u64) -> Result<(), PlacementError> {
+        let mut candidate = self.clone();
+        for (pos, _) in fixture_paths() {
+            if !candidate
+                .objects
+                .iter()
+                .any(|path| path.pos == pos && path.is_public_path() && path.height == 0)
+            {
+                candidate.place_path(pos, 0)?;
+            }
+        }
+        candidate.seed_fixture_guests(seed, 0)?;
+        *self = candidate;
+        Ok(())
+    }
+
+    fn seed_fixture_guests(&mut self, seed: u64, height: u8) -> Result<(), PlacementError> {
+        if self.crowd_seed.is_none() {
+            self.crowd_seed = Some(seed);
+            self.crowd_rng = seed;
             let fixture_positions = fixture_paths();
-            let paths: Vec<_> = candidate
+            let paths: Vec<_> = self
                 .objects
                 .iter()
                 .filter(|path| {
                     path.is_public_path()
-                        && path.height == FIXTURE_HEIGHT
+                        && path.height == height
                         && fixture_positions.iter().any(|(pos, _)| *pos == path.pos)
                 })
                 .copied()
                 .collect();
             for index in 0..FIXTURE_GUESTS {
-                let next_id = candidate
+                let next_id = self
                     .next_guest_id
                     .checked_add(1)
                     .ok_or(PlacementError::IdExhausted)?;
-                let path =
-                    paths[(next_random(&mut candidate.crowd_rng) % paths.len() as u64) as usize];
-                candidate.guests.push(Guest {
-                    id: GuestId(candidate.next_guest_id),
+                let path = paths[(next_random(&mut self.crowd_rng) % paths.len() as u64) as usize];
+                self.guests.push(Guest {
+                    id: GuestId(self.next_guest_id),
                     current: Some(path.id),
                     next: None,
                     destination: None,
@@ -365,12 +388,12 @@ impl Park {
                     spent_cents: 0,
                     service_spent_cents: 0,
                     services_used: 0,
-                    needs: crate::GuestNeeds::for_guest(seed, GuestId(candidate.next_guest_id)),
+                    needs: crate::GuestNeeds::for_guest(seed, GuestId(self.next_guest_id)),
                     service_visit: None,
                     service_cooldown: 0,
                     preferences: crate::GuestPreferences::for_guest(
                         seed,
-                        GuestId(candidate.next_guest_id),
+                        GuestId(self.next_guest_id),
                     ),
                     satisfaction: 70,
                     thought: crate::GuestThought::Exploring,
@@ -383,10 +406,9 @@ impl Park {
                     route: VecDeque::new(),
                     wait_ticks: index as u16 * 2,
                 });
-                candidate.next_guest_id = next_id;
+                self.next_guest_id = next_id;
             }
         }
-        *self = candidate;
         Ok(())
     }
 

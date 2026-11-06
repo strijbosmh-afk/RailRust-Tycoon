@@ -247,6 +247,7 @@ pub(crate) fn strip_admission_fields(value: &mut serde_json::Value) {
 }
 
 pub(crate) fn strip_flyer_fields(value: &mut serde_json::Value) {
+    strip_radio_fields(value);
     if value["schema_version"].as_u64().is_none_or(|v| v > 35) {
         return;
     }
@@ -270,6 +271,26 @@ pub(crate) fn strip_flyer_fields(value: &mut serde_json::Value) {
         .and_then(serde_json::Value::as_object_mut)
     {
         archived.remove("advertising_cents");
+    }
+}
+
+pub(crate) fn strip_radio_fields(value: &mut serde_json::Value) {
+    if value["schema_version"].as_u64().is_none_or(|v| v > 36) {
+        return;
+    }
+    if let Some(flow) = value
+        .get_mut("park")
+        .and_then(|park| park.get_mut("visitors"))
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        for field in [
+            "radio_ticks_remaining",
+            "radio_campaigns",
+            "radio_candidates",
+            "radio_admissions",
+        ] {
+            flow.remove(field);
+        }
     }
 }
 

@@ -596,7 +596,7 @@ fn park_summary_buttons_show_archived_removed_service_loss_separate_from_capital
     for (index, expected) in [
         "Rides / Operating profit +$0.00\nTickets +$0.00 / Upkeep -$0.00",
         "Services / Operating profit -$14.00\nSales +$0.00 / Upkeep -$14.00 / Supplies -$0.00",
-        "Combined operating profit -$14.00 / Entry +$0.00 / Flyers -$0.00 / Staff wages -$0.00\nConstruction -$100.00 / Refunds +$50.00 / excluded from operating profit",
+        "Combined operating profit -$14.00 / Entry +$0.00 / Ads -$0.00 / Staff wages -$0.00\nConstruction -$100.00 / Refunds +$50.00 / excluded from operating profit",
         "Financing / Borrowed +$0.00 / Repaid -$0.00 / Interest paid -$0.00\nLoan balance $0.00 / Interest due $0.00",
         "Net cash -$64.00 / includes construction, refunds and financing\nStarting cash $1000.00 + net cash = current cash $936.00",
     ].iter().enumerate() {

@@ -9,6 +9,9 @@ pub const VISITOR_LIFETIME_CAP: u64 = 1_000_000;
 pub const FLYER_CAMPAIGN_COST_CENTS: u64 = 2_500;
 pub const FLYER_CAMPAIGN_TICKS: u16 = 9_000;
 pub const FLYER_ARRIVAL_TICKS: u16 = 450;
+pub const RADIO_CAMPAIGN_COST_CENTS: u64 = 4_000;
+pub const RADIO_CAMPAIGN_TICKS: u16 = 9_000;
+pub const RADIO_ENTRY_BONUS_CENTS: u16 = 300;
 pub const MAX_PARK_ENTRY_PRICE_CENTS: u16 = 2_000;
 pub const PARK_ENTRY_PRICE_STEP_CENTS: u16 = 50;
 
@@ -77,6 +80,14 @@ pub(crate) struct VisitorFlow {
     pub flyer_campaigns: u64,
     #[serde(default)]
     pub flyer_candidates: u64,
+    #[serde(default)]
+    pub radio_ticks_remaining: u16,
+    #[serde(default)]
+    pub radio_campaigns: u64,
+    #[serde(default)]
+    pub radio_candidates: u64,
+    #[serde(default)]
+    pub radio_admissions: u64,
     pub arrival_progress: u16,
     pub spawned: u64,
     #[serde(deserialize_with = "crate::saves::strict_object")]
@@ -100,6 +111,10 @@ impl Default for VisitorFlow {
             flyer_ticks_remaining: 0,
             flyer_campaigns: 0,
             flyer_candidates: 0,
+            radio_ticks_remaining: 0,
+            radio_campaigns: 0,
+            radio_candidates: 0,
+            radio_admissions: 0,
             arrival_progress: 0,
             spawned: 0,
             departed: DepartedVisitors::default(),
@@ -139,6 +154,10 @@ pub struct VisitorFlowStats {
     pub flyer_ticks_remaining: u16,
     pub flyer_campaigns: u64,
     pub flyer_candidates: u64,
+    pub radio_ticks_remaining: u16,
+    pub radio_campaigns: u64,
+    pub radio_candidates: u64,
+    pub radio_admissions: u64,
     pub active: usize,
     pub tracked: usize,
     pub leaving: usize,
@@ -161,6 +180,8 @@ pub enum VisitorError {
     CampaignAlreadyActive,
     CampaignNeedsArrivals,
     CampaignUnaffordable,
+    RadioAlreadyActive,
+    RadioUnaffordable,
 }
 impl std::fmt::Display for VisitorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -174,6 +195,8 @@ impl std::fmt::Display for VisitorError {
             Self::CampaignAlreadyActive => "Local flyers are already running",
             Self::CampaignNeedsArrivals => "Open the park, set an entry and enable arrivals first",
             Self::CampaignUnaffordable => "Not enough park cash for local flyers",
+            Self::RadioAlreadyActive => "Radio ads are already running",
+            Self::RadioUnaffordable => "Not enough park cash for radio ads",
         })
     }
 }
@@ -199,6 +222,10 @@ impl Park {
             flyer_ticks_remaining: self.visitors.flyer_ticks_remaining,
             flyer_campaigns: self.visitors.flyer_campaigns,
             flyer_candidates: self.visitors.flyer_candidates,
+            radio_ticks_remaining: self.visitors.radio_ticks_remaining,
+            radio_campaigns: self.visitors.radio_campaigns,
+            radio_candidates: self.visitors.radio_candidates,
+            radio_admissions: self.visitors.radio_admissions,
             active: self.guests.len(),
             tracked: self.visitors.stays.len(),
             leaving: leaving.clone().count(),
@@ -314,6 +341,28 @@ impl Park {
         );
         Ok(())
     }
+    pub fn start_radio_campaign(&mut self) -> Result<(), VisitorError> {
+        if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
+            return Err(VisitorError::CampaignNeedsArrivals);
+        }
+        if self.visitors.radio_ticks_remaining != 0 {
+            return Err(VisitorError::RadioAlreadyActive);
+        }
+        if self.cash_cents < RADIO_CAMPAIGN_COST_CENTS {
+            return Err(VisitorError::RadioUnaffordable);
+        }
+        if self.visitors.radio_campaigns == u64::MAX {
+            return Err(VisitorError::Capacity);
+        }
+        self.visitors.radio_ticks_remaining = RADIO_CAMPAIGN_TICKS;
+        self.visitors.radio_campaigns += 1;
+        self.record_cash(
+            crate::FinanceKind::RadioAdvertising,
+            None,
+            RADIO_CAMPAIGN_COST_CENTS,
+        );
+        Ok(())
+    }
     pub fn request_guest_departure(&mut self, id: GuestId) -> Result<(), VisitorError> {
         if !self.guests.iter().any(|g| g.id == id) {
             return Err(VisitorError::UnknownGuest);
@@ -334,6 +383,8 @@ impl Park {
     pub(crate) fn step_visitor_arrivals(&mut self) {
         let flyers_active = self.visitors.flyer_ticks_remaining > 0;
         self.visitors.flyer_ticks_remaining -= u16::from(flyers_active);
+        let radio_active = self.visitors.radio_ticks_remaining > 0;
+        self.visitors.radio_ticks_remaining -= u16::from(radio_active);
         for stay in &mut self.visitors.stays {
             if self.ticks - stay.entered_tick >= VISITOR_STAY_TICKS {
                 stay.leaving = true;
@@ -365,9 +416,22 @@ impl Park {
         if flyers_active {
             self.visitors.flyer_candidates += 1;
         }
-        if price > entry_willingness(seed, id) {
+        let willingness = entry_willingness(seed, id);
+        if radio_active {
+            self.visitors.radio_candidates += 1;
+        }
+        if price
+            > willingness.saturating_add(if radio_active {
+                RADIO_ENTRY_BONUS_CENTS
+            } else {
+                0
+            })
+        {
             self.visitors.turned_away += 1;
             return;
+        }
+        if radio_active && price > willingness {
+            self.visitors.radio_admissions += 1;
         }
         let path = *self.object(self.visitors.entry.unwrap()).unwrap();
         let mut guest = new_guest(id, path, seed);
@@ -497,6 +561,13 @@ pub(crate) fn validate(p: &Park) -> Result<(), String> {
         || f.flyer_campaigns > p.ticks / u64::from(FLYER_CAMPAIGN_TICKS) + 1
         || f.flyer_candidates > f.spawned.saturating_add(f.turned_away)
         || (f.flyer_campaigns == 0 && (f.flyer_ticks_remaining != 0 || f.flyer_candidates != 0))
+        || f.radio_ticks_remaining > RADIO_CAMPAIGN_TICKS
+        || f.radio_campaigns > p.ticks / u64::from(RADIO_CAMPAIGN_TICKS) + 1
+        || f.radio_candidates > f.spawned.saturating_add(f.turned_away)
+        || f.radio_admissions > f.radio_candidates
+        || f.radio_admissions > f.spawned
+        || (f.radio_campaigns == 0
+            && (f.radio_ticks_remaining != 0 || f.radio_candidates != 0 || f.radio_admissions != 0))
         || f.arrival_progress >= VISITOR_ARRIVAL_TICKS
         || f.spawned > VISITOR_LIFETIME_CAP
         || a.count > VISITOR_LIFETIME_CAP

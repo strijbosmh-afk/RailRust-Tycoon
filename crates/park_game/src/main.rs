@@ -638,8 +638,11 @@ fn demonstration_park() -> Park {
 }
 
 fn new_game_park() -> Park {
-    let mut park = demonstration_park();
-    park.apply_terrain_profile(TerrainProfile::Flat);
+    let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+    park.install_ground_starter_crowd(CROWD_SEED)
+        .expect("the ground starter paths and guests must fit the initial park");
+    park.install_ground_starter_coaster()
+        .expect("the ground starter circuit must fit the initial park");
     park
 }
 

@@ -1,0 +1,9 @@
+# Radio advertising — 0.67.0
+
+Open **Guests [L] → Visitor flow**. Set a connected public-path entry, enable visitor arrivals and open the park. Choose **Run radio ads $40**. The park pays $40 immediately and the campaign runs for five simulation minutes. While it runs, each arriving candidate will accept up to $3.00 more for park entry than they normally would. The panel shows time remaining, campaigns bought, candidates considered during radio ads and **extra entries**: guests who entered only because the radio bonus covered the price gap.
+
+Radio ads do not alter the normal candidate interval of 30 simulation seconds. **Run flyers $25** changes that interval to 15 seconds. The two campaigns can run at the same time, so flyers can create more chances for radio to help. Each type can have only one active campaign. Admission still respects the $20.00 entry-price limit, each guest's $20.00 starting wallet, the 64-active-guest cap and the public-path entry. The bonus does not add money to a guest's wallet.
+
+Starting either campaign requires open, enabled and connected arrivals plus enough cash. Closing the park or disabling arrivals later does not refund or pause a paid campaign. Space pauses the simulation and both clocks. Finance shows **Local flyers** and **Radio ads** as distinct expense receipts and combines them under **Ads** in the park summary and total costs.
+
+Strict park saves use schema/content **37/37**. Version-36 parks load with no radio campaign; existing flyer state is preserved. Older executables cannot read version-37 saves. Primary and backup player saves live in `%LOCALAPPDATA%\Parkbound\saves`; copy both when moving a park to another PC. The source checkout is separate. See [RESUME_DEVELOPMENT.md](../RESUME_DEVELOPMENT.md). New games start with the coaster station and paths at ground height on flat terrain; the lift and high track rise above them.
