@@ -214,6 +214,10 @@ enum Scene {
     VisitorRadioFinance,
     VisitorChallenge,
     VisitorChallengeCompleted,
+    ScenarioSelect,
+    ScenarioSprint,
+    ScenarioWon,
+    ScenarioFailed,
     VisitorsClosed,
     VisitorsPaid,
     VisitorsTurnover,
@@ -414,6 +418,10 @@ impl Scene {
                 | Self::VisitorRadioFinance
                 | Self::VisitorChallenge
                 | Self::VisitorChallengeCompleted
+                | Self::ScenarioSelect
+                | Self::ScenarioSprint
+                | Self::ScenarioWon
+                | Self::ScenarioFailed
                 | Self::VisitorsClosed
                 | Self::VisitorsPaid
                 | Self::VisitorsTurnover
@@ -874,6 +882,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("visitor-radio-finance") => Scene::VisitorRadioFinance,
                 Some("visitor-challenge") => Scene::VisitorChallenge,
                 Some("visitor-challenge-completed") => Scene::VisitorChallengeCompleted,
+                Some("scenario-select") => Scene::ScenarioSelect,
+                Some("scenario-sprint") => Scene::ScenarioSprint,
+                Some("scenario-won") => Scene::ScenarioWon,
+                Some("scenario-failed") => Scene::ScenarioFailed,
                 Some("visitors-closed") => Scene::VisitorsClosed,
                 Some("visitors-paid") => Scene::VisitorsPaid,
                 Some("visitors-turnover") => Scene::VisitorsTurnover,

@@ -20,6 +20,7 @@ pub(crate) mod guest_stats;
 pub(super) mod guests;
 pub(crate) mod names;
 pub(crate) mod rides;
+pub(crate) mod scenarios;
 pub(crate) mod services;
 pub(super) mod track;
 pub(crate) mod visitor_flow;
@@ -112,7 +113,9 @@ pub(super) enum Action {
     SelectGuest(Option<park_sim::GuestId>),
     GuestPage(i8),
     GuestFlowView,
+    ScenarioView,
     GuestStatsView,
+    Scenario(scenarios::ScenarioCommand),
     ToggleHandyman,
     ToggleBin,
     TogglePatrol,
@@ -1022,7 +1025,9 @@ pub(super) fn button_actions(
                     | Action::SelectGuest(_)
                     | Action::GuestPage(_)
                     | Action::GuestFlowView
+                    | Action::ScenarioView
                     | Action::GuestStatsView
+                    | Action::Scenario(_)
                     | Action::ToggleHandyman
                     | Action::ToggleCleaning
                     | Action::ToggleEmptyBins
@@ -1134,7 +1139,11 @@ pub(super) fn button_actions(
             }
             Action::FinanceView if view.finance_open => view.finance_view_pending = true,
             Action::GuestFlowView if view.guests_open => view.guest_flow_pending = true,
+            Action::ScenarioView if view.guests_open => view.scenario_view_pending = true,
             Action::GuestStatsView if view.guests_open => view.guest_stats_pending = true,
+            Action::Scenario(command) if view.guests_open && view.scenario_view => {
+                scenarios::queue(&mut view, *command)
+            }
             Action::ToggleHandyman if view.guests_open && view.guest_stats_view => {
                 view.handyman_toggle_pending = true;
             }
@@ -1151,11 +1160,16 @@ pub(super) fn button_actions(
                 view.guest_page = 0;
                 view.guest_flow_view = false;
                 view.guest_flow_pending = false;
+                view.scenario_view = false;
+                view.scenario_view_pending = false;
                 view.guest_stats_view = false;
                 view.guest_stats_pending = false;
             }
             Action::FindGuest
-                if view.guests_open && !view.guest_flow_view && !view.guest_stats_view =>
+                if view.guests_open
+                    && !view.guest_flow_view
+                    && !view.guest_stats_view
+                    && !view.scenario_view =>
             {
                 if let Some(park) = sim.as_ref().map(|sim| &sim.0)
                     && guests::focus_selected(park, &mut view)
@@ -1165,7 +1179,10 @@ pub(super) fn button_actions(
                 }
             }
             Action::RepairGuestPath
-                if view.guests_open && !view.guest_flow_view && !view.guest_stats_view =>
+                if view.guests_open
+                    && !view.guest_flow_view
+                    && !view.guest_stats_view
+                    && !view.scenario_view =>
             {
                 if let Some(park) = sim.as_ref().map(|sim| &sim.0) {
                     guests::prepare_repair(park, &mut view);
@@ -1235,7 +1252,9 @@ pub(super) fn button_actions(
             | Action::ServicePrice(_)
             | Action::ToggleService
             | Action::GuestFlowView
+            | Action::ScenarioView
             | Action::GuestStatsView
+            | Action::Scenario(_)
             | Action::CycleGuestFilter
             | Action::FindGuest
             | Action::RepairGuestPath

@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 38;
-pub const CONTENT_VERSION: u32 = 38;
+pub const SCHEMA_VERSION: u32 = 39;
+pub const CONTENT_VERSION: u32 = 39;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -748,6 +748,7 @@ impl Park {
                 | 35
                 | 36
                 | 37
+                | 38
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -1148,6 +1149,20 @@ fn validate_scenario_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> 
     }
     if schema >= 38 && !present {
         return Err(invalid("schema 38 requires scenario state"));
+    }
+    if let Some(state) = value["park"]["scenario"].as_object() {
+        let has_failure = state.contains_key("failed_tick");
+        if schema < 39 && has_failure {
+            return Err(invalid("scenario failure state requires schema 39"));
+        }
+        if schema >= 39 && !has_failure {
+            return Err(invalid("schema 39 requires scenario failure state"));
+        }
+        if schema < 39
+            && state.get("kind").and_then(serde_json::Value::as_str) == Some("BoardwalkSprint")
+        {
+            return Err(invalid("Boardwalk Sprint requires schema 39"));
+        }
     }
     Ok(())
 }
