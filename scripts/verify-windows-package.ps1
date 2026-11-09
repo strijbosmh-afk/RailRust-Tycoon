@@ -88,6 +88,11 @@ foreach ($guide in $guides) {
     if ((Get-FileHash -LiteralPath (Join-Path $package $guide)).Hash -ne
         (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory $guide)).Hash) { throw "Stale bundled guide: $guide" }
 }
+$assetManifest = 'assets/manifest.json'
+if ((Get-FileHash -LiteralPath (Join-Path $package $assetManifest)).Hash -ne
+    (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory $assetManifest)).Hash) {
+    throw 'Missing or stale original asset manifest.'
+}
 $executable = Join-Path $package 'Parkbound.exe'
 foreach ($name in @('pocket-oval.parktrack.json','meadow-winder.parktrack.json','meadow-climb.parktrack.json')) {
     $relative = 'designs/' + $name

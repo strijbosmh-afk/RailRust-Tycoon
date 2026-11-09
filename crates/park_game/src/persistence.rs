@@ -5,7 +5,7 @@ use std::{ffi::OsString, path::PathBuf};
 use bevy::prelude::*;
 use park_sim::{Park, Speed, TerrainProfile};
 
-use crate::{MAP_SIZE, Simulation, ViewState, save_store::SaveStore};
+use crate::{Simulation, ViewState, playable_map_size, save_store::SaveStore};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum SaveAction {
@@ -127,8 +127,8 @@ pub(super) fn perform_action(
     };
     match loaded {
         Ok(loaded) => {
-            if loaded.width() != MAP_SIZE || loaded.height() != MAP_SIZE {
-                view.save_notice = "Load rejected.\nRequires a 32 x 32 park.".into();
+            if !playable_map_size(&loaded) {
+                view.save_notice = "Load rejected.\nRequires a square 32–256 tile park.".into();
                 return false;
             }
             let (terrain_profile, terrain_custom) = terrain_style(&loaded);
@@ -159,6 +159,7 @@ pub(super) fn perform_action(
                 save_notice: notice,
                 ..default()
             };
+            crate::configure_playable_camera(view, park);
             true
         }
         Err(error) => {
@@ -169,7 +170,7 @@ pub(super) fn perform_action(
     }
 }
 
-fn terrain_style(park: &Park) -> (TerrainProfile, bool) {
+pub(super) fn terrain_style(park: &Park) -> (TerrainProfile, bool) {
     if park.max_terrain_height() == 0 {
         return (TerrainProfile::Flat, false);
     }
@@ -201,7 +202,7 @@ mod tests {
     }
 
     fn fixture() -> Park {
-        let mut park = Park::new(MAP_SIZE, MAP_SIZE);
+        let mut park = Park::new(crate::MAP_SIZE, crate::MAP_SIZE);
         park.apply_terrain_profile(TerrainProfile::Terraced);
         park.install_crowd_fixture(crate::CROWD_SEED).unwrap();
         park.install_train_fixture().unwrap();
@@ -304,7 +305,7 @@ mod tests {
         ));
         assert_eq!(park, initial);
         assert_eq!(view.speed, Speed::Fast);
-        assert!(view.save_notice.contains("32 x 32"));
+        assert!(view.save_notice.contains("32–256"));
         std::fs::write(session.store.as_ref().unwrap().save_path(), b"{broken").unwrap();
         assert!(!perform_action(
             &session,

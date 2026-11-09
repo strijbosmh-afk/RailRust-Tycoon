@@ -475,6 +475,16 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
         ),
         _ => mesh.ellipse(Vec2::new(1.4, 23.4), 2.0, 1.6, 0.0045, rgb_from(look.hair)),
     }
+    if look.cap {
+        mesh.ellipse(Vec2::new(0.0, 23.2), 3.5, 1.6, 0.0046, shirt);
+        mesh.line(
+            Vec2::new(-2.7, 22.1),
+            Vec2::new(3.7, 22.1),
+            1.0,
+            0.0047,
+            shirt_shadow,
+        );
+    }
     for x in [-1.05, 1.05] {
         mesh.line(
             Vec2::new(x - 0.28, 20.0),

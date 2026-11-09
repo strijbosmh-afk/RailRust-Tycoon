@@ -8,9 +8,10 @@ use crate::{
     MAP_SIZE, Simulation, ViewState,
     campaign::Campaign,
     display::DisplaySettings,
-    new_game_park, new_game_view,
+    new_game_park, new_game_view, new_sandbox_park,
     park_library::{Entry, ParkLibrary},
     persistence::SaveSession,
+    playable_map_size,
     sound::SoundSettings,
 };
 
@@ -36,7 +37,7 @@ enum Screen {
 
 fn initial_focus(screen: Screen) -> usize {
     // New Park has a mode selected on entry, so Enter starts that mode.
-    if screen == Screen::New { 3 } else { 0 }
+    if screen == Screen::New { 5 } else { 0 }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LibraryPurpose {
@@ -58,6 +59,8 @@ pub(super) enum Action {
     Back,
     Start,
     Mode(u8),
+    MapSize,
+    Landscape,
     Select(u64),
     Load,
     LoadBackup,
@@ -94,6 +97,8 @@ pub(super) struct FrontEnd {
     active: Option<u64>,
     snapshot: Option<Vec<u8>>,
     mode: u8,
+    sandbox_size: u32,
+    landscape_seed: Option<u64>,
     purpose: LibraryPurpose,
     page: usize,
     draft: String,
@@ -149,6 +154,8 @@ impl FrontEnd {
             active: None,
             snapshot: None,
             mode: 0,
+            sandbox_size: MAP_SIZE,
+            landscape_seed: None,
             purpose: LibraryPurpose::TitleLoad,
             page: 0,
             draft: "My Park".into(),
@@ -256,23 +263,21 @@ impl FrontEnd {
             return;
         };
         match library.load(id, backup) {
-            Ok(park) if park.width() == MAP_SIZE && park.height() == MAP_SIZE => {
+            Ok(park) if playable_map_size(&park) => {
                 let generation = view.park_generation.wrapping_add(1);
-                let terrain_profile = if park.max_terrain_height() == 0 {
-                    park_sim::TerrainProfile::Flat
-                } else {
-                    park_sim::TerrainProfile::Terraced
-                };
+                let (terrain_profile, terrain_custom) = crate::persistence::terrain_style(&park);
                 sim.0 = park;
                 *view = ViewState {
                     speed: Speed::Paused,
                     resume_speed: Speed::Normal,
                     terrain_profile,
+                    terrain_custom,
                     scene_dirty: true,
                     ui_pointer_consumed: true,
                     park_generation: generation,
                     ..new_game_view()
                 };
+                crate::configure_playable_camera(view, &sim.0);
                 self.active = Some(id);
                 if let Some(entry) = self.entries.iter().find(|entry| entry.id == id) {
                     self.draft = entry.name.clone();
@@ -291,7 +296,8 @@ impl FrontEnd {
                 self.show(Screen::Park, view);
             }
             Ok(_) => {
-                self.notice = "Load rejected: requires a 32 x 32 park.".into();
+                self.notice =
+                    "Load rejected: requires a square park of 32–256 tiles per side.".into();
                 self.show(Screen::Error, view);
             }
             Err(error) => {
@@ -328,7 +334,18 @@ impl FrontEnd {
             self.dirty_ui = true;
             return;
         }
-        let mut park = new_game_park();
+        let mut park = if scenario.is_none() {
+            new_sandbox_park(self.sandbox_size)
+        } else {
+            new_game_park()
+        };
+        if scenario.is_none()
+            && self.sandbox_size > MAP_SIZE
+            && let Some(seed) = self.landscape_seed
+        {
+            park.generate_rolling_terrain(seed)
+                .expect("a fresh sandbox has no placed objects");
+        }
         if let Some(kind) = scenario
             && let Err(error) = park.start_scenario(kind)
         {
@@ -336,14 +353,18 @@ impl FrontEnd {
             self.dirty_ui = true;
             return;
         }
+        let (terrain_profile, terrain_custom) = crate::persistence::terrain_style(&park);
         sim.0 = park;
         let generation = view.park_generation.wrapping_add(1);
         *view = ViewState {
             park_generation: generation,
             scene_dirty: true,
             ui_pointer_consumed: true,
+            terrain_profile,
+            terrain_custom,
             ..new_game_view()
         };
+        crate::configure_playable_camera(view, &sim.0);
         self.active = None;
         self.snapshot = None;
         self.paused_speed = Speed::Normal;
@@ -535,6 +556,8 @@ pub(super) fn input(
                 0
             };
             front.draft = "My Park".into();
+            front.sandbox_size = MAP_SIZE;
+            front.landscape_seed = None;
             front.show(Screen::New, &mut view);
         }
         Action::Library => {
@@ -579,6 +602,32 @@ pub(super) fn input(
         Action::Start => front.new_park(&mut sim, &mut view, &campaign),
         Action::Mode(mode) => {
             front.mode = mode;
+            front.dirty_ui = true;
+        }
+        Action::MapSize => {
+            if front.mode == 0 {
+                front.sandbox_size = match front.sandbox_size {
+                    32 => 64,
+                    64 => 128,
+                    128 => 256,
+                    _ => 32,
+                };
+            } else {
+                front.notice = "Challenge maps stay 32 × 32.".into();
+            }
+            front.dirty_ui = true;
+        }
+        Action::Landscape => {
+            if front.mode == 0 && front.sandbox_size > MAP_SIZE {
+                front.landscape_seed = match front.landscape_seed {
+                    None => Some(1),
+                    Some(1) => Some(2),
+                    Some(2) => Some(3),
+                    _ => None,
+                };
+            } else {
+                front.notice = "Rolling hills are available on empty 64–256 tile sandboxes.".into();
+            }
             front.dirty_ui = true;
         }
         Action::Select(id) => {
@@ -767,6 +816,8 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
             Action::Mode(0),
             Action::Mode(1),
             Action::Mode(2),
+            Action::MapSize,
+            Action::Landscape,
             Action::Start,
             Action::Back,
         ],
@@ -909,10 +960,13 @@ fn spawn_overlay(
                             button(p, if front.mode == 0 { "● Sandbox — open building" } else { "○ Sandbox — open building" }, Action::Mode(0));
                             button(p, if front.mode == 1 { "● Meadow Challenge — 20 arrivals, 5 rides, $750" } else { "○ Meadow Challenge — 20 arrivals, 5 rides, $750" }, Action::Mode(1));
                             button(p, if front.mode == 2 { "● Boardwalk Sprint — unlock through Meadow" } else { "○ Boardwalk Sprint — unlock through Meadow" }, Action::Mode(2));
+                            button(p, &format!("Map: {} × {} — {}", if front.mode == 0 { front.sandbox_size } else { MAP_SIZE }, if front.mode == 0 { front.sandbox_size } else { MAP_SIZE }, if front.mode == 0 && front.sandbox_size != MAP_SIZE { "empty sandbox (click to change)" } else if front.mode == 0 { "starter park (click to change)" } else { "challenge size fixed" }), Action::MapSize);
+                            button(p, &format!("Landscape: {}", if front.mode != 0 || front.sandbox_size == MAP_SIZE { "flat (fixed)".into() } else { front.landscape_seed.map_or_else(|| "flat (click for hills)".into(), |seed| format!("rolling hills / seed {seed} (click to change)")) }), Action::Landscape);
                             let description = match front.mode { 1 => "Meadow: flat 32×32 map, $1,000 start, free entry; 20 arrivals, 5 rides, $750 cash. No deadline. Award unlocks Boardwalk.",
                                 2 if campaign.unlocked(ScenarioKind::BoardwalkSprint) => "Boardwalk: flat 32×32 map, $1,000 start, free rides; 24 arrivals, 12 rides, $900 cash before 18,000 ticks. Award marks completion.",
                                 2 => "Boardwalk locked: complete Meadow Challenge first.",
-                                _ => "Sandbox: flat 32×32 park, starter rides and paths, $1,000 starting cash; no goals or deadline." };
+                                _ if front.sandbox_size == MAP_SIZE => "Sandbox: flat 32×32 park, starter rides and paths, $1,000 starting cash; no goals or deadline.",
+                                _ => "Sandbox: empty map, no starter rides or paths, $1,000 starting cash; build a public path and set a visitor entry before opening." };
                             title(p, description, 13.0, cream);
                             button(p, "Create Park", Action::Start); button(p, "Back", Action::Back); },
                         Screen::Library => { for entry in front.entries.iter().skip(front.page*4).take(4) {
@@ -1008,6 +1062,8 @@ fn action_name(action: Action) -> &'static str {
         Action::Mode(0) => "Sandbox",
         Action::Mode(1) => "Meadow Challenge",
         Action::Mode(_) => "Boardwalk Sprint",
+        Action::MapSize => "Map size",
+        Action::Landscape => "Landscape",
         Action::Load => "Load",
         Action::LoadBackup => "Load Backup",
         Action::Rename => "Rename",
@@ -1098,6 +1154,49 @@ mod tests {
             keyboard_actions(&front).get(front.focus),
             Some(Action::Start)
         ));
+    }
+
+    #[test]
+    fn larger_empty_sandbox_round_trips_through_the_park_library() {
+        let root = std::env::temp_dir().join(format!(
+            "parkbound-large-sandbox-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let session = SaveSession::from_arguments([
+            OsString::from("--save-dir"),
+            root.clone().into_os_string(),
+        ]);
+        let mut front = FrontEnd::new(true, &session);
+        let mut sim = Simulation(new_game_park());
+        let mut view = new_game_view();
+        front.sandbox_size = 64;
+        front.draft = "Large Sandbox".into();
+        front.new_park(&mut sim, &mut view, &Campaign::preview());
+        assert_eq!((sim.0.width(), sim.0.height()), (64, 64));
+        assert!(sim.0.objects().is_empty());
+        let site = (0..64)
+            .flat_map(|y| (0..64).map(move |x| park_sim::TilePos { x, y }))
+            .find(|&pos| sim.0.tile(pos).unwrap().terrain == park_sim::Terrain::Grass)
+            .unwrap();
+        sim.0.place_path(site, 0).unwrap();
+        front.save(&sim.0, &mut view);
+        let saved = sim.0.clone();
+        let id = front.active.unwrap();
+        front.load(id, false, &mut sim, &mut view);
+        assert_eq!(sim.0, saved);
+        assert_eq!(view.speed, Speed::Paused);
+        assert_eq!(view.camera_span, 2.0);
+        front.mode = 1;
+        front.sandbox_size = 256;
+        front.landscape_seed = Some(3);
+        front.new_park(&mut sim, &mut view, &Campaign::preview());
+        assert_eq!((sim.0.width(), sim.0.height()), (32, 32));
+        assert!(sim.0.circuit().is_some());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

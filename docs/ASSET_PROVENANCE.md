@@ -1,5 +1,7 @@
 # Asset provenance
 
+The 0.74 graphics checkpoint introduces the version-one `assets/manifest.json` as the packaged original-asset inventory. Nine procedural families point to their project source and explicit redistribution record. `scripts/validate-assets.ps1` runs in Windows CI and packaging; future authored assets require source, dimensions and a matching SHA-256 before distribution. The [visual bible](VISUAL_BIBLE.md) fixes style and naming rules. Forty-eight deterministic guest looks and optional caps are original procedural geometry in `visitor_look.rs`, `world.rs` and the cached `world/guest_render.rs` template. No external image, model, sound, font or game data was added in this checkpoint. See [the stage report](PHASES_3_5_FOUNDATIONS_REPORT.md).
+
 The 0.54 character, coaster, carousel and facility details are project-authored procedural mesh primitives and colors in Rust. They reuse current palettes, geometry and font behavior; no external portrait, icon, model, texture, recording, game data or dependency is added. See [CHARACTER_RIDE_SERVICE_ART_REPORT.md](CHARACTER_RIDE_SERVICE_ART_REPORT.md).
 
 The 0.53 visual material marks and shoreline are project-authored geometry and colors. The harmonic score, stereo ride mix and revised cues are project-authored synthesis in Rust. No imported artwork, recording, melody, font, texture or dependency is added. See [GRAPHICS_SOUND_OVERHAUL_REPORT.md](GRAPHICS_SOUND_OVERHAUL_REPORT.md).

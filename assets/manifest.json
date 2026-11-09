@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "assets": [
+    { "id": "terrain.grass", "type": "procedural", "source": "crates/park_game/src/world.rs", "rights": "Parkbound original", "variants": ["grass", "sand", "water", "cliff"] },
+    { "id": "terrain.details", "type": "procedural", "source": "crates/park_game/src/world/atmosphere.rs", "rights": "Parkbound original", "variants": ["shore", "flowers", "grass", "water-glint"] },
+    { "id": "paths.public", "type": "procedural", "source": "crates/park_game/src/world.rs", "rights": "Parkbound original", "variants": ["timber", "queue-blue", "bridge-support"] },
+    { "id": "characters.guests", "type": "procedural", "source": "crates/park_game/src/visitor_look.rs", "rights": "Parkbound original", "variants": ["clothing", "faces", "accessories", "walk", "queue"] },
+    { "id": "characters.staff", "type": "procedural", "source": "crates/park_game/src/world/guest_render.rs", "rights": "Parkbound original", "variants": ["mechanic", "handyman"] },
+    { "id": "rides.coaster", "type": "procedural", "source": "crates/park_game/src/world/train_render.rs", "rights": "Parkbound original", "variants": ["rail", "supports", "train", "paint"] },
+    { "id": "rides.carousel", "type": "procedural", "source": "crates/park_game/src/world/carousel_render.rs", "rights": "Parkbound original", "variants": ["carousel", "swing", "drop-tower"] },
+    { "id": "services.buildings", "type": "procedural", "source": "crates/park_game/src/world/service_render.rs", "rights": "Parkbound original", "variants": ["food", "drink", "toilet", "rest"] },
+    { "id": "sound.score", "type": "procedural", "source": "crates/park_game/src/sound/synth.rs", "rights": "Parkbound original", "variants": ["music", "coaster", "carousel", "interface"] }
+  ]
+}

@@ -296,7 +296,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     button(p, "Run one isolated lap", Action::CoasterTest(crate::coaster_testing::TestCommand::Run), 356.0);
                     p.spawn(Node { height: px(30), flex_shrink: 0.0, ..default() })
                         .with_children(|p| operating_label(p, RideLabel::TestStatus, 12.0, MUTED));
-                    p.spawn(Node { height: px(140), flex_shrink: 0.0, ..default() })
+                    p.spawn(Node { height: px(224), flex_shrink: 0.0, ..default() })
                         .with_children(|p| operating_label(p, RideLabel::TestMetrics, 12.0, INK));
                     p.spawn(Node { height: px(34), flex_shrink: 0.0, ..default() })
                         .with_children(|p| operating_label(p, RideLabel::TestRatings, 12.0, INK));

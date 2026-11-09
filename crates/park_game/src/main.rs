@@ -770,6 +770,28 @@ fn new_game_park() -> Park {
     park
 }
 
+/// Playable sandbox sizes are square because the camera, chunk visibility and
+/// four-view picking all share the same rotation transform.
+fn playable_map_size(park: &Park) -> bool {
+    park.width() == park.height() && (MAP_SIZE..=park_sim::MAX_MAP_SIZE).contains(&park.width())
+}
+
+fn configure_playable_camera(view: &mut ViewState, park: &Park) {
+    view.camera_span = (park.width() as f32 / MAP_SIZE as f32).max(1.0);
+    if let Some(bounds) = world::scene_bounds(park) {
+        view.pan_limit = bounds.min.abs().max(bounds.max.abs()) + Vec2::splat(600.0);
+    }
+}
+
+fn new_sandbox_park(size: u32) -> Park {
+    if size == MAP_SIZE {
+        new_game_park()
+    } else {
+        assert!((MAP_SIZE..=park_sim::MAX_MAP_SIZE).contains(&size));
+        Park::new(size, size)
+    }
+}
+
 fn new_game_view() -> ViewState {
     ViewState {
         terrain_profile: TerrainProfile::Flat,
@@ -1868,6 +1890,31 @@ fn update_scene(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn playable_large_sandboxes_edit_and_round_trip_at_every_size() {
+        let starter = new_sandbox_park(32);
+        assert!(starter.circuit().is_some());
+        for size in [64, 128, 256] {
+            let mut park = new_sandbox_park(size);
+            assert!(playable_map_size(&park));
+            assert!(park.objects().is_empty());
+            assert!(park.guests().is_empty());
+            let mut view = new_game_view();
+            configure_playable_camera(&mut view, &park);
+            assert_eq!(view.camera_span, size as f32 / 32.0);
+            assert!(view.pan_limit.x > 1800.0 || size == 64);
+            let site = TilePos {
+                x: size - 2,
+                y: size - 2,
+            };
+            park.set_terrain_height(site, 1).unwrap();
+            let bytes = park.to_save_bytes().unwrap();
+            assert!(bytes.len() <= park_sim::MAX_SAVE_BYTES);
+            assert_eq!(Park::from_save_bytes(&bytes).unwrap(), park);
+        }
+        assert!(!playable_map_size(&Park::new(32, 64)));
+    }
 
     #[test]
     fn pause_restores_the_previous_speed() {

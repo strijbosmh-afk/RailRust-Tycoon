@@ -81,6 +81,7 @@ mod services;
 #[cfg(test)]
 mod slope_tests;
 mod surfaces;
+mod terrain_generation;
 mod track_construction;
 mod track_designs;
 mod trains;
