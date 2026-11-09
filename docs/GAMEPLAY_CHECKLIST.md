@@ -1,5 +1,8 @@
 # Gameplay checklist
 
+The [full-game roadmap](FULL_GAME_ROADMAP.md) sequences the remaining checklist work through an intro/title screen, scalable interface, original graphics, content, editors and Windows distribution. This checklist remains the feature-level acceptance record; partial entries are not treated as complete.
+
+
 Current 0.70.0 campaign slice: winning Meadow Challenge earns a durable player award and unlocks Boardwalk Sprint for another park; winning Boardwalk earns its own award. Guests → Scenarios shows both awards and refuses locked starts. A strict, backed-up local campaign record crosses game restarts separately from unchanged park saves (39/39). Further original objectives, campaign content and scenario editing remain open. See [CAMPAIGN_AWARDS_REPORT.md](CAMPAIGN_AWARDS_REPORT.md).
 
 
