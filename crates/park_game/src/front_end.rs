@@ -180,7 +180,9 @@ impl FrontEnd {
     }
     fn show(&mut self, screen: Screen, view: &mut ViewState) {
         self.screen = screen;
-        self.focus = 0;
+        // New Park opens with a playable mode already selected. Enter should
+        // therefore create the park, including after the player edits its name.
+        self.focus = if screen == Screen::New { 3 } else { 0 };
         view.front_modal = screen != Screen::Park;
         if screen == Screen::Park {
             view.front_pointer_release_guard = true;
@@ -950,6 +952,28 @@ fn action_name(action: Action) -> &'static str {
 mod tests {
     use super::*;
     use std::{ffi::OsString, fs};
+
+    #[test]
+    fn new_park_opens_with_create_action_focused() {
+        let session = SaveSession::from_arguments([
+            OsString::from("--save-dir"),
+            std::env::temp_dir()
+                .join("parkbound-front-focus-test")
+                .into_os_string(),
+        ]);
+        let mut front = FrontEnd::new(true, &session);
+        let mut view = new_game_view();
+        front.show(Screen::New, &mut view);
+        assert!(matches!(
+            keyboard_actions(&front).get(front.focus),
+            Some(Action::Start)
+        ));
+        front.mode = 1;
+        assert!(matches!(
+            keyboard_actions(&front).get(front.focus),
+            Some(Action::Start)
+        ));
+    }
 
     #[test]
     fn new_save_and_load_clear_unsaved_state_and_pause() {

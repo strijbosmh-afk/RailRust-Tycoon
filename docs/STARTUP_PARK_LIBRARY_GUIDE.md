@@ -4,7 +4,7 @@ Parkbound now opens with a short original Parkbound intro. Click **Skip intro**,
 
 ## Starting a park
 
-Choose **New Park**, type a name of 1–40 characters, and select Sandbox, Meadow Challenge, or Boardwalk Sprint. Sandbox is always available. Meadow Challenge requires 20 arrivals, five completed rides, and $750 cash, with free entry and no deadline; winning it unlocks Boardwalk. Boardwalk Sprint requires 24 arrivals, 12 completed rides, and $900 cash before 18,000 ticks, with free rides. Its button explains when it is locked. **Campaign** goes straight to the same selector with Meadow chosen. A new park is made only after **Create Park**.
+Choose **New Park**, type a name of 1–40 characters, and select Sandbox, Meadow Challenge, or Boardwalk Sprint. Sandbox is always available. Meadow Challenge requires 20 arrivals, five completed rides, and $750 cash, with free entry and no deadline; winning it unlocks Boardwalk. Boardwalk Sprint requires 24 arrivals, 12 completed rides, and $900 cash before 18,000 ticks, with free rides. Its button explains when it is locked. **Campaign** goes straight to the same selector with Meadow chosen. Click **Create Park** or press **Enter** to start the selected mode; Enter starts the park by default after opening New Park or editing its name.
 
 ## Saving and managing parks
 

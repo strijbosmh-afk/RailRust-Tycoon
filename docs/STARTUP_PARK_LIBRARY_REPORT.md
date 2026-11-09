@@ -1,5 +1,9 @@
 # Phase 1 report: startup and park library (0.71.0)
 
+## Keyboard follow-up
+
+A player report exposed a New Park keyboard mistake: Enter activated the first mode row, which was already selected, and did not create the park. The opening keyboard focus now points to **Create Park**. This also applies when Campaign opens the selector with Meadow preselected. The action hint at the bottom of the screen now reads **Enter selects Create Park** on entry. A focused regression test checks the default and a changed mode; the [player guide](STARTUP_PARK_LIBRARY_GUIDE.md) now states the Enter shortcut.
+
 ## Scope delivered
 
 Normal launch now has explicit intro, title, New Park, library, loading/error, park, pause, and confirmation screens. The original Parkbound intro lasts three seconds and can be skipped. The title offers Continue, New Park, Campaign, Load Park, Settings, Credits, and Quit. New Park chooses Sandbox or one of two original campaign challenges, with goals and rules displayed before creation. Boardwalk remains locked until the existing campaign award makes it available.
