@@ -7,6 +7,7 @@ param(
     [Parameter(Mandatory)][string]$OutputDirectory,
     [string[]]$Proofs = @('access', 'operations', 'design-transfer'),
     [string[]]$CaptureScenes = @('access-needs', 'access-ready', 'access-unavailable'),
+    [string[]]$FrontCaptureScenes = @(),
     [switch]$SkipRuntime
 )
 
@@ -21,7 +22,7 @@ foreach ($value in @($Archive, $OutputDirectory)) {
 foreach ($value in @($ExpectedArchiveSha256, $ExpectedExecutableSha256)) {
     if ($value -notmatch '^[a-fA-F0-9]{64}$') { throw 'Expected SHA256 must contain 64 hexadecimal characters.' }
 }
-foreach ($value in @($Proofs) + @($CaptureScenes)) {
+foreach ($value in @($Proofs) + @($CaptureScenes) + @($FrontCaptureScenes)) {
     if ($value -notmatch '^[a-z][a-z0-9-]*$') { throw 'Invalid proof/capture name.' }
 }
 if (Test-Path -LiteralPath $OutputDirectory) { throw 'Evidence directory must not already exist.' }
@@ -122,6 +123,12 @@ if (-not $SkipRuntime) {
         $capturePath = Join-Path $output ($scene + '.png')
         Run-ProofProcess $scene ('--capture-frame "{0}" --capture-scene {1} --capture-small-window' -f $capturePath, $scene)
         Record "Capture $scene SHA256: $((Get-FileHash -LiteralPath $capturePath).Hash.ToLowerInvariant())"
+    }
+    foreach ($scene in $FrontCaptureScenes) {
+        $capturePath = Join-Path $output ('front-' + $scene + '.png')
+        $profileDirectory = Join-Path $output 'front profile é'
+        Run-ProofProcess ('front-' + $scene) ('--capture-frame "{0}" --capture-front {1} --capture-scene flat-start --capture-small-window --save-dir "{2}"' -f $capturePath, $scene, $profileDirectory)
+        Record "Capture front-$scene SHA256: $((Get-FileHash -LiteralPath $capturePath).Hash.ToLowerInvariant())"
     }
     Record 'Runtime proofs passed from the extracted package. Inspect captures separately; native input is not established.'
 } else {

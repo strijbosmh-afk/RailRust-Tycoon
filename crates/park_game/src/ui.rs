@@ -93,6 +93,7 @@ const BUTTON: Color = Color::srgb_u8(230, 235, 221);
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
+    Menu,
     Pause,
     Speed(Speed),
     RotateLeft,
@@ -181,6 +182,7 @@ pub(super) enum Label {
     RideName,
     RideAccess,
     SaveStatus,
+    ParkName,
     ParkInfo,
     PathHeight,
     PathShape,
@@ -326,6 +328,7 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "2x", Action::Speed(Speed::Fast), 39.0);
                 button(p, "4x", Action::Speed(Speed::Fastest), 39.0);
                 button(p, "Help", Action::Help, 60.0);
+                button(p, "Menu", Action::Menu, 62.0);
             });
         });
 
@@ -352,7 +355,7 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                label(p, "Meadow Lake", 22.0, INK);
+                dynamic_label(p, "My Park", 22.0, INK, Label::ParkName);
                 dynamic_label(p, "32 x 32 tiles / woodland", 11.0, MUTED, Label::ParkInfo);
             });
             p.spawn((
@@ -762,7 +765,7 @@ pub(super) fn button_actions(
     // Consume that press so it cannot also select the landscape beneath it.
     view.ui_pointer_consumed = false;
     view.modal_input_blocked = false;
-    if view.capture_active {
+    if view.capture_active || view.front_modal {
         return;
     }
     if view.designs_open {
@@ -1005,6 +1008,7 @@ pub(super) fn button_actions(
             && !matches!(
                 action,
                 Action::Pause
+                    | Action::Menu
                     | Action::BrowseRide(_)
                     | Action::RideOperating(_)
                     | Action::RidePaint(_)
@@ -1015,13 +1019,19 @@ pub(super) fn button_actions(
         {
             continue;
         }
-        if view.help && !matches!(action, Action::CloseHelp | Action::Help | Action::Sound) {
+        if view.help
+            && !matches!(
+                action,
+                Action::CloseHelp | Action::Help | Action::Sound | Action::Menu
+            )
+        {
             continue;
         }
         if view.guests_open
             && !matches!(
                 action,
                 Action::Pause
+                    | Action::Menu
                     | Action::SelectGuest(_)
                     | Action::GuestPage(_)
                     | Action::GuestFlowView
@@ -1043,6 +1053,7 @@ pub(super) fn button_actions(
             && !matches!(
                 action,
                 Action::Pause
+                    | Action::Menu
                     | Action::BrowseService(_)
                     | Action::ServicePrice(_)
                     | Action::ToggleService
@@ -1056,7 +1067,11 @@ pub(super) fn button_actions(
         if view.finance_open
             && !matches!(
                 action,
-                Action::Pause | Action::FinancePage(_) | Action::FinanceView | Action::Loan(_)
+                Action::Pause
+                    | Action::Menu
+                    | Action::FinancePage(_)
+                    | Action::FinanceView
+                    | Action::Loan(_)
             )
         {
             continue;
@@ -1083,6 +1098,7 @@ pub(super) fn button_actions(
             continue;
         }
         match action {
+            Action::Menu => view.front_request_menu = true,
             Action::Pause => view.pause(),
             Action::BrowseRide(delta) if view.rides_open => {
                 view.ride_browse_pending =
@@ -1286,6 +1302,7 @@ pub(super) fn button_actions(
 pub(super) fn refresh(
     sim: Res<Simulation>,
     view: Res<ViewState>,
+    front: Option<Res<crate::front_end::FrontEnd>>,
     mut labels: Query<(&Label, &mut Text)>,
     mut buttons: Query<(&Action, &Interaction, &mut BackgroundColor)>,
     mut help: Query<&mut Node, With<HelpPanel>>,
@@ -1318,6 +1335,7 @@ pub(super) fn refresh(
                     .as_ref()
                     .and_then(|stats| stats.average_rating_tenths),
             ),
+            Label::ParkName => front.as_ref().map_or("Meadow Lake", |front| front.current_name()).into(),
             Label::ParkInfo => format!(
                 "{} x {} tiles / {}",
                 sim.0.width(),
@@ -1709,6 +1727,7 @@ pub(super) fn refresh(
     }
     for (action, interaction, mut background) in &mut buttons {
         let active = match action {
+            Action::Menu => false,
             Action::Pause => view.speed == Speed::Paused,
             Action::Speed(speed) => view.speed == *speed,
             Action::Grid => view.grid,

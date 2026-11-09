@@ -701,6 +701,7 @@ struct Capture {
     terrain_profile: TerrainProfile,
     view_mode: ViewMode,
     small_window: bool,
+    large_window: bool,
     detail: bool,
     ticks: u32,
     started: Instant,
@@ -1053,6 +1054,13 @@ pub(super) fn configure(app: &mut App) {
     let small_window = arguments
         .iter()
         .any(|value| value == "--capture-small-window");
+    let large_window = arguments
+        .iter()
+        .any(|value| value == "--capture-large-window");
+    assert!(
+        !(small_window && large_window),
+        "choose one capture window size"
+    );
     let detail = arguments.iter().any(|value| value == "--capture-detail");
     assert!(
         !scene.is_terrain_tool()
@@ -1101,6 +1109,7 @@ pub(super) fn configure(app: &mut App) {
         terrain_profile,
         view_mode,
         small_window,
+        large_window,
         detail,
         ticks,
         started: Instant::now(),
@@ -1574,6 +1583,11 @@ fn apply_preset(
     {
         window.resolution.set(1024.0, 680.0);
     }
+    if capture.large_window
+        && let Ok(mut window) = windows.single_mut()
+    {
+        window.resolution.set(1920.0, 1080.0);
+    }
 }
 
 /// Use the real map tool command after resolving the normal visible hit. These
@@ -1864,6 +1878,7 @@ mod tests {
                 terrain_profile: TerrainProfile::Terraced,
                 view_mode: ViewMode::Surface,
                 small_window: false,
+                large_window: false,
                 detail: false,
                 ticks: DEFAULT_CAPTURE_TICKS,
                 started: Instant::now(),
@@ -2046,6 +2061,7 @@ mod tests {
                     terrain_profile: TerrainProfile::Flat,
                     view_mode: ViewMode::Surface,
                     small_window: false,
+                    large_window: false,
                     detail: false,
                     ticks: 137,
                     started: Instant::now(),

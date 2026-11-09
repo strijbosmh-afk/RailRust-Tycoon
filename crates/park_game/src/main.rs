@@ -22,10 +22,12 @@ mod design_thumbnail;
 mod design_transfer;
 mod design_transfer_file;
 mod frame_probe;
+mod front_end;
 mod gpu_probe;
 #[cfg(test)]
 mod input_tests;
 mod measurement;
+mod park_library;
 mod path_tools;
 mod persistence;
 mod presentation;
@@ -140,12 +142,15 @@ struct ViewState {
     modal_input_blocked: bool,
     dragging: bool,
     ui_pointer_consumed: bool,
+    front_pointer_release_guard: bool,
     scene_dirty: bool,
     terrain_profile: TerrainProfile,
     terrain_custom: bool,
     terrain_change_pending: bool,
     terrain_error: Option<String>,
     capture_active: bool,
+    front_modal: bool,
+    front_request_menu: bool,
     remove_path_pending: bool,
     restore_paths_pending: bool,
     path_notice: Option<String>,
@@ -236,12 +241,15 @@ impl Default for ViewState {
             modal_input_blocked: false,
             dragging: false,
             ui_pointer_consumed: false,
+            front_pointer_release_guard: false,
             scene_dirty: false,
             terrain_profile: TerrainProfile::Terraced,
             terrain_custom: false,
             terrain_change_pending: false,
             terrain_error: None,
             capture_active: false,
+            front_modal: false,
+            front_request_menu: false,
             remove_path_pending: false,
             restore_paths_pending: false,
             path_notice: None,
@@ -323,7 +331,8 @@ impl ViewState {
     }
 
     fn edits_blocked(&self) -> bool {
-        self.help
+        self.front_modal
+            || self.help
             || self.guests_open
             || self.services_open
             || self.finance_open
@@ -531,7 +540,8 @@ fn main() -> AppExit {
         None if capture_requested => demonstration_park(),
         None => new_game_park(),
     };
-    let mut view = if render_scene.is_none() && !capture_requested {
+    let normal_launch = render_scene.is_none() && !capture_requested;
+    let mut view = if normal_launch {
         new_game_view()
     } else {
         ViewState::default()
@@ -540,6 +550,31 @@ fn main() -> AppExit {
         scene.apply_view(&park, &mut view);
     }
     let save_session = SaveSession::from_arguments(std::env::args_os().skip(1));
+    let mut front = front_end::FrontEnd::new(normal_launch, &save_session);
+    if let Some(index) = arguments.iter().position(|arg| arg == "--capture-front") {
+        if !capture_requested
+            || arguments
+                .iter()
+                .filter(|arg| *arg == "--capture-front")
+                .count()
+                != 1
+        {
+            eprintln!("--capture-front requires exactly one --capture-frame");
+            return AppExit::error();
+        }
+        let Some(name) = arguments.get(index + 1).and_then(|name| name.to_str()) else {
+            eprintln!("--capture-front requires a scene name");
+            return AppExit::error();
+        };
+        if let Err(error) = front.capture_scene(name) {
+            eprintln!("{error}");
+            return AppExit::error();
+        }
+    }
+    view.front_modal = front.enabled();
+    if front.enabled() {
+        view.speed = Speed::Paused;
+    }
     let campaign = if render_scene.is_some() || capture_requested {
         campaign::Campaign::preview()
     } else {
@@ -551,6 +586,7 @@ fn main() -> AppExit {
         .insert_resource(Simulation(park))
         .insert_resource(view)
         .insert_resource(campaign)
+        .insert_resource(front)
         .init_resource::<design_library::DesignLibrary>()
         .init_resource::<ui::guest_stats::GuestStatsHistory>()
         .init_resource::<design_transfer::DialogPause>()
@@ -572,7 +608,13 @@ fn main() -> AppExit {
         }))
         .add_systems(
             Startup,
-            (setup_scene, presentation::setup, ui::setup).chain(),
+            (
+                setup_scene,
+                presentation::setup,
+                ui::setup,
+                front_end::setup,
+            )
+                .chain(),
         )
         .add_systems(FixedUpdate, tick_simulation)
         .add_systems(
@@ -582,6 +624,7 @@ fn main() -> AppExit {
                     (
                         ui::install_ride_name_font,
                         ui::button_actions,
+                        front_end::input,
                         keyboard_input,
                         ui::audio::apply,
                         design_library::keyboard_text,
@@ -618,6 +661,7 @@ fn main() -> AppExit {
                     ui::rides::refresh,
                     ui::appearance::refresh,
                     ui::refresh,
+                    front_end::refresh,
                     ui::audio::refresh,
                     ui::guests::refresh,
                     ui::guest_stats::sample_history,
@@ -811,7 +855,10 @@ fn tick_simulation(
         .filter(|p| p.is_measuring())
         .map(|_| std::time::Instant::now());
     let before = sim.0.ticks();
-    if view.speed != Speed::Paused && dialog_pause.is_none_or(|pause| !pause.suppresses_ticks()) {
+    if !view.front_modal
+        && view.speed != Speed::Paused
+        && dialog_pause.is_none_or(|pause| !pause.suppresses_ticks())
+    {
         sim.0.advance(view.speed);
     }
     if let (Some(start), Some(probe)) = (timer, probe.as_mut()) {
@@ -869,7 +916,7 @@ fn keyboard_input(
     // UI transitions are gathered first; neither their closing click nor a
     // simultaneous keyboard command may reach controls under the modal.
     view.modal_input_blocked = std::mem::take(&mut view.modal_transition_pending);
-    if view.capture_active {
+    if view.capture_active || view.front_modal {
         return;
     }
     if view.modal_input_blocked {
@@ -1405,6 +1452,19 @@ fn is_map_position(cursor: Vec2, window: &Window, help: bool) -> bool {
         && cursor.y < window.height() - FOOTER
 }
 
+fn consume_front_pointer_release(view: &mut ViewState, buttons: &ButtonInput<MouseButton>) -> bool {
+    if !view.front_pointer_release_guard {
+        return false;
+    }
+    if ![MouseButton::Left, MouseButton::Right, MouseButton::Middle]
+        .into_iter()
+        .any(|button| buttons.pressed(button) || buttons.just_pressed(button))
+    {
+        view.front_pointer_release_guard = false;
+    }
+    true
+}
+
 fn pointer_input(
     mut sim: ResMut<Simulation>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -1420,8 +1480,16 @@ fn pointer_input(
             MouseScrollUnit::Pixel => event.y / 60.0,
         })
         .sum();
-    if view.capture_active {
+    if view.capture_active || view.front_modal {
         view.hovered = None;
+        *previous_cursor = None;
+        return;
+    }
+    if consume_front_pointer_release(&mut view, &buttons) {
+        view.hovered = None;
+        view.path_tool.clear_pointer();
+        view.track_editor.preview = None;
+        view.dragging = false;
         *previous_cursor = None;
         return;
     }
@@ -1758,5 +1826,22 @@ mod tests {
         );
         app.update();
         assert!(!app.world().resource::<ViewState>().ui_pointer_consumed);
+    }
+
+    #[test]
+    fn front_screen_transition_consumes_press_and_release_before_map_input() {
+        let mut view = ViewState {
+            front_pointer_release_guard: true,
+            ..default()
+        };
+        let mut buttons = ButtonInput::<MouseButton>::default();
+        buttons.press(MouseButton::Left);
+        assert!(consume_front_pointer_release(&mut view, &buttons));
+        assert!(view.front_pointer_release_guard);
+        buttons.clear();
+        buttons.release(MouseButton::Left);
+        assert!(consume_front_pointer_release(&mut view, &buttons));
+        assert!(!view.front_pointer_release_guard);
+        assert!(!consume_front_pointer_release(&mut view, &buttons));
     }
 }
