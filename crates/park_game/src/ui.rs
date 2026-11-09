@@ -18,6 +18,7 @@ mod economy;
 pub(crate) mod finance;
 pub(crate) mod guest_stats;
 pub(super) mod guests;
+pub(crate) mod layout;
 pub(crate) mod names;
 pub(crate) mod rides;
 pub(crate) mod scenarios;
@@ -82,6 +83,7 @@ pub(crate) fn install_ride_name_font(
 pub(super) const PATH_PANEL_TOP: f32 = HEADER + RIDE_PANEL_HEIGHT + 2.0 * RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_RIGHT: f32 = RIDE_PANEL_MARGIN;
 pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
+#[cfg(test)]
 pub(super) const PATH_PANEL_HEIGHT: f32 = 358.0;
 
 const INK: Color = Color::srgb_u8(30, 62, 53);
@@ -193,6 +195,30 @@ pub(super) enum Label {
 #[derive(Component)]
 pub(super) struct HelpPanel;
 
+#[derive(Component)]
+pub(crate) struct HeaderShortcut;
+
+pub(crate) fn adapt_header(
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    scale: Option<Res<UiScale>>,
+    mut shortcuts: Query<&mut Node, With<HeaderShortcut>>,
+) {
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    let compact = window.width() / scale.as_ref().map_or(1.0, |value| value.0) < 1100.0;
+    for mut node in &mut shortcuts {
+        let display = if compact {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
 fn label(parent: &mut ChildSpawnerCommands, text: &str, size: f32, color: Color) {
     parent.spawn((
         Text::new(text),
@@ -287,6 +313,7 @@ pub(super) fn setup(mut commands: Commands) {
                     p.spawn((
                         Button,
                         Action::Finance,
+                        HeaderShortcut,
                         Node {
                             width: px(100),
                             height: px(24),
@@ -301,6 +328,7 @@ pub(super) fn setup(mut commands: Commands) {
                     p.spawn((
                         Button,
                         Action::Rides,
+                        HeaderShortcut,
                         Node {
                             width: px(86),
                             height: px(24),
@@ -334,6 +362,8 @@ pub(super) fn setup(mut commands: Commands) {
 
     commands
         .spawn((
+            layout::ScrollLayer::Sidebar,
+            ScrollPosition::default(),
             Node {
                 position_type: PositionType::Absolute,
                 top: px(HEADER),
@@ -343,6 +373,10 @@ pub(super) fn setup(mut commands: Commands) {
                 border: UiRect::right(px(1)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(6),
+                overflow: Overflow {
+                    x: OverflowAxis::Clip,
+                    y: OverflowAxis::Scroll,
+                },
                 ..default()
             },
             BackgroundColor(PAPER),
@@ -357,6 +391,10 @@ pub(super) fn setup(mut commands: Commands) {
             .with_children(|p| {
                 dynamic_label(p, "My Park", 22.0, INK, Label::ParkName);
                 dynamic_label(p, "32 x 32 tiles / woodland", 11.0, MUTED, Label::ParkInfo);
+            });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Finance [N]", Action::Finance, 100.0);
+                button(p, "Rides [Y]", Action::Rides, 100.0);
             });
             p.spawn((
                 Node {
@@ -456,16 +494,22 @@ pub(super) fn setup(mut commands: Commands) {
     commands
         .spawn((
             track::BuildPanel,
+            layout::ScrollLayer::Build,
+            ScrollPosition::default(),
             Node {
                 position_type: PositionType::Absolute,
                 top: px(PATH_PANEL_TOP),
+                bottom: px(FOOTER + RIDE_PANEL_MARGIN),
                 right: px(PATH_PANEL_RIGHT),
                 width: px(PATH_PANEL_WIDTH),
-                height: px(PATH_PANEL_HEIGHT),
                 padding: UiRect::all(px(12)),
                 border: UiRect::all(px(1)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(3),
+                overflow: Overflow {
+                    x: OverflowAxis::Clip,
+                    y: OverflowAxis::Scroll,
+                },
                 ..default()
             },
             GlobalZIndex(2),
@@ -677,13 +721,9 @@ pub(super) fn setup(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                Node {
-                    width: px(530),
-                    padding: UiRect::all(px(24)),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(6),
-                    ..default()
-                },
+                layout::ScrollLayer::Help,
+                ScrollPosition::default(),
+                layout::dialog(92.0, 650.0, None),
                 BackgroundColor(PAPER),
                 BorderRadius::all(px(10)),
             ))

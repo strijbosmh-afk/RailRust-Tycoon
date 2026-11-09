@@ -21,6 +21,7 @@ mod design_store;
 mod design_thumbnail;
 mod design_transfer;
 mod design_transfer_file;
+mod display;
 mod frame_probe;
 mod front_end;
 mod gpu_probe;
@@ -550,6 +551,7 @@ fn main() -> AppExit {
         scene.apply_view(&park, &mut view);
     }
     let save_session = SaveSession::from_arguments(std::env::args_os().skip(1));
+    let display_settings = display::DisplaySettings::new(&save_session, &arguments, normal_launch);
     let mut front = front_end::FrontEnd::new(normal_launch, &save_session);
     if let Some(index) = arguments.iter().position(|arg| arg == "--capture-front") {
         if !capture_requested
@@ -592,6 +594,7 @@ fn main() -> AppExit {
         .init_resource::<design_transfer::DialogPause>()
         .insert_non_send_resource(design_transfer::DialogThread::default())
         .insert_resource(save_session)
+        .insert_resource(display_settings)
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Parkbound - Meadow Lake".into(),
@@ -625,7 +628,9 @@ fn main() -> AppExit {
                         ui::install_ride_name_font,
                         ui::button_actions,
                         front_end::input,
+                        display::update,
                         keyboard_input,
+                        ui::layout::scroll,
                         ui::audio::apply,
                         design_library::keyboard_text,
                         ui::names::keyboard_text,
@@ -655,6 +660,7 @@ fn main() -> AppExit {
                     .chain(),
                 (
                     apply_camera,
+                    ui::adapt_header,
                     presentation::animate,
                     update_scene,
                     static_landscape::update_visibility,
@@ -1422,34 +1428,51 @@ fn apply_service_actions(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
 }
 
 /// This formula uses logical pixels, just like cursor_position and the UI.
+#[cfg(test)]
 fn camera_layout(window: &Window, view: &ViewState, park: &Park) -> (f32, Vec2) {
+    camera_layout_scaled(window, view, park, 1.0)
+}
+
+fn camera_layout_scaled(
+    window: &Window,
+    view: &ViewState,
+    park: &Park,
+    ui_scale: f32,
+) -> (f32, Vec2) {
     let right_chrome = ui::PATH_PANEL_WIDTH + ui::PATH_PANEL_RIGHT * 2.0;
-    let available_width = (window.width() - SIDEBAR - right_chrome - 72.0).max(1.0);
-    let available_height = (window.height() - HEADER - FOOTER - 100.0).max(1.0);
+    let available_width = (window.width() - (SIDEBAR + right_chrome + 72.0) * ui_scale).max(1.0);
+    let available_height = (window.height() - (HEADER + FOOTER + 100.0) * ui_scale).max(1.0);
     let elevation = f32::from(park.max_surface_height()) * world::HEIGHT_STEP;
     let fit = (park.width() as f32 * world::TILE_WIDTH / available_width)
         .max((park.height() as f32 * world::TILE_HEIGHT + elevation + 70.0) / available_height);
     let scale = fit / view.zoom;
     let center = view.pan
         + Vec2::Y * elevation * 0.5
-        + Vec2::new((right_chrome - SIDEBAR) * 0.5, (HEADER - FOOTER) * 0.5) * scale;
+        + Vec2::new((right_chrome - SIDEBAR) * 0.5, (HEADER - FOOTER) * 0.5) * ui_scale * scale;
     (scale, center)
 }
 
+#[cfg(test)]
 fn is_map_position(cursor: Vec2, window: &Window, help: bool) -> bool {
-    let over_ride_panel = cursor.x >= window.width() - RIDE_PANEL_MARGIN - RIDE_PANEL_WIDTH
-        && cursor.x <= window.width() - RIDE_PANEL_MARGIN
-        && cursor.y >= HEADER + RIDE_PANEL_MARGIN
-        && cursor.y <= HEADER + RIDE_PANEL_MARGIN + RIDE_PANEL_HEIGHT;
-    let over_path_panel = cursor.x >= window.width() - ui::PATH_PANEL_RIGHT - ui::PATH_PANEL_WIDTH
-        && cursor.x <= window.width() - ui::PATH_PANEL_RIGHT
-        && cursor.y >= ui::PATH_PANEL_TOP
-        && cursor.y <= ui::PATH_PANEL_TOP + ui::PATH_PANEL_HEIGHT;
+    is_map_position_scaled(cursor, window, help, 1.0)
+}
+
+fn is_map_position_scaled(cursor: Vec2, window: &Window, help: bool, ui_scale: f32) -> bool {
+    let over_ride_panel = cursor.x
+        >= window.width() - (RIDE_PANEL_MARGIN + RIDE_PANEL_WIDTH) * ui_scale
+        && cursor.x <= window.width() - RIDE_PANEL_MARGIN * ui_scale
+        && cursor.y >= (HEADER + RIDE_PANEL_MARGIN) * ui_scale
+        && cursor.y <= (HEADER + RIDE_PANEL_MARGIN + RIDE_PANEL_HEIGHT) * ui_scale;
+    let over_path_panel = cursor.x
+        >= window.width() - (ui::PATH_PANEL_RIGHT + ui::PATH_PANEL_WIDTH) * ui_scale
+        && cursor.x <= window.width() - ui::PATH_PANEL_RIGHT * ui_scale
+        && cursor.y >= ui::PATH_PANEL_TOP * ui_scale
+        && cursor.y <= window.height() - (FOOTER + RIDE_PANEL_MARGIN) * ui_scale;
     !(help || over_ride_panel || over_path_panel)
-        && cursor.x > SIDEBAR
+        && cursor.x > SIDEBAR * ui_scale
         && cursor.x < window.width()
-        && cursor.y > HEADER
-        && cursor.y < window.height() - FOOTER
+        && cursor.y > HEADER * ui_scale
+        && cursor.y < window.height() - FOOTER * ui_scale
 }
 
 fn consume_front_pointer_release(view: &mut ViewState, buttons: &ButtonInput<MouseButton>) -> bool {
@@ -1472,6 +1495,7 @@ fn pointer_input(
     mut wheel: MessageReader<MouseWheel>,
     mut view: ResMut<ViewState>,
     mut previous_cursor: Local<Option<Vec2>>,
+    ui_scale: Option<Res<UiScale>>,
 ) {
     let scroll: f32 = wheel
         .read()
@@ -1530,7 +1554,8 @@ fn pointer_input(
     ) {
         return;
     }
-    let over_map = is_map_position(
+    let interface_scale = ui_scale.as_ref().map_or(1.0, |scale| scale.0);
+    let over_map = is_map_position_scaled(
         cursor,
         window,
         view.help
@@ -1541,6 +1566,7 @@ fn pointer_input(
             || view.designs_open
             || view.modal_input_blocked
             || view.ui_pointer_consumed,
+        interface_scale,
     );
     let starting_drag = over_map
         && (buttons.just_pressed(MouseButton::Right) || buttons.just_pressed(MouseButton::Middle));
@@ -1559,7 +1585,7 @@ fn pointer_input(
         view.dragging = false;
     }
     if view.dragging && !starting_drag {
-        let (scale, _) = camera_layout(window, &view, &sim.0);
+        let (scale, _) = camera_layout_scaled(window, &view, &sim.0, interface_scale);
         view.pan += Vec2::new(-movement.x, movement.y) * scale;
         view.pan = view.pan.clamp(-view.pan_limit, view.pan_limit);
     }
@@ -1567,7 +1593,7 @@ fn pointer_input(
         view.zoom_by((scroll.clamp(-5.0, 5.0) * 0.12).exp());
     }
     let point = if over_map {
-        let (scale, center) = camera_layout(window, &view, &sim.0);
+        let (scale, center) = camera_layout_scaled(window, &view, &sim.0, interface_scale);
         let world = center
             + Vec2::new(
                 cursor.x - window.width() * 0.5,
@@ -1619,6 +1645,7 @@ fn apply_camera(
     windows: Query<&Window, With<PrimaryWindow>>,
     view: Res<ViewState>,
     mut cameras: Query<(&mut Transform, &mut Projection), With<Camera2d>>,
+    ui_scale: Option<Res<UiScale>>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -1626,7 +1653,12 @@ fn apply_camera(
     let Ok((mut transform, mut projection)) = cameras.single_mut() else {
         return;
     };
-    let (scale, center) = camera_layout(window, &view, &sim.0);
+    let (scale, center) = camera_layout_scaled(
+        window,
+        &view,
+        &sim.0,
+        ui_scale.as_ref().map_or(1.0, |value| value.0),
+    );
     transform.translation.x = center.x;
     transform.translation.y = center.y;
     if let Projection::Orthographic(ref mut ortho) = *projection {
@@ -1803,6 +1835,46 @@ mod tests {
         assert!(!is_map_position(Vec2::new(600.0, 790.0), &window, false));
         assert!(!is_map_position(Vec2::new(600.0, 400.0), &window, true));
         assert!(is_map_position(Vec2::new(600.0, 400.0), &window, false));
+    }
+
+    #[test]
+    fn scaled_chrome_blocks_map_picking_but_leaves_center_reachable() {
+        for (width, height, scale) in [(1024, 680, 1.25), (1920, 1080, 1.5), (3840, 2160, 2.0)] {
+            let window = Window {
+                resolution: WindowResolution::new(width, height),
+                ..default()
+            };
+            assert!(!is_map_position_scaled(
+                Vec2::new(SIDEBAR * scale - 2.0, height as f32 * 0.5),
+                &window,
+                false,
+                scale
+            ));
+            assert!(!is_map_position_scaled(
+                Vec2::new(
+                    width as f32 - RIDE_PANEL_MARGIN * scale - 5.0,
+                    (HEADER + RIDE_PANEL_MARGIN + 10.0) * scale
+                ),
+                &window,
+                false,
+                scale
+            ));
+            assert!(!is_map_position_scaled(
+                Vec2::new(
+                    width as f32 - (ui::PATH_PANEL_RIGHT + 10.0) * scale,
+                    ui::PATH_PANEL_TOP * scale + 5.0
+                ),
+                &window,
+                false,
+                scale
+            ));
+            assert!(is_map_position_scaled(
+                Vec2::new(width as f32 * 0.5, height as f32 * 0.5),
+                &window,
+                false,
+                scale
+            ));
+        }
     }
 
     #[test]

@@ -318,11 +318,11 @@ fn price_feedback_refreshes_without_ticks_and_minimum_chrome_stays_reserved() {
     );
     for dpi in [1.0, 1.5, 2.0] {
         let window = test_window(1024, 680, dpi);
-        assert!(ui::PATH_PANEL_TOP + ui::PATH_PANEL_HEIGHT <= window.height() - FOOTER);
+        assert!(ui::PATH_PANEL_TOP < window.height() - FOOTER - RIDE_PANEL_MARGIN);
         let center_x = window.width() - RIDE_PANEL_MARGIN - RIDE_PANEL_WIDTH * 0.5;
         for y in [
             HEADER + RIDE_PANEL_MARGIN + RIDE_PANEL_HEIGHT - 1.0,
-            ui::PATH_PANEL_TOP + ui::PATH_PANEL_HEIGHT - 1.0,
+            window.height() - FOOTER - RIDE_PANEL_MARGIN - 1.0,
         ] {
             assert!(!is_map_position(Vec2::new(center_x, y), &window, false));
         }

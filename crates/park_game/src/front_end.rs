@@ -7,6 +7,7 @@ use park_sim::{Park, ScenarioKind, Speed};
 use crate::{
     MAP_SIZE, Simulation, ViewState,
     campaign::Campaign,
+    display::DisplaySettings,
     new_game_park, new_game_view,
     park_library::{Entry, ParkLibrary},
     persistence::SaveSession,
@@ -74,6 +75,10 @@ pub(super) enum Action {
     Resume,
     ToggleSound,
     Volume(i8),
+    Scale(i8),
+    WindowMode(i8),
+    Monitor(i8),
+    ResetDisplay,
     Page(i8),
 }
 
@@ -347,9 +352,17 @@ pub(super) fn setup(
     front: Res<FrontEnd>,
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
+    display: Option<Res<DisplaySettings>>,
 ) {
     if front.enabled {
-        spawn_overlay(&mut commands, &front, None, &campaign, &sim.0);
+        spawn_overlay(
+            &mut commands,
+            &front,
+            None,
+            display.as_deref(),
+            &campaign,
+            &sim.0,
+        );
     }
 }
 
@@ -360,6 +373,7 @@ type InputResources<'w> = (
     Res<'w, SaveSession>,
     MessageWriter<'w, AppExit>,
     Option<ResMut<'w, SoundSettings>>,
+    Option<ResMut<'w, DisplaySettings>>,
 );
 
 pub(super) fn input(
@@ -371,7 +385,7 @@ pub(super) fn input(
     mut text: MessageReader<KeyboardInput>,
     interactions: ChangedButtons<'_, '_>,
 ) {
-    let (campaign, session, mut exit, mut sound) = resources;
+    let (campaign, session, mut exit, mut sound, mut display) = resources;
     if !front.enabled {
         return;
     }
@@ -683,6 +697,34 @@ pub(super) fn input(
                 front.dirty_ui = true;
             }
         }
+        Action::Scale(delta) => {
+            if let Some(settings) = display.as_mut() {
+                settings.change_scale(delta);
+                front.notice = settings.notice.clone();
+                front.dirty_ui = true;
+            }
+        }
+        Action::WindowMode(delta) => {
+            if let Some(settings) = display.as_mut() {
+                settings.change_mode(delta);
+                front.notice = settings.notice.clone();
+                front.dirty_ui = true;
+            }
+        }
+        Action::Monitor(delta) => {
+            if let Some(settings) = display.as_mut() {
+                settings.change_monitor(delta);
+                front.notice = settings.notice.clone();
+                front.dirty_ui = true;
+            }
+        }
+        Action::ResetDisplay => {
+            if let Some(settings) = display.as_mut() {
+                settings.reset();
+                front.notice = settings.notice.clone();
+                front.dirty_ui = true;
+            }
+        }
         Action::Page(delta) => {
             front.page = front
                 .page
@@ -746,6 +788,13 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
         Screen::Rename | Screen::SaveAs => vec![Action::Save, Action::Back],
         Screen::Delete => vec![Action::ConfirmDelete, Action::Back],
         Screen::Settings => vec![
+            Action::Scale(-1),
+            Action::Scale(1),
+            Action::WindowMode(-1),
+            Action::WindowMode(1),
+            Action::Monitor(-1),
+            Action::Monitor(1),
+            Action::ResetDisplay,
             Action::ToggleSound,
             Action::Volume(-10),
             Action::Volume(10),
@@ -775,7 +824,12 @@ pub(super) fn refresh(
     sound: Option<Res<SoundSettings>>,
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
+    display: Option<Res<DisplaySettings>>,
 ) {
+    if front.screen == Screen::Settings && display.as_ref().is_some_and(|value| value.is_changed())
+    {
+        front.dirty_ui = true;
+    }
     if front.screen == Screen::Intro {
         let frame = (front.intro_started.elapsed().as_millis() / 250) as u8;
         if frame != front.intro_frame {
@@ -794,6 +848,7 @@ pub(super) fn refresh(
             &mut commands,
             &front,
             sound.as_deref().map(|s| s.value),
+            display.as_deref(),
             &campaign,
             &sim.0,
         );
@@ -806,6 +861,7 @@ fn spawn_overlay(
     commands: &mut Commands,
     front: &FrontEnd,
     sound: Option<crate::sound::Settings>,
+    display: Option<&DisplaySettings>,
     campaign: &Campaign,
     park: &Park,
 ) {
@@ -817,10 +873,9 @@ fn spawn_overlay(
         width: percent(100), height: percent(100), justify_content: JustifyContent::Center,
         align_items: AlignItems::Center, ..default() }, BackgroundColor(Color::srgba(0.03,0.11,0.08,0.94))))
         .with_children(|root| {
-            root.spawn((Node { width: percent(70), max_width: px(690), max_height: percent(94),
-                padding: UiRect::all(px(20)), flex_direction: FlexDirection::Column,
-                row_gap: px(5), align_items: AlignItems::Stretch, overflow: Overflow::clip(),
-                ..default() }, BackgroundColor(panel), BorderRadius::all(px(15))))
+            root.spawn((crate::ui::layout::ScrollLayer::Front, ScrollPosition::default(),
+                crate::ui::layout::dialog(90.0, 690.0, None),
+                BackgroundColor(panel), BorderRadius::all(px(15))))
                 .with_children(|p| {
                     title(p, "PARKBOUND", 39.0, gold);
                     let subtitle = match front.screen { Screen::Intro => "A world of rides, stories, and happy guests",
@@ -861,7 +916,19 @@ fn spawn_overlay(
                         Screen::Rename => { title(p, &format!("Name: {}_", front.draft), 17.0, cream); button(p, "Save name", Action::Save); button(p, "Cancel", Action::Back); },
                         Screen::SaveAs => { title(p, &format!("Name: {}_", front.draft), 17.0, cream); button(p, "Save new park", Action::Save); button(p, "Cancel", Action::Back); },
                         Screen::Delete => { title(p, "This moves the park to the local archive. Its files remain available for manual recovery.", 14.0, cream); button(p, "Move to archive", Action::ConfirmDelete); button(p, "Keep park", Action::Back); },
-                        Screen::Settings => { let sound = sound.unwrap_or_default(); button(p, if sound.muted { "Sound: Off" } else { "Sound: On" }, Action::ToggleSound);
+                        Screen::Settings => { let sound = sound.unwrap_or_default();
+                            if let Some(display) = display {
+                                title(p, &format!("Interface scale: {} (effective {}%)", display.value.scale.label(), (display.effective_scale * 100.0).round() as u32), 16.0, cream);
+                                button(p, "Smaller interface", Action::Scale(-1)); button(p, "Larger interface", Action::Scale(1));
+                                title(p, &format!("Window: {}", display.value.mode.label()), 16.0, cream);
+                                button(p, "Previous window mode", Action::WindowMode(-1)); button(p, "Next window mode", Action::WindowMode(1));
+                                title(p, &format!("Display: {}", display.monitor_label()), 16.0, cream);
+                                button(p, "Previous display", Action::Monitor(-1)); button(p, "Next display", Action::Monitor(1));
+                                button(p, "Reset display settings", Action::ResetDisplay);
+                                title(p, "F11 restores windowed Auto scale. --safe-windowed recovers startup.", 12.0, cream);
+                                if !display.notice.is_empty() { title(p, &display.notice, 12.0, gold); }
+                            }
+                            button(p, if sound.muted { "Sound: Off" } else { "Sound: On" }, Action::ToggleSound);
                             title(p, &format!("Master volume: {}%", sound.levels[0]), 16.0, cream);
                             button(p, "Volume −", Action::Volume(-10)); button(p, "Volume +", Action::Volume(10));
                             button(p, "Back", Action::Back); },
@@ -907,6 +974,7 @@ fn button(parent: &mut ChildSpawnerCommands, value: &str, action: Action) {
             Node {
                 width: percent(100),
                 height: px(30),
+                flex_shrink: 0.0,
                 padding: UiRect::horizontal(px(11)),
                 align_items: AlignItems::Center,
                 ..default()
@@ -942,6 +1010,10 @@ fn action_name(action: Action) -> &'static str {
         Action::Resume => "Resume",
         Action::ToggleSound => "Sound",
         Action::Volume(_) => "Volume",
+        Action::Scale(_) => "Interface scale",
+        Action::WindowMode(_) => "Window mode",
+        Action::Monitor(_) => "Display",
+        Action::ResetDisplay => "Reset display",
         Action::Page(_) => "Page",
         Action::Select(_) => "Park",
         Action::ConfirmDelete

@@ -702,6 +702,7 @@ struct Capture {
     view_mode: ViewMode,
     small_window: bool,
     large_window: bool,
+    custom_window: Option<(u32, u32)>,
     detail: bool,
     ticks: u32,
     started: Instant,
@@ -1057,8 +1058,36 @@ pub(super) fn configure(app: &mut App) {
     let large_window = arguments
         .iter()
         .any(|value| value == "--capture-large-window");
+    let custom_window = arguments
+        .iter()
+        .position(|value| value == "--capture-window-size")
+        .map(|index| {
+            let raw = arguments
+                .get(index + 1)
+                .and_then(|value| value.to_str())
+                .expect("--capture-window-size requires WIDTHxHEIGHT");
+            let (width, height) = raw
+                .split_once('x')
+                .expect("--capture-window-size requires WIDTHxHEIGHT");
+            let width = width
+                .parse::<u32>()
+                .expect("capture width must be an integer");
+            let height = height
+                .parse::<u32>()
+                .expect("capture height must be an integer");
+            assert!(
+                (1024..=3840).contains(&width)
+                    && (680..=2160).contains(&height)
+                    && u64::from(width) * u64::from(height) <= 8_294_400,
+                "capture window must be within 1024x680 and 3840x2160"
+            );
+            (width, height)
+        });
     assert!(
-        !(small_window && large_window),
+        usize::from(small_window)
+            + usize::from(large_window)
+            + usize::from(custom_window.is_some())
+            <= 1,
         "choose one capture window size"
     );
     let detail = arguments.iter().any(|value| value == "--capture-detail");
@@ -1110,6 +1139,7 @@ pub(super) fn configure(app: &mut App) {
         view_mode,
         small_window,
         large_window,
+        custom_window,
         detail,
         ticks,
         started: Instant::now(),
@@ -1588,6 +1618,11 @@ fn apply_preset(
     {
         window.resolution.set(1920.0, 1080.0);
     }
+    if let Some((width, height)) = capture.custom_window
+        && let Ok(mut window) = windows.single_mut()
+    {
+        window.resolution.set(width as f32, height as f32);
+    }
 }
 
 /// Use the real map tool command after resolving the normal visible hit. These
@@ -1879,6 +1914,7 @@ mod tests {
                 view_mode: ViewMode::Surface,
                 small_window: false,
                 large_window: false,
+                custom_window: None,
                 detail: false,
                 ticks: DEFAULT_CAPTURE_TICKS,
                 started: Instant::now(),
@@ -2062,6 +2098,7 @@ mod tests {
                     view_mode: ViewMode::Surface,
                     small_window: false,
                     large_window: false,
+                    custom_window: None,
                     detail: false,
                     ticks: 137,
                     started: Instant::now(),
