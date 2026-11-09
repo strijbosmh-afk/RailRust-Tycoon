@@ -451,6 +451,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-challenge --save-dir $challengeDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Challenge verifier failed" }
           Get-Content -LiteralPath (Join-Path $challengeDirectory "verification-challenge.txt")
+      - name: Verify Boardwalk success and deadline failure
+        shell: pwsh
+        run: |
+          $scenarioDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound scenarios é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-scenarios --save-dir $scenarioDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Scenario writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-scenarios --save-dir $scenarioDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Scenario verifier failed" }
+          Get-Content -LiteralPath (Join-Path $scenarioDirectory "verification-scenarios.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

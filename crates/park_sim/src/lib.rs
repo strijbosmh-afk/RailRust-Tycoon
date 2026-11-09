@@ -73,8 +73,9 @@ mod ride_testing;
 mod saves;
 mod scenario;
 pub use scenario::{
-    MEADOW_ARRIVAL_GOAL, MEADOW_CASH_GOAL_CENTS, MEADOW_RIDE_GOAL, ScenarioError, ScenarioKind,
-    ScenarioStatus,
+    BOARDWALK_ARRIVAL_GOAL, BOARDWALK_CASH_GOAL_CENTS, BOARDWALK_DEADLINE_TICKS,
+    BOARDWALK_RIDE_GOAL, MEADOW_ARRIVAL_GOAL, MEADOW_CASH_GOAL_CENTS, MEADOW_RIDE_GOAL,
+    ScenarioError, ScenarioKind, ScenarioStatus,
 };
 mod services;
 #[cfg(test)]

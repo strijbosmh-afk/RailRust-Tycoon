@@ -308,13 +308,14 @@ pub(crate) fn refresh(
                 s.radio_admissions
             ),
             VisitorLabel::Scenario => sim.0.scenario_status().map_or_else(
-                || "Meadow Challenge: not started. Free entry, no radio ads.\nGoal: 20 new visitors, 5 completed rides and at least $750 cash.".into(),
+                || "Scenario: Sandbox. Open the Scenarios tab to choose a challenge.\nMeadow is untimed; Boardwalk Sprint has a ten-minute deadline.".into(),
                 |challenge| format!(
-                    "Meadow Challenge: {} / {} new visitors; {} / {} rides; cash {} / {}.\n{} / started at {:02}:{:02}. Flyers remain available.",
-                    challenge.arrivals, park_sim::MEADOW_ARRIVAL_GOAL,
-                    challenge.rides, park_sim::MEADOW_RIDE_GOAL,
-                    money(challenge.cash_cents), money(park_sim::MEADOW_CASH_GOAL_CENTS),
-                    if challenge.completed_tick.is_some() { "COMPLETED" } else { "In progress" },
+                    "{}: {} / {} new visitors; {} / {} rides; cash {} / {}.\n{} / started at {:02}:{:02}. See Scenarios for the full rules.",
+                    challenge.kind.label(),
+                    challenge.arrivals, challenge.goal_arrivals,
+                    challenge.rides, challenge.goal_rides,
+                    money(challenge.cash_cents), money(challenge.goal_cash_cents),
+                    if challenge.completed_tick.is_some() { "COMPLETED" } else if challenge.failed_tick.is_some() { "FAILED" } else { "In progress" },
                     challenge.started_tick / 1_800, (challenge.started_tick % 1_800) / 30,
                 )
             ),

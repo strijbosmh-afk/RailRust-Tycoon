@@ -66,6 +66,14 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
                 assert!(p.scenario_status().unwrap().completed_tick.is_some());
             }
         }
+        Scene::ScenarioSprint | Scene::ScenarioWon | Scene::ScenarioFailed => {
+            *p = crate::save_check::scenarios::fixture().unwrap();
+            if matches!(scene, Scene::ScenarioWon) {
+                crate::save_check::scenarios::replay_success(p).unwrap();
+            } else if matches!(scene, Scene::ScenarioFailed) {
+                crate::save_check::scenarios::replay_failure(p).unwrap();
+            }
+        }
         Scene::VisitorsClosed => {
             view.selected_guest = Some(visitors::paid_departure(p).unwrap());
             p.set_park_open(false);
@@ -99,7 +107,14 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
     );
     view.finance_view = FinanceView::ParkSummary;
     view.guests_open = !view.finance_open;
-    view.guest_flow_view = true;
+    view.scenario_view = matches!(
+        scene,
+        Scene::ScenarioSelect | Scene::ScenarioSprint | Scene::ScenarioWon | Scene::ScenarioFailed
+    );
+    view.scenario_view_pending = false;
+    view.scenario_pending = None;
+    view.scenario_notice = None;
+    view.guest_flow_view = !view.scenario_view;
     view.guest_flow_pending = false;
     view.visitor_pending = None;
     view.visitor_notice = None;
@@ -125,6 +140,10 @@ mod tests {
             Scene::VisitorRadioFinance,
             Scene::VisitorChallenge,
             Scene::VisitorChallengeCompleted,
+            Scene::ScenarioSelect,
+            Scene::ScenarioSprint,
+            Scene::ScenarioWon,
+            Scene::ScenarioFailed,
             Scene::VisitorsClosed,
             Scene::VisitorsPaid,
             Scene::VisitorsTurnover,

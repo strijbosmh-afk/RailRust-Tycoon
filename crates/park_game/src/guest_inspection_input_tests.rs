@@ -96,6 +96,31 @@ fn park_stats_and_flow_views_switch_without_changing_visitor_state() {
 }
 
 #[test]
+fn scenario_selection_view_switches_without_starting_a_challenge() {
+    let directory = InputSaveDirectory::new();
+    let original = train_park();
+    let (mut app, _) = guest_app(
+        &directory,
+        original.clone(),
+        ViewState {
+            guests_open: true,
+            ..default()
+        },
+    );
+    frame(&mut app);
+    click_action(&mut app, ui::Action::ScenarioView);
+    let view = app.world().resource::<ViewState>();
+    assert!(view.scenario_view && !view.guest_flow_view && !view.guest_stats_view);
+    click_action(&mut app, ui::Action::GuestFlowView);
+    let view = app.world().resource::<ViewState>();
+    assert!(view.guest_flow_view && !view.scenario_view);
+    click_action(&mut app, ui::Action::ScenarioView);
+    click_action(&mut app, ui::Action::ScenarioView);
+    assert!(!app.world().resource::<ViewState>().scenario_view);
+    assert_eq!(app.world().resource::<Simulation>().0, original);
+}
+
+#[test]
 fn park_stats_duties_and_selected_path_patrol_use_actual_buttons() {
     let directory = InputSaveDirectory::new();
     let park = train_park();

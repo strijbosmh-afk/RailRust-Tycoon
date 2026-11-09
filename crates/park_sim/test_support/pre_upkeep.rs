@@ -298,6 +298,10 @@ pub(crate) fn strip_radio_fields(value: &mut serde_json::Value) {
 pub(crate) fn strip_scenario_field(value: &mut serde_json::Value) {
     if value["schema_version"].as_u64().is_some_and(|v| v <= 37) {
         value["park"].as_object_mut().unwrap().remove("scenario");
+    } else if value["schema_version"].as_u64() == Some(38)
+        && let Some(state) = value["park"]["scenario"].as_object_mut()
+    {
+        state.remove("failed_tick");
     }
 }
 

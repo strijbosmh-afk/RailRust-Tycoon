@@ -183,6 +183,7 @@ pub enum VisitorError {
     RadioAlreadyActive,
     RadioUnaffordable,
     ScenarioLocked,
+    SprintRuleLocked,
     RadioUnavailable,
 }
 impl std::fmt::Display for VisitorError {
@@ -200,6 +201,7 @@ impl std::fmt::Display for VisitorError {
             Self::RadioAlreadyActive => "Radio ads are already running",
             Self::RadioUnaffordable => "Not enough park cash for radio ads",
             Self::ScenarioLocked => "Meadow Challenge requires free park entry",
+            Self::SprintRuleLocked => "Boardwalk Sprint requires free rides",
             Self::RadioUnavailable => "Meadow Challenge does not allow radio ads",
         })
     }
@@ -309,8 +311,13 @@ impl Park {
         Ok(())
     }
     pub fn set_charging_rule(&mut self, rule: ChargingRule) -> Result<(), VisitorError> {
-        if self.scenario.is_some() && rule != ChargingRule::FreeEntry {
-            return Err(VisitorError::ScenarioLocked);
+        if let Some(state) = &self.scenario
+            && rule != state.kind.charging_rule()
+        {
+            return Err(match state.kind {
+                crate::ScenarioKind::MeadowChallenge => VisitorError::ScenarioLocked,
+                crate::ScenarioKind::BoardwalkSprint => VisitorError::SprintRuleLocked,
+            });
         }
         self.visitors.charging_rule = rule;
         match rule {
@@ -350,7 +357,11 @@ impl Park {
         Ok(())
     }
     pub fn start_radio_campaign(&mut self) -> Result<(), VisitorError> {
-        if self.scenario.is_some() {
+        if self
+            .scenario
+            .as_ref()
+            .is_some_and(|state| state.kind == crate::ScenarioKind::MeadowChallenge)
+        {
             return Err(VisitorError::RadioUnavailable);
         }
         if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {

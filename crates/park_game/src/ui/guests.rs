@@ -84,6 +84,7 @@ pub(crate) enum GuestMeterFill {
 pub(crate) enum GuestLabel {
     Summary,
     FlowView,
+    ScenarioView,
     StatsView,
     Filter,
     Page,
@@ -199,6 +200,19 @@ pub(super) fn setup(commands: &mut Commands) {
                     .with_children(|p| text(p, "Visitor flow", 12.0, GuestLabel::FlowView));
                     p.spawn((
                         Button,
+                        Action::ScenarioView,
+                        Node {
+                            width: px(105),
+                            height: px(30),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON),
+                    ))
+                    .with_children(|p| text(p, "Scenarios", 12.0, GuestLabel::ScenarioView));
+                    p.spawn((
+                        Button,
                         Action::GuestStatsView,
                         Node {
                             width: px(115),
@@ -227,6 +241,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 });
                 text(p, "Guest experience", 12.0, GuestLabel::Summary);
                 super::visitor_flow::setup(p);
+                super::scenarios::setup(p);
                 super::guest_stats::setup(p);
                 p.spawn((
                     GuestInspection,
@@ -657,6 +672,7 @@ type GuestPanels<'w, 's> = Query<
         Without<GuestInspection>,
         Without<super::visitor_flow::VisitorBody>,
         Without<super::guest_stats::GuestStatsBody>,
+        Without<super::scenarios::ScenarioBody>,
         Without<GuestMeterFill>,
     ),
 >;
@@ -667,12 +683,14 @@ type GuestBodies<'w, 's> = Query<
         &'static mut Node,
         Has<super::visitor_flow::VisitorBody>,
         Has<super::guest_stats::GuestStatsBody>,
+        Has<super::scenarios::ScenarioBody>,
     ),
     (
         Or<(
             With<GuestInspection>,
             With<super::visitor_flow::VisitorBody>,
             With<super::guest_stats::GuestStatsBody>,
+            With<super::scenarios::ScenarioBody>,
         )>,
         Without<GuestMeterFill>,
     ),
@@ -702,6 +720,7 @@ pub(crate) fn refresh(
         view.guest_flow_view = !view.guest_flow_view;
         if view.guest_flow_view {
             view.guest_stats_view = false;
+            view.scenario_view = false;
         }
         view.visitor_pending = None;
         view.visitor_notice = None;
@@ -710,12 +729,25 @@ pub(crate) fn refresh(
         view.guest_stats_view = !view.guest_stats_view;
         if view.guest_stats_view {
             view.guest_flow_view = false;
+            view.scenario_view = false;
         }
         view.visitor_pending = None;
         view.visitor_notice = None;
     }
-    for (mut node, is_flow, is_stats) in &mut bodies {
-        node.display = if is_flow == view.guest_flow_view && is_stats == view.guest_stats_view {
+    if std::mem::take(&mut view.scenario_view_pending) {
+        view.scenario_view = !view.scenario_view;
+        if view.scenario_view {
+            view.guest_flow_view = false;
+            view.guest_stats_view = false;
+        }
+        view.visitor_pending = None;
+        view.scenario_pending = None;
+    }
+    for (mut node, is_flow, is_stats, is_scenario) in &mut bodies {
+        node.display = if is_flow == view.guest_flow_view
+            && is_stats == view.guest_stats_view
+            && is_scenario == view.scenario_view
+        {
             Display::Flex
         } else {
             Display::None
@@ -771,6 +803,12 @@ pub(crate) fn refresh(
                 "Park stats"
             }
             .into(),
+            GuestLabel::ScenarioView => if view.scenario_view {
+                "Guest list"
+            } else {
+                "Scenarios"
+            }
+            .into(),
             GuestLabel::Filter => view.guest_filter.label().into(),
             GuestLabel::Summary if view.guest_flow_view => format!(
                 "{} active guests / {} leaving / {} finishing visits\nPark {} / arrival flow {} / {} lifetime departures",
@@ -789,6 +827,9 @@ pub(crate) fn refresh(
                     .map_or_else(|| "none".into(), |value| format!("{value}/100")),
                 summary.unhappy_guests,
             ),
+            GuestLabel::Summary if view.scenario_view => {
+                "Choose one original challenge for this park, or continue in sandbox.\nProgress and outcomes are saved with the park.".into()
+            }
             GuestLabel::Summary => format!(
                 "Showing {} / {} guests / Park average satisfaction {} / {} unhappy\n{} reviews: {} from {} opinions",
                 guests.len(),
