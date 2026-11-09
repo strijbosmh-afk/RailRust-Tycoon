@@ -1621,6 +1621,22 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 rgb_from(look.hair),
             ),
         }
+        if look.cap {
+            mesh.ellipse(
+                point + Vec2::new(0.0, 23.2),
+                3.5,
+                1.6,
+                depth + 0.0046,
+                shirt,
+            );
+            mesh.line(
+                point + Vec2::new(-2.7, 22.1),
+                point + Vec2::new(3.7, 22.1),
+                1.0,
+                depth + 0.0047,
+                shirt_shadow,
+            );
+        }
         for x in [-1.05, 1.05] {
             mesh.line(
                 point + Vec2::new(x - 0.28, 20.0),

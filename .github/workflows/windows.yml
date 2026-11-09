@@ -20,6 +20,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Validate original asset records
+        shell: pwsh
+        run: ./scripts/validate-assets.ps1
       - name: Check lints
         run: cargo clippy --release --workspace --all-targets --locked -- -D warnings
       - name: Run tests

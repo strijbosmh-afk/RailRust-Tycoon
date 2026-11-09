@@ -58,6 +58,10 @@ try {
         throw 'RESUME_DEVELOPMENT.md is required for distribution.'
     }
     Copy-Item -LiteralPath $resumeGuide -Destination (Join-Path $stagedPackage 'RESUME_DEVELOPMENT.md')
+    & (Join-Path $PSScriptRoot 'validate-assets.ps1')
+    $assetDirectory = Join-Path $stagedPackage 'assets'
+    [void](New-Item -ItemType Directory -Path $assetDirectory)
+    Copy-Item -LiteralPath (Join-Path $workspaceDirectory 'assets/manifest.json') -Destination $assetDirectory
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'measure-performance.ps1') -Destination $stagedPackage
     $documents = Join-Path $workspaceDirectory 'docs'
     if (Test-Path -LiteralPath $documents -PathType Container) {

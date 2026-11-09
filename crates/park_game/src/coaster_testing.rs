@@ -154,8 +154,34 @@ pub(crate) fn metrics_text(state: &CoasterTesting) -> String {
     };
     let seconds = |ticks| f64::from(ticks) / TICKS_PER_SECOND as f64;
     let speed = |value| f64::from(value) * TICKS_PER_SECOND as f64 / f64::from(TRACK_UNITS);
+    let mut hotspots: Vec<_> = report
+        .segment_peak_speeds
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(_, peak)| *peak > 0)
+        .collect();
+    hotspots.sort_unstable_by(|(left_index, left_peak), (right_index, right_peak)| {
+        right_peak.cmp(left_peak).then(left_index.cmp(right_index))
+    });
+    let hotspot_lines = hotspots
+        .into_iter()
+        .take(3)
+        .map(|(index, peak)| {
+            let piece = report.input.specs[index];
+            format!(
+                "#{} {:?} ({},{}) {:.2} tiles/s",
+                index + 1,
+                piece.kind,
+                piece.pos.x,
+                piece.pos.y,
+                speed(peak)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
     format!(
-        "Length {:.2} tiles / {} pieces\nLap {:.1} s + wait {:.1} s = {:.1} s\nSpeed {:.2}-{:.2} tiles/s while moving\nHeight {}-{} terrain steps\nCurves {} / lifts {} / drops {} / brakes {}\nClimb {} steps / descent {} steps\nLongest continuous drop {} steps\nPassenger loading policy excluded.",
+        "Length {:.2} tiles / {} pieces\nLap {:.1} s + wait {:.1} s = {:.1} s\nSpeed {:.2}-{:.2} tiles/s while moving\nHeight {}-{} terrain steps\nCurves {} / lifts {} / drops {} / brakes {}\nClimb {} steps / descent {} steps\nLongest continuous drop {} steps\nFastest track pieces:\n{}\nPassenger loading policy excluded.",
         f64::from(report.length_units) / f64::from(TRACK_UNITS),
         report.layout.pieces,
         seconds(report.moving_ticks),
@@ -172,6 +198,7 @@ pub(crate) fn metrics_text(state: &CoasterTesting) -> String {
         report.layout.ascent_steps,
         report.layout.descent_steps,
         report.layout.longest_drop_steps,
+        hotspot_lines,
     )
 }
 

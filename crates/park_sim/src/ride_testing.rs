@@ -72,6 +72,11 @@ pub struct CoasterTestReport {
     /// zeroes and the completed lap's stop are excluded from both extrema.
     pub min_speed_units_per_tick: u32,
     pub max_speed_units_per_tick: u32,
+    /// Peak positive speed sampled while the train occupies each installed
+    /// piece, in the same traversal order as `input.specs`. A zero means the
+    /// isolated lap did not move on that piece; this is diagnostic telemetry,
+    /// not a force or safety rating.
+    pub segment_peak_speeds: Vec<u32>,
     /// Exact layout extrema in abstract terrain-height steps, not metres.
     pub min_height: u8,
     pub max_height: u8,
@@ -165,6 +170,7 @@ impl Park {
         isolated.circuit = Some(circuit);
         let mut min_speed = u32::MAX;
         let mut max_speed = 0;
+        let mut segment_peak_speeds = vec![0; input.specs.len()];
         for total_ticks in 1..=limit {
             isolated.step_train();
             let train = isolated
@@ -174,6 +180,8 @@ impl Park {
             if train.speed > 0 {
                 min_speed = min_speed.min(train.speed);
                 max_speed = max_speed.max(train.speed);
+                segment_peak_speeds[train.piece_index] =
+                    segment_peak_speeds[train.piece_index].max(train.speed);
             }
             if train.laps == 1 {
                 let station_wait_ticks = input.settings.station_wait_ticks;
@@ -185,6 +193,7 @@ impl Park {
                     total_ticks,
                     min_speed_units_per_tick: min_speed,
                     max_speed_units_per_tick: max_speed,
+                    segment_peak_speeds,
                     min_height,
                     max_height,
                     layout,
@@ -294,12 +303,15 @@ mod tests {
             actual.set_train_open(true);
             let mut min_speed = u32::MAX;
             let mut max_speed = 0;
+            let mut segment_peaks = vec![0; report.input.specs.len()];
             for elapsed in 1..=report.total_ticks {
                 actual.advance(Speed::Normal);
                 let train = actual.train().unwrap();
                 if train.speed > 0 {
                     min_speed = min_speed.min(train.speed);
                     max_speed = max_speed.max(train.speed);
+                    segment_peaks[train.piece_index] =
+                        segment_peaks[train.piece_index].max(train.speed);
                 }
                 assert_eq!(train.laps, u64::from(elapsed == report.total_ticks));
             }
@@ -313,6 +325,11 @@ mod tests {
                 (min_speed, max_speed)
             );
             assert_eq!(report.length_units, park.circuit().unwrap().total_length);
+            assert_eq!(report.segment_peak_speeds, segment_peaks);
+            assert_eq!(
+                report.segment_peak_speeds.iter().copied().max(),
+                Some(max_speed)
+            );
             assert_eq!((report.min_height, report.max_height), (8, 16));
             assert_eq!(
                 (report.layout.ascent_steps, report.layout.descent_steps),

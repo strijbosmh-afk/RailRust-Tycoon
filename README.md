@@ -1,6 +1,8 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.73.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 is improving display choices, grouped navigation, and responsive panels. Each phase has a player-visible acceptance gate.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.74.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+
+Current development stage **0.74.0** adds original asset records and visual rules, 48 guest looks, selectable 64/128/256-tile empty sandboxes with repeatable rolling hills, large-map save/load and camera range, and piece-level speed hotspots in an isolated coaster test. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [stage report](docs/PHASES_3_5_FOUNDATIONS_REPORT.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates remain open; this PC is not a performance reference.
 
 Current development stage **0.73.0** adds an Explore menu with Build, Manage, Inspect, Park, and Help/Settings routes. Guests, Services, Rides, and Track Designs dialogs now fit and scroll in compact windows; wide content reflows. Existing shortcuts remain available. See the [navigation guide](docs/PARK_NAVIGATION_GUIDE.md), [stage report](docs/PARK_NAVIGATION_REPORT.md), and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full mixed-DPI display matrix remains open. This PC is not a performance reference.
 
