@@ -89,6 +89,12 @@ pub enum PlacementError {
     OutOfBounds {
         pos: TilePos,
     },
+    LandNotOwned {
+        pos: TilePos,
+    },
+    WaterNeedsBridge {
+        pos: TilePos,
+    },
     EmptyClearance,
     HeightOutOfRange {
         height: u8,
@@ -142,6 +148,16 @@ impl std::fmt::Display for PlacementError {
                 "object tile ({}, {}) is outside the park",
                 pos.x, pos.y
             ),
+            Self::LandNotOwned { pos } => {
+                write!(formatter, "tile ({}, {}) is not owned", pos.x, pos.y)
+            }
+            Self::WaterNeedsBridge { pos } => {
+                write!(
+                    formatter,
+                    "tile ({}, {}) is water; build above it",
+                    pos.x, pos.y
+                )
+            }
             Self::EmptyClearance => write!(formatter, "object clearance must be positive"),
             Self::CarouselRequiresDefinition => write!(
                 formatter,
@@ -283,6 +299,9 @@ impl Park {
         kind: SceneryKind,
     ) -> Result<u64, PlacementError> {
         let tile = self.tile(pos).ok_or(PlacementError::OutOfBounds { pos })?;
+        if !tile.owned {
+            return Err(PlacementError::LandNotOwned { pos });
+        }
         if tile.terrain == crate::Terrain::Water {
             return Err(PlacementError::SceneryRequiresLand);
         }
@@ -413,6 +432,9 @@ impl Park {
         clearance: u8,
     ) -> Result<u64, PlacementError> {
         let tile = self.tile(pos).ok_or(PlacementError::OutOfBounds { pos })?;
+        if !tile.owned {
+            return Err(PlacementError::LandNotOwned { pos });
+        }
         if clearance == 0 {
             return Err(PlacementError::EmptyClearance);
         }
@@ -429,6 +451,9 @@ impl Park {
                 pos,
                 terrain_height: tile.height,
             });
+        }
+        if tile.terrain == crate::Terrain::Water && height < 2 {
+            return Err(PlacementError::WaterNeedsBridge { pos });
         }
         if let Some(object) = self.objects.iter().find(|object| {
             object.pos == pos
@@ -756,7 +781,7 @@ mod tests {
                     x: (index % 32) as u32,
                     y: (index / 32) as u32,
                 },
-                0,
+                2,
             )
             .unwrap();
         }
@@ -768,17 +793,17 @@ mod tests {
             resource: "paths",
             max: crate::saves::MAX_PATHS,
         };
-        assert_eq!(park.validate_path(pos, 2), Err(error));
-        assert_eq!(park.place_path(pos, 2), Err(error));
+        assert_eq!(park.validate_path(pos, 4), Err(error));
+        assert_eq!(park.place_path(pos, 4), Err(error));
         assert_eq!(park, snapshot);
         assert_eq!(park.path_cache_stats(), cache);
         let old = park.objects()[0].id;
         park.remove_object(old).unwrap();
-        let replacement = park.place_path(pos, 0).unwrap();
+        let replacement = park.place_path(pos, 2).unwrap();
         assert!(replacement.0 > snapshot.objects().last().unwrap().id.0);
         assert!(park.to_save_bytes().is_ok());
         // Explicit diagnostic constructors keep their preexisting freedom.
-        park.place_object(pos, ObjectKind::Path, Axis::Y, 2, PATH_CLEARANCE)
+        park.place_object(pos, ObjectKind::Path, Axis::Y, 0, PATH_CLEARANCE)
             .unwrap();
         assert!(park.to_save_bytes().is_err());
     }
@@ -794,12 +819,12 @@ mod tests {
                 },
                 ObjectKind::Track,
                 Axis::Y,
-                (index / 1024 * 2) as u8,
+                (index / 1024 * 2 + 2) as u8,
                 2,
             )
             .unwrap();
         }
-        park.place_path(TilePos { x: 31, y: 31 }, 6).unwrap();
+        park.place_path(TilePos { x: 31, y: 31 }, 8).unwrap();
         assert!(park.to_save_bytes().is_ok());
         let snapshot = park.clone();
         let error = PlacementError::CapacityExceeded {
@@ -807,8 +832,8 @@ mod tests {
             max: crate::saves::MAX_OBJECTS,
         };
         let pos = TilePos { x: 0, y: 0 };
-        assert_eq!(park.validate_path(pos, 8), Err(error));
-        assert_eq!(park.place_path(pos, 8), Err(error));
+        assert_eq!(park.validate_path(pos, 10), Err(error));
+        assert_eq!(park.place_path(pos, 10), Err(error));
         assert_eq!(park, snapshot);
         assert_eq!(park.path_cache_stats(), snapshot.path_cache_stats());
     }

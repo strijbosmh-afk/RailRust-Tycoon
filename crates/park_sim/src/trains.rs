@@ -25,6 +25,8 @@ pub enum TrackKind {
     Drop,
     Brake,
     Curve,
+    BankedCurve,
+    Launch,
     Straight,
 }
 
@@ -537,6 +539,7 @@ impl Park {
         train.speed = match kind {
             TrackKind::Lift => settings.lift_speed,
             TrackKind::Drop => (train.speed + 3).min(MAX_SPEED),
+            TrackKind::Launch => (train.speed + 6).min(64),
             TrackKind::Brake | TrackKind::Station => {
                 train.speed.saturating_sub(5).max(settings.brake_speed)
             }
@@ -545,6 +548,13 @@ impl Park {
                     train.speed - 1
                 } else {
                     train.speed.saturating_add(1).min(32)
+                }
+            }
+            TrackKind::BankedCurve => {
+                if train.speed > 48 {
+                    train.speed - 1
+                } else {
+                    train.speed.saturating_add(1).min(48)
                 }
             }
         };
@@ -579,7 +589,9 @@ impl Park {
             TrackKind::Lift => TrainPhase::Lift,
             TrackKind::Drop => TrainPhase::Drop,
             TrackKind::Brake => TrainPhase::Brake,
-            TrackKind::Curve | TrackKind::Straight => TrainPhase::Cruising,
+            TrackKind::Curve | TrackKind::BankedCurve | TrackKind::Launch | TrackKind::Straight => {
+                TrainPhase::Cruising
+            }
         };
     }
 }
@@ -626,10 +638,14 @@ pub(crate) fn valid_piece_ports(spec: TrackPieceSpec) -> bool {
     let straight = spec.entry.edge.opposite() == spec.exit.edge;
     let grade = i16::from(spec.exit.height) - i16::from(spec.entry.height);
     match spec.kind {
-        TrackKind::Curve => !straight && spec.entry.edge != spec.exit.edge && grade == 0,
+        TrackKind::Curve | TrackKind::BankedCurve => {
+            !straight && spec.entry.edge != spec.exit.edge && grade == 0
+        }
         TrackKind::Lift => straight && grade == 1,
         TrackKind::Drop => straight && (-2..=-1).contains(&grade),
-        TrackKind::Station | TrackKind::Brake | TrackKind::Straight => straight && grade == 0,
+        TrackKind::Station | TrackKind::Brake | TrackKind::Launch | TrackKind::Straight => {
+            straight && grade == 0
+        }
     }
 }
 
@@ -661,7 +677,7 @@ fn piece_samples(spec: TrackPieceSpec) -> Vec<TrackPoint> {
     let to = endpoint(spec.exit);
     (0..=SAMPLES_PER_PIECE)
         .map(|step| {
-            if spec.kind == TrackKind::Curve {
+            if matches!(spec.kind, TrackKind::Curve | TrackKind::BankedCurve) {
                 let before = SAMPLES_PER_PIECE - step;
                 let curve = |a: i32, middle: i32, b: i32| {
                     ((i64::from(a) * before * before

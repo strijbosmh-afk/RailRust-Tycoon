@@ -788,7 +788,9 @@ fn new_sandbox_park(size: u32) -> Park {
         new_game_park()
     } else {
         assert!((MAP_SIZE..=park_sim::MAX_MAP_SIZE).contains(&size));
-        Park::new(size, size)
+        let mut park = Park::new(size, size);
+        assert!(park.prepare_large_sandbox_land());
+        park
     }
 }
 
@@ -1341,7 +1343,21 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
     }
     if view.terrain_change_pending {
         view.ui_pointer_consumed = true;
-        if let Err(error) = sim.0.try_apply_terrain_profile(view.terrain_profile) {
+        let fully_owned = (0..sim.0.height())
+            .all(|y| (0..sim.0.width()).all(|x| sim.0.owns_land(park_sim::TilePos { x, y })));
+        let fresh_empty = sim.0.objects().is_empty()
+            && sim.0.guests().is_empty()
+            && sim.0.finance_ledger().entries.is_empty()
+            && sim.0.ticks() == 0
+            && fully_owned;
+        let result = if fresh_empty {
+            sim.0
+                .try_apply_terrain_profile(view.terrain_profile)
+                .map_err(|error| error.to_string())
+        } else {
+            Err("presets are available only before building on fully owned land".into())
+        };
+        if let Err(error) = result {
             view.terrain_error = Some(format!("Terrain unchanged: {error}"));
             view.terrain_profile = match view.terrain_profile {
                 TerrainProfile::Flat => TerrainProfile::Terraced,
@@ -1905,10 +1921,16 @@ mod tests {
             assert_eq!(view.camera_span, size as f32 / 32.0);
             assert!(view.pan_limit.x > 1800.0 || size == 64);
             let site = TilePos {
-                x: size - 2,
-                y: size - 2,
+                x: size / 2,
+                y: size / 2,
             };
-            park.set_terrain_height(site, 1).unwrap();
+            assert!(park.owns_land(site));
+            assert!(!park.owns_land(TilePos {
+                x: size - 2,
+                y: size - 2
+            }));
+            park.apply_terrain_brush(site, 0, park_sim::TerrainBrushKind::Raise)
+                .unwrap();
             let bytes = park.to_save_bytes().unwrap();
             assert!(bytes.len() <= park_sim::MAX_SAVE_BYTES);
             assert_eq!(Park::from_save_bytes(&bytes).unwrap(), park);

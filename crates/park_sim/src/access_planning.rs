@@ -787,6 +787,8 @@ mod tests {
         assert!(blocked.suggestions.is_empty());
         assert!(blocked.advice.contains("No legal entrance"));
         let mut edge = Park::new(3, 4);
+        edge.apply_terrain_brush(TilePos { x: 1, y: 1 }, 2, crate::TerrainBrushKind::Grass)
+            .unwrap();
         let id = edge.place_carousel(TilePos { x: 0, y: 0 }, 0).unwrap();
         let edge = unchanged_report(&edge, id);
         assert_eq!(edge.entrance_candidates.len(), 3);

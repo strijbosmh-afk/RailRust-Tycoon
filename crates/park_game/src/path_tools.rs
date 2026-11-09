@@ -29,6 +29,10 @@ pub(super) enum PathTool {
     Demolish,
     RaiseTerrain,
     LowerTerrain,
+    PaintWater,
+    PaintGrass,
+    PaintSand,
+    BuyLand,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,6 +51,7 @@ pub(super) struct PathPreview {
 pub(super) struct ToolState {
     pub mode: PathTool,
     pub height: u8,
+    pub brush_radius: u8,
     pub slope: PathSlope,
     pub entrance_facing: PathDirection,
     pub exit_facing: PathDirection,
@@ -64,6 +69,7 @@ impl Default for ToolState {
         Self {
             mode: PathTool::Inspect,
             height: 8,
+            brush_radius: 0,
             slope: PathSlope::Flat,
             entrance_facing: PathDirection::North,
             exit_facing: PathDirection::South,
@@ -171,11 +177,17 @@ impl ToolState {
                 "Point to a path, gate, facility or scenery.\nClick once to remove it."
             }
             PathTool::RaiseTerrain => {
-                "Point to visible grass or sand.\nClick once to raise one step."
+                "Point to visible grass or sand.\nRaise brush costs $1 per tile."
             }
             PathTool::LowerTerrain => {
-                "Point to visible grass or sand.\nClick once to lower one step."
+                "Point to visible grass or sand.\nLower brush costs $1 per tile."
             }
+            PathTool::PaintWater => {
+                "Paint level, clear land as water.\nBrush charges per changed tile."
+            }
+            PathTool::PaintGrass => "Paint terrain as grass.\nBrush charges per changed tile.",
+            PathTool::PaintSand => "Paint terrain as sand.\nBrush charges per changed tile.",
+            PathTool::BuyLand => "Point to unowned adjacent land.\nEach tile costs $5.",
         }
         .into();
         if self.mode == PathTool::Carousel {
@@ -227,6 +239,8 @@ pub(super) fn placement_message(error: PlacementError) -> String {
             format!("Choose a path height from 0 to {MAX_PATH_HEIGHT}.")
         }
         PlacementError::OutOfBounds { .. } => "Outside the park.".into(),
+        PlacementError::LandNotOwned { .. } => "Buy this land before building.".into(),
+        PlacementError::WaterNeedsBridge { .. } => "Raise the path or track above water.".into(),
         PlacementError::CapacityExceeded { resource, max } => {
             format!("Park limit reached: {max} {resource}.")
         }
@@ -274,6 +288,38 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         return;
     }
     match view.path_tool.mode {
+        PathTool::BuyLand => {
+            let Some(SurfaceId::Terrain(pos)) = view
+                .hovered
+                .filter(|_| view.view_mode == world::ViewMode::Surface)
+            else {
+                view.path_tool.hint = "Point to visible unowned land.".into();
+                return;
+            };
+            let quote = park.quote_land_purchase(pos);
+            view.path_tool.hint = quote.as_ref().map_or_else(
+                |error| error.to_string(),
+                |cost| {
+                    format!(
+                        "Tile {}, {} / adjacent land\nClick to buy for {}.",
+                        pos.x + 1,
+                        pos.y + 1,
+                        crate::ui::money(*cost)
+                    )
+                },
+            );
+            if click {
+                match park.buy_land(pos) {
+                    Ok(()) => {
+                        view.scene_dirty = true;
+                        view.selected = Some(SurfaceId::Terrain(pos));
+                        view.path_notice =
+                            Some(format!("Bought tile {}, {} for $5.", pos.x + 1, pos.y + 1));
+                    }
+                    Err(error) => view.path_notice = Some(format!("Land unchanged: {error}")),
+                }
+            }
+        }
         PathTool::Scenery(kind) => {
             let Some(SurfaceId::Terrain(pos)) = view
                 .hovered
@@ -315,9 +361,11 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 }
             }
         }
-        PathTool::RaiseTerrain | PathTool::LowerTerrain => {
-            terrain_tools::point_at(park, view, click)
-        }
+        PathTool::RaiseTerrain
+        | PathTool::LowerTerrain
+        | PathTool::PaintWater
+        | PathTool::PaintGrass
+        | PathTool::PaintSand => terrain_tools::point_at(park, view, click),
         PathTool::Inspect => {
             if click {
                 view.selected = view.hovered;

@@ -531,7 +531,7 @@ fn terrain_materials(park: &Park) -> Vec<park_sim::Terrain> {
 }
 
 #[test]
-fn terrain_button_preserves_selected_identity_clock_and_materials() {
+fn terrain_button_rejects_live_park_regrade_without_changing_selection_or_materials() {
     let selected = TilePos { x: 12, y: 16 };
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);
     park.apply_terrain_profile(TerrainProfile::Terraced);
@@ -539,6 +539,7 @@ fn terrain_button_preserves_selected_identity_clock_and_materials() {
     let ticks = park.ticks();
     let materials = terrain_materials(&park);
     assert_eq!(park.max_terrain_height(), 6);
+    let before = park.clone();
     let mut app = App::new();
     app.insert_resource(Simulation(park))
         .insert_resource(ViewState {
@@ -546,37 +547,19 @@ fn terrain_button_preserves_selected_identity_clock_and_materials() {
             ..default()
         })
         .add_systems(Update, (ui::button_actions, apply_terrain_profile).chain());
-    let button = app
-        .world_mut()
-        .spawn((Button, Interaction::Pressed, ui::Action::Terrain))
-        .id();
+    app.world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::Terrain));
 
     app.update();
-    for expected in [TerrainProfile::Flat, TerrainProfile::Terraced] {
-        let view = app.world().resource::<ViewState>();
-        let park = &app.world().resource::<Simulation>().0;
-        assert_eq!(view.selected, Some(SurfaceId::Terrain(selected)));
-        assert_eq!(view.terrain_profile, expected);
-        assert!(!view.terrain_change_pending);
-        assert_eq!(park.ticks(), ticks);
-        assert_eq!(terrain_materials(park), materials);
-        assert_eq!(
-            park.max_terrain_height(),
-            if expected == TerrainProfile::Terraced {
-                6
-            } else {
-                0
-            }
-        );
-        if expected == TerrainProfile::Flat {
-            app.world_mut().entity_mut(button).insert(Interaction::None);
-            app.update();
-            app.world_mut()
-                .entity_mut(button)
-                .insert(Interaction::Pressed);
-            app.update();
-        }
-    }
+    let view = app.world().resource::<ViewState>();
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(view.selected, Some(SurfaceId::Terrain(selected)));
+    assert_eq!(view.terrain_profile, TerrainProfile::Terraced);
+    assert!(!view.terrain_change_pending);
+    assert!(view.terrain_error.is_some());
+    assert_eq!(park, &before);
+    assert_eq!(park.ticks(), ticks);
+    assert_eq!(terrain_materials(park), materials);
 }
 
 fn selected_mesh_positions(app: &App) -> Vec<[f32; 3]> {
@@ -740,12 +723,11 @@ fn underground_button_rebuilds_hidden_outlines_and_removal_clears_selection() {
 }
 
 #[test]
-fn presets_keep_object_identity_and_reject_conflicting_terrain_atomically() {
-    use park_sim::{Axis, ObjectKind};
+fn presets_reject_built_park_without_changing_object_identity() {
     let mut park = Park::new(MAP_SIZE, MAP_SIZE);
     park.install_overlap_fixture().unwrap();
     let selected = SurfaceId::Object(park.objects().last().unwrap().id);
-    let objects = park.objects().to_vec();
+    let before = park.clone();
     let mut app = App::new();
     app.insert_resource(Simulation(park))
         .insert_resource(ViewState {
@@ -754,23 +736,6 @@ fn presets_keep_object_identity_and_reject_conflicting_terrain_atomically() {
             ..default()
         })
         .add_systems(Update, apply_terrain_profile);
-    for expected in [TerrainProfile::Terraced, TerrainProfile::Flat] {
-        app.world_mut()
-            .resource_mut::<ViewState>()
-            .toggle_terrain_profile();
-        app.update();
-        assert_eq!(app.world().resource::<Simulation>().0.objects(), objects);
-        let view = app.world().resource::<ViewState>();
-        assert_eq!(view.selected, Some(selected));
-        assert_eq!(view.terrain_profile, expected);
-        assert!(view.terrain_error.is_none());
-    }
-    app.world_mut()
-        .resource_mut::<Simulation>()
-        .0
-        .place_object(TilePos { x: 12, y: 15 }, ObjectKind::Path, Axis::X, 0, 2)
-        .unwrap();
-    let before = app.world().resource::<Simulation>().0.clone();
     app.world_mut()
         .resource_mut::<ViewState>()
         .toggle_terrain_profile();
@@ -778,6 +743,7 @@ fn presets_keep_object_identity_and_reject_conflicting_terrain_atomically() {
     assert_eq!(app.world().resource::<Simulation>().0, before);
     let view = app.world().resource::<ViewState>();
     assert_eq!(view.terrain_profile, TerrainProfile::Flat);
+    assert_eq!(view.selected, Some(selected));
     assert!(view.terrain_error.is_some());
     assert!(!view.terrain_change_pending);
 }

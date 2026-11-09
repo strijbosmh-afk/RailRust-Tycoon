@@ -664,6 +664,10 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         guest["needs"].as_object_mut().unwrap().remove("energy");
         guest["needs"].as_object_mut().unwrap().remove("nausea");
     }
+    for tile in current["park"]["tiles"].as_array_mut().unwrap() {
+        assert_eq!(tile["owned"], serde_json::json!(true));
+        tile.as_object_mut().unwrap().remove("owned");
+    }
     assert_eq!(current["park"], original["park"]);
     assert!(!p.visitor_flow_stats().enabled);
     let mut continuous = p.clone();

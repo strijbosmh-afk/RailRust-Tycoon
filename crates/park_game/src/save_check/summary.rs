@@ -71,7 +71,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             FinanceKind::ServiceSupplies => supplies += amount,
             FinanceKind::RideConstruction
             | FinanceKind::TrackConstruction
-            | FinanceKind::ServiceConstruction => construction += amount,
+            | FinanceKind::ServiceConstruction
+            | FinanceKind::Landscaping
+            | FinanceKind::LandPurchase => construction += amount,
             FinanceKind::RideDemolitionRefund
             | FinanceKind::TrackRefund
             | FinanceKind::ServiceDemolitionRefund => refunds += amount,

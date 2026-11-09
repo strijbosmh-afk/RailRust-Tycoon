@@ -169,10 +169,13 @@ pub(crate) fn kind_name(kind: TrackBuildKind) -> &'static str {
         TrackBuildKind::Straight => "Straight",
         TrackBuildKind::CurveLeft => "Left curve",
         TrackBuildKind::CurveRight => "Right curve",
+        TrackBuildKind::BankedLeft => "Banked left",
+        TrackBuildKind::BankedRight => "Banked right",
         TrackBuildKind::Lift => "Chain lift",
         TrackBuildKind::Drop => "Drop -1",
         TrackBuildKind::SteepDrop => "Drop -2",
         TrackBuildKind::Brake => "Brakes",
+        TrackBuildKind::Launch => "Launch",
     }
 }
 

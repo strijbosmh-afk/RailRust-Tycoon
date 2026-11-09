@@ -43,6 +43,8 @@ pub struct CoasterLayoutMetrics {
     pub lifts: u32,
     pub drops: u32,
     pub brakes: u32,
+    pub launches: u32,
+    pub banked_curves: u32,
     pub ascent_steps: u32,
     pub descent_steps: u32,
     /// Sum of successive descending pieces, including across the input seam.
@@ -220,7 +222,12 @@ pub(crate) fn layout_metrics(specs: &[TrackPieceSpec]) -> (u8, u8, CoasterLayout
     for spec in specs.iter().cycle().skip(station).take(specs.len()) {
         min_height = min_height.min(spec.entry.height).min(spec.exit.height);
         max_height = max_height.max(spec.entry.height).max(spec.exit.height);
-        metrics.curves += u32::from(spec.kind == TrackKind::Curve);
+        metrics.curves += u32::from(matches!(
+            spec.kind,
+            TrackKind::Curve | TrackKind::BankedCurve
+        ));
+        metrics.banked_curves += u32::from(spec.kind == TrackKind::BankedCurve);
+        metrics.launches += u32::from(spec.kind == TrackKind::Launch);
         metrics.lifts += u32::from(spec.kind == TrackKind::Lift);
         metrics.drops += u32::from(spec.kind == TrackKind::Drop);
         metrics.brakes += u32::from(spec.kind == TrackKind::Brake);
@@ -246,10 +253,17 @@ fn layout_ratings(
     // Nausea: quarter intensity +third turn density +half descent (max20).
     let pace = max_speed.min(crate::trains::MAX_SPEED) * 100 / crate::trains::MAX_SPEED;
     let turn_density = metrics.curves.saturating_mul(100) / metrics.pieces.max(1);
-    let variety = [metrics.curves, metrics.lifts, metrics.drops, metrics.brakes]
-        .into_iter()
-        .filter(|&count| count > 0)
-        .count() as u32;
+    let variety = [
+        metrics.curves,
+        metrics.lifts,
+        metrics.drops,
+        metrics.brakes,
+        metrics.launches,
+        metrics.banked_curves,
+    ]
+    .into_iter()
+    .filter(|&count| count > 0)
+    .count() as u32;
     let excitement = ((length / TRACK_UNITS as u32).min(120) / 6
         + pace / 3
         + metrics.descent_steps.min(20)

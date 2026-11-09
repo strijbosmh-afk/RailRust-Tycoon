@@ -378,6 +378,8 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::ServiceDemolitionRefund => ("Demolition refund", "+"),
         FinanceKind::TrackConstruction => ("Track construction", "-"),
         FinanceKind::TrackRefund => ("Track refund", "+"),
+        FinanceKind::Landscaping => ("Landscaping", "-"),
+        FinanceKind::LandPurchase => ("Land purchase", "-"),
     };
     let service = entry.ride.map_or_else(
         || {

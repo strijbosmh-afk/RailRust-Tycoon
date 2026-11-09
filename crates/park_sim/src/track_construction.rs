@@ -58,6 +58,8 @@ pub fn track_piece_cost_cents(spec: TrackPieceSpec) -> u64 {
         TrackKind::Station => 10_000,
         TrackKind::Straight => 1_000,
         TrackKind::Curve => 1_500,
+        TrackKind::BankedCurve => 2_500,
+        TrackKind::Launch => 3_000,
         TrackKind::Lift => 2_500,
         TrackKind::Drop if spec.entry.height.abs_diff(spec.exit.height) == 2 => 2_000,
         TrackKind::Drop => 1_500,
@@ -71,10 +73,13 @@ pub enum TrackBuildKind {
     Straight,
     CurveLeft,
     CurveRight,
+    BankedLeft,
+    BankedRight,
     Lift,
     Drop,
     SteepDrop,
     Brake,
+    Launch,
 }
 
 impl TrackBuildKind {
@@ -83,6 +88,8 @@ impl TrackBuildKind {
             Self::Station => 10_000,
             Self::Straight => 1_000,
             Self::CurveLeft | Self::CurveRight | Self::Drop => 1_500,
+            Self::BankedLeft | Self::BankedRight => 2_500,
+            Self::Launch => 3_000,
             Self::Lift => 2_500,
             Self::SteepDrop | Self::Brake => 2_000,
         }
@@ -115,14 +122,15 @@ impl TrackBuildKind {
             | Self::Lift
             | Self::Drop
             | Self::SteepDrop
-            | Self::Brake => direction,
-            Self::CurveLeft => match direction {
+            | Self::Brake
+            | Self::Launch => direction,
+            Self::CurveLeft | Self::BankedLeft => match direction {
                 North => West,
                 West => South,
                 South => East,
                 East => North,
             },
-            Self::CurveRight => match direction {
+            Self::CurveRight | Self::BankedRight => match direction {
                 North => East,
                 East => South,
                 South => West,
@@ -135,9 +143,11 @@ impl TrackBuildKind {
                 Self::Station => TrackKind::Station,
                 Self::Straight => TrackKind::Straight,
                 Self::CurveLeft | Self::CurveRight => TrackKind::Curve,
+                Self::BankedLeft | Self::BankedRight => TrackKind::BankedCurve,
                 Self::Lift => TrackKind::Lift,
                 Self::Drop | Self::SteepDrop => TrackKind::Drop,
                 Self::Brake => TrackKind::Brake,
+                Self::Launch => TrackKind::Launch,
             },
             entry: TrackPort {
                 edge: direction.opposite(),

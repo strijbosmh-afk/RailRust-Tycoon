@@ -1014,10 +1014,18 @@ fn scene_painter(
             let center =
                 elevated_tile_center(park, pos, rotation).expect("loop stays inside square park");
             let variation = (noise(pos) % 5) as i16 - 2;
-            let color = match tile.terrain {
-                Terrain::Grass => varied(75, 171, 58, variation),
-                Terrain::Water => varied(39, 167, 183, variation),
-                Terrain::Sand => varied(229, 202, 130, variation),
+            let color = if tile.owned {
+                match tile.terrain {
+                    Terrain::Grass => varied(75, 171, 58, variation),
+                    Terrain::Water => varied(39, 167, 183, variation),
+                    Terrain::Sand => varied(229, 202, 130, variation),
+                }
+            } else {
+                match tile.terrain {
+                    Terrain::Grass => varied(103, 131, 91, variation),
+                    Terrain::Water => varied(53, 121, 138, variation),
+                    Terrain::Sand => varied(178, 169, 130, variation),
+                }
             };
             let surfaces = column_surfaces(park, pos, rotation);
             let top = surfaces[0].expect("every tile has a roof");
@@ -1028,6 +1036,15 @@ fn scene_painter(
                     SurfaceKind::RightCliff => varied(112, 87, 58, variation),
                 };
                 mesh.surface(surface, ink);
+                if surface.kind == SurfaceKind::Top && !tile.owned {
+                    let boundary = (x > 0 && park.owns_land(TilePos { x: x - 1, y }))
+                        || (x + 1 < size && park.owns_land(TilePos { x: x + 1, y }))
+                        || (y > 0 && park.owns_land(TilePos { x, y: y - 1 }))
+                        || (y + 1 < size && park.owns_land(TilePos { x, y: y + 1 }));
+                    if boundary {
+                        mesh.surface_outline(surface, 1.1, DETAIL_BIAS, rgb(241, 189, 65));
+                    }
+                }
                 if surface.kind != SurfaceKind::Top {
                     let a = surface.vertices[0].truncate();
                     let b = surface.vertices[1].truncate();

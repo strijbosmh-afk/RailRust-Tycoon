@@ -1180,7 +1180,10 @@ mod tests {
         assert!(sim.0.objects().is_empty());
         let site = (0..64)
             .flat_map(|y| (0..64).map(move |x| park_sim::TilePos { x, y }))
-            .find(|&pos| sim.0.tile(pos).unwrap().terrain == park_sim::Terrain::Grass)
+            .find(|&pos| {
+                let tile = sim.0.tile(pos).unwrap();
+                tile.owned && tile.terrain == park_sim::Terrain::Grass
+            })
             .unwrap();
         sim.0.place_path(site, 0).unwrap();
         front.save(&sim.0, &mut view);

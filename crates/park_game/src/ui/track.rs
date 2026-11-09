@@ -135,6 +135,20 @@ pub(super) fn setup(commands: &mut Commands) {
             p.spawn(row()).with_children(|p| {
                 small_button(
                     p,
+                    "Bank left",
+                    TrackCommand::Piece(TrackBuildKind::BankedLeft),
+                    100.0,
+                );
+                small_button(
+                    p,
+                    "Bank right",
+                    TrackCommand::Piece(TrackBuildKind::BankedRight),
+                    100.0,
+                );
+            });
+            p.spawn(row()).with_children(|p| {
+                small_button(
+                    p,
                     "Chain lift +1",
                     TrackCommand::Piece(TrackBuildKind::Lift),
                     100.0,
@@ -160,6 +174,12 @@ pub(super) fn setup(commands: &mut Commands) {
                     100.0,
                 );
             });
+            small_button(
+                p,
+                "Launch",
+                TrackCommand::Piece(TrackBuildKind::Launch),
+                207.0,
+            );
             small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
             p.spawn(row()).with_children(|p| {
                 small_button(p, "-", TrackCommand::Height(-1), 32.0);

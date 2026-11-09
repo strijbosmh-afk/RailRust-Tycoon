@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 39;
-pub const CONTENT_VERSION: u32 = 39;
+pub const SCHEMA_VERSION: u32 = 40;
+pub const CONTENT_VERSION: u32 = 40;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -749,6 +749,7 @@ impl Park {
                 | 36
                 | 37
                 | 38
+                | 39
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -769,6 +770,7 @@ impl Park {
         validate_flyer_fields(bytes, header.schema_version)?;
         validate_radio_fields(bytes, header.schema_version)?;
         validate_scenario_fields(bytes, header.schema_version)?;
+        validate_land_rights_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -850,6 +852,32 @@ impl Park {
             let envelope: SaveEnvelope = parse_save(bytes)?;
             envelope.park
         };
+        if header.schema_version < 40
+            && data.finances.entries.iter().any(|entry| {
+                matches!(
+                    entry.kind,
+                    crate::FinanceKind::Landscaping | crate::FinanceKind::LandPurchase
+                )
+            })
+        {
+            return Err(invalid("landscaping receipts require schema 40"));
+        }
+        if header.schema_version < 40
+            && (data
+                .track_draft
+                .iter()
+                .any(|spec| matches!(spec.kind, TrackKind::BankedCurve | TrackKind::Launch))
+                || data.circuit.as_ref().is_some_and(|circuit| {
+                    circuit.pieces.iter().any(|piece| {
+                        matches!(piece.spec.kind, TrackKind::BankedCurve | TrackKind::Launch)
+                    })
+                })
+                || data.track_economy.paid_pieces.iter().any(|piece| {
+                    matches!(piece.spec.kind, TrackKind::BankedCurve | TrackKind::Launch)
+                }))
+        {
+            return Err(invalid("banked and launch track require schema 40"));
+        }
         if header.schema_version < 24
             && data.objects.iter().any(|object| {
                 matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed)
@@ -897,6 +925,24 @@ impl Park {
         }
         Ok(park)
     }
+}
+
+fn validate_land_rights_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let tiles = value["park"]["tiles"]
+        .as_array()
+        .ok_or_else(|| invalid("park tiles are missing"))?;
+    if tiles.iter().any(|tile| {
+        if schema >= 40 {
+            tile.get("owned").is_none()
+        } else {
+            tile.get("owned")
+                .is_some_and(|owned| owned.as_bool() != Some(true))
+        }
+    }) {
+        return Err(invalid("land ownership is invalid for this schema"));
+    }
+    Ok(())
 }
 
 fn parse_save<T: de::DeserializeOwned>(bytes: &[u8]) -> Result<T, SaveError> {
@@ -2398,6 +2444,9 @@ fn validate_objects(park: &Park) -> Result<BTreeMap<ObjectId, &SurfaceObject>, S
         let tile = park
             .tile(object.pos)
             .ok_or_else(|| invalid("object lies outside the map"))?;
+        if !tile.owned {
+            return Err(invalid("object lies on land the park does not own"));
+        }
         if matches!(object.kind, ObjectKind::SceneryTree | ObjectKind::FlowerBed) {
             scenery_count += 1;
             let expected_clearance = if object.kind == ObjectKind::SceneryTree {
@@ -2683,7 +2732,9 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
             TrackKind::Lift => TrainPhase::Lift,
             TrackKind::Drop => TrainPhase::Drop,
             TrackKind::Brake => TrainPhase::Brake,
-            TrackKind::Curve | TrackKind::Straight => TrainPhase::Cruising,
+            TrackKind::Curve | TrackKind::BankedCurve | TrackKind::Launch | TrackKind::Straight => {
+                TrainPhase::Cruising
+            }
         };
         if train.phase != expected_phase
             || train.dwell_ticks != 0
@@ -3021,6 +3072,27 @@ mod tests {
             guest.needs.energy = 80;
             guest.needs.nausea = 0;
         }
+    }
+
+    #[test]
+    fn ownership_migrates_from_39_and_is_required_in_40() {
+        let park = Park::new(4, 4);
+        let current = value(&park);
+        let mut missing = current.clone();
+        missing["park"]["tiles"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("owned");
+        assert!(decode(&missing).is_err());
+        let mut old = current;
+        old["schema_version"] = json!(39);
+        old["content_version"] = json!(39);
+        for tile in old["park"]["tiles"].as_array_mut().unwrap() {
+            tile.as_object_mut().unwrap().remove("owned");
+        }
+        assert_eq!(decode(&old), Ok(park));
+        old["park"]["tiles"][0]["owned"] = json!(false);
+        assert!(decode(&old).is_err());
     }
 
     #[test]

@@ -146,6 +146,11 @@ fn ghost(painter: &mut Painter, park: &Park, spec: TrackPieceSpec, rotation: u8,
                     painter.surface(strip(side - 0.025, side + 0.025), ink);
                 }
             }
+            TrackKind::Launch => painter.surface(strip(-0.055, 0.055), ink),
+            TrackKind::BankedCurve => {
+                painter.surface(strip(-0.33, -0.29), ink);
+                painter.surface(strip(0.29, 0.33), ink);
+            }
             TrackKind::Drop | TrackKind::Curve | TrackKind::Straight => {}
         }
     }

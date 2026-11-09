@@ -77,10 +77,12 @@ pub use scenario::{
     BOARDWALK_RIDE_GOAL, MEADOW_ARRIVAL_GOAL, MEADOW_CASH_GOAL_CENTS, MEADOW_RIDE_GOAL,
     ScenarioError, ScenarioKind, ScenarioStatus,
 };
+mod land_rights;
 mod services;
 #[cfg(test)]
 mod slope_tests;
 mod surfaces;
+mod terrain_construction;
 mod terrain_generation;
 mod track_construction;
 mod track_designs;
@@ -115,6 +117,7 @@ pub use journeys::{
     PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
     RideJourneyStats, RideTransfer, TRAIN_SEATS,
 };
+pub use land_rights::{LAND_TILE_PRICE_CENTS, LandRightsError};
 pub use path_geometry::{
     MAX_SLOPED_PATH_HEIGHT, PATH_UNITS, PathDirection, PathPoint, PathSlope, SLOPED_PATH_CLEARANCE,
     paths_connect,
@@ -148,6 +151,9 @@ pub use services::{
 pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, MAX_SCENERY_OBJECTS, ObjectId, ObjectKind, PATH_CLEARANCE,
     PlacementError, SceneryKind, SurfaceId, SurfaceObject,
+};
+pub use terrain_construction::{
+    MAX_TERRAIN_BRUSH_RADIUS, TerrainBrushError, TerrainBrushKind, TerrainBrushQuote,
 };
 pub use track_construction::{
     MAX_TRACK_DRAFT_PIECES, PaidTrackPiece, TRACK_REFUND_PERCENT, TrackBuildKind,
@@ -196,6 +202,8 @@ pub struct Tile {
     pub terrain: Terrain,
     /// Elevation in abstract simulation steps, between 0 and MAX_TERRAIN_HEIGHT.
     pub height: u8,
+    #[serde(default = "land_rights::owned_by_default")]
+    pub owned: bool,
 }
 
 /// Repeatable elevation presets. Terrain materials and park time are preserved.
@@ -361,6 +369,7 @@ impl Park {
                 tiles.push(Tile {
                     terrain: terrain_at(TilePos { x, y }, width, height),
                     height: 0,
+                    owned: true,
                 });
             }
         }

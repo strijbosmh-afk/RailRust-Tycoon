@@ -27,6 +27,8 @@ pub enum FinanceKind {
     ServiceDemolitionRefund,
     TrackConstruction,
     TrackRefund,
+    Landscaping,
+    LandPurchase,
 }
 impl FinanceKind {
     fn income(self) -> bool {
@@ -81,6 +83,8 @@ impl std::fmt::Display for FinanceKind {
             Self::ServiceDemolitionRefund => "Service demolition refund",
             Self::TrackConstruction => "Track construction",
             Self::TrackRefund => "Track refund",
+            Self::Landscaping => "Landscaping",
+            Self::LandPurchase => "Land purchase",
         })
     }
 }
@@ -150,7 +154,9 @@ impl FinanceTotals {
             FinanceKind::ServiceSupplies => &mut self.supplies_cents,
             FinanceKind::RideConstruction
             | FinanceKind::ServiceConstruction
-            | FinanceKind::TrackConstruction => &mut self.construction_cents,
+            | FinanceKind::TrackConstruction
+            | FinanceKind::Landscaping
+            | FinanceKind::LandPurchase => &mut self.construction_cents,
             FinanceKind::RideDemolitionRefund
             | FinanceKind::ServiceDemolitionRefund
             | FinanceKind::TrackRefund => &mut self.demolition_refunds_cents,
@@ -450,13 +456,43 @@ impl Park {
             .iter()
             .map(|service| service.supplies_cents)
             .sum::<u64>();
+        let archived_assigned_construction = self
+            .finances
+            .archived_rides
+            .iter()
+            .map(|source| source.construction_cents)
+            .chain(
+                self.finances
+                    .archived_services
+                    .iter()
+                    .map(|source| source.construction_cents),
+            )
+            .sum::<u64>();
+        let landscaping_cents = self
+            .finances
+            .archived
+            .construction_cents
+            .saturating_sub(archived_assigned_construction)
+            + self
+                .finances
+                .entries
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        entry.kind,
+                        FinanceKind::Landscaping | FinanceKind::LandPurchase
+                    )
+                })
+                .map(|entry| entry.amount_cents)
+                .sum::<u64>();
         let construction_cents = self
             .carousels
             .iter()
             .map(|c| c.construction_cost_cents)
             .chain(self.services.iter().map(|s| s.construction_cost_cents))
             .chain(std::iter::once(self.track_economy.construction_cents))
-            .sum::<u64>();
+            .sum::<u64>()
+            + landscaping_cents;
         let demolition_refunds_cents = self
             .carousels
             .iter()
@@ -866,6 +902,19 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     minimum_archived += u128::from(archived_advertising.div_ceil(crate::RADIO_CAMPAIGN_COST_CENTS));
     maximum_archived += u128::from(archived_advertising / crate::FLYER_CAMPAIGN_COST_CENTS);
     archived_check.advertising_cents = archived_advertising;
+    // Landscaping and land purchases have no ride or service owner. The
+    // bounded ledger merges their older receipts into the construction total.
+    let archived_land = ledger
+        .archived
+        .construction_cents
+        .checked_sub(archived_check.construction_cents)
+        .ok_or("archived construction is less than attributed sources")?;
+    if !archived_land.is_multiple_of(50) {
+        return Err("archived land cost has an invalid denomination".into());
+    }
+    minimum_archived += u128::from(archived_land.div_ceil(25 * 200));
+    maximum_archived += u128::from(archived_land / 50);
+    archived_check.construction_cents = ledger.archived.construction_cents;
     if archived_check != ledger.archived
         || (ledger.archived_entries == 0
             && (ledger.archived != FinanceTotals::default()
@@ -907,6 +956,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::ServiceDemolitionRefund
                         | FinanceKind::TrackConstruction
                         | FinanceKind::TrackRefund
+                        | FinanceKind::Landscaping
+                        | FinanceKind::LandPurchase
                         | FinanceKind::LoanBorrow
                         | FinanceKind::LoanRepayment
                         | FinanceKind::LoanInterest
@@ -991,6 +1042,21 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 || entry.amount_cents != crate::RADIO_CAMPAIGN_COST_CENTS
             {
                 return Err("radio advertising receipt is invalid".into());
+            }
+        } else if entry.kind == FinanceKind::Landscaping {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || !entry.amount_cents.is_multiple_of(50)
+                || entry.amount_cents > 25 * 200
+            {
+                return Err("landscaping receipt is invalid".into());
+            }
+        } else if entry.kind == FinanceKind::LandPurchase {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || entry.amount_cents != crate::LAND_TILE_PRICE_CENTS
+            {
+                return Err("land purchase receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;

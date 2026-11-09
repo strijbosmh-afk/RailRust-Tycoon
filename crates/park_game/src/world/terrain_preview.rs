@@ -2,7 +2,7 @@
 //! The caller supplies only a visible Surface-view target; ghosts are not hits.
 
 use crate::terrain_tools::TerrainPreview;
-use park_sim::MAX_TERRAIN_HEIGHT;
+use park_sim::{MAX_TERRAIN_HEIGHT, TerrainBrushKind};
 
 use super::*;
 
@@ -64,57 +64,78 @@ pub fn terrain_preview_mesh(preview: Option<TerrainPreview>, park: &Park, rotati
     let Some(tile) = park.tile(preview.pos) else {
         return painter.finish();
     };
-    let expected_target = if preview.raising {
-        preview.height.saturating_add(1).min(MAX_TERRAIN_HEIGHT)
-    } else {
-        preview.height.saturating_sub(1)
+    let expected_target = match preview.kind {
+        TerrainBrushKind::Raise => preview.height.saturating_add(1).min(MAX_TERRAIN_HEIGHT),
+        TerrainBrushKind::Lower => preview.height.saturating_sub(1),
+        _ => preview.height,
     };
     if park.width() != park.height()
         || preview.height != tile.height
         || preview.height > MAX_TERRAIN_HEIGHT
         || preview.target_height != expected_target
+        || preview.radius > park_sim::MAX_TERRAIN_BRUSH_RADIUS
     {
         return painter.finish();
     }
 
-    let surfaces = column_surfaces(park, preview.pos, rotation);
-    let top = surfaces[0].expect("in-bounds terrain has a top surface");
     let mut ink = if !preview.valid {
         rgb(225, 68, 63)
     } else if preview.raising {
         rgb(47, 183, 114)
+    } else if preview.kind == TerrainBrushKind::Water {
+        rgb(30, 136, 220)
+    } else if preview.kind == TerrainBrushKind::Grass {
+        rgb(59, 188, 87)
+    } else if preview.kind == TerrainBrushKind::Sand {
+        rgb(224, 178, 78)
     } else {
         rgb(61, 136, 215)
     };
-    ink[3] = 0.16;
-    let mut fill = top;
-    for vertex in &mut fill.vertices {
-        vertex.z += SELECTION_BIAS;
-    }
-    painter.surface(fill, ink);
-
-    for surface in surfaces
-        .into_iter()
-        .flatten()
-        .filter(|surface| surface.has_area())
+    let radius = u32::from(preview.radius);
+    for y in preview.pos.y.saturating_sub(radius)
+        ..=preview.pos.y.saturating_add(radius).min(park.height() - 1)
     {
-        ink[3] = if surface.kind == SurfaceKind::Top {
-            0.95
-        } else {
-            0.65
-        };
-        painter.surface_outline(surface, 1.5, SELECTION_BIAS * 2.0, ink);
-        marker(&mut painter, surface, preview, ink);
-    }
-
-    if preview.target_height != preview.height {
-        let mut proposed = top;
-        let delta = f32::from(preview.target_height) - f32::from(preview.height);
-        for vertex in &mut proposed.vertices {
-            vertex.y += delta * HEIGHT_STEP;
+        for x in preview.pos.x.saturating_sub(radius)
+            ..=preview.pos.x.saturating_add(radius).min(park.width() - 1)
+        {
+            let pos = TilePos { x, y };
+            let tile = park.tile(pos).expect("brush footprint is inside park");
+            let target = match preview.kind {
+                TerrainBrushKind::Raise => tile.height.saturating_add(1).min(MAX_TERRAIN_HEIGHT),
+                TerrainBrushKind::Lower => tile.height.saturating_sub(1),
+                _ => tile.height,
+            };
+            let surfaces = column_surfaces(park, pos, rotation);
+            let top = surfaces[0].expect("in-bounds terrain has a top surface");
+            ink[3] = 0.16;
+            let mut fill = top;
+            for vertex in &mut fill.vertices {
+                vertex.z += SELECTION_BIAS;
+            }
+            painter.surface(fill, ink);
+            for surface in surfaces
+                .into_iter()
+                .flatten()
+                .filter(|surface| surface.has_area())
+            {
+                ink[3] = if surface.kind == SurfaceKind::Top {
+                    0.95
+                } else {
+                    0.65
+                };
+                painter.surface_outline(surface, 1.5, SELECTION_BIAS * 2.0, ink);
+                marker(&mut painter, surface, preview, ink);
+            }
+            if target != tile.height {
+                let mut proposed = top;
+                let delta = f32::from(target) - f32::from(tile.height);
+                for vertex in &mut proposed.vertices {
+                    vertex.y += delta * HEIGHT_STEP;
+                }
+                ink[3] = 0.85;
+                painter.surface_outline(proposed, 1.5, SELECTION_BIAS * 2.0, ink);
+            }
         }
-        ink[3] = 0.85;
-        painter.surface_outline(proposed, 1.5, SELECTION_BIAS * 2.0, ink);
     }
     painter.finish()
 }
@@ -153,6 +174,12 @@ mod tests {
             },
             raising,
             valid,
+            radius: 0,
+            kind: if raising {
+                TerrainBrushKind::Raise
+            } else {
+                TerrainBrushKind::Lower
+            },
         }
     }
 

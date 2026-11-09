@@ -335,6 +335,24 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             .and_then(|funds| funds.checked_sub(park.loans.interest_paid_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().wages_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().advertising_cents))
+            .and_then(|funds| {
+                // Ride, service and track paid bases are already subtracted
+                // above. The remainder of construction is paid landscaping.
+                let known = park
+                    .carousels
+                    .iter()
+                    .map(|ride| ride.construction_cost_cents)
+                    .chain(
+                        park.services
+                            .iter()
+                            .map(|service| service.construction_cost_cents),
+                    )
+                    .try_fold(park.track_economy.construction_cents, u64::checked_add)?;
+                park.finance_stats()
+                    .construction_cents
+                    .checked_sub(known)
+                    .and_then(|landscaping| funds.checked_sub(landscaping))
+            })
             != Some(park.cash_cents)
     {
         return Err("ride price, revenue, and park cash do not conserve funds".into());

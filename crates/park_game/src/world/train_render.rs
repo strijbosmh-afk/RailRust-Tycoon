@@ -102,18 +102,18 @@ fn normal(park: &Park, piece: &TrackPiece, index: usize) -> Vec3 {
     let tangent = if index == 0 {
         let prior =
             &circuit.pieces[(piece_index + circuit.pieces.len() - 1) % circuit.pieces.len()];
-        if piece.kind != TrackKind::Curve {
+        if !matches!(piece.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(piece.samples[1]) - ground(piece.samples[0])
-        } else if prior.kind != TrackKind::Curve {
+        } else if !matches!(prior.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(piece.samples[0]) - ground(previous)
         } else {
             ground(next) - ground(previous)
         }
     } else if index + 1 == piece.samples.len() {
         let following = &circuit.pieces[(piece_index + 1) % circuit.pieces.len()];
-        if piece.kind != TrackKind::Curve {
+        if !matches!(piece.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(piece.samples[index]) - ground(previous)
-        } else if following.kind != TrackKind::Curve {
+        } else if !matches!(following.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(next) - ground(piece.samples[index])
         } else {
             ground(next) - ground(previous)
@@ -375,6 +375,30 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                         0.13,
                         0.26,
                         [rgb(216, 110, 69), rgb(138, 63, 45), rgb(103, 49, 40)],
+                        size,
+                        rotation,
+                    );
+                }
+            }
+            TrackKind::Launch => {
+                slab(
+                    &mut faces,
+                    strip(a, b, na, nb, -0.055, 0.055),
+                    0.13,
+                    0.25,
+                    [rgb(73, 213, 230), rgb(31, 128, 161), rgb(24, 83, 112)],
+                    size,
+                    rotation,
+                );
+            }
+            TrackKind::BankedCurve => {
+                for offset in [-0.31, 0.31] {
+                    slab(
+                        &mut faces,
+                        strip(a, b, na, nb, offset - 0.016, offset + 0.016),
+                        0.15,
+                        0.37,
+                        [rgb(244, 190, 72), rgb(166, 106, 48), rgb(116, 76, 40)],
                         size,
                         rotation,
                     );

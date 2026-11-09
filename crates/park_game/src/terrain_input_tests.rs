@@ -13,6 +13,43 @@ fn tool_view(mode: PathTool, rotation: u8) -> ViewState {
     }
 }
 
+#[test]
+fn paid_water_brush_updates_nine_tiles_and_survives_save() {
+    let park = Park::new(MAP_SIZE, MAP_SIZE);
+    let before_cash = park.cash_cents();
+    let pos = TilePos { x: 10, y: 10 };
+    let mut view = tool_view(PathTool::PaintWater, 0);
+    view.path_tool.brush_radius = 1;
+    let (mut app, window) = input_app(park, view, 1.0);
+    aim_tile(&mut app, window, pos);
+    frame(&mut app);
+    let preview = app
+        .world()
+        .resource::<ViewState>()
+        .path_tool
+        .terrain_preview
+        .unwrap();
+    assert!(preview.valid);
+    assert_eq!(preview.radius, 1);
+    press_left(&mut app);
+    frame(&mut app);
+    let park = &app.world().resource::<Simulation>().0;
+    assert_eq!(park.cash_cents(), before_cash - 1_800);
+    assert_eq!(
+        park.finance_ledger().entries.last().unwrap().kind,
+        park_sim::FinanceKind::Landscaping
+    );
+    for y in 9..=11 {
+        for x in 9..=11 {
+            assert_eq!(park.tile(TilePos { x, y }).unwrap().terrain, Terrain::Water);
+        }
+    }
+    assert_eq!(
+        Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+        *park
+    );
+}
+
 fn aim_point(app: &mut App, window: Entity, point: Vec2) {
     let cursor = cursor_for_world(app, window, point);
     assert!(is_map_position(
@@ -53,7 +90,17 @@ fn terrain_click_matches_preview_at_each_rotation_dpi_and_does_not_paint() {
                 let mut park = Park::new(MAP_SIZE, MAP_SIZE);
                 park.set_terrain_height(pos, 6).unwrap();
                 let mut expected = park.clone();
-                expected.set_terrain_height(pos, expected_height).unwrap();
+                expected
+                    .apply_terrain_brush(
+                        pos,
+                        0,
+                        if mode == PathTool::RaiseTerrain {
+                            park_sim::TerrainBrushKind::Raise
+                        } else {
+                            park_sim::TerrainBrushKind::Lower
+                        },
+                    )
+                    .unwrap();
                 let mut view = tool_view(mode, rotation);
                 view.pan = Vec2::new(40.0, -20.0);
                 let (mut app, window) = input_app(park.clone(), view, dpi);
@@ -108,7 +155,9 @@ fn terrain_cliff_click_edits_the_visible_column_instead_of_hidden_land() {
             Some(SurfaceId::Terrain(front))
         );
         let mut expected = park.clone();
-        expected.set_terrain_height(front, 7).unwrap();
+        expected
+            .apply_terrain_brush(front, 0, park_sim::TerrainBrushKind::Raise)
+            .unwrap();
         let (mut app, window) = input_app(park, tool_view(PathTool::RaiseTerrain, rotation), 1.0);
         aim_point(&mut app, window, point);
         press_left(&mut app);
@@ -412,7 +461,11 @@ fn terrain_same_update_save_backup_and_failed_load_preserve_edit_order() {
     aim_tile(&mut app, window, pos);
     press_left(&mut app);
     persistence_key_frame(&mut app, &[KeyCode::F5]);
-    assert_eq!(directory.store().load().unwrap(), park);
+    let mut lowered = raised.clone();
+    lowered
+        .apply_terrain_brush(pos, 0, park_sim::TerrainBrushKind::Lower)
+        .unwrap();
+    assert_eq!(directory.store().load().unwrap(), lowered);
     assert_eq!(directory.store().load_backup().unwrap(), raised);
     release_left(&mut app);
     app.world_mut()
@@ -456,6 +509,27 @@ fn terrain_preset_consumes_the_same_frame_tool_click_and_resets_custom_label() {
     let view = app.world().resource::<ViewState>();
     assert!(!view.terrain_custom);
     assert!(view.path_tool.terrain_preview.is_none());
+}
+
+#[test]
+fn terrain_preset_cannot_regrade_unowned_large_park_for_free() {
+    let mut park = Park::new(64, 64);
+    assert!(park.prepare_large_sandbox_land());
+    let mut view = tool_view(PathTool::Inspect, 0);
+    view.terrain_profile = TerrainProfile::Terraced;
+    view.terrain_change_pending = true;
+    let (mut app, _) = input_app(park.clone(), view, 1.0);
+    app.add_systems(Update, apply_terrain_profile);
+    frame(&mut app);
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    let view = app.world().resource::<ViewState>();
+    assert!(!view.terrain_change_pending);
+    assert!(
+        view.terrain_error
+            .as_deref()
+            .unwrap()
+            .contains("fully owned")
+    );
 }
 
 #[test]

@@ -163,6 +163,7 @@ pub(super) enum Action {
     LoadBackup,
     SetPathTool(PathTool),
     PathHeight(i8),
+    TerrainBrushRadius(i8),
     CyclePathShape,
     Sound,
     Help,
@@ -192,6 +193,7 @@ pub(super) enum Label {
     ParkName,
     ParkInfo,
     PathHeight,
+    TerrainBrushRadius,
     PathShape,
     PathHint,
     PathResult,
@@ -579,6 +581,22 @@ pub(super) fn setup(mut commands: Commands) {
                     100.0,
                 );
             });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Water", Action::SetPathTool(PathTool::PaintWater), 65.0);
+                button(p, "Grass", Action::SetPathTool(PathTool::PaintGrass), 65.0);
+                button(p, "Sand", Action::SetPathTool(PathTool::PaintSand), 65.0);
+            });
+            button(
+                p,
+                "Buy Land / $5",
+                Action::SetPathTool(PathTool::BuyLand),
+                207.0,
+            );
+            p.spawn(row()).with_children(|p| {
+                button(p, "Brush -", Action::TerrainBrushRadius(-1), 100.0);
+                button(p, "Brush +", Action::TerrainBrushRadius(1), 100.0);
+            });
+            dynamic_label(p, "Brush: 1 x 1", 11.0, INK, Label::TerrainBrushRadius);
             p.spawn(row()).with_children(|p| {
                 button(p, "Slope [C]", Action::CyclePathShape, 65.0);
                 button(
@@ -1377,6 +1395,13 @@ pub(super) fn button_actions(
             Action::LoadBackup => view.request_save(SaveAction::Backup),
             Action::SetPathTool(mode) => view.set_path_tool(*mode),
             Action::PathHeight(delta) => view.adjust_path_height(*delta),
+            Action::TerrainBrushRadius(delta) => {
+                view.path_tool.brush_radius = (i16::from(view.path_tool.brush_radius)
+                    + i16::from(*delta))
+                .clamp(0, i16::from(park_sim::MAX_TERRAIN_BRUSH_RADIUS))
+                    as u8;
+                view.path_tool.clear_pointer();
+            }
             Action::CyclePathShape => view.cycle_path_shape(),
             Action::Sound => {}
             Action::Help => {
@@ -1469,9 +1494,10 @@ pub(super) fn refresh(
             Label::SelectionDetails => match view.selected {
                 Some(SurfaceId::Terrain(p)) => sim.0.tile(p).map_or(String::new(), |tile| {
                     format!(
-                        "{}\nHeight: {} steps\n{}",
+                        "{}\nHeight: {} steps\n{} / {}",
                         terrain_name(tile.terrain),
                         tile.height,
+                        if tile.owned { "Owned" } else { "Unowned ($5)" },
                         if view.view_mode == ViewMode::Underground {
                             "Hidden in this view"
                         } else {
@@ -1629,11 +1655,15 @@ pub(super) fn refresh(
                 format!("Plant {} / one clear land tile / free", kind.name())
             },
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
-                "Raise terrain / click dry land / +1 step".into()
+                format!("Raise terrain / radius {} / paid per tile", view.path_tool.brush_radius)
             }
             Label::Status if view.path_tool.mode == PathTool::LowerTerrain => {
-                "Lower terrain / click dry land / -1 step".into()
+                format!("Lower terrain / radius {} / paid per tile", view.path_tool.brush_radius)
             }
+            Label::Status if matches!(view.path_tool.mode, PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand) => {
+                format!("Paint terrain / radius {} / paid per tile", view.path_tool.brush_radius)
+            }
+            Label::Status if view.path_tool.mode == PathTool::BuyLand => "Buy adjacent unowned land / $5 per tile".into(),
             Label::Status if view.path_notice.is_some() && view.hovered.is_none() => {
                 "Edit result: see Build tools".into()
             }
@@ -1771,6 +1801,7 @@ pub(super) fn refresh(
                     }),
                 )
             }
+            Label::PathShape if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) => "Terrain tool / no slope".into(),
             Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"3 x 3 / no facing".into(),
             Label::PathShape if matches!(view.path_tool.mode, PathTool::Scenery(_)) => "Ground".into(),
             Label::PathShape => format!("{} [C]", match view.path_tool.slope {
@@ -1780,8 +1811,10 @@ pub(super) fn refresh(
                 PathSlope::South => "S",
                 PathSlope::West => "W",
             }),
+            Label::TerrainBrushRadius => format!("Brush: {} x {} / paid per tile", 1 + 2 * view.path_tool.brush_radius, 1 + 2 * view.path_tool.brush_radius),
             Label::PathHeight => {
-                if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
+                if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) {"Tool follows visible terrain".into()}
+                else if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
                 else if view.path_tool.mode==PathTool::Carousel {format!("Flat ride height: {}",view.path_tool.height)}
                 else if matches!(view.path_tool.mode,PathTool::Service(_)) {
                     format!("Facility height: {}",view.path_tool.height)
@@ -1854,6 +1887,7 @@ pub(super) fn refresh(
             action,
             Action::SetPathTool(_)
                 | Action::PathHeight(_)
+                | Action::TerrainBrushRadius(_)
                 | Action::CyclePathShape
                 | Action::EditTrack
                 | Action::Track(_)
@@ -1947,6 +1981,8 @@ fn track_name(kind: TrackKind) -> &'static str {
         TrackKind::Drop => "Drop",
         TrackKind::Brake => "Brakes",
         TrackKind::Curve => "Curve",
+        TrackKind::BankedCurve => "Banked curve",
+        TrackKind::Launch => "Launch",
         TrackKind::Straight => "Straight",
     }
 }
