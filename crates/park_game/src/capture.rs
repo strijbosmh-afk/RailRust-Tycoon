@@ -1117,6 +1117,7 @@ type PresetResources<'w> = (
     Option<ResMut<'w, crate::design_library::DesignLibrary>>,
     Option<ResMut<'w, crate::sound::SoundSettings>>,
     Option<ResMut<'w, crate::ui::guest_stats::GuestStatsHistory>>,
+    Option<ResMut<'w, crate::campaign::Campaign>>,
 );
 fn apply_preset(
     capture: Res<Capture>,
@@ -1128,7 +1129,7 @@ fn apply_preset(
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
-    let (library, mut sound, mut guest_history) = resources;
+    let (library, mut sound, mut guest_history, mut campaign) = resources;
     view.capture_active = true;
     view.set_speed(Speed::Paused);
     // These controlled scenes build their own stopped, waiting or paid state.
@@ -1442,6 +1443,11 @@ fn apply_preset(
     }
     if capture.scene.is_visitors() {
         visitor_scenes::prepare(&mut sim.0, &mut view, capture.scene);
+        if matches!(capture.scene, Scene::ScenarioWon)
+            && let Some(campaign) = campaign.as_mut()
+        {
+            campaign.progress.boardwalk_awarded = true;
+        }
     }
     if capture.scene.is_value() {
         value_scenes::prepare(&mut sim.0, &mut view, capture.scene);

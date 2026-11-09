@@ -44,7 +44,7 @@ pub(crate) fn fixture() -> Result<Park, String> {
     Ok(park)
 }
 
-fn replay(park: &mut Park) -> Result<(), String> {
+pub(crate) fn replay(park: &mut Park) -> Result<(), String> {
     for _ in 0..REPLAY_TICKS {
         park.advance(Speed::Normal);
     }
