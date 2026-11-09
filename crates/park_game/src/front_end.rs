@@ -32,6 +32,11 @@ enum Screen {
     Error,
     Park,
 }
+
+fn initial_focus(screen: Screen) -> usize {
+    // New Park has a mode selected on entry, so Enter starts that mode.
+    if screen == Screen::New { 3 } else { 0 }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LibraryPurpose {
     TitleLoad,
@@ -119,6 +124,7 @@ impl FrontEnd {
             _ => return Err("unknown --capture-front scene".into()),
         };
         self.enabled = true;
+        self.focus = initial_focus(self.screen);
         self.dirty_ui = true;
         Ok(())
     }
@@ -180,9 +186,7 @@ impl FrontEnd {
     }
     fn show(&mut self, screen: Screen, view: &mut ViewState) {
         self.screen = screen;
-        // New Park opens with a playable mode already selected. Enter should
-        // therefore create the park, including after the player edits its name.
-        self.focus = if screen == Screen::New { 3 } else { 0 };
+        self.focus = initial_focus(screen);
         view.front_modal = screen != Screen::Park;
         if screen == Screen::Park {
             view.front_pointer_release_guard = true;
@@ -969,6 +973,11 @@ mod tests {
             Some(Action::Start)
         ));
         front.mode = 1;
+        assert!(matches!(
+            keyboard_actions(&front).get(front.focus),
+            Some(Action::Start)
+        ));
+        front.capture_scene("new-park").unwrap();
         assert!(matches!(
             keyboard_actions(&front).get(front.focus),
             Some(Action::Start)

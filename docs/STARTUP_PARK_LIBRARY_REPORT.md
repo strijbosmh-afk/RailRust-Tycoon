@@ -4,6 +4,10 @@
 
 A player report exposed a New Park keyboard mistake: Enter activated the first mode row, which was already selected, and did not create the park. The opening keyboard focus now points to **Create Park**. This also applies when Campaign opens the selector with Meadow preselected. The action hint at the bottom of the screen now reads **Enter selects Create Park** on entry. A focused regression test checks the default and a changed mode; the [player guide](STARTUP_PARK_LIBRARY_GUIDE.md) now states the Enter shortcut.
 
+The initial correction passed formatting, six focused release tests and the production release build. A fresh package capture exposed the same focus default in the separate `--capture-front new-park` path. That path now shares the corrected focus rule, and the regression test checks it. Final executable SHA-256: `0d4eb24009acf6c5143de530210f9c5f73fe5444ae65d72b84d87a375e4f59e8`.
+
+The corrected extracted package passed 127 payload hashes, 115 guides, `write-front` / `verify-front`, `flat-start`, and `front-new-park`. The inspected New Park capture shows **Enter selects Create Park**. An isolated native launch from the package pressed Enter on Title to open New Park and pressed Enter again to create the live Sandbox park. The QA process exited; default player saves were untouched. The resulting ZIP is local and unsigned.
+
 ## Scope delivered
 
 Normal launch now has explicit intro, title, New Park, library, loading/error, park, pause, and confirmation screens. The original Parkbound intro lasts three seconds and can be skipped. The title offers Continue, New Park, Campaign, Load Park, Settings, Credits, and Quit. New Park chooses Sandbox or one of two original campaign challenges, with goals and rules displayed before creation. Boardwalk remains locked until the existing campaign award makes it available.
