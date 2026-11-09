@@ -2,6 +2,8 @@
 
 This is the first bounded Phase 2 implementation from the [full-game roadmap](FULL_GAME_ROADMAP.md). It adds saved scale, window mode, connected display choice and recovery; a shared capped scrollable dialog; responsive park chrome; and scale-aware camera/picking. Park save schema/content remains **39/39**. The separate display-settings file is version 1 and has a 4 KiB read limit.
 
+Review branch: `codex/display-scale-layout`, [draft PR #73](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/73), based on `codex/startup-park-library` / PR #72.
+
 The shared dialog is used by the front screens, Help and Finance. The sidebar and Build/Track panels scroll within available height. Finance/Rides buttons remain in the sidebar when compact header shortcuts hide. Scale-aware exclusion rectangles keep the left bar, ride card and Build/Track panel from sending clicks to the map. The full camera target remains available to static terrain visibility, with the same scale used by camera framing.
 
 Auto uses the window's logical width, so Windows DPI is not multiplied twice. Manual values are capped when needed to reserve a map viewport; the requested and effective values are both visible. Fullscreen uses the display's current video mode. A missing display selection falls back to primary; F11 resets preferences, and `--safe-windowed` bypasses a saved fullscreen mode for recovery.
