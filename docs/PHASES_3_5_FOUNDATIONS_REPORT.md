@@ -2,6 +2,8 @@
 
 This checkpoint advances three linked roadmap phases while keeping their full acceptance gates open.
 
+Source is in [draft PR #75](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/75), stacked on the grouped-navigation branch.
+
 ## Implemented
 
 - **Graphics:** a project visual bible, stable-ID original asset manifest, validation in Windows CI and package creation, and a packaged provenance record. Guest appearance templates expand from 12 to 48 with optional caps. The reference and cached renderers use the same geometry and physical depth.
