@@ -29,7 +29,8 @@ fn fixture() -> Result<(Park, RideId), String> {
     if !found {
         return Err("paid entry and both ride visits did not mature".into());
     }
-    park.set_charging_rule(ChargingRule::FreeRides);
+    park.set_charging_rule(ChargingRule::FreeRides)
+        .map_err(|e| e.to_string())?;
     if park.all_rides().any(|r| r.ticket_price_cents != 0)
         || park.set_ride_ticket_price(tower, 50).is_ok()
         || !super::drop_tower::paid_drop_tower_running(&park, tower)

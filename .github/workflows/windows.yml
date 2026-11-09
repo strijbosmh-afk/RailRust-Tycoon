@@ -442,6 +442,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-radio --save-dir $radioDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Radio campaign verifier failed" }
           Get-Content -LiteralPath (Join-Path $radioDirectory "verification-radio.txt")
+      - name: Verify Meadow Challenge rules and completion
+        shell: pwsh
+        run: |
+          $challengeDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound challenge é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-challenge --save-dir $challengeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Challenge writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-challenge --save-dir $challengeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Challenge verifier failed" }
+          Get-Content -LiteralPath (Join-Path $challengeDirectory "verification-challenge.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

@@ -275,6 +275,7 @@ pub(crate) fn strip_flyer_fields(value: &mut serde_json::Value) {
 }
 
 pub(crate) fn strip_radio_fields(value: &mut serde_json::Value) {
+    strip_scenario_field(value);
     if value["schema_version"].as_u64().is_none_or(|v| v > 36) {
         return;
     }
@@ -291,6 +292,12 @@ pub(crate) fn strip_radio_fields(value: &mut serde_json::Value) {
         ] {
             flow.remove(field);
         }
+    }
+}
+
+pub(crate) fn strip_scenario_field(value: &mut serde_json::Value) {
+    if value["schema_version"].as_u64().is_some_and(|v| v <= 37) {
+        value["park"].as_object_mut().unwrap().remove("scenario");
     }
 }
 

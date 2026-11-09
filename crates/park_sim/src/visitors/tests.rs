@@ -82,20 +82,20 @@ fn charging_rules_reset_forbidden_prices_and_guard_future_changes() {
     let ride = p.place_carousel(TilePos { x: 12, y: 12 }, 0).unwrap();
     p.set_ride_ticket_price(ride, 100).unwrap();
     p.set_park_entry_price(500).unwrap();
-    p.set_charging_rule(ChargingRule::FreeEntry);
+    p.set_charging_rule(ChargingRule::FreeEntry).unwrap();
     assert_eq!(p.visitor_flow_stats().entry_price_cents, 0);
     assert_eq!(
         p.set_park_entry_price(50),
         Err(VisitorError::ChargingRuleRestricted)
     );
-    p.set_charging_rule(ChargingRule::FreeRides);
+    p.set_charging_rule(ChargingRule::FreeRides).unwrap();
     assert_eq!(p.ride_by_id(ride).unwrap().ticket_price_cents, 0);
     assert_eq!(
         p.set_ride_ticket_price(ride, 50),
         Err(crate::EconomyError::ChargingRuleRestricted)
     );
     p.set_park_entry_price(50).unwrap();
-    p.set_charging_rule(ChargingRule::Flexible);
+    p.set_charging_rule(ChargingRule::Flexible).unwrap();
     p.set_ride_ticket_price(ride, 50).unwrap();
     assert_eq!(
         Park::from_save_bytes(&p.to_save_bytes().unwrap()).unwrap(),

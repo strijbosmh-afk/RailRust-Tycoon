@@ -71,6 +71,11 @@ pub use ride_names::{MAX_RIDE_NAME_BYTES, MAX_RIDE_NAME_CHARS, RideName, RideNam
 pub use ride_opening::RideOpeningError;
 mod ride_testing;
 mod saves;
+mod scenario;
+pub use scenario::{
+    MEADOW_ARRIVAL_GOAL, MEADOW_CASH_GOAL_CENTS, MEADOW_RIDE_GOAL, ScenarioError, ScenarioKind,
+    ScenarioStatus,
+};
 mod services;
 #[cfg(test)]
 mod slope_tests;
@@ -283,6 +288,7 @@ pub struct Park {
     mechanic_route: staff::MechanicRoute,
     grounds: grounds::GroundsState,
     visitors: visitors::VisitorFlow,
+    scenario: Option<scenario::ScenarioState>,
     loans: loans::LoanAccount,
     services: Vec<Service>,
     next_service_id: u64,
@@ -325,6 +331,7 @@ impl PartialEq for Park {
             && self.mechanic_route == other.mechanic_route
             && self.grounds == other.grounds
             && self.visitors == other.visitors
+            && self.scenario == other.scenario
             && self.loans == other.loans
             && self.services == other.services
             && self.next_service_id == other.next_service_id
@@ -388,6 +395,7 @@ impl Park {
             mechanic_route: staff::MechanicRoute::default(),
             grounds: grounds::GroundsState::default(),
             visitors: visitors::VisitorFlow::default(),
+            scenario: None,
             loans: loans::LoanAccount::default(),
             services: Vec::new(),
             next_service_id: 1,
@@ -537,6 +545,7 @@ impl Park {
             self.step_mechanic_service();
             self.step_grounds();
             self.finish_visitor_departures();
+            self.step_scenario();
         }
     }
 }
