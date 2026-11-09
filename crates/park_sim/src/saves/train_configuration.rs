@@ -47,6 +47,7 @@ pub(super) struct VersionEighteenParkData<O = SurfaceObject, G = Guest, R = crat
 impl VersionEighteenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),

@@ -9,6 +9,7 @@ pub(crate) enum VisitorLabel {
     Totals,
     Pricing,
     Marketing,
+    Scenario,
     Rules,
     Selected,
     Notice,
@@ -23,6 +24,7 @@ pub(crate) enum VisitorCommand {
     CycleRule,
     RunFlyers,
     RunRadio,
+    StartChallenge,
     SendHome,
     Conflict,
 }
@@ -51,6 +53,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             VisitorLabel::Totals,
             VisitorLabel::Pricing,
             VisitorLabel::Marketing,
+            VisitorLabel::Scenario,
             VisitorLabel::Rules,
             VisitorLabel::Selected,
         ] {
@@ -140,6 +143,12 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                 Action::Visitor(VisitorCommand::RunRadio),
                 160.0,
             );
+            button(
+                p,
+                "Start Meadow Challenge",
+                Action::Visitor(VisitorCommand::StartChallenge),
+                210.0,
+            );
         });
     });
 }
@@ -201,8 +210,7 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
         }
         VisitorCommand::CycleRule => {
             let next = sim.0.visitor_flow_stats().charging_rule.next();
-            sim.0.set_charging_rule(next);
-            Ok(format!(
+            sim.0.set_charging_rule(next).map(|_| format!(
                 "Charging rule: {}. Restricted prices reset to zero; existing paid visits finish.",
                 next.label()
             ))
@@ -214,6 +222,13 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
         VisitorCommand::RunRadio => sim.0.start_radio_campaign().map(|_| {
             "Radio ads started for five simulation minutes; future candidates accept up to $3.00 more at the gate.".into()
         }),
+        VisitorCommand::StartChallenge => {
+            view.visitor_notice = Some(match sim.0.start_meadow_challenge() {
+                Ok(()) => "Meadow Challenge started. Entry is free, radio ads are locked, and progress starts now.".into(),
+                Err(error) => format!("Challenge unchanged: {error}"),
+            });
+            return;
+        }
         VisitorCommand::SendHome => view
             .selected_guest
             .ok_or(park_sim::VisitorError::UnknownGuest)
@@ -292,8 +307,19 @@ pub(crate) fn refresh(
                 s.radio_candidates,
                 s.radio_admissions
             ),
+            VisitorLabel::Scenario => sim.0.scenario_status().map_or_else(
+                || "Meadow Challenge: not started. Free entry, no radio ads.\nGoal: 20 new visitors, 5 completed rides and at least $750 cash.".into(),
+                |challenge| format!(
+                    "Meadow Challenge: {} / {} new visitors; {} / {} rides; cash {} / {}.\n{} / started at {:02}:{:02}. Flyers remain available.",
+                    challenge.arrivals, park_sim::MEADOW_ARRIVAL_GOAL,
+                    challenge.rides, park_sim::MEADOW_RIDE_GOAL,
+                    money(challenge.cash_cents), money(park_sim::MEADOW_CASH_GOAL_CENTS),
+                    if challenge.completed_tick.is_some() { "COMPLETED" } else { "In progress" },
+                    challenge.started_tick / 1_800, (challenge.started_tick % 1_800) / 30,
+                )
+            ),
             VisitorLabel::Rules => format!(
-                "Park: {} / Arrivals: {}. One candidate per 30 simulation seconds, up to 64.\nFlyers: 15-second candidates. Radio: +$3 gate willingness. Campaigns may overlap.\nClosing sends guests home after visits; paid campaigns still expire.\nFree entry blocks entry fees; Free rides blocks ride prices. Space pauses activity.",
+                "Park: {} / Arrivals: {}. One candidate per 30 seconds, up to 64.\nFlyers: 15-second candidates; radio: +$3 willingness. Closing ends arrivals.\nCampaigns expire with simulation time; Space pauses. Charging rules restrict prices.",
                 if s.park_open { "OPEN" } else { "CLOSED" },
                 if s.enabled { "enabled" } else { "disabled" }
             ),

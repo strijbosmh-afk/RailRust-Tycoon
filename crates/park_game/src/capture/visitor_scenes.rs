@@ -29,7 +29,8 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
             for _ in 0..900 {
                 p.advance(Speed::Normal);
             }
-            p.set_charging_rule(park_sim::ChargingRule::FreeRides);
+            p.set_charging_rule(park_sim::ChargingRule::FreeRides)
+                .unwrap();
             assert!(p.all_rides().all(|ride| ride.ticket_price_cents == 0));
         }
         Scene::VisitorFlyers | Scene::VisitorFlyersFinance => {
@@ -52,6 +53,18 @@ pub(super) fn prepare(p: &mut Park, view: &mut ViewState, scene: Scene) {
             assert_eq!(p.visitor_flow_stats().radio_candidates, 6);
             assert!(p.visitor_flow_stats().radio_admissions > 0);
             assert_eq!(p.finance_stats().advertising_cents, 6_500);
+        }
+        Scene::VisitorChallenge | Scene::VisitorChallengeCompleted => {
+            *p = crate::save_check::challenge::fixture().unwrap();
+            if matches!(scene, Scene::VisitorChallengeCompleted) {
+                for _ in 0..3_600 {
+                    if p.scenario_status().unwrap().completed_tick.is_some() {
+                        break;
+                    }
+                    p.advance(Speed::Normal);
+                }
+                assert!(p.scenario_status().unwrap().completed_tick.is_some());
+            }
         }
         Scene::VisitorsClosed => {
             view.selected_guest = Some(visitors::paid_departure(p).unwrap());
@@ -110,6 +123,8 @@ mod tests {
             Scene::VisitorFlyersFinance,
             Scene::VisitorRadio,
             Scene::VisitorRadioFinance,
+            Scene::VisitorChallenge,
+            Scene::VisitorChallengeCompleted,
             Scene::VisitorsClosed,
             Scene::VisitorsPaid,
             Scene::VisitorsTurnover,

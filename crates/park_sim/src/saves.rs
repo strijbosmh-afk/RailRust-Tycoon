@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 1024;
 const MAX_GUESTS: usize = 256;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 37;
-pub const CONTENT_VERSION: u32 = 37;
+pub const SCHEMA_VERSION: u32 = 38;
+pub const CONTENT_VERSION: u32 = 38;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -137,6 +137,8 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(default, deserialize_with = "required_object_option")]
+    scenario: Option<crate::scenario::ScenarioState>,
     #[serde(default)]
     mechanic_route: crate::staff::MechanicRoute,
     #[serde(default)]
@@ -319,6 +321,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
@@ -490,6 +493,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
@@ -743,6 +747,7 @@ impl Park {
                 | 34
                 | 35
                 | 36
+                | 37
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -762,6 +767,7 @@ impl Park {
         validate_admission_fields(bytes, header.schema_version)?;
         validate_flyer_fields(bytes, header.schema_version)?;
         validate_radio_fields(bytes, header.schema_version)?;
+        validate_scenario_fields(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -1127,6 +1133,21 @@ fn validate_radio_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
     }
     if schema >= 37 && count != fields.len() {
         return Err(invalid("schema 37 requires radio advertising state"));
+    }
+    Ok(())
+}
+
+fn validate_scenario_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    if schema < 24 {
+        return Ok(());
+    }
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let present = value["park"].get("scenario").is_some();
+    if schema < 38 && present {
+        return Err(invalid("scenarios require schema 38"));
+    }
+    if schema >= 38 && !present {
+        return Err(invalid("schema 38 requires scenario state"));
     }
     Ok(())
 }
@@ -1826,6 +1847,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
@@ -1864,6 +1886,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
@@ -1905,6 +1928,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
@@ -2074,6 +2098,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
@@ -2174,6 +2199,7 @@ impl ParkData {
     }
     fn from_park(park: &Park) -> Self {
         Self {
+            scenario: park.scenario.clone(),
             grounds: park.grounds.clone(),
             mechanic_route: park.mechanic_route,
             mechanic_hired: park.mechanic_hired,
@@ -2237,6 +2263,7 @@ impl ParkData {
         }
         let circuit_data = self.circuit;
         let mut park = Park {
+            scenario: self.scenario,
             grounds: self.grounds,
             mechanic_route: self.mechanic_route,
             mechanic_hired: self.mechanic_hired,
@@ -2287,6 +2314,7 @@ impl ParkData {
         crate::staff::validate(&park).map_err(invalid)?;
         crate::grounds::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;
+        crate::scenario::validate(&park).map_err(invalid)?;
         park.circuit = circuit_data
             .map(|data| rebuild_circuit(&park, &objects, data))
             .transpose()?;

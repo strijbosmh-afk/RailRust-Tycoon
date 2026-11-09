@@ -182,6 +182,8 @@ pub enum VisitorError {
     CampaignUnaffordable,
     RadioAlreadyActive,
     RadioUnaffordable,
+    ScenarioLocked,
+    RadioUnavailable,
 }
 impl std::fmt::Display for VisitorError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -197,6 +199,8 @@ impl std::fmt::Display for VisitorError {
             Self::CampaignUnaffordable => "Not enough park cash for local flyers",
             Self::RadioAlreadyActive => "Radio ads are already running",
             Self::RadioUnaffordable => "Not enough park cash for radio ads",
+            Self::ScenarioLocked => "Meadow Challenge requires free park entry",
+            Self::RadioUnavailable => "Meadow Challenge does not allow radio ads",
         })
     }
 }
@@ -304,7 +308,10 @@ impl Park {
         self.visitors.entry_price_cents = cents;
         Ok(())
     }
-    pub fn set_charging_rule(&mut self, rule: ChargingRule) {
+    pub fn set_charging_rule(&mut self, rule: ChargingRule) -> Result<(), VisitorError> {
+        if self.scenario.is_some() && rule != ChargingRule::FreeEntry {
+            return Err(VisitorError::ScenarioLocked);
+        }
         self.visitors.charging_rule = rule;
         match rule {
             ChargingRule::Flexible => {}
@@ -318,6 +325,7 @@ impl Park {
                 }
             }
         }
+        Ok(())
     }
     pub fn start_flyer_campaign(&mut self) -> Result<(), VisitorError> {
         if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
@@ -342,6 +350,9 @@ impl Park {
         Ok(())
     }
     pub fn start_radio_campaign(&mut self) -> Result<(), VisitorError> {
+        if self.scenario.is_some() {
+            return Err(VisitorError::RadioUnavailable);
+        }
         if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
             return Err(VisitorError::CampaignNeedsArrivals);
         }
