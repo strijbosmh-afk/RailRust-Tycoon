@@ -209,6 +209,11 @@ impl FrontEnd {
         view.speed = Speed::Paused;
         self.show(Screen::Pause, view);
     }
+    fn open_settings_from_park(&mut self, view: &mut ViewState) {
+        self.open_pause(view);
+        self.previous = Screen::Pause;
+        self.show(Screen::Settings, view);
+    }
     fn resume(&mut self, view: &mut ViewState) {
         self.show(Screen::Park, view);
         view.speed = self.paused_speed;
@@ -399,7 +404,11 @@ pub(super) fn input(
         front.show(Screen::Title, &mut view);
     }
     if front.screen == Screen::Park {
-        if view.front_request_menu
+        if view.front_request_settings {
+            view.front_request_settings = false;
+            view.front_request_menu = false;
+            front.open_settings_from_park(&mut view);
+        } else if view.front_request_menu
             || (keys.just_pressed(KeyCode::Escape)
                 && !view.help
                 && !view.guests_open
@@ -407,6 +416,7 @@ pub(super) fn input(
                 && !view.finance_open
                 && !view.rides_open
                 && !view.designs_open
+                && !view.navigation_open
                 && !view.track_editor.active
                 && view.selected.is_none()
                 && view.path_tool.mode == crate::path_tools::PathTool::Inspect)
@@ -1028,6 +1038,40 @@ fn action_name(action: Action) -> &'static str {
 mod tests {
     use super::*;
     use std::{ffi::OsString, fs};
+
+    #[test]
+    fn park_settings_route_returns_through_pause_without_losing_speed() {
+        let root = std::env::temp_dir().join(format!(
+            "parkbound-settings-route-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let session = SaveSession::from_arguments([
+            OsString::from("--save-dir"),
+            root.clone().into_os_string(),
+        ]);
+        let mut front = FrontEnd::new(true, &session);
+        let mut view = ViewState {
+            speed: Speed::Fast,
+            ..default()
+        };
+        front.show(Screen::Park, &mut view);
+        front.open_settings_from_park(&mut view);
+        assert_eq!(front.screen, Screen::Settings);
+        assert_eq!(front.previous, Screen::Pause);
+        assert_eq!(view.speed, Speed::Paused);
+        assert!(view.front_modal);
+        front.show(front.previous, &mut view);
+        front.resume(&mut view);
+        assert_eq!(view.speed, Speed::Fast);
+        assert!(!view.front_modal);
+        if root.exists() {
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
 
     #[test]
     fn new_park_opens_with_create_action_focused() {

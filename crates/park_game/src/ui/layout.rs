@@ -12,6 +12,11 @@ pub(crate) enum ScrollLayer {
     Front,
     Help,
     Finance,
+    Guests,
+    Services,
+    Rides,
+    Designs,
+    Navigation,
     Sidebar,
     Build,
 }
@@ -60,6 +65,16 @@ pub(crate) fn scroll(
     let scale = ui_scale.as_ref().map_or(1.0, |scale| scale.0);
     let layer = if view.front_modal {
         Some(ScrollLayer::Front)
+    } else if view.navigation_open {
+        Some(ScrollLayer::Navigation)
+    } else if view.designs_open {
+        Some(ScrollLayer::Designs)
+    } else if view.rides_open {
+        Some(ScrollLayer::Rides)
+    } else if view.guests_open {
+        Some(ScrollLayer::Guests)
+    } else if view.services_open {
+        Some(ScrollLayer::Services)
     } else if view.help {
         Some(ScrollLayer::Help)
     } else if view.finance_open {
@@ -83,5 +98,48 @@ pub(crate) fn scroll(
                 position.0.y = (position.0.y - delta).max(0.0);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::window::WindowResolution;
+
+    #[test]
+    fn wheel_scrolls_the_open_design_dialog_instead_of_the_sidebar() {
+        let mut app = App::new();
+        app.insert_resource(ViewState {
+            designs_open: true,
+            ..default()
+        })
+        .add_message::<MouseWheel>()
+        .add_systems(Update, scroll);
+        let mut window = Window {
+            resolution: WindowResolution::new(1024, 680),
+            ..default()
+        };
+        window.set_cursor_position(Some(Vec2::new(500.0, 400.0)));
+        let window = app
+            .world_mut()
+            .spawn((window, bevy::window::PrimaryWindow))
+            .id();
+        let designs = app
+            .world_mut()
+            .spawn((ScrollLayer::Designs, ScrollPosition::default()))
+            .id();
+        let sidebar = app
+            .world_mut()
+            .spawn((ScrollLayer::Sidebar, ScrollPosition::default()))
+            .id();
+        app.world_mut().write_message(MouseWheel {
+            unit: MouseScrollUnit::Line,
+            x: 0.0,
+            y: -3.0,
+            window,
+        });
+        app.update();
+        assert!(app.world().get::<ScrollPosition>(designs).unwrap().0.y > 0.0);
+        assert_eq!(app.world().get::<ScrollPosition>(sidebar).unwrap().0.y, 0.0);
     }
 }

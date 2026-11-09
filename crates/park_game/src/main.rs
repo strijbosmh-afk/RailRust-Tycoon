@@ -152,6 +152,9 @@ struct ViewState {
     capture_active: bool,
     front_modal: bool,
     front_request_menu: bool,
+    front_request_settings: bool,
+    navigation_open: bool,
+    navigation_group: ui::navigation::Group,
     remove_path_pending: bool,
     restore_paths_pending: bool,
     path_notice: Option<String>,
@@ -251,6 +254,9 @@ impl Default for ViewState {
             capture_active: false,
             front_modal: false,
             front_request_menu: false,
+            front_request_settings: false,
+            navigation_open: false,
+            navigation_group: default(),
             remove_path_pending: false,
             restore_paths_pending: false,
             path_notice: None,
@@ -333,6 +339,7 @@ impl ViewState {
 
     fn edits_blocked(&self) -> bool {
         self.front_modal
+            || self.navigation_open
             || self.help
             || self.guests_open
             || self.services_open
@@ -348,6 +355,7 @@ impl ViewState {
     }
 
     fn set_modal(&mut self, help: bool, guests: bool, services: bool, finance: bool) {
+        self.navigation_open = false;
         self.help = help;
         self.guests_open = guests;
         self.services_open = services;
@@ -577,6 +585,49 @@ fn main() -> AppExit {
     if front.enabled() {
         view.speed = Speed::Paused;
     }
+    if let Some(index) = arguments.iter().position(|arg| arg == "--capture-panel") {
+        if !capture_requested
+            || front.enabled()
+            || arguments
+                .iter()
+                .filter(|arg| *arg == "--capture-panel")
+                .count()
+                != 1
+        {
+            eprintln!("--capture-panel requires one --capture-frame without --capture-front");
+            return AppExit::error();
+        }
+        match arguments.get(index + 1).and_then(|name| name.to_str()) {
+            Some("build") => view.navigation_open = true,
+            Some("manage") => {
+                view.navigation_open = true;
+                view.navigation_group = ui::navigation::Group::Manage;
+            }
+            Some("inspect") => {
+                view.navigation_open = true;
+                view.navigation_group = ui::navigation::Group::Inspect;
+            }
+            Some("park") => {
+                view.navigation_open = true;
+                view.navigation_group = ui::navigation::Group::Park;
+            }
+            Some("help") => {
+                view.navigation_open = true;
+                view.navigation_group = ui::navigation::Group::Help;
+            }
+            Some("guests") => view.guests_open = true,
+            Some("services") => view.services_open = true,
+            Some("rides") => view.rides_open = true,
+            Some("designs") => view.designs_open = true,
+            _ => {
+                eprintln!(
+                    "unknown --capture-panel; use build, manage, inspect, park, help, guests, services, rides or designs"
+                );
+                return AppExit::error();
+            }
+        }
+        view.speed = Speed::Paused;
+    }
     let campaign = if render_scene.is_some() || capture_requested {
         campaign::Campaign::preview()
     } else {
@@ -659,26 +710,30 @@ fn main() -> AppExit {
                 )
                     .chain(),
                 (
-                    apply_camera,
-                    ui::adapt_header,
-                    presentation::animate,
-                    update_scene,
-                    static_landscape::update_visibility,
-                    ui::rides::refresh,
-                    ui::appearance::refresh,
-                    ui::refresh,
-                    front_end::refresh,
-                    ui::audio::refresh,
-                    ui::guests::refresh,
-                    ui::guest_stats::sample_history,
-                    ui::guest_stats::refresh,
-                    ui::visitor_flow::refresh,
-                    ui::scenarios::refresh,
-                    ui::services::refresh,
-                    ui::finance::refresh,
-                    ui::track::refresh,
-                    design_preview::refresh_images,
-                    ui::designs::refresh,
+                    (
+                        apply_camera,
+                        ui::adapt_header,
+                        presentation::animate,
+                        update_scene,
+                        static_landscape::update_visibility,
+                        ui::rides::refresh,
+                        ui::appearance::refresh,
+                        ui::refresh,
+                        front_end::refresh,
+                        ui::audio::refresh,
+                        ui::guests::refresh,
+                        ui::guest_stats::sample_history,
+                        ui::guest_stats::refresh,
+                        ui::visitor_flow::refresh,
+                        ui::scenarios::refresh,
+                        ui::services::refresh,
+                        ui::finance::refresh,
+                        ui::track::refresh,
+                        design_preview::refresh_images,
+                        ui::designs::refresh,
+                    )
+                        .chain(),
+                    ui::navigation::refresh,
                 )
                     .chain(),
             )
@@ -941,6 +996,28 @@ fn keyboard_input(
             view.ride_name_select_all = false;
             view.ride_name_notice = Some("Name edit cancelled.".into());
         }
+        return;
+    }
+    if view.navigation_open {
+        if keys.just_pressed(KeyCode::Escape) || keys.just_pressed(KeyCode::F2) {
+            ui::navigation::close(&mut view);
+        } else {
+            for (key, group) in [
+                (KeyCode::Digit1, ui::navigation::Group::Build),
+                (KeyCode::Digit2, ui::navigation::Group::Manage),
+                (KeyCode::Digit3, ui::navigation::Group::Inspect),
+                (KeyCode::Digit4, ui::navigation::Group::Park),
+                (KeyCode::Digit5, ui::navigation::Group::Help),
+            ] {
+                if keys.just_pressed(key) {
+                    view.navigation_group = group;
+                }
+            }
+        }
+        return;
+    }
+    if keys.just_pressed(KeyCode::F2) {
+        ui::navigation::open(&mut view);
         return;
     }
     if view.track_editor.active && design_library::open_shortcut(&keys) {

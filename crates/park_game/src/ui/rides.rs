@@ -207,9 +207,8 @@ pub(super) fn setup(commands: &mut Commands) {
         width: percent(100), height: percent(100), align_items: AlignItems::Center,
         justify_content: JustifyContent::Center, ..default()
     }, BackgroundColor(Color::srgba(0.04,0.12,0.09,0.65))))
-    .with_children(|p| { p.spawn((Node { width:px(PANEL_WIDTH),height:px(PANEL_HEIGHT),
-        padding:UiRect::all(px(20)),flex_direction:FlexDirection::Column,row_gap:px(10),..default()
-    },BackgroundColor(PAPER),BorderRadius::all(px(10))))
+    .with_children(|p| { p.spawn((layout::ScrollLayer::Rides, ScrollPosition::default(),
+        layout::dialog(94.0,PANEL_WIDTH,Some(PANEL_HEIGHT)),BackgroundColor(PAPER),BorderRadius::all(px(10))))
     .with_children(|p| {
         p.spawn(Node {justify_content:JustifyContent::SpaceBetween,..row()}).with_children(|p| {
             label(p,"Rides",23.0,INK);
@@ -220,7 +219,7 @@ pub(super) fn setup(commands: &mut Commands) {
             p.spawn((Text::new("No ride"),TextFont{font_size:17.0,..default()},TextColor(INK),RideLabel::Selected));
             button(p,"Down >",Action::BrowseRide(1),65.0);
         });
-        p.spawn(Node { column_gap: px(16), align_items: AlignItems::Start, flex_grow: 1.0, ..row() }).with_children(|p| {
+        p.spawn(Node { column_gap: px(16), row_gap: px(16), flex_wrap: FlexWrap::Wrap, align_items: AlignItems::Start, flex_grow: 1.0, ..row() }).with_children(|p| {
             p.spawn(Node { width: px(408), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
                 p.spawn(Node{height:px(188),flex_shrink:0.0,..default()}).with_children(|p| {
                     operating_label(p, RideLabel::Details, 13.0, INK);

@@ -200,19 +200,19 @@ pub(crate) fn setup(commands: &mut Commands) {
         ))
         .with_children(|p| {
             p.spawn((
+                layout::ScrollLayer::Designs,
+                ScrollPosition::default(),
                 Node {
-                    width: px(PANEL_WIDTH),
-                    height: px(PANEL_HEIGHT),
-                    padding: UiRect::all(px(20)),
                     flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
                     column_gap: px(16),
-                    ..default()
+                    row_gap: px(16),
+                    ..layout::dialog(94.0, PANEL_WIDTH, Some(PANEL_HEIGHT))
                 },
                 BackgroundColor(PAPER),
                 BorderRadius::all(px(10)),
             ))
             .with_children(|p| {
-                preview_column(p);
                 p.spawn(Node {
                     width: px(520),
                     height: percent(100),
@@ -373,6 +373,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                         design_button(p, "Cancel", DesignCommand::Cancel, 253.0);
                     });
                 });
+                preview_column(p);
             });
         });
 }
