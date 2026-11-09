@@ -54,18 +54,24 @@ pub(super) fn setup(commands: &mut Commands) {
     commands
         .spawn((
             TrackPanel,
+            layout::ScrollLayer::Build,
+            ScrollPosition::default(),
             GlobalZIndex(3),
             Node {
                 display: Display::None,
                 position_type: PositionType::Absolute,
                 top: px(PATH_PANEL_TOP),
+                bottom: px(FOOTER + RIDE_PANEL_MARGIN),
                 right: px(PATH_PANEL_RIGHT),
                 width: px(PATH_PANEL_WIDTH),
-                height: px(PATH_PANEL_HEIGHT),
                 padding: UiRect::all(px(12)),
                 border: UiRect::all(px(1)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(2),
+                overflow: Overflow {
+                    x: OverflowAxis::Clip,
+                    y: OverflowAxis::Scroll,
+                },
                 ..default()
             },
             BackgroundColor(PAPER),

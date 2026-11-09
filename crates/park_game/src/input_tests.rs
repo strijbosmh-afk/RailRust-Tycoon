@@ -260,6 +260,46 @@ fn pointer_selects_an_elevated_roof_after_rotation_pan_zoom_and_dpi_scaling() {
 }
 
 #[test]
+fn scaled_ui_keeps_real_map_clicks_on_the_same_tile() {
+    let tile = TilePos { x: 15, y: 16 };
+    for (width, height, interface_scale) in [(1024, 680, 1.25), (1920, 1080, 1.5)] {
+        let park = Park::new(MAP_SIZE, MAP_SIZE);
+        let point = world::elevated_tile_center(&park, tile, 0).unwrap();
+        let (mut app, window_entity) = input_app(park, ViewState::default(), 1.0);
+        app.world_mut().insert_resource(UiScale(interface_scale));
+        app.world_mut()
+            .get_mut::<Window>(window_entity)
+            .unwrap()
+            .resolution
+            .set(width as f32, height as f32);
+        let window = app.world().get::<Window>(window_entity).unwrap();
+        let park = &app.world().resource::<Simulation>().0;
+        let view = app.world().resource::<ViewState>();
+        let (scale, center) = camera_layout_scaled(window, view, park, interface_scale);
+        let relative = (point - center) / scale;
+        let cursor = Vec2::new(
+            window.width() * 0.5 + relative.x,
+            window.height() * 0.5 - relative.y,
+        );
+        assert!(is_map_position_scaled(
+            cursor,
+            window,
+            false,
+            interface_scale
+        ));
+        set_cursor(&mut app, window_entity, Some(cursor));
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        frame(&mut app);
+        assert_eq!(
+            app.world().resource::<ViewState>().selected,
+            Some(SurfaceId::Terrain(tile))
+        );
+    }
+}
+
+#[test]
 fn pointer_selects_the_visible_cliff_instead_of_the_ground_behind_it() {
     for rotation in 0..4 {
         let mut park = Park::new(8, 8);

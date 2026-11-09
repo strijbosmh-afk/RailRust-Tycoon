@@ -842,7 +842,8 @@ fn empty_guest_panel_has_no_stale_selection_and_fixed_bounds_fit_minimum_window(
     assert!(
         nodes
             .iter(world)
-            .any(|node| node.width == px(760) && node.height == px(520))
+            .any(|node| node.width == px(ui::guests::PANEL_WIDTH)
+                && node.height == px(ui::guests::PANEL_HEIGHT))
     );
     let mut actions = world.query::<&ui::Action>();
     assert_eq!(

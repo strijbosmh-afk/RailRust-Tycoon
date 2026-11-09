@@ -6,7 +6,9 @@
 use bevy::{camera::visibility::NoFrustumCulling, prelude::*};
 use serde_json::{Value, json};
 
-use crate::{Simulation, ViewState, camera_layout, world};
+#[cfg(test)]
+use crate::camera_layout;
+use crate::{Simulation, ViewState, camera_layout_scaled, world};
 
 const VIEWPORT_GUARD: f32 = 2.0;
 
@@ -168,9 +170,19 @@ fn intersects(a: Rect, b: Rect) -> bool {
     a.min.x <= b.max.x && a.max.x >= b.min.x && a.min.y <= b.max.y && a.max.y >= b.min.y
 }
 
+#[cfg(test)]
 fn viewport(window: &Window, view: &ViewState, park: &park_sim::Park) -> Option<Rect> {
+    viewport_scaled(window, view, park, 1.0)
+}
+
+fn viewport_scaled(
+    window: &Window,
+    view: &ViewState,
+    park: &park_sim::Park,
+    ui_scale: f32,
+) -> Option<Rect> {
     let size = Vec2::new(window.width(), window.height());
-    let (scale, center) = camera_layout(window, view, park);
+    let (scale, center) = camera_layout_scaled(window, view, park, ui_scale);
     if !size.is_finite()
         || size.min_element() <= 0.0
         || !scale.is_finite()
@@ -191,11 +203,16 @@ pub(super) fn update_visibility(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
     mut landscape: ResMut<StaticLandscape>,
     mut visibility: Query<&mut Visibility, With<StaticChunkEntity>>,
+    ui_scale: Option<Res<UiScale>>,
 ) {
-    let bounds = windows
-        .single()
-        .ok()
-        .and_then(|window| viewport(window, &view, &sim.0));
+    let bounds = windows.single().ok().and_then(|window| {
+        viewport_scaled(
+            window,
+            &view,
+            &sim.0,
+            ui_scale.as_ref().map_or(1.0, |value| value.0),
+        )
+    });
     landscape.select(bounds, &mut visibility);
 }
 
