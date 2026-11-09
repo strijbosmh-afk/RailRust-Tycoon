@@ -10,6 +10,7 @@ mod legacy_cost_test_support {
         "/../park_sim/test_support/pre_upkeep.rs"
     ));
 }
+mod campaign;
 mod coaster_testing;
 mod design_file_dialog;
 #[cfg(test)]
@@ -538,16 +539,23 @@ fn main() -> AppExit {
     if let Some(scene) = &render_scene {
         scene.apply_view(&park, &mut view);
     }
+    let save_session = SaveSession::from_arguments(std::env::args_os().skip(1));
+    let campaign = if render_scene.is_some() || capture_requested {
+        campaign::Campaign::preview()
+    } else {
+        campaign::Campaign::load(save_session.store.clone())
+    };
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .insert_resource(Simulation(park))
         .insert_resource(view)
+        .insert_resource(campaign)
         .init_resource::<design_library::DesignLibrary>()
         .init_resource::<ui::guest_stats::GuestStatsHistory>()
         .init_resource::<design_transfer::DialogPause>()
         .insert_non_send_resource(design_transfer::DialogThread::default())
-        .insert_resource(SaveSession::from_arguments(std::env::args_os().skip(1)))
+        .insert_resource(save_session)
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Parkbound - Meadow Lake".into(),
@@ -599,6 +607,7 @@ fn main() -> AppExit {
                     track_tools::apply_commands,
                     pointer_input,
                     persistence::apply_save_action,
+                    campaign::observe,
                 )
                     .chain(),
                 (

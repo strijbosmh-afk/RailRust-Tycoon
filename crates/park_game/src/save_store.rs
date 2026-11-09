@@ -287,7 +287,7 @@ impl SaveStore {
         })
     }
 
-    fn check_directory(&self, create: bool) -> Result<(), StoreError> {
+    pub(super) fn check_directory(&self, create: bool) -> Result<(), StoreError> {
         if !self.directory.is_absolute() {
             return Err(StoreError::InvalidDirectory {
                 path: self.directory.clone(),
@@ -351,7 +351,7 @@ fn check_directory_metadata(path: &Path, metadata: &Metadata) -> Result<(), Stor
     }
 }
 
-fn check_file(path: &Path) -> Result<(), StoreError> {
+pub(super) fn check_file(path: &Path) -> Result<(), StoreError> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if is_link(&metadata) => Err(StoreError::UnsafePath {
             path: path.to_owned(),
@@ -365,7 +365,7 @@ fn check_file(path: &Path) -> Result<(), StoreError> {
     }
 }
 
-fn read_file(path: &Path) -> Result<Vec<u8>, StoreError> {
+pub(super) fn read_file(path: &Path) -> Result<Vec<u8>, StoreError> {
     check_file(path)?;
     let file = File::open(path).map_err(|error| {
         if error.kind() == io::ErrorKind::NotFound {
@@ -420,12 +420,12 @@ fn read_limited(
     }
 }
 
-struct SaveLock {
+pub(super) struct SaveLock {
     path: PathBuf,
 }
 
 impl SaveLock {
-    fn acquire(directory: &Path) -> Result<Self, StoreError> {
+    pub(super) fn acquire(directory: &Path) -> Result<Self, StoreError> {
         let path = directory.join(LOCK_NAME);
         let mut file = OpenOptions::new()
             .write(true)
@@ -453,13 +453,13 @@ impl Drop for SaveLock {
     }
 }
 
-struct StagedFile {
+pub(super) struct StagedFile {
     path: PathBuf,
     owned: bool,
 }
 
 impl StagedFile {
-    fn write(directory: &Path, label: &str, bytes: &[u8]) -> Result<Self, StoreError> {
+    pub(super) fn write(directory: &Path, label: &str, bytes: &[u8]) -> Result<Self, StoreError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -491,7 +491,7 @@ impl StagedFile {
         ))
     }
 
-    fn replace(&mut self, destination: &Path) -> Result<(), StoreError> {
+    pub(super) fn replace(&mut self, destination: &Path) -> Result<(), StoreError> {
         check_file(destination)?;
         // Rust's documented rename contract replaces an existing file on
         // Windows too. Same-directory staging prevents cross-volume fallback.
@@ -502,7 +502,7 @@ impl StagedFile {
         Ok(())
     }
 
-    fn retain(&mut self) -> PathBuf {
+    pub(super) fn retain(&mut self) -> PathBuf {
         self.owned = false;
         self.path.clone()
     }

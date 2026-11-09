@@ -460,6 +460,15 @@ jobs:
           & ./target/release/parkbound.exe --save-check verify-scenarios --save-dir $scenarioDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Scenario verifier failed" }
           Get-Content -LiteralPath (Join-Path $scenarioDirectory "verification-scenarios.txt")
+      - name: Verify campaign awards and next-park unlock
+        shell: pwsh
+        run: |
+          $campaignDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound campaign é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-campaign --save-dir $campaignDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Campaign writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-campaign --save-dir $campaignDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Campaign verifier failed" }
+          Get-Content -LiteralPath (Join-Path $campaignDirectory "verification-campaign.txt")
       - name: Store the build for review
         uses: actions/upload-artifact@v4
         with:

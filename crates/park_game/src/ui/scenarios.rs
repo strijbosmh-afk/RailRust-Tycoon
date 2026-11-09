@@ -1,11 +1,13 @@
 //! A dedicated challenge selection pane; sandbox is the unchanged default.
 use super::*;
+use crate::campaign::Campaign;
 use park_sim::ScenarioKind;
 
 #[derive(Component)]
 pub(crate) struct ScenarioBody;
 #[derive(Component)]
 pub(crate) enum ScenarioLabel {
+    Campaign,
     Current,
     Notice,
 }
@@ -67,6 +69,12 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
             12.0,
             MUTED,
         );
+        p.spawn((
+            Text::new(""),
+            TextFont { font_size: 12.0, ..default() },
+            TextColor(INK),
+            ScenarioLabel::Campaign,
+        ));
         card(
             p,
             "MEADOW CHALLENGE  /  No deadline\n20 new visitors + 5 rides + $750 cash. Free entry; no radio ads.",
@@ -74,7 +82,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
         );
         card(
             p,
-            "BOARDWALK SPRINT  /  Ten simulation minutes\n24 new visitors + 12 rides + $900 cash. Free rides; ads allowed.",
+            "BOARDWALK SPRINT  /  Unlock with the Meadow award / Ten minutes\n24 new visitors + 12 rides + $900 cash. Free rides; ads allowed.",
             ScenarioKind::BoardwalkSprint,
         );
         for kind in [ScenarioLabel::Current, ScenarioLabel::Notice] {
@@ -97,7 +105,11 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
     });
 }
 
-pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+pub(crate) fn apply_commands(
+    mut sim: ResMut<Simulation>,
+    mut view: ResMut<ViewState>,
+    campaign: Option<Res<Campaign>>,
+) {
     let Some(command) = view.scenario_pending.take() else {
         return;
     };
@@ -111,6 +123,25 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
         return;
     }
     view.scenario_notice = Some(match command {
+        ScenarioCommand::Start(kind)
+            if campaign
+                .as_ref()
+                .is_some_and(|progress| !progress.unlocked(kind)) =>
+        {
+            if campaign
+                .as_ref()
+                .is_some_and(|progress| !progress.unlocked(ScenarioKind::MeadowChallenge))
+            {
+                "Campaign progress is unavailable. Check the campaign record in the save folder."
+                    .into()
+            } else if kind == ScenarioKind::BoardwalkSprint {
+                "Boardwalk Sprint is locked. Win Meadow Challenge in a park to earn its award."
+                    .into()
+            } else {
+                "Campaign progress is unavailable. Check the campaign record in the save folder."
+                    .into()
+            }
+        }
         ScenarioCommand::Start(kind) => match sim.0.start_scenario(kind) {
             Ok(()) => format!("{} started. Goals count from this moment.", kind.label()),
             Err(error) => format!("Challenge unchanged: {error}"),
@@ -122,6 +153,7 @@ pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewS
 pub(crate) fn refresh(
     sim: Res<Simulation>,
     view: Res<ViewState>,
+    campaign: Option<Res<Campaign>>,
     mut labels: Query<(&ScenarioLabel, &mut Text)>,
 ) {
     if !view.guests_open || !view.scenario_view {
@@ -129,6 +161,15 @@ pub(crate) fn refresh(
     }
     for (kind, mut text) in &mut labels {
         text.0 = match kind {
+            ScenarioLabel::Campaign => campaign.as_ref().map_or_else(
+                || "Campaign preview: Meadow and Boardwalk available.".into(),
+                |c| format!(
+                    "Awards: Meadow {} / Boardwalk {}\nBoardwalk Sprint: {}.",
+                    if c.progress.meadow_awarded { "earned" } else { "not earned" },
+                    if c.progress.boardwalk_awarded { "earned" } else { "not earned" },
+                    if c.unlocked(ScenarioKind::BoardwalkSprint) { "unlocked" } else { "locked" }
+                ),
+            ),
             ScenarioLabel::Current => sim.0.scenario_status().map_or_else(
                 || "Current park: Sandbox. No goals, deadline or locked charging rule.".into(),
                 |s| {
@@ -155,10 +196,7 @@ pub(crate) fn refresh(
                     )
                 },
             ),
-            ScenarioLabel::Notice => view.scenario_notice.clone().unwrap_or_else(|| {
-                "Set a connected public entry and open a ride; Visitor flow controls arrivals and ads."
-                    .into()
-            }),
+            ScenarioLabel::Notice => view.scenario_notice.clone().or_else(|| campaign.as_ref().and_then(|c| c.notice.clone())).unwrap_or_else(|| "Set a connected public entry and open a ride; Visitor flow controls arrivals and ads.".into()),
         };
     }
 }

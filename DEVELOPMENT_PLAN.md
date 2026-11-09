@@ -1,5 +1,8 @@
 # Theme Park Simulation Development Plan
 
+The 0.70.0 phase on `codex/campaign-awards` adds a small original campaign sequence: Meadow win → award and Boardwalk unlock → Boardwalk award. A separate local, backed-up campaign record persists across parks and restarts; Guests → Scenarios displays and enforces the unlock. Park saves remain 39/39. More objective families, campaign content and a scenario editor remain ahead. See the [player guide](docs/CAMPAIGN_AWARDS_GUIDE.md) and [stage report](docs/CAMPAIGN_AWARDS_REPORT.md). This PC is not a performance reference.
+
+
 The 0.69.0 phase on `codex/scenario-selection` adds a dedicated challenge selection pane and a second original preset, Boardwalk Sprint. Its saved deadline can produce a lasting win or failure, and it locks free rides while allowing both ads. Meadow remains available; strict saves advance to 39/39 with active version-38 Meadow migration. Campaign progression, rewards and scenario editing remain later work. See the [player guide](docs/SCENARIO_SELECTION_GUIDE.md) and [stage report](docs/SCENARIO_SELECTION_REPORT.md). This PC is not a performance reference.
 
 The 0.68.0 phase on `codex/meadow-challenge` introduces the first optional original scenario: a saved Meadow Challenge with free-entry and no-radio rules, live arrival/ride/cash goals, and sticky completion. Strict saves advance to 38/38 with older parks migrating as sandbox. This is a single built-in challenge; scenario selection, failure/deadlines, campaign progression and editing are still ahead. See the [player guide](docs/MEADOW_CHALLENGE_GUIDE.md) and [stage report](docs/MEADOW_CHALLENGE_REPORT.md). This PC is not a performance reference.
