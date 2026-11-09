@@ -2,6 +2,8 @@
 
 This is an implementation checkpoint on the road to the Phase 3, 4 and 5 exit gates in [FULL_GAME_ROADMAP.md](FULL_GAME_ROADMAP.md). **None of the three full phase gates is complete yet.** Do not describe this branch as a finished graphics, construction or coaster phase in a release announcement.
 
+Source is in [draft PR #76](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/76), stacked on the 0.74.0 checkpoint.
+
 ## Player-visible work in this checkpoint
 
 - Large Sandbox maps now start with a central 32×32 owned area and a narrow owned route to the west border. Unowned ground has muted color and the boundary is visible. The Build panel buys one adjacent tile for $5; building, scenery and terrain editing reject unowned land. Ownership persists in strict save schema/content 40/40. Existing 39/39 parks migrate with all their land owned.
@@ -29,7 +31,7 @@ The development PC is explicitly **not** a performance reference. The above gaps
 
 The 0.75.0 release test suite passed **520 game and 396 simulation tests (916 total)**. Formatting, strict release all-target Clippy and original-asset manifest validation passed. Tests include atomic brush quotes/commits, water clearance, land purchase/save continuation, schema-39 ownership migration, archived finance reconciliation, banked/launch track apply/test/save, large-map library continuation and old-save regression. These checks do not establish the three full roadmap exit gates or a hardware performance target.
 
-The Windows executable hash is `a4ce8c001816009ad405d800e64a6f69185635aac44f748c713a6c2ce053da47`. A fresh extraction with a Unicode/space path verified 136 package payloads and 123 current guides and passed separate `write-front`/`verify-front` processes. The final ZIP checksum is in the local `dist/` sidecar, with the retained final proof under `artifacts/phase-3-5-completion/final package proof é/`. Native pointer and mixed-DPI checks remain open.
+The Windows executable hash is `a4ce8c001816009ad405d800e64a6f69185635aac44f748c713a6c2ce053da47`. A fresh extraction with a Unicode/space path verified 136 package payloads and 123 current guides and passed separate `write-front`/`verify-front` processes. The final ZIP checksum is in the local `dist/` sidecar, with the retained final proof under `artifacts/phase-3-5-completion/`. Native pointer and mixed-DPI checks remain open.
 
 ## Continue from another PC
 
