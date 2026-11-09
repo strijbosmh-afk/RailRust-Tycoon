@@ -1,8 +1,8 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.70.0 build through a distributable Windows 1.0 release. The next implementation slice is a skippable intro/title screen and New/Continue flow, followed by multi-park saves, scalable menus, high-resolution displays and a major original-art pass. Each phase has a player-visible acceptance gate.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.71.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. The next phase addresses scalable menus and high-resolution displays. Each phase has a player-visible acceptance gate.
 
-Current development stage **0.70.0** adds an original two-challenge campaign. Winning Meadow Challenge earns an award and unlocks Boardwalk Sprint in a new park; winning Boardwalk earns a second award. The Guests → Scenarios pane shows progress and refuses a locked start. Awards are kept in a separate backed-up local campaign file, so park saves remain strict **39/39**. See the [player guide](docs/CAMPAIGN_AWARDS_GUIDE.md), [stage report](docs/CAMPAIGN_AWARDS_REPORT.md), and [cross-PC handoff](RESUME_DEVELOPMENT.md). Work is on `codex/campaign-awards`, stacked on `codex/scenario-selection`. This PC is not a performance reference.
+Current development stage **0.71.0** begins at a skippable original title screen. New Park offers Sandbox, Meadow Challenge and the unlockable Boardwalk Sprint. The park menu saves, makes named copies, loads, and returns to the title with unsaved-change confirmation. The park library stores up to 32 independent parks and can explicitly import either old single-slot file without replacing it. Campaign awards remain separate, and park saves remain strict **39/39**. See the [Phase 1 guide](docs/STARTUP_PARK_LIBRARY_GUIDE.md), [stage report](docs/STARTUP_PARK_LIBRARY_REPORT.md), and [cross-PC handoff](RESUME_DEVELOPMENT.md). This PC is not a performance reference.
 
 Current development stage **0.69.0** adds a **Scenarios** pane under Guests with two original choices. Boardwalk Sprint asks for 24 new visitors, 12 completed ride visits and $900 cash within ten simulation minutes; it locks free rides, permits ads, and records a lasting win or deadline failure. Meadow Challenge remains the untimed free-entry option. Strict saves advance to **39/39** and preserve older Meadow progress. See the [player guide](docs/SCENARIO_SELECTION_GUIDE.md), [stage report](docs/SCENARIO_SELECTION_REPORT.md), and [cross-PC handoff](RESUME_DEVELOPMENT.md). Work is on `codex/scenario-selection`, stacked on `codex/meadow-challenge`. This PC is not a performance reference.
 
@@ -151,9 +151,9 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | O / Open or Close button | Open the selected ride, or stop admission and return queued guests while passengers finish their cycle |
 | F / Find button | Center the selected ride: coaster at 150%, carousel at 350% zoom |
 | F6 / F7 / Ticket −/+ buttons | Lower / raise the ticket price by $0.50 within $0–$100; existing locked fares do not change |
-| F5 / Save button | Save the current simulation to the single slot |
-| F9 / Load button | Load the primary slot and pause |
-| Shift+F9 / Backup button | Explicitly load the previous valid backup and pause |
+| F5 / Save button | Save the active named park; a new park gets its chosen name |
+| F9 / Load button | Load the active park and pause |
+| Shift+F9 / Backup button | Explicitly load the active park's previous valid backup and pause |
 | Space | Pause or resume the previous simulation speed |
 | 1 / 2 / 3 | Set simulation speed to 1x / 2x / 4x |
 | Rides → Access | Inspect entrance/queue and exit/public-path readiness. Find existing gates or Prepare a suggested gate/queue/path; move to the ghost and click to build one tile with normal validation. |

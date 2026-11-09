@@ -1,6 +1,6 @@
 # Parkbound: stepwise roadmap to a complete Windows game
 
-Planning checkpoint after 0.70.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
+Planning checkpoint after 0.70.0; [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
 
 ## Starting point and release target
 

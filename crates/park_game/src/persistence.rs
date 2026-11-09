@@ -63,7 +63,11 @@ pub(super) fn apply_save_action(
     session: Res<SaveSession>,
     mut sim: ResMut<Simulation>,
     mut view: ResMut<ViewState>,
+    front: Option<Res<crate::front_end::FrontEnd>>,
 ) {
+    if front.as_ref().is_some_and(|front| front.enabled()) {
+        return;
+    }
     let Some(action) = view.save_pending.take() else {
         return;
     };
