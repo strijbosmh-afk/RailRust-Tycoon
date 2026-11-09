@@ -20,6 +20,7 @@ pub(crate) mod guest_stats;
 pub(super) mod guests;
 pub(crate) mod layout;
 pub(crate) mod names;
+pub(crate) mod navigation;
 pub(crate) mod rides;
 pub(crate) mod scenarios;
 pub(crate) mod services;
@@ -96,6 +97,10 @@ const BUTTON: Color = Color::srgb_u8(230, 235, 221);
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
     Menu,
+    Navigation,
+    CloseNavigation,
+    NavGroup(navigation::Group),
+    NavTarget(navigation::Destination),
     Pause,
     Speed(Speed),
     RotateLeft,
@@ -396,6 +401,7 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Finance [N]", Action::Finance, 100.0);
                 button(p, "Rides [Y]", Action::Rides, 100.0);
             });
+            button(p, "Explore [F2]", Action::Navigation, 210.0);
             p.spawn((
                 Node {
                     height: px(1),
@@ -739,6 +745,7 @@ pub(super) fn setup(mut commands: Commands) {
                     MUTED,
                 );
                 for (keys, purpose) in [
+                    ("F2 / 1–5", "Explore groups / change group"),
                     ("L / M / N / Y", "Guests / services / finance / rides"),
                     ("Z / Ctrl+D", "Track tools / saved designs"),
                     ("Ctrl+Z / Ctrl+Y", "Undo / redo draft (also Ctrl+Shift+Z)"),
@@ -790,6 +797,7 @@ pub(super) fn setup(mut commands: Commands) {
     rides::setup(&mut commands);
     track::setup(&mut commands);
     designs::setup(&mut commands);
+    navigation::setup(&mut commands);
 }
 
 type ChangedButtons<'w, 's> =
@@ -806,6 +814,43 @@ pub(super) fn button_actions(
     view.ui_pointer_consumed = false;
     view.modal_input_blocked = false;
     if view.capture_active || view.front_modal {
+        return;
+    }
+    if view.navigation_open {
+        if keys.as_ref().is_some_and(|keys| {
+            keys.just_pressed(KeyCode::Escape) || keys.just_pressed(KeyCode::F2)
+        }) {
+            view.ui_pointer_consumed = true;
+            return;
+        }
+        for (interaction, action) in &interactions {
+            if *interaction != Interaction::Pressed {
+                continue;
+            }
+            view.ui_pointer_consumed = true;
+            match action {
+                Action::CloseNavigation => {
+                    navigation::close(&mut view);
+                    return;
+                }
+                Action::NavGroup(group) => {
+                    view.navigation_group = *group;
+                    return;
+                }
+                Action::NavTarget(target) => {
+                    navigation::select(&mut view, sim.as_deref(), *target);
+                    return;
+                }
+                _ => continue,
+            }
+        }
+        return;
+    }
+    if interactions.iter().any(|(interaction, action)| {
+        *interaction == Interaction::Pressed && *action == Action::Navigation
+    }) && !view.edits_blocked()
+    {
+        navigation::open(&mut view);
         return;
     }
     if view.designs_open {
@@ -1138,6 +1183,10 @@ pub(super) fn button_actions(
             continue;
         }
         match action {
+            Action::Navigation
+            | Action::CloseNavigation
+            | Action::NavGroup(_)
+            | Action::NavTarget(_) => {}
             Action::Menu => view.front_request_menu = true,
             Action::Pause => view.pause(),
             Action::BrowseRide(delta) if view.rides_open => {

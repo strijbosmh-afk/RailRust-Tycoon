@@ -67,14 +67,9 @@ pub(super) fn setup(commands: &mut Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                Node {
-                    width: px(PANEL_WIDTH),
-                    height: px(PANEL_HEIGHT),
-                    padding: UiRect::all(px(20)),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(5),
-                    ..default()
-                },
+                layout::ScrollLayer::Services,
+                ScrollPosition::default(),
+                layout::dialog(94.0, PANEL_WIDTH, Some(PANEL_HEIGHT)),
                 BackgroundColor(PAPER),
                 BorderRadius::all(px(10)),
             ))

@@ -801,7 +801,7 @@ fn completed_trip_review_stays_separate_from_choice_reputation() {
 }
 
 #[test]
-fn empty_guest_panel_has_no_stale_selection_and_fixed_bounds_fit_minimum_window() {
+fn empty_guest_panel_has_no_stale_selection_and_scrolls_at_minimum_window() {
     let directory = InputSaveDirectory::new();
     let (mut app, window) = guest_app(
         &directory,
@@ -838,12 +838,15 @@ fn empty_guest_panel_has_no_stale_selection_and_fixed_bounds_fit_minimum_window(
     assert!(ui::guests::PANEL_WIDTH <= window.width());
     assert!(ui::guests::PANEL_HEIGHT <= window.height() - HEADER - FOOTER);
     let world = app.world_mut();
-    let mut nodes = world.query::<&Node>();
+    let mut nodes = world.query::<(&Node, &ui::layout::ScrollLayer, &ScrollPosition)>();
     assert!(
         nodes
             .iter(world)
-            .any(|node| node.width == px(ui::guests::PANEL_WIDTH)
-                && node.height == px(ui::guests::PANEL_HEIGHT))
+            .any(|(node, layer, _)| *layer == ui::layout::ScrollLayer::Guests
+                && node.width == percent(94)
+                && node.max_width == px(ui::guests::PANEL_WIDTH)
+                && node.height == px(ui::guests::PANEL_HEIGHT)
+                && node.max_height == percent(92))
     );
     let mut actions = world.query::<&ui::Action>();
     assert_eq!(

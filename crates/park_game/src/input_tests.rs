@@ -72,6 +72,30 @@ fn train_park() -> Park {
 }
 
 #[test]
+fn explore_selection_wins_over_a_simultaneous_world_button() {
+    let mut app = App::new();
+    app.insert_resource(ViewState {
+        navigation_open: true,
+        ..default()
+    })
+    .init_resource::<ButtonInput<KeyCode>>()
+    .add_systems(Update, ui::button_actions);
+    app.world_mut()
+        .spawn((Button, Interaction::Pressed, ui::Action::RemovePath));
+    app.world_mut().spawn((
+        Button,
+        Interaction::Pressed,
+        ui::Action::NavTarget(ui::navigation::Destination::Path),
+    ));
+    app.update();
+    let view = app.world().resource::<ViewState>();
+    assert!(!view.navigation_open);
+    assert_eq!(view.path_tool.mode, path_tools::PathTool::Build);
+    assert!(!view.remove_path_pending);
+    assert!(view.ui_pointer_consumed);
+}
+
+#[test]
 fn render_preview_blocks_keyboard_and_button_edits_but_allows_camera_and_speed() {
     use park_sim::diagnostics::DiagnosticCase;
     let original = train_park();
