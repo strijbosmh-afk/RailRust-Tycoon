@@ -51,6 +51,7 @@ impl VersionSeventeenParkData {
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
+            decorations: crate::decorations::DecorationState::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),

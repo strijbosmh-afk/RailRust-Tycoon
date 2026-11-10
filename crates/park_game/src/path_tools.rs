@@ -172,7 +172,9 @@ impl ToolState {
             PathTool::Carousel => {
                 "Point at a clear 3 x 3 footprint.\nClick once to build the ride."
             }
-            PathTool::Scenery(_) => "Point to open grass or sand.\nClick once to plant scenery.",
+            PathTool::Scenery(_) => {
+                "Point to open grass or sand.\nClick once to plant paid scenery."
+            }
             PathTool::Demolish => {
                 "Point to a path, gate, facility or scenery.\nClick once to remove it."
             }
@@ -209,6 +211,13 @@ impl ToolState {
                 "{kind}: {} / face public path.\n{}% paid cost back on demolition.",
                 crate::ui::money(kind.build_cost_cents()),
                 park_sim::SERVICE_REFUND_PERCENT
+            );
+        }
+        if let PathTool::Scenery(kind) = self.mode {
+            self.hint = format!(
+                "{}: {} / clear owned land.\n50% paid cost back on demolition.",
+                kind.name(),
+                crate::ui::money(kind.build_cost_cents())
             );
         }
     }
@@ -330,20 +339,21 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 view.path_tool.hint = "Point to open visible land.\nScenery fills one tile.".into();
                 return;
             };
-            let result = park.validate_scenery(pos, kind);
+            let result = park.quote_scenery(pos, kind);
             view.path_tool.hint = result.as_ref().map_or_else(
                 |error| placement_message(*error),
-                |_| {
+                |cost| {
                     format!(
-                        "{} / tile {}, {}\nClick to plant it.",
+                        "{} / tile {}, {} / {}\nClick to plant it; 50% refund.",
                         kind.name(),
                         pos.x + 1,
-                        pos.y + 1
+                        pos.y + 1,
+                        crate::ui::money(*cost)
                     )
                 },
             );
             if click {
-                match park.place_scenery(pos, kind) {
+                match park.build_scenery(pos, kind) {
                     Ok(id) => {
                         view.selected = Some(SurfaceId::Object(id));
                         view.hovered = view.selected;
@@ -591,6 +601,12 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                         Err(error) => format!("Removal unavailable: {error}"),
                     };
                 }
+                if let Some(refund) = park.decoration_refund_quote(object.id) {
+                    view.path_tool.hint = format!(
+                        "{name} / refund {}.\nClick to remove it.",
+                        crate::ui::money(refund)
+                    );
+                }
                 if click {
                     remove_path(park, view, object.id);
                 }
@@ -689,7 +705,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
     } else if object.kind == ObjectKind::Track {
         Some(park.track_demolition_refund_cents(id))
     } else {
-        None
+        park.decoration_refund_quote(id)
     };
     if park.remove_object(id).is_none() {
         view.path_notice = Some(format!(
@@ -716,8 +732,13 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),
+        Some(amount) if object.kind == ObjectKind::Path => format!(
+            "Path removed / bench refund {}.\nCash {} / routes recalculated.",
+            crate::ui::money(amount),
+            crate::ui::money(park.cash_cents())
+        ),
         Some(amount) => format!(
-            "Removed / refund {}.\nCash {} / visits cancelled.",
+            "Removed / refund {}.\nCash {}.",
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),
@@ -783,6 +804,7 @@ mod tests {
     #[test]
     fn scenery_map_tools_plant_save_and_demolish() {
         let mut park = Park::new(32, 32);
+        let starting_cash = park.cash_cents();
         let pos = (0..park.height())
             .flat_map(|y| (0..park.width()).map(move |x| TilePos { x, y }))
             .find(|pos| park.validate_scenery(*pos, SceneryKind::Tree).is_ok())
@@ -794,12 +816,15 @@ mod tests {
         let point = world::surface_center(&park, SurfaceId::Terrain(pos), view.rotation).unwrap();
         point_at(&mut park, &mut view, point, false);
         assert!(park.objects().is_empty(), "pointer preview must not plant");
+        assert_eq!(park.cash_cents(), starting_cash);
+        assert!(view.path_tool.hint.contains("$2.50"));
         point_at(&mut park, &mut view, point, true);
         let id = match view.selected {
             Some(SurfaceId::Object(id)) => id,
             _ => panic!("tree was not selected"),
         };
         assert_eq!(park.object(id).unwrap().kind, ObjectKind::SceneryTree);
+        assert_eq!(park.cash_cents(), starting_cash - 250);
         assert_eq!(
             Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
             park
@@ -808,6 +833,7 @@ mod tests {
         view.hovered = Some(SurfaceId::Object(id));
         point_at(&mut park, &mut view, point, true);
         assert!(park.object(id).is_none());
+        assert_eq!(park.cash_cents(), starting_cash - 125);
         assert_eq!(park.validate_scenery(pos, SceneryKind::FlowerBed), Ok(()));
     }
 

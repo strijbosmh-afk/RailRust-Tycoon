@@ -168,6 +168,7 @@ mod tests {
         let mut old: serde_json::Value =
             serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = 23.into();
+        old["park"].as_object_mut().unwrap().remove("decorations");
         old["content_version"] = 23.into();
         crate::legacy_cost_test_support::strip_park_open(&mut old);
         old["park"].as_object_mut().unwrap().remove("ride_names");

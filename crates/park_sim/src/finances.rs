@@ -29,6 +29,8 @@ pub enum FinanceKind {
     TrackRefund,
     Landscaping,
     LandPurchase,
+    DecorationConstruction,
+    DecorationRefund,
 }
 impl FinanceKind {
     fn income(self) -> bool {
@@ -41,6 +43,7 @@ impl FinanceKind {
                 | Self::RideDemolitionRefund
                 | Self::ServiceDemolitionRefund
                 | Self::TrackRefund
+                | Self::DecorationRefund
         )
     }
     pub(crate) fn financing(self) -> bool {
@@ -85,6 +88,8 @@ impl std::fmt::Display for FinanceKind {
             Self::TrackRefund => "Track refund",
             Self::Landscaping => "Landscaping",
             Self::LandPurchase => "Land purchase",
+            Self::DecorationConstruction => "Decoration construction",
+            Self::DecorationRefund => "Decoration refund",
         })
     }
 }
@@ -156,10 +161,12 @@ impl FinanceTotals {
             | FinanceKind::ServiceConstruction
             | FinanceKind::TrackConstruction
             | FinanceKind::Landscaping
-            | FinanceKind::LandPurchase => &mut self.construction_cents,
+            | FinanceKind::LandPurchase
+            | FinanceKind::DecorationConstruction => &mut self.construction_cents,
             FinanceKind::RideDemolitionRefund
             | FinanceKind::ServiceDemolitionRefund
-            | FinanceKind::TrackRefund => &mut self.demolition_refunds_cents,
+            | FinanceKind::TrackRefund
+            | FinanceKind::DecorationRefund => &mut self.demolition_refunds_cents,
         };
         *target = target
             .checked_add(amount)
@@ -480,7 +487,9 @@ impl Park {
                 .filter(|entry| {
                     matches!(
                         entry.kind,
-                        FinanceKind::Landscaping | FinanceKind::LandPurchase
+                        FinanceKind::Landscaping
+                            | FinanceKind::LandPurchase
+                            | FinanceKind::DecorationConstruction
                     )
                 })
                 .map(|entry| entry.amount_cents)
@@ -499,7 +508,8 @@ impl Park {
             .map(|c| c.demolition_refund_cents)
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .chain(std::iter::once(self.track_economy.refund_cents))
-            .sum::<u64>();
+            .sum::<u64>()
+            + self.decorations.refund_cents;
         let wages_cents = self.finances.archived.wages_cents
             + self
                 .finances
@@ -902,8 +912,45 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     minimum_archived += u128::from(archived_advertising.div_ceil(crate::RADIO_CAMPAIGN_COST_CENTS));
     maximum_archived += u128::from(archived_advertising / crate::FLYER_CAMPAIGN_COST_CENTS);
     archived_check.advertising_cents = archived_advertising;
-    // Landscaping and land purchases have no ride or service owner. The
-    // bounded ledger merges their older receipts into the construction total.
+    let retained_decoration_construction = ledger
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == FinanceKind::DecorationConstruction)
+        .map(|entry| entry.amount_cents)
+        .sum::<u64>();
+    let retained_decoration_refunds = ledger
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == FinanceKind::DecorationRefund)
+        .map(|entry| entry.amount_cents)
+        .sum::<u64>();
+    let archived_decoration_construction = park
+        .decorations
+        .construction_cents
+        .checked_sub(retained_decoration_construction)
+        .ok_or("decoration construction receipts exceed purchases")?;
+    let archived_decoration_refunds = park
+        .decorations
+        .refund_cents
+        .checked_sub(retained_decoration_refunds)
+        .ok_or("decoration refund receipts exceed removals")?;
+    if !archived_decoration_construction.is_multiple_of(50)
+        || !archived_decoration_refunds.is_multiple_of(25)
+        || archived_decoration_refunds > archived_decoration_construction / 2
+    {
+        return Err("archived decoration receipts are invalid".into());
+    }
+    minimum_archived += u128::from(archived_decoration_construction).div_ceil(250)
+        + u128::from(archived_decoration_refunds).div_ceil(125);
+    maximum_archived += u128::from(archived_decoration_construction / 100)
+        + u128::from(archived_decoration_refunds / 50);
+    archived_check.add(
+        FinanceKind::DecorationConstruction,
+        archived_decoration_construction,
+    )?;
+    archived_check.add(FinanceKind::DecorationRefund, archived_decoration_refunds)?;
+    // Landscaping and land purchases have no owner. The bounded ledger
+    // merges their older receipts with decoration costs.
     let archived_land = ledger
         .archived
         .construction_cents
@@ -958,6 +1005,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::TrackRefund
                         | FinanceKind::Landscaping
                         | FinanceKind::LandPurchase
+                        | FinanceKind::DecorationConstruction
+                        | FinanceKind::DecorationRefund
                         | FinanceKind::LoanBorrow
                         | FinanceKind::LoanRepayment
                         | FinanceKind::LoanInterest
@@ -1057,6 +1106,18 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 || entry.amount_cents != crate::LAND_TILE_PRICE_CENTS
             {
                 return Err("land purchase receipt is invalid".into());
+            }
+        } else if matches!(
+            entry.kind,
+            FinanceKind::DecorationConstruction | FinanceKind::DecorationRefund
+        ) {
+            let valid_amount = if entry.kind == FinanceKind::DecorationConstruction {
+                [100, 150, 250].contains(&entry.amount_cents)
+            } else {
+                [50, 75, 125].contains(&entry.amount_cents)
+            };
+            if entry.ride.is_some() || entry.service.is_some() || !valid_amount {
+                return Err("decoration receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;
@@ -1247,6 +1308,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
     if ledger.next_entry_id != expected_id
         || balance != park.cash_cents
+        || total.construction_cents < park.decorations.construction_cents
+        || total.demolition_refunds_cents < park.decorations.refund_cents
         || total.admission_revenue_cents != park.visitors.admission_revenue_cents
         || total.advertising_cents
             != park.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS

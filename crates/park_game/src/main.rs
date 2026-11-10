@@ -133,6 +133,7 @@ struct ViewState {
     guest_stats_pending: bool,
     handyman_toggle_pending: bool,
     bin_toggle_pending: bool,
+    bench_toggle_pending: bool,
     patrol_toggle_pending: bool,
     cleaning_toggle_pending: bool,
     empty_bins_toggle_pending: bool,
@@ -235,6 +236,7 @@ impl Default for ViewState {
             guest_stats_pending: false,
             handyman_toggle_pending: false,
             bin_toggle_pending: false,
+            bench_toggle_pending: false,
             patrol_toggle_pending: false,
             cleaning_toggle_pending: false,
             empty_bins_toggle_pending: false,
@@ -877,6 +879,21 @@ fn setup_scene(
 }
 
 fn apply_grounds_action(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if view.bench_toggle_pending {
+        view.bench_toggle_pending = false;
+        if !view.edits_blocked() {
+            view.ui_pointer_consumed = true;
+            view.path_notice = Some(match view.selected {
+                Some(SurfaceId::Object(id)) => match sim.0.toggle_path_bench(id) {
+                    Ok(true) => "Bench built for $1; 50% refund on removal.".into(),
+                    Ok(false) => "Bench removed; $0.50 refunded.".into(),
+                    Err(error) => format!("Cannot change bench: {error}"),
+                },
+                _ => "Select a public path first, then use Bench.".into(),
+            });
+            view.scene_dirty = true;
+        }
+    }
     if view.handyman_toggle_pending {
         view.handyman_toggle_pending = false;
         let assigned = sim.0.grounds_status().assigned;

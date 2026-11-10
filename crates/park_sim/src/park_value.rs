@@ -6,6 +6,7 @@ pub struct ParkValue {
     pub track_cents: u64,
     pub carousel_cents: u64,
     pub service_cents: u64,
+    pub decorations_cents: u64,
     pub park_cents: u64,
     pub cash_cents: u64,
     pub principal_cents: u64,
@@ -39,13 +40,21 @@ impl Park {
             .fold((0, 0), |(sum, n), s| {
                 (sum + s.construction_cost_cents, n + 1)
             });
-        let park_cents = track_cents + carousel_cents + service_cents;
+        let decorations_cents = self.decorations.benches.len() as u64 * crate::BENCH_COST_CENTS
+            + self
+                .decorations
+                .scenery
+                .iter()
+                .map(|item| item.cost_cents)
+                .sum::<u64>();
+        let park_cents = track_cents + carousel_cents + service_cents + decorations_cents;
         let loan = self.loan_stats();
         let gross_assets_cents = i128::from(self.cash_cents) + i128::from(park_cents);
         ParkValue {
             track_cents,
             carousel_cents,
             service_cents,
+            decorations_cents,
             park_cents,
             cash_cents: self.cash_cents,
             principal_cents: loan.principal_cents,

@@ -126,6 +126,7 @@ pub(super) enum Action {
     Scenario(scenarios::ScenarioCommand),
     ToggleHandyman,
     ToggleBin,
+    ToggleBench,
     TogglePatrol,
     ToggleCleaning,
     ToggleEmptyBins,
@@ -616,6 +617,7 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Bin on path", Action::ToggleBin, 100.0);
                 button(p, "Patrol path", Action::TogglePatrol, 100.0);
             });
+            button(p, "Bench on path / $1", Action::ToggleBench, 207.0);
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
                 button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
@@ -1271,6 +1273,7 @@ pub(super) fn button_actions(
                 view.handyman_toggle_pending = true;
             }
             Action::ToggleBin => view.bin_toggle_pending = true,
+            Action::ToggleBench => view.bench_toggle_pending = true,
             Action::TogglePatrol => view.patrol_toggle_pending = true,
             Action::ToggleCleaning if view.guests_open && view.guest_stats_view => {
                 view.cleaning_toggle_pending = true;
@@ -1652,7 +1655,7 @@ pub(super) fn refresh(
             },
             Label::Status if matches!(view.path_tool.mode, PathTool::Scenery(_)) => {
                 let PathTool::Scenery(kind) = view.path_tool.mode else { unreachable!() };
-                format!("Plant {} / one clear land tile / free", kind.name())
+                format!("Plant {} / one clear owned tile / {}", kind.name(), money(kind.build_cost_cents()))
             },
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
                 format!("Raise terrain / radius {} / paid per tile", view.path_tool.brush_radius)

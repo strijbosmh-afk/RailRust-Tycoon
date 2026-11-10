@@ -549,6 +549,7 @@ impl Park {
     }
 
     pub(crate) fn step_needs(&mut self) {
+        let benches = &self.decorations.benches;
         for guest in &mut self.guests {
             for kind in ServiceKind::BASIC_NEEDS {
                 if !self.ticks.is_multiple_of(kind.cadence()) {
@@ -565,7 +566,15 @@ impl Park {
             if self.ticks.is_multiple_of(90) {
                 let old_energy = guest.needs.energy;
                 if guest.state == GuestState::Walking {
-                    guest.needs.energy = guest.needs.energy.saturating_sub(1);
+                    if guest.current.is_some_and(|id| {
+                        benches
+                            .binary_search_by_key(&id, |bench| bench.path)
+                            .is_ok()
+                    }) {
+                        guest.needs.energy = guest.needs.energy.saturating_add(2).min(100);
+                    } else {
+                        guest.needs.energy = guest.needs.energy.saturating_sub(1);
+                    }
                 } else if self.ticks.is_multiple_of(180) {
                     guest.needs.energy = guest.needs.energy.saturating_add(1).min(100);
                 }

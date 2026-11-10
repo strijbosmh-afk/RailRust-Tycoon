@@ -73,6 +73,7 @@ fn ledger(park: &Park) {
 pub(crate) fn strip_services(value: Value) -> Value {
     let mut value = crate::finances::tests::strip_finances(value);
     value["schema_version"] = json!(7);
+    value["park"].as_object_mut().unwrap().remove("decorations");
     crate::legacy_cost_test_support::project_old_fixture(&mut value);
     value["park"]
         .as_object_mut()
@@ -279,6 +280,24 @@ fn walking_spends_energy_waiting_recovers_it_and_nausea_eases_without_rng() {
         (41, 58)
     );
     assert_eq!(park.crowd_rng, rng);
+}
+
+#[test]
+fn path_bench_restores_walking_energy_without_changing_the_guest_route() {
+    let mut park = fixture();
+    let path = park.guests[0].current.unwrap();
+    let route = park.guests[0].route.clone();
+    assert_eq!(park.toggle_path_bench(path), Ok(true));
+    park.guests[0].needs.energy = 41;
+    park.guests[0].state = GuestState::Walking;
+    park.ticks = 90;
+    park.step_needs();
+    assert_eq!(park.guests[0].needs.energy, 43);
+    assert_eq!(park.guests[0].route, route);
+    assert_eq!(park.toggle_path_bench(path), Ok(false));
+    park.ticks = 180;
+    park.step_needs();
+    assert_eq!(park.guests[0].needs.energy, 42);
 }
 
 #[test]
@@ -998,6 +1017,7 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
     let source = fixture();
     let mut old: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
     old["schema_version"] = json!(24);
+    old["park"].as_object_mut().unwrap().remove("decorations");
     old["content_version"] = json!(24);
     crate::legacy_cost_test_support::strip_park_open(&mut old);
     old["park"].as_object_mut().unwrap().remove("maintenance");

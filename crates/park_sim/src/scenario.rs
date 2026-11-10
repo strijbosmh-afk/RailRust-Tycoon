@@ -317,6 +317,7 @@ mod tests {
         let mut old: serde_json::Value =
             serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = serde_json::json!(37);
+        old["park"].as_object_mut().unwrap().remove("decorations");
         old["content_version"] = serde_json::json!(37);
         crate::legacy_cost_test_support::strip_scenario_field(&mut old);
         assert_eq!(
@@ -325,6 +326,10 @@ mod tests {
         );
         let mut current = old.clone();
         current["schema_version"] = serde_json::json!(38);
+        current["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("decorations");
         current["content_version"] = serde_json::json!(38);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
         old["park"]["scenario"] = serde_json::Value::Null;
@@ -417,6 +422,7 @@ mod tests {
         let mut old: serde_json::Value =
             serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = serde_json::json!(38);
+        old["park"].as_object_mut().unwrap().remove("decorations");
         old["content_version"] = serde_json::json!(38);
         crate::legacy_cost_test_support::strip_scenario_field(&mut old);
         assert_eq!(
@@ -424,9 +430,11 @@ mod tests {
             park
         );
         old["schema_version"] = serde_json::json!(39);
+        old["park"].as_object_mut().unwrap().remove("decorations");
         old["content_version"] = serde_json::json!(39);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).is_err());
         old["schema_version"] = serde_json::json!(38);
+        old["park"].as_object_mut().unwrap().remove("decorations");
         old["content_version"] = serde_json::json!(38);
         old["park"]["scenario"]["kind"] = serde_json::json!("BoardwalkSprint");
         assert!(Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).is_err());

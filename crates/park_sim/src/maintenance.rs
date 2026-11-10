@@ -191,6 +191,7 @@ mod tests {
             .unwrap()
             .remove("handyman_wages_cents");
         old["schema_version"] = 25.into();
+        old["park"].as_object_mut().unwrap().remove("decorations");
         old["content_version"] = 25.into();
         crate::legacy_cost_test_support::strip_park_open(&mut old);
         let migrated = Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()).unwrap();
@@ -201,6 +202,10 @@ mod tests {
         );
         let mut smuggled = current.clone();
         smuggled["schema_version"] = 25.into();
+        smuggled["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("decorations");
         smuggled["content_version"] = 25.into();
         assert!(Park::from_save_bytes(&serde_json::to_vec(&smuggled).unwrap()).is_err());
         let mut forged = current;

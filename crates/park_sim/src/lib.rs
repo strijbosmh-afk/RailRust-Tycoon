@@ -8,7 +8,11 @@ mod admission;
 mod appearance;
 mod carousel;
 mod crowds;
+mod decorations;
 pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
+pub use decorations::{
+    BENCH_CAP, BENCH_COST_CENTS, BenchError, DECORATION_REFUND_PERCENT, PaidScenery, PathBench,
+};
 mod visitors;
 pub use visitors::{
     ChargingRule, DepartedVisitors, FLYER_ARRIVAL_TICKS, FLYER_CAMPAIGN_COST_CENTS,
@@ -297,6 +301,7 @@ pub struct Park {
     mechanic_wage_progress: u16,
     mechanic_route: staff::MechanicRoute,
     grounds: grounds::GroundsState,
+    decorations: decorations::DecorationState,
     visitors: visitors::VisitorFlow,
     scenario: Option<scenario::ScenarioState>,
     loans: loans::LoanAccount,
@@ -340,6 +345,7 @@ impl PartialEq for Park {
             && self.mechanic_wage_progress == other.mechanic_wage_progress
             && self.mechanic_route == other.mechanic_route
             && self.grounds == other.grounds
+            && self.decorations == other.decorations
             && self.visitors == other.visitors
             && self.scenario == other.scenario
             && self.loans == other.loans
@@ -405,6 +411,7 @@ impl Park {
             mechanic_wage_progress: 0,
             mechanic_route: staff::MechanicRoute::default(),
             grounds: grounds::GroundsState::default(),
+            decorations: decorations::DecorationState::default(),
             visitors: visitors::VisitorFlow::default(),
             scenario: None,
             loans: loans::LoanAccount::default(),

@@ -1312,6 +1312,44 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             );
         }
     }
+    for bench in park.path_benches() {
+        let Some(path) = park
+            .object(bench.path)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let foot = base.truncate() + Vec2::new(9.0, 1.0);
+        mesh.surface_ellipse(roof, foot, 9.5, 3.2, DETAIL_BIAS * 3.0, rgb(56, 74, 43));
+        mesh.line(
+            foot + Vec2::new(-8.0, 5.0),
+            foot + Vec2::new(8.0, 5.0),
+            4.0,
+            base.z + 0.046,
+            rgb(181, 101, 49),
+        );
+        mesh.line(
+            foot + Vec2::new(-8.0, 8.0),
+            foot + Vec2::new(8.0, 8.0),
+            3.0,
+            base.z + 0.047,
+            rgb(225, 154, 65),
+        );
+        for x in [-6.5, 6.5] {
+            mesh.line(
+                foot + Vec2::new(x, 1.0),
+                foot + Vec2::new(x, 7.0),
+                1.5,
+                base.z + 0.048,
+                rgb(70, 72, 61),
+            );
+        }
+    }
     for bin in park.ground_bins() {
         let Some(path) = park.object(bin.path) else {
             continue;
