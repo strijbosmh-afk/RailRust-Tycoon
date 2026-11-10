@@ -3,6 +3,8 @@ use crate::{FinanceKind, ObjectId, ObjectKind, Park, PlacementError, SceneryKind
 
 pub const BENCH_CAP: usize = 256;
 pub const BENCH_COST_CENTS: u64 = 100;
+pub const SIGN_COST_CENTS: u64 = 200;
+pub const FENCE_COST_CENTS: u64 = 300;
 pub const DECORATION_REFUND_PERCENT: u64 = 50;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -18,6 +20,41 @@ pub struct PathBench {
     pub path: ObjectId,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PathSign {
+    pub path: ObjectId,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PathFence {
+    pub path: ObjectId,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PathAdditionKind {
+    Bench,
+    Sign,
+    Fence,
+}
+impl PathAdditionKind {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Bench => "Bench",
+            Self::Sign => "Sign",
+            Self::Fence => "Fence",
+        }
+    }
+    pub const fn cost_cents(self) -> u64 {
+        match self {
+            Self::Bench => BENCH_COST_CENTS,
+            Self::Sign => SIGN_COST_CENTS,
+            Self::Fence => FENCE_COST_CENTS,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DecorationState {
@@ -27,6 +64,16 @@ pub(crate) struct DecorationState {
     pub scenery: Vec<PaidScenery>,
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,BENCH_CAP>")]
     pub benches: Vec<PathBench>,
+    #[serde(
+        default,
+        deserialize_with = "crate::saves::bounded_objects::<_,_,BENCH_CAP>"
+    )]
+    pub signs: Vec<PathSign>,
+    #[serde(
+        default,
+        deserialize_with = "crate::saves::bounded_objects::<_,_,BENCH_CAP>"
+    )]
+    pub fences: Vec<PathFence>,
     pub construction_cents: u64,
     pub refund_cents: u64,
 }
@@ -40,17 +87,18 @@ pub enum BenchError {
         available_cents: u64,
     },
 }
+pub type PathAdditionError = BenchError;
 impl std::fmt::Display for BenchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidPath => f.write_str("select a public path"),
-            Self::AtCapacity => f.write_str("bench limit reached"),
+            Self::AtCapacity => f.write_str("path furniture limit reached"),
             Self::InsufficientFunds {
                 required_cents,
                 available_cents,
             } => write!(
                 f,
-                "bench costs ${}.{:02}; park cash is ${}.{:02}",
+                "path furniture costs ${}.{:02}; park cash is ${}.{:02}",
                 required_cents / 100,
                 required_cents % 100,
                 available_cents / 100,
@@ -73,15 +121,118 @@ impl Park {
     pub fn path_benches(&self) -> &[PathBench] {
         &self.decorations.benches
     }
+    pub fn path_signs(&self) -> &[PathSign] {
+        &self.decorations.signs
+    }
+    pub fn path_fences(&self) -> &[PathFence] {
+        &self.decorations.fences
+    }
+
+    pub fn toggle_path_addition(
+        &mut self,
+        path: ObjectId,
+        kind: PathAdditionKind,
+    ) -> Result<bool, PathAdditionError> {
+        if kind == PathAdditionKind::Bench {
+            return self.toggle_path_bench(path);
+        }
+        if self
+            .object(path)
+            .is_none_or(|object| !object.is_public_path())
+        {
+            return Err(BenchError::InvalidPath);
+        }
+        let present = match kind {
+            PathAdditionKind::Sign => self
+                .decorations
+                .signs
+                .binary_search_by_key(&path, |item| item.path)
+                .ok(),
+            PathAdditionKind::Fence => self
+                .decorations
+                .fences
+                .binary_search_by_key(&path, |item| item.path)
+                .ok(),
+            PathAdditionKind::Bench => unreachable!(),
+        };
+        if let Some(index) = present {
+            match kind {
+                PathAdditionKind::Sign => {
+                    self.decorations.signs.remove(index);
+                }
+                PathAdditionKind::Fence => {
+                    self.decorations.fences.remove(index);
+                }
+                PathAdditionKind::Bench => unreachable!(),
+            }
+            self.record_decoration_refund(kind.cost_cents());
+            return Ok(false);
+        }
+        let count = match kind {
+            PathAdditionKind::Sign => self.decorations.signs.len(),
+            PathAdditionKind::Fence => self.decorations.fences.len(),
+            PathAdditionKind::Bench => unreachable!(),
+        };
+        if count >= BENCH_CAP {
+            return Err(BenchError::AtCapacity);
+        }
+        let cost = kind.cost_cents();
+        if self.cash_cents < cost {
+            return Err(BenchError::InsufficientFunds {
+                required_cents: cost,
+                available_cents: self.cash_cents,
+            });
+        }
+        match kind {
+            PathAdditionKind::Sign => {
+                let index = self
+                    .decorations
+                    .signs
+                    .partition_point(|item| item.path < path);
+                self.decorations.signs.insert(index, PathSign { path });
+            }
+            PathAdditionKind::Fence => {
+                let index = self
+                    .decorations
+                    .fences
+                    .partition_point(|item| item.path < path);
+                self.decorations.fences.insert(index, PathFence { path });
+            }
+            PathAdditionKind::Bench => unreachable!(),
+        }
+        self.decorations.construction_cents += cost;
+        self.record_cash(FinanceKind::DecorationConstruction, None, cost);
+        Ok(true)
+    }
 
     pub fn decoration_refund_quote(&self, object: ObjectId) -> Option<u64> {
+        let mut path_cost = 0;
         if self
             .decorations
             .benches
             .binary_search_by_key(&object, |bench| bench.path)
             .is_ok()
         {
-            return Some(BENCH_COST_CENTS * DECORATION_REFUND_PERCENT / 100);
+            path_cost += BENCH_COST_CENTS;
+        }
+        if self
+            .decorations
+            .signs
+            .binary_search_by_key(&object, |item| item.path)
+            .is_ok()
+        {
+            path_cost += SIGN_COST_CENTS;
+        }
+        if self
+            .decorations
+            .fences
+            .binary_search_by_key(&object, |item| item.path)
+            .is_ok()
+        {
+            path_cost += FENCE_COST_CENTS;
+        }
+        if path_cost != 0 {
+            return Some(path_cost * DECORATION_REFUND_PERCENT / 100);
         }
         self.decorations
             .scenery
@@ -163,6 +314,22 @@ impl Park {
             self.decorations.benches.remove(index);
             self.record_decoration_refund(BENCH_COST_CENTS);
         }
+        if let Ok(index) = self
+            .decorations
+            .signs
+            .binary_search_by_key(&removed, |item| item.path)
+        {
+            self.decorations.signs.remove(index);
+            self.record_decoration_refund(SIGN_COST_CENTS);
+        }
+        if let Ok(index) = self
+            .decorations
+            .fences
+            .binary_search_by_key(&removed, |item| item.path)
+        {
+            self.decorations.fences.remove(index);
+            self.record_decoration_refund(FENCE_COST_CENTS);
+        }
         if let Some(index) = self
             .decorations
             .scenery
@@ -194,6 +361,26 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
         }
         prior = Some(bench.path);
     }
+    for paths in [
+        state.signs.iter().map(|item| item.path).collect::<Vec<_>>(),
+        state
+            .fences
+            .iter()
+            .map(|item| item.path)
+            .collect::<Vec<_>>(),
+    ] {
+        let mut prior = None;
+        for path in paths {
+            if prior.is_some_and(|id| id >= path)
+                || park
+                    .object(path)
+                    .is_none_or(|object| !object.is_public_path())
+            {
+                return Err("decoration addition path is invalid".into());
+            }
+            prior = Some(path);
+        }
+    }
     let mut prior = None;
     for scenery in &state.scenery {
         if prior.is_some_and(|id| id >= scenery.object)
@@ -215,13 +402,15 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
         .iter()
         .map(|item| item.cost_cents)
         .sum::<u64>()
-        + state.benches.len() as u64 * BENCH_COST_CENTS;
+        + state.benches.len() as u64 * BENCH_COST_CENTS
+        + state.signs.len() as u64 * SIGN_COST_CENTS
+        + state.fences.len() as u64 * FENCE_COST_CENTS;
     if state.construction_cents < active_cost
         || state.refund_cents.checked_mul(2) != state.construction_cents.checked_sub(active_cost)
         || u128::from(state.construction_cents)
-            > u128::from(park.finances.next_entry_id.saturating_sub(1)) * 250
+            > u128::from(park.finances.next_entry_id.saturating_sub(1)) * 300
         || u128::from(state.refund_cents)
-            > u128::from(park.finances.next_entry_id.saturating_sub(1)) * 125
+            > u128::from(park.finances.next_entry_id.saturating_sub(1)) * 150
     {
         return Err("decoration costs or refunds are invalid".into());
     }
@@ -277,6 +466,14 @@ mod tests {
             park.toggle_path_bench(path),
             Err(BenchError::InsufficientFunds { .. })
         ));
+        assert!(matches!(
+            park.toggle_path_addition(path, PathAdditionKind::Sign),
+            Err(BenchError::InsufficientFunds { .. })
+        ));
+        assert!(matches!(
+            park.toggle_path_addition(path, PathAdditionKind::Fence),
+            Err(BenchError::InsufficientFunds { .. })
+        ));
         assert_eq!(park.objects().len(), before_objects);
         assert_eq!(park.finance_ledger().entries.len(), before_entries);
     }
@@ -297,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_40_migrates_free_scenery_and_41_rejects_unbacked_decoration() {
+    fn schema_40_migrates_free_scenery_and_current_rejects_unbacked_decoration() {
         let mut park = Park::new(32, 32);
         let pos = clear_land(&park, SceneryKind::Tree);
         let id = park.place_scenery(pos, SceneryKind::Tree).unwrap();
@@ -320,5 +517,84 @@ mod tests {
             .unwrap()
             .remove("refund_cents");
         assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
+    }
+
+    #[test]
+    fn signs_and_fences_share_a_path_and_refund_once_on_demolition() {
+        let mut park = Park::new(32, 32);
+        let path = park.place_path(TilePos { x: 5, y: 5 }, 0).unwrap();
+        let cash = park.cash_cents();
+        for kind in [
+            PathAdditionKind::Bench,
+            PathAdditionKind::Sign,
+            PathAdditionKind::Fence,
+        ] {
+            assert_eq!(park.toggle_path_addition(path, kind), Ok(true));
+        }
+        assert_eq!(park.cash_cents(), cash - 600);
+        assert_eq!(park.decoration_refund_quote(path), Some(300));
+        assert_eq!(park.park_value().decorations_cents, 600);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+        assert_eq!(park.remove_object(path).unwrap().id, path);
+        assert_eq!(park.cash_cents(), cash - 300);
+        assert!(
+            park.path_benches().is_empty()
+                && park.path_signs().is_empty()
+                && park.path_fences().is_empty()
+        );
+        assert_eq!(park.park_value().decorations_cents, 0);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+    }
+
+    #[test]
+    fn schema_41_migrates_existing_paid_bench_and_42_requires_new_fields() {
+        let mut park = Park::new(32, 32);
+        let path = park.place_path(TilePos { x: 5, y: 5 }, 0).unwrap();
+        park.toggle_path_bench(path).unwrap();
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
+        let mut old = value.clone();
+        old["schema_version"] = 41.into();
+        old["content_version"] = 41.into();
+        old["park"]["decorations"]
+            .as_object_mut()
+            .unwrap()
+            .remove("signs");
+        old["park"]["decorations"]
+            .as_object_mut()
+            .unwrap()
+            .remove("fences");
+        assert_eq!(
+            Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()),
+            Ok(park)
+        );
+        value["park"]["decorations"]
+            .as_object_mut()
+            .unwrap()
+            .remove("signs");
+        assert!(Park::from_save_bytes(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
+
+    #[test]
+    fn mixed_sign_and_fence_receipts_archive_and_reload() {
+        let mut park = Park::new(32, 32);
+        let path = park.place_path(TilePos { x: 5, y: 5 }, 0).unwrap();
+        for _ in 0..65 {
+            for kind in [PathAdditionKind::Sign, PathAdditionKind::Fence] {
+                assert_eq!(park.toggle_path_addition(path, kind), Ok(true));
+                assert_eq!(park.toggle_path_addition(path, kind), Ok(false));
+            }
+        }
+        assert!(park.finance_ledger().archived_entries > 0);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
     }
 }

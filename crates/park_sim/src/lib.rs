@@ -11,7 +11,9 @@ mod crowds;
 mod decorations;
 pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
 pub use decorations::{
-    BENCH_CAP, BENCH_COST_CENTS, BenchError, DECORATION_REFUND_PERCENT, PaidScenery, PathBench,
+    BENCH_CAP, BENCH_COST_CENTS, BenchError, DECORATION_REFUND_PERCENT, FENCE_COST_CENTS,
+    PaidScenery, PathAdditionError, PathAdditionKind, PathBench, PathFence, PathSign,
+    SIGN_COST_CENTS,
 };
 mod visitors;
 pub use visitors::{

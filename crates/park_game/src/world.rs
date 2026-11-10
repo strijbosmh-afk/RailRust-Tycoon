@@ -1350,6 +1350,86 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             );
         }
     }
+    for sign in park.path_signs() {
+        let Some(path) = park
+            .object(sign.path)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let foot = base.truncate() + Vec2::new(-9.0, 1.0);
+        mesh.surface_ellipse(roof, foot, 4.5, 2.0, DETAIL_BIAS * 3.0, rgb(47, 73, 62));
+        mesh.line(
+            foot,
+            foot + Vec2::new(0.0, 16.0),
+            2.3,
+            base.z + 0.05,
+            rgb(244, 220, 137),
+        );
+        mesh.quad(
+            [
+                foot + Vec2::new(-8.0, 12.0),
+                foot + Vec2::new(8.0, 12.0),
+                foot + Vec2::new(8.0, 23.0),
+                foot + Vec2::new(-8.0, 23.0),
+            ],
+            base.z + 0.051,
+            rgb(26, 119, 141),
+        );
+        mesh.line(
+            foot + Vec2::new(0.0, 16.0),
+            foot + Vec2::new(0.0, 20.0),
+            2.2,
+            base.z + 0.052,
+            rgb(251, 241, 184),
+        );
+        mesh.ellipse(
+            foot + Vec2::new(0.0, 22.0),
+            1.4,
+            1.4,
+            base.z + 0.053,
+            rgb(251, 241, 184),
+        );
+    }
+    for fence in park.path_fences() {
+        let Some(path) = park
+            .object(fence.path)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let left = base.truncate() + Vec2::new(-15.0, -7.0);
+        let right = base.truncate() + Vec2::new(15.0, -7.0);
+        for post in [left, right] {
+            mesh.surface_ellipse(roof, post, 3.0, 1.5, DETAIL_BIAS * 3.0, rgb(68, 88, 55));
+            mesh.line(
+                post,
+                post + Vec2::new(0.0, 10.0),
+                3.0,
+                base.z + 0.055,
+                rgb(223, 168, 83),
+            );
+        }
+        for rise in [4.0, 8.0] {
+            mesh.line(
+                left + Vec2::new(0.0, rise),
+                right + Vec2::new(0.0, rise),
+                2.2,
+                base.z + 0.056,
+                rgb(164, 94, 51),
+            );
+        }
+    }
     for bin in park.ground_bins() {
         let Some(path) = park.object(bin.path) else {
             continue;

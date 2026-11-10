@@ -127,6 +127,8 @@ pub(super) enum Action {
     ToggleHandyman,
     ToggleBin,
     ToggleBench,
+    ToggleSign,
+    ToggleFence,
     TogglePatrol,
     ToggleCleaning,
     ToggleEmptyBins,
@@ -618,6 +620,10 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Patrol path", Action::TogglePatrol, 100.0);
             });
             button(p, "Bench on path / $1", Action::ToggleBench, 207.0);
+            p.spawn(row()).with_children(|p| {
+                button(p, "Sign / $2", Action::ToggleSign, 100.0);
+                button(p, "Fence / $3", Action::ToggleFence, 100.0);
+            });
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
                 button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
@@ -1273,7 +1279,15 @@ pub(super) fn button_actions(
                 view.handyman_toggle_pending = true;
             }
             Action::ToggleBin => view.bin_toggle_pending = true,
-            Action::ToggleBench => view.bench_toggle_pending = true,
+            Action::ToggleBench => {
+                view.path_addition_pending = Some(park_sim::PathAdditionKind::Bench)
+            }
+            Action::ToggleSign => {
+                view.path_addition_pending = Some(park_sim::PathAdditionKind::Sign)
+            }
+            Action::ToggleFence => {
+                view.path_addition_pending = Some(park_sim::PathAdditionKind::Fence)
+            }
             Action::TogglePatrol => view.patrol_toggle_pending = true,
             Action::ToggleCleaning if view.guests_open && view.guest_stats_view => {
                 view.cleaning_toggle_pending = true;

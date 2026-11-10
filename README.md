@@ -1,6 +1,8 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.77.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.78.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+
+Current development stage **0.78.0** adds paid signs and fences on public paths. They can coexist with benches, follow path height and visibility, refund half their cost on direct removal or path demolition, and survive strict **42/42** saves. Schema 41 parks retain their paid scenery and benches when loaded. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates remain open.
 
 Current development stage **0.77.0** adds paid trees and flower beds, functional $1 path benches, 50% demolition refunds, and saved decoration ownership. Finance and recorded park value account for the new assets. Strict saves advance to **41/41**; older parks retain their free scenery and migrate with no paid decorations. This builds on the 0.76.0 tunnels and expanded limits. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [completion status](docs/PHASES_3_5_COMPLETION_STATUS.md), and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates are still open.
 

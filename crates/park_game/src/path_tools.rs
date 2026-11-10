@@ -733,7 +733,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
             crate::ui::money(park.cash_cents())
         ),
         Some(amount) if object.kind == ObjectKind::Path => format!(
-            "Path removed / bench refund {}.\nCash {} / routes recalculated.",
+            "Path removed / furniture refund {}.\nCash {} / routes recalculated.",
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),

@@ -60,6 +60,10 @@ pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
                 .place_path(bench_pos, bench_height)
                 .expect("bench path capture");
             park.toggle_path_bench(bench_path).expect("bench capture");
+            park.toggle_path_addition(bench_path, park_sim::PathAdditionKind::Sign)
+                .expect("sign capture");
+            park.toggle_path_addition(bench_path, park_sim::PathAdditionKind::Fence)
+                .expect("fence capture");
             let flowers = clear(park, SceneryKind::FlowerBed);
             park.build_scenery(flowers, SceneryKind::FlowerBed)
                 .expect("flowers capture");

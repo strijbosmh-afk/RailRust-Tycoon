@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 41;
-pub const CONTENT_VERSION: u32 = 41;
+pub const SCHEMA_VERSION: u32 = 42;
+pub const CONTENT_VERSION: u32 = 42;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -755,6 +755,7 @@ impl Park {
                 | 38
                 | 39
                 | 40
+                | 41
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -883,6 +884,19 @@ impl Park {
         {
             return Err(invalid("paid decorations require schema 41"));
         }
+        if header.schema_version < 42
+            && (!data.decorations.signs.is_empty()
+                || !data.decorations.fences.is_empty()
+                || data.finances.entries.iter().any(|entry| match entry.kind {
+                    crate::FinanceKind::DecorationConstruction => {
+                        matches!(entry.amount_cents, 200 | 300)
+                    }
+                    crate::FinanceKind::DecorationRefund => matches!(entry.amount_cents, 100 | 150),
+                    _ => false,
+                }))
+        {
+            return Err(invalid("path signs and fences require schema 42"));
+        }
         if header.schema_version < 40
             && (data
                 .track_draft
@@ -956,6 +970,18 @@ fn validate_decoration_field(bytes: &[u8], schema: u32) -> Result<(), SaveError>
     }
     if schema >= 41 && !present {
         return Err(invalid("schema 41 requires decorations"));
+    }
+    if schema >= 42
+        && (value["park"]["decorations"].get("signs").is_none()
+            || value["park"]["decorations"].get("fences").is_none())
+    {
+        return Err(invalid("schema 42 requires path signs and fences"));
+    }
+    if schema == 41
+        && (value["park"]["decorations"].get("signs").is_some()
+            || value["park"]["decorations"].get("fences").is_some())
+    {
+        return Err(invalid("path signs and fences require schema 42"));
     }
     Ok(())
 }

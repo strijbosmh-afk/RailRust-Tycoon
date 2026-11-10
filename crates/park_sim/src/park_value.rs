@@ -41,6 +41,8 @@ impl Park {
                 (sum + s.construction_cost_cents, n + 1)
             });
         let decorations_cents = self.decorations.benches.len() as u64 * crate::BENCH_COST_CENTS
+            + self.decorations.signs.len() as u64 * crate::SIGN_COST_CENTS
+            + self.decorations.fences.len() as u64 * crate::FENCE_COST_CENTS
             + self
                 .decorations
                 .scenery

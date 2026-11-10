@@ -940,8 +940,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     {
         return Err("archived decoration receipts are invalid".into());
     }
-    minimum_archived += u128::from(archived_decoration_construction).div_ceil(250)
-        + u128::from(archived_decoration_refunds).div_ceil(125);
+    minimum_archived += u128::from(archived_decoration_construction).div_ceil(300)
+        + u128::from(archived_decoration_refunds).div_ceil(150);
     maximum_archived += u128::from(archived_decoration_construction / 100)
         + u128::from(archived_decoration_refunds / 50);
     archived_check.add(
@@ -1112,9 +1112,9 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             FinanceKind::DecorationConstruction | FinanceKind::DecorationRefund
         ) {
             let valid_amount = if entry.kind == FinanceKind::DecorationConstruction {
-                [100, 150, 250].contains(&entry.amount_cents)
+                [100, 150, 200, 250, 300].contains(&entry.amount_cents)
             } else {
-                [50, 75, 125].contains(&entry.amount_cents)
+                [50, 75, 100, 125, 150].contains(&entry.amount_cents)
             };
             if entry.ride.is_some() || entry.service.is_some() || !valid_amount {
                 return Err("decoration receipt is invalid".into());
