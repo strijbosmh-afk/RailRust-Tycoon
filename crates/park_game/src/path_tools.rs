@@ -233,7 +233,9 @@ pub(super) fn placement_message(error: PlacementError) -> String {
             object.0
         ),
         PlacementError::TerrainIntersection { terrain_height, .. } => {
-            format!("Path is below the ground.\nGround height: {terrain_height}.")
+            format!(
+                "Path crosses the ground.\nBuild above height {terrain_height} or fully below it."
+            )
         }
         PlacementError::HeightOutOfRange { .. } => {
             format!("Choose a path height from 0 to {MAX_PATH_HEIGHT}.")
@@ -439,7 +441,17 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 });
             }
             view.path_tool.hint = reason.clone().unwrap_or_else(|| {
-                if queue {
+                let buried = park.tile(pos).is_some_and(|tile| {
+                    u16::from(height) + u16::from(slope.clearance()) <= u16::from(tile.height)
+                        && height < tile.height
+                });
+                if buried {
+                    format!(
+                        "Tunnel at {}, {} / height {height}.\nClick to build; inspect underground.",
+                        pos.x + 1,
+                        pos.y + 1
+                    )
+                } else if queue {
                     format!(
                         "Queue / {} -> {}\nFor selected ride #{}.",
                         height,
@@ -741,6 +753,32 @@ fn object_tool_name(kind: ObjectKind) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn underground_build_tool_places_a_saved_tunnel_path() {
+        let mut park = Park::new(8, 8);
+        let pos = TilePos { x: 3, y: 3 };
+        park.set_terrain_height(pos, 4).unwrap();
+        let mut view = ViewState {
+            view_mode: world::ViewMode::Underground,
+            ..ViewState::default()
+        };
+        view.path_tool.set_mode(PathTool::Build);
+        view.path_tool.height = 0;
+        let point =
+            world::path_build_center(pos, &park, view.rotation, 0, PathSlope::Flat).unwrap();
+        point_at(&mut park, &mut view, point, false);
+        assert!(view.path_tool.hint.contains("Tunnel"));
+        point_at(&mut park, &mut view, point, true);
+        let Some(SurfaceId::Object(id)) = view.selected else {
+            panic!("tunnel path was not selected");
+        };
+        assert!(park.is_underground(id));
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+    }
 
     #[test]
     fn scenery_map_tools_plant_save_and_demolish() {

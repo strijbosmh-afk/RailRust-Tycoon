@@ -534,24 +534,28 @@ fn population_cap_holds_one_due_arrival_until_a_slot_is_free() {
     let (mut p, entry) = simple();
     p.crowd_seed = Some(0);
     let path = *p.object(entry).unwrap();
-    for id in 1..=64 {
+    for id in 1..=VISITOR_ACTIVE_CAP as u64 {
         p.guests.push(new_guest(GuestId(id), path, 0));
     }
-    p.next_guest_id = 65;
+    p.next_guest_id = VISITOR_ACTIVE_CAP as u64 + 1;
     p.set_visitor_arrivals(true).unwrap();
     for _ in 0..900 {
         p.advance(Speed::Normal);
     }
-    assert_eq!(p.guests().len(), 64);
+    assert_eq!(p.guests().len(), VISITOR_ACTIVE_CAP);
     assert_eq!(p.visitor_flow_stats().spawned, 0);
     p.request_guest_departure(GuestId(1)).unwrap();
     for _ in 0..150 {
         p.advance(Speed::Normal);
     }
     assert_eq!(p.departed_visitors().count, 1);
-    assert_eq!(p.guests().len(), 64);
+    assert_eq!(p.guests().len(), VISITOR_ACTIVE_CAP);
     assert_eq!(p.visitor_flow_stats().spawned, 1);
-    assert!(p.guests().iter().any(|g| g.id == GuestId(65)));
+    assert!(
+        p.guests()
+            .iter()
+            .any(|g| g.id == GuestId(VISITOR_ACTIVE_CAP as u64 + 1))
+    );
     p.to_save_bytes().unwrap();
 }
 

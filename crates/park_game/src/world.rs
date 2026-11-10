@@ -2884,6 +2884,29 @@ mod tests {
     }
 
     #[test]
+    fn buried_path_is_selectable_only_in_underground_view_at_all_rotations() {
+        let mut park = Park::new(8, 8);
+        let pos = TilePos { x: 3, y: 3 };
+        park.set_terrain_height(pos, 4).unwrap();
+        let path = park.place_path(pos, 0).unwrap();
+        let id = SurfaceId::Object(path);
+        for rotation in 0..4 {
+            assert!(selectable_surfaces(&park, id, rotation, ViewMode::Surface).is_empty());
+            assert_eq!(
+                selectable_surfaces(&park, id, rotation, ViewMode::Underground).len(),
+                3
+            );
+        }
+        park.set_terrain_height(pos, 0).unwrap();
+        for rotation in 0..4 {
+            assert_eq!(
+                selectable_surfaces(&park, id, rotation, ViewMode::Surface).len(),
+                3
+            );
+        }
+    }
+
+    #[test]
     fn missing_or_removed_objects_never_render_selectable_faces() {
         let mut park = Park::new(12, 12);
         let removed = park

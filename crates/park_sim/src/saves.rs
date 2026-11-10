@@ -42,11 +42,11 @@ use crate::{
 };
 
 /// Both readers and writers reject larger files before JSON parsing/returning.
-pub const MAX_SAVE_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_SAVE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_TILES: usize = (MAX_MAP_SIZE * MAX_MAP_SIZE) as usize;
-pub(crate) const MAX_OBJECTS: usize = 4096;
-pub(crate) const MAX_PATHS: usize = 1024;
-const MAX_GUESTS: usize = 256;
+pub(crate) const MAX_OBJECTS: usize = 6144;
+pub(crate) const MAX_PATHS: usize = 2048;
+const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
 pub const SCHEMA_VERSION: u32 = 40;

@@ -1083,9 +1083,9 @@ mod tests {
                 park.place_path(
                     TilePos {
                         x: (index % 32) as u32,
-                        y: (index / 32) as u32,
+                        y: ((index / 32) % 32) as u32,
                     },
-                    10,
+                    10 + ((index / 1024) * 2) as u8,
                 )
                 .unwrap(),
             );

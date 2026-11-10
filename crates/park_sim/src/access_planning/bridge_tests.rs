@@ -92,7 +92,7 @@ fn bridge_uses_a_matching_slope_and_preserves_every_queue() {
 }
 
 #[test]
-fn enclosed_exit_has_no_misleading_partial_route() {
+fn enclosed_exit_offers_a_valid_tunnel_without_claiming_access_is_ready() {
     let mut park = Park::new(16, 16);
     let ride = park.place_carousel(TilePos { x: 8, y: 8 }, 8).unwrap();
     park.place_ride_entrance(TilePos { x: 7, y: 9 }, 8, PathDirection::East, ride)
@@ -109,10 +109,14 @@ fn enclosed_exit_has_no_misleading_partial_route() {
     }
     let plan = park.ride_access_plan(ride).unwrap();
     assert_eq!(plan.exit.status, RideExitStatus::PublicDisconnected);
+    let tunnel = plan
+        .suggestions
+        .iter()
+        .find(|s| s.kind == RideAccessBuildKind::PublicPath)
+        .unwrap();
+    assert!(park.tile(tunnel.pos).unwrap().height > tunnel.height);
     assert!(
-        !plan
-            .suggestions
-            .iter()
-            .any(|s| s.kind == RideAccessBuildKind::PublicPath)
+        park.validate_sloped_path(tunnel.pos, tunnel.height, tunnel.slope)
+            .is_ok()
     );
 }

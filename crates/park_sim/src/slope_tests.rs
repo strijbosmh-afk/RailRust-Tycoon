@@ -208,12 +208,12 @@ fn sloped_preview_commit_clearance_limits_and_rejections_are_atomic() {
 
 #[test]
 fn player_slope_capacity_rejection_preserves_ids_and_warm_cache() {
-    let mut park = Park::new(32, 32);
+    let mut park = Park::new(64, 64);
     for index in 0..crate::saves::MAX_PATHS {
         park.place_path(
             TilePos {
-                x: index as u32 % 32,
-                y: index as u32 / 32,
+                x: index as u32 % 64,
+                y: index as u32 / 64,
             },
             4,
         )

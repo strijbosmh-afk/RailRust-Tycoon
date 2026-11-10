@@ -863,7 +863,12 @@ mod tests {
         // A ground track occupies [0,2); the path occupies [8,10).
         // Terrain can expose the track at zero, or cover it up to the path.
         for height in [0, 1, 2, 7, 8, 9, MAX_TERRAIN_HEIGHT] {
-            assert_terrain_preview_commit(&park, overlap, height, matches!(height, 0 | 2..=8));
+            assert_terrain_preview_commit(
+                &park,
+                overlap,
+                height,
+                matches!(height, 0 | 2..=8) || height == MAX_TERRAIN_HEIGHT,
+            );
         }
         let graded = park
             .objects

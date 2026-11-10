@@ -1790,19 +1790,23 @@ pub(super) fn refresh(
             Label::PathShape
                 if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit | PathTool::Service(_)) =>
             {
-                format!(
-                    "Face {} [C]",
-                    direction_name(if matches!(view.path_tool.mode,PathTool::Service(_)) {
-                        view.path_tool.service_facing
-                    } else if view.path_tool.mode == PathTool::Exit {
-                        view.path_tool.exit_facing
-                    } else {
-                        view.path_tool.entrance_facing
-                    }),
-                )
+                let facing = if matches!(view.path_tool.mode, PathTool::Service(_)) {
+                    view.path_tool.service_facing
+                } else if view.path_tool.mode == PathTool::Exit {
+                    view.path_tool.exit_facing
+                } else {
+                    view.path_tool.entrance_facing
+                };
+                let initial = match facing {
+                    PathDirection::North => 'N',
+                    PathDirection::East => 'E',
+                    PathDirection::South => 'S',
+                    PathDirection::West => 'W',
+                };
+                format!("{initial} [C]")
             }
-            Label::PathShape if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) => "Terrain tool / no slope".into(),
-            Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"3 x 3 / no facing".into(),
+            Label::PathShape if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) => "Brush".into(),
+            Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"3 x 3".into(),
             Label::PathShape if matches!(view.path_tool.mode, PathTool::Scenery(_)) => "Ground".into(),
             Label::PathShape => format!("{} [C]", match view.path_tool.slope {
                 PathSlope::Flat => "Flat",
