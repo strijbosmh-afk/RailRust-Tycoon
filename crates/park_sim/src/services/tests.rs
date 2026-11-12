@@ -228,10 +228,16 @@ fn needs_are_seeded_and_tick_order_applies_each_critical_crossing_once() {
     let rng = park.crowd_rng;
     for guest in &park.guests {
         assert_eq!(guest.needs, GuestNeeds::for_guest(42, guest.id));
+        assert_eq!((guest.needs.souvenir, guest.needs.information), (0, 0));
         assert!(
-            ServiceKind::ALL
-                .iter()
-                .all(|kind| (10..=30).contains(&guest.needs.value(*kind)))
+            [
+                ServiceKind::Food,
+                ServiceKind::Drink,
+                ServiceKind::Toilet,
+                ServiceKind::Rest
+            ]
+            .iter()
+            .all(|kind| (10..=30).contains(&guest.needs.value(*kind)))
         );
     }
     let before = park.clone();
@@ -240,6 +246,8 @@ fn needs_are_seeded_and_tick_order_applies_each_critical_crossing_once() {
     assert_eq!(park.crowd_rng, rng);
     // The test targets the pure needs stage at a tick shared by all cadences.
     park.guests[0].needs = GuestNeeds {
+        souvenir: 0,
+        information: 0,
         hunger: 84,
         thirst: 84,
         toilet: 84,
@@ -846,7 +854,7 @@ fn active_service_visits_require_the_matching_need_to_remain_urgent() {
             ServiceKind::Food => "hunger",
             ServiceKind::Drink => "thirst",
             ServiceKind::Toilet => "toilet",
-            ServiceKind::Rest => unreachable!("fixture has only original services"),
+            _ => unreachable!("fixture has only original services"),
         };
         json["park"]["guests"][index]["needs"][field] = json!(NEED_SEEK_THRESHOLD - 1);
         assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
@@ -943,6 +951,8 @@ fn service_selection_is_stable_when_service_storage_is_reversed() {
 fn loading_above_critical_does_not_repeat_the_crossing_penalty() {
     let mut park = fixture();
     park.guests[0].needs = GuestNeeds {
+        souvenir: 0,
+        information: 0,
         hunger: 85,
         thirst: 90,
         toilet: 100,
@@ -988,6 +998,8 @@ fn critical_needs_continue_during_a_reserved_passenger_journey() {
         })
         .unwrap();
     park.guests[index].needs = GuestNeeds {
+        souvenir: 0,
+        information: 0,
         hunger: 84,
         thirst: 84,
         toilet: 84,

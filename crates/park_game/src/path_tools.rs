@@ -60,6 +60,8 @@ pub(super) struct ToolState {
     pub terrain_preview: Option<TerrainPreview>,
     pub service_preview: Option<ServicePreview>,
     pub carousel_preview: Option<CarouselPreview>,
+    pub ride_model: park_sim::RideModel,
+    pub ride_rotation: u8,
     pub flat_ride_kind: park_sim::RideKind,
     pub hint: String,
 }
@@ -78,6 +80,8 @@ impl Default for ToolState {
             terrain_preview: None,
             service_preview: None,
             carousel_preview: None,
+            ride_model: park_sim::RideModel::Carousel,
+            ride_rotation: 0,
             flat_ride_kind: park_sim::RideKind::Carousel,
             hint: "Choose a build tool.\nM opens facility settings.".into(),
         }
@@ -101,7 +105,15 @@ impl ToolState {
     }
 
     pub fn max_height(&self) -> u8 {
-        if matches!(self.mode, PathTool::Service(_) | PathTool::Carousel) {
+        if self.mode == PathTool::Carousel {
+            return park_sim::MAX_TERRAIN_HEIGHT
+                - if self.ride_model.tracked() {
+                    7
+                } else {
+                    self.ride_model.clearance()
+                };
+        }
+        if matches!(self.mode, PathTool::Service(_)) {
             return MAX_PATH_HEIGHT - 1;
         }
         if matches!(self.mode, PathTool::Entrance | PathTool::Exit) || self.slope == PathSlope::Flat
@@ -113,7 +125,12 @@ impl ToolState {
     }
 
     pub fn cycle_shape(&mut self) {
-        if matches!(self.mode, PathTool::Carousel | PathTool::Scenery(_)) {
+        if self.mode == PathTool::Carousel {
+            self.ride_rotation = (self.ride_rotation + 1) % 4;
+            self.clear_pointer();
+            return;
+        }
+        if matches!(self.mode, PathTool::Scenery(_)) {
             return;
         }
         if matches!(
@@ -193,17 +210,10 @@ impl ToolState {
         }
         .into();
         if self.mode == PathTool::Carousel {
-            let (name, cost) = match self.flat_ride_kind {
-                park_sim::RideKind::Swing => ("Swing ride", park_sim::SWING_BUILD_COST_CENTS),
-                park_sim::RideKind::DropTower => {
-                    ("Drop tower", park_sim::DROP_TOWER_BUILD_COST_CENTS)
-                }
-                _ => ("Carousel", park_sim::CAROUSEL_BUILD_COST_CENTS),
-            };
+            let (width, depth) = self.ride_model.dimensions();
             self.hint = format!(
-                "{name}: {} / 3 x 3.\n{}% paid cost back on demolition.",
-                crate::ui::money(cost),
-                park_sim::CAROUSEL_REFUND_PERCENT
+                "{} / {width} x {depth} tiles\nC rotates / +/- sets height / click to build",
+                self.ride_model
             );
         }
         if let PathTool::Service(kind) = self.mode {
@@ -549,6 +559,8 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 if object.kind == ObjectKind::Carousel {
                     if let Some(c) = park.object_ride(object.id).and_then(|id| park.carousel(id)) {
                         view.path_tool.carousel_preview = Some(CarouselPreview {
+                            model: park.ride_model(c.ride.id).unwrap(),
+                            rotation: c.rotation,
                             kind: c.kind,
                             origin: c.origin,
                             height: c.height,

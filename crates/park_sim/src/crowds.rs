@@ -64,7 +64,7 @@ pub struct Guest {
     pub state: GuestState,
     pub arrivals: u64,
     pub rides_completed: u64,
-    #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,9>")]
+    #[serde(deserialize_with = "crate::saves::bounded_objects::<_,_,{crate::MAX_RIDE_RECORDS}>")]
     pub ride_history: Vec<GuestRideHistory>,
     /// Cash still owned by this guest, including a fare reserved before departure.
     pub wallet_cents: u32,

@@ -14,6 +14,10 @@ pub(crate) fn cost(kind: ServiceKind) -> u64 {
         ServiceKind::Drink => 8_000,
         ServiceKind::Toilet => 10_000,
         ServiceKind::Rest => 14_000,
+        ServiceKind::IceCream => 11_000,
+        ServiceKind::Souvenir => 16_000,
+        ServiceKind::Information => 9_000,
+        ServiceKind::FirstAid => 18_000,
     }
 }
 

@@ -1,23 +1,12 @@
 //! Deliberate placement validates the complete three-by-three footprint.
 use super::*;
-use park_sim::{CarouselError, RideKind};
-
-fn build_error(error: CarouselError) -> String {
-    match error {
-        CarouselError::InsufficientFunds {
-            required_cents,
-            available_cents,
-        } => format!(
-            "Need {} more to build.",
-            crate::ui::money(required_cents - available_cents)
-        ),
-        error => error.to_string(),
-    }
-}
+use park_sim::{RideKind, RideModel};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CarouselPreview {
     pub kind: RideKind,
+    pub model: RideModel,
+    pub rotation: u8,
     pub origin: TilePos,
     pub height: u8,
     pub valid: bool,
@@ -26,11 +15,21 @@ pub(crate) struct CarouselPreview {
 
 pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click: bool) {
     let height = view.path_tool.height;
-    let kind = view.path_tool.flat_ride_kind;
-    let cost = match kind {
-        RideKind::Swing => park_sim::SWING_BUILD_COST_CENTS,
-        RideKind::DropTower => park_sim::DROP_TOWER_BUILD_COST_CENTS,
-        _ => park_sim::CAROUSEL_BUILD_COST_CENTS,
+    let model = view.path_tool.ride_model;
+    let kind = model.base_kind();
+    let rotation = view.path_tool.ride_rotation;
+    let cost = if model.tracked() {
+        model
+            .layout(TilePos { x: 0, y: 0 }, height, rotation)
+            .map(|specs| {
+                specs
+                    .into_iter()
+                    .map(park_sim::track_piece_cost_cents)
+                    .sum()
+            })
+            .unwrap_or(0)
+    } else {
+        model.flat_cost()
     };
     let Some(origin) =
         world::pick_sloped_path_plane(point, park, view.rotation, height, PathSlope::Flat)
@@ -52,17 +51,28 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         PathSlope::Flat,
         view.view_mode,
     );
-    let quote = match kind {
-        RideKind::Swing => park.swing_build_quote(origin, height),
-        RideKind::DropTower => park.drop_tower_build_quote(origin, height),
-        _ => park.carousel_build_quote(origin, height),
-    };
-    let reason = quote.err().map(build_error).or_else(|| {
-        occluded.then(|| "Surface hidden here. Rotate or use underground view.".into())
-    });
+    let quote = park.catalogue_quote(model, origin, height, rotation);
+    let reason = quote
+        .as_ref()
+        .err()
+        .map(|error| {
+            if cost > park.cash_cents() {
+                format!(
+                    "Need {} more to build.",
+                    crate::ui::money(cost - park.cash_cents())
+                )
+            } else {
+                error.to_string()
+            }
+        })
+        .or_else(|| {
+            occluded.then(|| "Surface hidden here. Rotate or use underground view.".into())
+        });
     if !occluded {
         view.path_tool.carousel_preview = Some(CarouselPreview {
             kind,
+            model,
+            rotation,
             origin,
             height,
             valid: reason.is_none(),
@@ -76,7 +86,11 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         reason
             .as_deref()
             .map(str::to_owned)
-            .unwrap_or_else(|| format!("3 x 3 / height {height} / click to build."))
+            .unwrap_or_else(|| format!(
+                "{} x {} / height {height} / C rotates / click to build.",
+                model.dimensions().0,
+                model.dimensions().1
+            ))
     );
     if !click {
         return;
@@ -85,15 +99,19 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         view.path_notice = Some(format!("{kind} not placed: {reason}"));
         return;
     }
-    let placed = match kind {
-        RideKind::Swing => park.place_swing(origin, height),
-        RideKind::DropTower => park.place_drop_tower(origin, height),
-        _ => park.place_carousel(origin, height),
-    };
+    let placed = park.build_catalogue_ride(model, origin, height, rotation);
     match placed {
         Ok(id) => {
             view.select_ride(id);
-            let object = park.carousel(id).and_then(|c| c.objects.first()).copied();
+            let object = park
+                .carousel(id)
+                .and_then(|c| c.objects.first())
+                .copied()
+                .or_else(|| {
+                    park.coaster_circuit(id)
+                        .and_then(|c| c.pieces.first())
+                        .map(|p| p.object)
+                });
             view.selected = object.map(SurfaceId::Object);
             view.hovered = view.selected;
             view.scene_dirty = true;

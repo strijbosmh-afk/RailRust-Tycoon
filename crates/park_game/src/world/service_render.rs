@@ -57,6 +57,10 @@ pub(super) fn faces(
         ServiceKind::Drink => [rgb(43, 196, 235), rgb(25, 129, 192), rgb(23, 81, 149)],
         ServiceKind::Toilet => [rgb(64, 195, 138), rgb(38, 137, 104), rgb(33, 92, 75)],
         ServiceKind::Rest => [rgb(185, 93, 214), rgb(119, 63, 172), rgb(76, 44, 126)],
+        ServiceKind::IceCream => [rgb(255, 135, 191), rgb(203, 62, 123), rgb(141, 35, 89)],
+        ServiceKind::Souvenir => [rgb(251, 192, 40), rgb(211, 122, 20), rgb(137, 66, 13)],
+        ServiceKind::Information => [rgb(51, 162, 245), rgb(24, 97, 192), rgb(17, 57, 116)],
+        ServiceKind::FirstAid => [rgb(239, 67, 73), rgb(178, 35, 42), rgb(119, 25, 31)],
     };
     let mut cuboid = |min: Vec3, max: Vec3, colors: [Ink; 3]| {
         let upper = [
@@ -113,7 +117,127 @@ pub(super) fn faces(
         Vec3::new(0.5, 0.46, PATH_TOP_OFFSET),
         cream,
     );
-    if kind == ServiceKind::Toilet {
+    if matches!(
+        kind,
+        ServiceKind::IceCream
+            | ServiceKind::Souvenir
+            | ServiceKind::Information
+            | ServiceKind::FirstAid
+    ) {
+        cuboid(
+            Vec3::new(-0.42, -0.42, 0.20),
+            Vec3::new(0.28, 0.42, 2.20),
+            cream,
+        );
+        cuboid(
+            Vec3::new(-0.46, -0.46, 2.20),
+            Vec3::new(0.40, 0.46, 2.40),
+            accent,
+        );
+        cuboid(
+            Vec3::new(0.28, -0.30, 1.00),
+            Vec3::new(0.31, 0.30, 1.95),
+            dark,
+        );
+        cuboid(
+            Vec3::new(0.28, -0.38, 0.25),
+            Vec3::new(0.43, 0.38, 1.03),
+            accent,
+        );
+        cuboid(
+            Vec3::new(0.27, -0.40, 1.00),
+            Vec3::new(0.46, 0.40, 1.14),
+            cream,
+        );
+        match kind {
+            ServiceKind::IceCream => {
+                for (y, color) in [
+                    (-0.22, cream),
+                    (-0.02, accent),
+                    (0.18, [rgb(113, 214, 184); 3]),
+                ] {
+                    cuboid(
+                        Vec3::new(0.32, y, 1.14),
+                        Vec3::new(0.42, y + 0.12, 1.30),
+                        color,
+                    );
+                }
+                cuboid(
+                    Vec3::new(-0.10, -0.10, 2.40),
+                    Vec3::new(0.10, 0.10, 2.65),
+                    [rgb(213, 150, 67); 3],
+                );
+                cuboid(
+                    Vec3::new(-0.16, -0.16, 2.65),
+                    Vec3::new(0.16, 0.16, 2.92),
+                    [rgb(255, 210, 228); 3],
+                );
+            }
+            ServiceKind::Souvenir => {
+                for (i, y) in [-0.23, 0.0, 0.23].iter().enumerate() {
+                    cuboid(
+                        Vec3::new(0.32, *y, 1.14),
+                        Vec3::new(0.43, *y + 0.13, 1.38),
+                        if i % 2 == 0 {
+                            accent
+                        } else {
+                            [rgb(46, 168, 223); 3]
+                        },
+                    );
+                }
+                cuboid(
+                    Vec3::new(-0.2, -0.2, 2.40),
+                    Vec3::new(0.20, 0.20, 2.84),
+                    accent,
+                );
+                cuboid(
+                    Vec3::new(-0.21, -0.045, 2.40),
+                    Vec3::new(0.21, 0.045, 2.86),
+                    [rgb(234, 67, 106); 3],
+                );
+            }
+            ServiceKind::Information => {
+                cuboid(
+                    Vec3::new(-0.245, -0.30, 1.22),
+                    Vec3::new(-0.22, 0.30, 1.90),
+                    [rgb(113, 196, 133); 3],
+                );
+                cuboid(
+                    Vec3::new(0.28, -0.02, 1.4),
+                    Vec3::new(0.32, 0.08, 1.84),
+                    cream,
+                );
+                cuboid(
+                    Vec3::new(-0.04, -0.04, 2.40),
+                    Vec3::new(0.04, 0.04, 2.83),
+                    cream,
+                );
+                cuboid(
+                    Vec3::new(-0.05, -0.05, 2.88),
+                    Vec3::new(0.05, 0.05, 2.98),
+                    cream,
+                );
+            }
+            ServiceKind::FirstAid => {
+                cuboid(
+                    Vec3::new(-0.055, -0.20, 2.42),
+                    Vec3::new(0.055, 0.20, 2.97),
+                    accent,
+                );
+                cuboid(
+                    Vec3::new(-0.055, -0.32, 2.61),
+                    Vec3::new(0.055, 0.32, 2.77),
+                    accent,
+                );
+                cuboid(
+                    Vec3::new(0.33, -0.07, 1.14),
+                    Vec3::new(0.43, 0.07, 1.39),
+                    cream,
+                );
+            }
+            _ => unreachable!(),
+        }
+    } else if kind == ServiceKind::Toilet {
         cuboid(
             Vec3::new(-0.42, -0.4, PATH_TOP_OFFSET),
             Vec3::new(0.30, 0.4, 2.50),

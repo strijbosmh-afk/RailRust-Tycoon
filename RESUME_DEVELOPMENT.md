@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phases 3–5 are complete in 0.84.0, including coaster fleets, transitions and inversions.** Continue on `codex/phases-3-5-land-track-checkpoint` in [PR #76](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/76). See section 52 and the [phase status audit](docs/PHASES_3_5_COMPLETION_STATUS.md). Save schema/content is **47/47**. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
+**Current work is Phase 6, version 0.85.0, on `codex/phase-6-catalogue`.** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1369,3 +1369,45 @@ The next development phase is **Phase 6, the full ride and facility catalogue**.
 The first 0.84 portable archive passed a fresh extraction in `artifacts/phase-3-5-0.84.0/package proof é/` with **137 matching payload hashes and 124 current guides**. Six independent processes passed the coaster, front-screen and track-construction writer/verifier pairs. The executable matched the SHA-256 above. The final documentation refresh is packaged again and checked in a second fresh extraction. The adjacent **`dist/Parkbound-0.84.0-windows-x64.zip.sha256`** identifies the final archive.
 
 The acceptance launch used the isolated profile **`artifacts/phase-3-5-0.84.0/native final profile/`**. That window may remain open after the interrupted manual check. Save progress made in that window there, or launch the game without `--save-dir` to use `%LOCALAPPDATA%\Parkbound\saves`. The final source is on the branch listed at the top of this document. The portable ZIP and raw evidence remain local in the shared OneDrive checkout.
+
+
+## 53. Phase 6 ride and facility catalogue — 0.85.0
+
+### Scope and checkout
+
+The user approved 14 rides and eight facilities. The implementation is on `codex/phase-6-catalogue`, based on `b7ee080`, the completed Phase 3–5 checkpoint. The remote is `https://github.com/strijbosmh-afk/RailRust-Tycoon`.
+
+The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing before using the checkout on another PC. The normal Git history is also sufficient for a fresh clone. Use the pinned Rust toolchain in `rust-toolchain.toml` and Windows MSVC build tools.
+
+### Player flow
+
+Open **Build → Catalogue**, or use **Build catalogue** in Rides and **All facilities** in Services. Choose Gentle, Thrill, Water, Transport, Coasters or Facilities. Pick an entry, position the preview and click. **C** rotates the complete ride or facility. Existing height controls, construction history, demolition and management windows remain available.
+
+The full entry list, capacities, costs and access rules are in `docs/PHASE_6_CATALOGUE.md`. There are seven fixed rides, two water rides, two transports, three coaster models and eight facilities. New rides begin closed and need entrance, queue and exit access. Round-trip prefabs provide three station tiles for ground-level gates along the outer edge. Transport entrances belong to the first station and exits to the far station.
+
+### Implementation map
+
+- `crates/park_sim/src/catalogue.rs` defines stable ride models, prices, capacities, footprint rules and atomic placement.
+- `catalogue_motion.rs` provides deterministic fixed-ride passenger positions.
+- `trains.rs`, `journeys.rs` and `ride_access.rs` implement destination stops, correct unloading and empty transport return.
+- `services.rs` adds ice cream, souvenirs, information and first aid, with their own supplies, upkeep and effects.
+- `crates/park_game/src/ui/catalogue.rs` provides the responsive catalogue menu and normal placement entry points.
+- `world/catalogue_render.rs`, `world/train_render.rs` and `world/service_render.rs` contain original geometry. The sound mixer adds water, steam, monorail and fixed-ride profiles.
+- `save_check/catalogue.rs` writes and verifies a complete mixed-park continuation in separate processes. `diagnostics::build_catalogue_showcase` uses explicit synthetic historical admission receipts to fund that acceptance fixture. Normal new-park finances are unchanged.
+
+The four original `RideKind` engine families remain compatible with existing saves and callers. `RideModel` identifies the 14 catalogue entries. Current saves preserve the model, fixed-ride orientation, destination stop state and new guest demand values. Older schema files receive their legacy defaults. Old headers carrying new catalogue data are rejected.
+
+### Verification record
+
+Validation is in progress. Replace this paragraph with the final test counts, exact package checksums and GitHub checkpoint before handing off.
+
+### Continuing on another PC
+
+1. Sync the shared folder or clone the GitHub repository and check out `codex/phase-6-catalogue`.
+2. Read this section and the catalogue guide, then check `git status` before editing.
+3. Run `cargo fmt --all -- --check`, `cargo test --workspace --release --locked` and `cargo clippy --workspace --all-targets --release --locked -- -D warnings`.
+4. Run the catalogue writer and verifier in a new absolute proof directory. The commands are in the guide.
+5. Build with `scripts/package-windows.ps1`. Keep player saves and diagnostic profiles separate.
+6. Continue with Phase 7 from `docs/FULL_GAME_ROADMAP.md` after verifying this checkpoint.
+
+Graphics and functional tests on this PC establish correctness. Use an agreed representative Windows machine for performance targets and frame-time comparisons.

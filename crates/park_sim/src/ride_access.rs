@@ -16,6 +16,12 @@ pub struct RideId(pub u64);
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ride {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::catalogue::optional_model"
+    )]
+    pub model: Option<crate::RideModel>,
     pub id: RideId,
     #[serde(deserialize_with = "crate::saves::required_object_option")]
     pub entrance: Option<RideEntrance>,
@@ -40,6 +46,7 @@ pub struct Ride {
 impl Ride {
     pub(crate) fn new(id: RideId) -> Self {
         Self {
+            model: None,
             id,
             entrance: None,
             exit: None,
@@ -234,7 +241,7 @@ impl Park {
             }
             .into());
         }
-        self.entrance_station(ride, pos, height, facing)?;
+        self.gate_station(ride, pos, height, facing, false)?;
         Ok(())
     }
 
@@ -267,6 +274,38 @@ impl Park {
         Ok(object)
     }
 
+    pub(crate) fn gate_station(
+        &self,
+        owner: RideId,
+        pos: TilePos,
+        height: u8,
+        facing: PathDirection,
+        exit: bool,
+    ) -> Result<ObjectId, RideAccessError> {
+        let object = self.entrance_station(owner, pos, height, facing)?;
+        if self
+            .ride_model(owner)
+            .is_some_and(|model| model.transport())
+        {
+            let stations: Vec<_> = self
+                .coaster_circuit(owner)
+                .unwrap()
+                .pieces
+                .iter()
+                .filter(|p| p.kind == TrackKind::Station)
+                .collect();
+            let expected = if exit {
+                stations.last()
+            } else {
+                stations.first()
+            };
+            if expected.is_none_or(|station| station.object != object) {
+                return Err(RideAccessError::NotBesideStation);
+            }
+        }
+        Ok(object)
+    }
+
     pub(crate) fn entrance_station(
         &self,
         owner: RideId,
@@ -281,11 +320,15 @@ impl Park {
             let target = facing
                 .neighbor(pos)
                 .ok_or(RideAccessError::NotBesideStation)?;
+            let (mut width, mut depth) = self.ride_model(owner).unwrap().dimensions();
+            if carousel.rotation % 2 == 1 {
+                std::mem::swap(&mut width, &mut depth);
+            }
             let inside = |p: TilePos| {
                 p.x >= carousel.origin.x
-                    && p.x < carousel.origin.x + 3
+                    && p.x < carousel.origin.x + width
                     && p.y >= carousel.origin.y
-                    && p.y < carousel.origin.y + 3
+                    && p.y < carousel.origin.y + depth
             };
             if inside(pos) || !inside(target) {
                 return Err(RideAccessError::NotBesideStation);
@@ -296,8 +339,10 @@ impl Park {
                     actual: height,
                 });
             }
-            return Ok(carousel.objects
-                [((target.y - carousel.origin.y) * 3 + target.x - carousel.origin.x) as usize]);
+            return Ok(
+                carousel.objects[((target.y - carousel.origin.y) * width + target.x
+                    - carousel.origin.x) as usize],
+            );
         }
         self.require_ride(owner)?;
         let circuit = self
@@ -414,7 +459,8 @@ impl Park {
             report.status = RideAccessStatus::NoEntrance;
             return report;
         };
-        let Ok(station) = self.entrance_station(id, gate.pos, gate.height, entrance.facing) else {
+        let Ok(station) = self.gate_station(id, gate.pos, gate.height, entrance.facing, false)
+        else {
             report.status = RideAccessStatus::StationDisconnected;
             return report;
         };

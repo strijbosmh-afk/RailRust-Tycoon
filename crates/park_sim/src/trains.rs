@@ -144,6 +144,22 @@ pub struct TrainCircuit {
 }
 
 impl TrainCircuit {
+    /// The far station's exact stopping point, in circuit distance units.
+    pub fn destination_stop(&self) -> Option<u32> {
+        let mut distance = 0;
+        let mut stations = 0;
+        for piece in &self.pieces {
+            if piece.kind == TrackKind::Station {
+                stations += 1;
+                if stations == 2 {
+                    return Some(distance + 3 * TRACK_UNITS as u32 / 4);
+                }
+            }
+            distance += piece.length;
+        }
+        None
+    }
+
     pub fn roll_at(&self, distance: u32) -> i32 {
         let (index, local) = self.locate(distance);
         self.specs[index].roll_millidegrees(local * 1000 / self.pieces[index].length)
@@ -202,6 +218,8 @@ pub struct Train {
     pub in_depot: bool,
     #[serde(default, skip_serializing_if = "train_flag_false")]
     pub blocked: bool,
+    #[serde(default, skip_serializing_if = "train_flag_false")]
+    pub at_destination: bool,
     /// A close request finishes the current lap; it does not pause the park.
     pub open: bool,
     #[serde(deserialize_with = "crate::saves::string_enum")]
@@ -401,7 +419,7 @@ impl Park {
             return;
         }
         train.open = open;
-        if !train.departed {
+        if !train.departed && !train.at_destination {
             train.speed = 0;
             train.dwell_ticks = if open { wait_ticks } else { 0 };
             train.phase = if open {
@@ -517,7 +535,7 @@ impl Park {
             if length <= MAX_SPEED {
                 return Err(TrainError::InvalidLength);
             }
-            if spec.kind == TrackKind::Station {
+            if spec.kind == TrackKind::Station && station_stop == 0 {
                 station_stop = total_length + 3 * TRACK_UNITS as u32 / 4;
             }
             total_length = total_length
@@ -551,6 +569,7 @@ impl Park {
         let laps = candidate.train.as_ref().map_or(0, |train| train.laps);
         candidate.train = Some(Train {
             number: 0,
+            at_destination: false,
             in_depot: false,
             blocked: false,
             open: !restoring,
@@ -643,6 +662,7 @@ impl Park {
                 train.piece_index = 0;
                 train.dwell_ticks = 0;
                 train.departed = false;
+                train.at_destination = false;
                 train.lap_progress = 0;
                 train.blocked = false;
                 train.in_depot = false;
@@ -655,6 +675,7 @@ impl Park {
                 train.piece_index = 0;
                 train.dwell_ticks = 0;
                 train.departed = false;
+                train.at_destination = false;
                 train.lap_progress = 0;
                 train.blocked = false;
                 train.in_depot = true;
@@ -667,6 +688,7 @@ impl Park {
 
     pub(crate) fn step_train(&mut self) {
         let settings = self.coaster_operating_settings();
+        let model = self.selected_ride_model();
         if self.ride_holds_train() {
             return;
         }
@@ -676,6 +698,7 @@ impl Park {
             && self.train.as_ref().is_some_and(|train| {
                 train.open
                     && !train.departed
+                    && !train.at_destination
                     && train.phase != TrainPhase::Fault
                     && train.dwell_ticks == 0
             });
@@ -688,6 +711,11 @@ impl Park {
         let (Some(circuit), Some(train)) = (&self.circuit, &mut self.train) else {
             return;
         };
+        if train.at_destination {
+            train.at_destination = false;
+            train.departed = true;
+            train.speed = settings.brake_speed;
+        }
         if !train.open && !train.departed || train.phase == TrainPhase::Fault {
             return;
         }
@@ -731,6 +759,30 @@ impl Park {
                 }
             }
         };
+        train.speed = match model {
+            crate::RideModel::RiverRapids => train.speed.clamp(12, 22),
+            crate::RideModel::LogFlume => train.speed.clamp(12, 72),
+            crate::RideModel::ParkRailway => 28,
+            crate::RideModel::Monorail => 40,
+            _ => train.speed,
+        };
+        if model.transport()
+            && let Some(stop) = circuit.destination_stop()
+        {
+            let progress =
+                (stop + circuit.total_length - circuit.station_stop) % circuit.total_length;
+            if train.lap_progress < progress && train.lap_progress + train.speed >= progress {
+                train.distance = stop;
+                train.lap_progress = progress;
+                train.piece_index = circuit.locate(stop).0;
+                train.speed = 0;
+                train.departed = false;
+                train.at_destination = true;
+                train.phase = TrainPhase::Station;
+                train.dwell_ticks = 0;
+                return;
+            }
+        }
         // Carry every unit across piece boundaries. Every validated piece is
         // longer than MAX_SPEED, so a tick cannot jump over a lift/brake phase.
         // The sole station stop consumes overshoot exactly once per full lap.
@@ -781,11 +833,41 @@ pub(crate) fn validate_specs(
     if specs.is_empty() {
         return Err(TrainError::EmptyCircuit);
     }
+    if park.ride.as_ref().is_none_or(|r| r.model.is_none()) {
+        let count = specs
+            .iter()
+            .filter(|p| p.kind == TrackKind::Station)
+            .count();
+        if count != 1 {
+            return Err(TrainError::StationCount { count });
+        }
+    }
+    validate_specs_for_model(park, specs, park.selected_ride_model())
+}
+
+pub(crate) fn validate_specs_for_model(
+    park: &Park,
+    specs: &[TrackPieceSpec],
+    model: crate::RideModel,
+) -> Result<Vec<Vec<TrackPoint>>, TrainError> {
+    if specs.is_empty() {
+        return Err(TrainError::EmptyCircuit);
+    }
     let stations = specs
         .iter()
         .filter(|piece| piece.kind == TrackKind::Station)
         .count();
-    if stations != 1 {
+    let groups = specs
+        .iter()
+        .enumerate()
+        .filter(|(i, p)| {
+            p.kind == TrackKind::Station
+                && specs[(i + specs.len() - 1) % specs.len()].kind != TrackKind::Station
+        })
+        .count();
+    if groups != if model.transport() { 2 } else { 1 }
+        || stations > if model.transport() { 2 } else { 3 }
+    {
         return Err(TrainError::StationCount { count: stations });
     }
     let mut geometry = Vec::with_capacity(specs.len());
@@ -793,7 +875,7 @@ pub(crate) fn validate_specs(
         if park.tile(spec.pos).is_none() {
             return Err(PlacementError::OutOfBounds { pos: spec.pos }.into());
         }
-        if !valid_piece_ports(*spec) {
+        if !valid_piece_ports(*spec) || !model.allows(spec.kind) {
             return Err(TrainError::InvalidPiece { index });
         }
         geometry.push(piece_samples(*spec));

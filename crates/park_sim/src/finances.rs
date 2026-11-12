@@ -287,7 +287,7 @@ pub struct FinanceLedger {
     pub opening_tick: u64,
     pub opening_cash_cents: u64,
     pub opening_ride_revenue_cents: u64,
-    #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, 9>")]
+    #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, {crate::MAX_RIDE_RECORDS}>")]
     pub opening_rides: Vec<RideFinanceTotals>,
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, MAX_SERVICES>")]
     pub opening_services: Vec<ServiceFinanceOpening>,
@@ -297,7 +297,7 @@ pub struct FinanceLedger {
     pub archived: FinanceTotals,
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, MAX_SERVICES>")]
     pub archived_services: Vec<ServiceFinanceTotals>,
-    #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, 9>")]
+    #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, {crate::MAX_RIDE_RECORDS}>")]
     pub archived_rides: Vec<RideFinanceTotals>,
     /// Oldest first. Cash balances describe the state immediately after each entry.
     #[serde(deserialize_with = "crate::saves::bounded_objects::<_, _, FINANCE_LEDGER_CAPACITY>")]
@@ -583,9 +583,11 @@ impl Park {
                     .all_rides()
                     .filter(|ride| self.ride_is_open(ride.id) && self.ride_available(ride.id))
                     .map(|ride| {
-                        u64::from(crate::ride_upkeep_cost_cents(
-                            self.ride_kind(ride.id).unwrap(),
-                        )) * 2
+                        u64::from(
+                            self.ride_running_costs(ride.id)
+                                .unwrap()
+                                .cost_per_interval_cents,
+                        ) * 2
                     })
                     .sum::<u64>()
                 + if self.mechanic_hired {
@@ -675,8 +677,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         || ledger.entries.len() > FINANCE_LEDGER_CAPACITY
         || ledger.opening_services.len() > MAX_SERVICES
         || ledger.archived_services.len() > MAX_SERVICES
-        || ledger.opening_rides.len() > 9
-        || ledger.archived_rides.len() > 9
+        || ledger.opening_rides.len() > crate::MAX_RIDE_RECORDS
+        || ledger.archived_rides.len() > crate::MAX_RIDE_RECORDS
     {
         return Err("finance window or bounds are invalid".into());
     }
@@ -743,7 +745,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
     let mut sources = BTreeMap::new();
     let mut archived_check = FinanceTotals::default();
-    let max_fare_batch = crate::TRAIN_SEATS as u128 * u128::from(crate::INITIAL_GUEST_WALLET_CENTS);
+
     let mut minimum_archived = 0_u128;
     let mut maximum_archived = 0_u128;
     let mut ride_sources = BTreeMap::new();
@@ -760,14 +762,17 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         }
         previous_ride = Some(entry.ride);
         let carousel = park.carousel(entry.ride);
-        let upkeep_cost = u64::from(crate::ride_upkeep_cost_cents(
-            park.ride_kind(entry.ride).unwrap(),
-        ));
+        let upkeep_cost = u64::from(
+            park.ride_running_costs(entry.ride)
+                .unwrap()
+                .cost_per_interval_cents,
+        );
         if !entry.upkeep_cents.is_multiple_of(upkeep_cost)
             || entry.upkeep_cents > park.ride_running_costs(entry.ride).unwrap().upkeep_cents
         {
             return Err("archived ride upkeep disagrees with its owner".into());
         }
+        let max_fare_batch = u128::from(maximum_ride_receipt(park, entry.ride));
         let operating_entries = u128::from(entry.upkeep_cents / upkeep_cost);
         minimum_archived += operating_entries;
         maximum_archived += operating_entries;
@@ -1201,7 +1206,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             match entry.kind {
                 FinanceKind::RideUpkeep => {
                     if entry.amount_cents
-                        != u64::from(crate::ride_upkeep_cost_cents(park.ride_kind(id).unwrap()))
+                        != u64::from(park.ride_running_costs(id).unwrap().cost_per_interval_cents)
                         || (park.carousel(id).is_some()
                             && (source.demolition_refunds_cents != 0
                                 || source.construction_cents
@@ -1211,8 +1216,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                     }
                 }
                 FinanceKind::RideRevenue => {
-                    if entry.amount_cents
-                        > crate::TRAIN_SEATS as u64 * u64::from(crate::INITIAL_GUEST_WALLET_CENTS)
+                    if entry.amount_cents > maximum_ride_receipt(park, id)
                         || (park.carousel(id).is_some() && source.demolition_refunds_cents != 0)
                     {
                         return Err(
@@ -1458,6 +1462,18 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn maximum_ride_receipt(park: &Park, id: crate::RideId) -> u64 {
+    let model = park.ride_model(id).expect("validated finance owner");
+    let capacity = if model.tracked() {
+        usize::from(model.seats_per_car())
+            * usize::from(model.max_cars())
+            * usize::from(model.max_trains())
+    } else {
+        model.flat_capacity()
+    };
+    capacity as u64 * u64::from(crate::INITIAL_GUEST_WALLET_CENTS)
 }
 
 #[cfg(test)]

@@ -90,6 +90,8 @@ struct ViewState {
     finance_open: bool,
     rides_open: bool,
     designs_open: bool,
+    catalogue_open: bool,
+    catalogue_category: u8,
     design_commands: Vec<design_library::DesignCommand>,
     selected_ride: Option<park_sim::RideId>,
     ride_browse_pending: i32,
@@ -194,6 +196,8 @@ impl Default for ViewState {
             finance_open: false,
             rides_open: false,
             designs_open: false,
+            catalogue_open: false,
+            catalogue_category: 0,
             design_commands: Vec::new(),
             selected_ride: None,
             ride_browse_pending: 0,
@@ -352,6 +356,7 @@ impl ViewState {
             || self.finance_open
             || self.rides_open
             || self.designs_open
+            || self.catalogue_open
             || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -368,6 +373,7 @@ impl ViewState {
         self.finance_open = finance;
         self.rides_open = false;
         self.designs_open = false;
+        self.catalogue_open = false;
         self.design_commands.clear();
         self.ride_operating_commands.clear();
         self.ride_operating_notice = None;
@@ -425,6 +431,7 @@ impl ViewState {
         self.set_rides_modal(false);
         self.modal_transition_pending = true;
         self.path_tool.flat_ride_kind = kind;
+        self.path_tool.ride_model = park_sim::RideModel::legacy(kind);
         self.path_tool.set_mode(path_tools::PathTool::Carousel);
         self.track_editor.active = false;
         self.path_notice = None;
@@ -744,7 +751,7 @@ fn main() -> AppExit {
                         ui::guest_stats::refresh,
                         ui::visitor_flow::refresh,
                         ui::scenarios::refresh,
-                        ui::services::refresh,
+                        (ui::services::refresh, ui::catalogue::refresh).chain(),
                         ui::finance::refresh,
                         ui::track::refresh,
                         design_preview::refresh_images,
@@ -1047,6 +1054,12 @@ fn keyboard_input(
         return;
     }
     if view.modal_input_blocked {
+        return;
+    }
+    if view.catalogue_open {
+        if keys.just_pressed(KeyCode::Escape) {
+            view.set_modal(false, false, false, false);
+        }
         return;
     }
     // Text entry and library controls own every key while this modal is open.

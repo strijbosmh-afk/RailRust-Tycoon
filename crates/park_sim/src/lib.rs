@@ -7,10 +7,13 @@ mod access_planning;
 mod admission;
 mod appearance;
 mod carousel;
+mod catalogue;
+mod catalogue_motion;
 #[cfg(test)]
 mod coaster_acceptance;
 mod coaster_fleet;
 mod coasters;
+pub use catalogue::{CatalogueError, CatalogueQuote, RideCategory, RideModel};
 pub use coasters::{CoasterSelectionError, MAX_COASTER_RECORDS};
 #[cfg(test)]
 mod construction_playthrough_tests;

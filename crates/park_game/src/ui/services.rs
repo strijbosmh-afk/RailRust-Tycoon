@@ -80,6 +80,12 @@ pub(super) fn setup(commands: &mut Commands) {
                 })
                 .with_children(|p| {
                     label(p, "Services", 23.0, INK);
+                    button(
+                        p,
+                        "All facilities",
+                        Action::Catalogue(super::catalogue::Command::Open),
+                        150.0,
+                    );
                     button(p, "Close [M/Esc]", Action::CloseServices, 130.0);
                 });
                 p.spawn(row()).with_children(|p| {

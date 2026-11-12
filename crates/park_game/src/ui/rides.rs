@@ -212,6 +212,7 @@ pub(super) fn setup(commands: &mut Commands) {
     .with_children(|p| {
         p.spawn(Node {justify_content:JustifyContent::SpaceBetween,..row()}).with_children(|p| {
             label(p,"Rides",23.0,INK);
+            button(p,"Build catalogue",Action::Catalogue(super::catalogue::Command::Open),160.0);
             button(p,"Use ride [Y/Esc]",Action::CloseRides,150.0);
         });
         p.spawn(Node {justify_content:JustifyContent::SpaceBetween,..row()}).with_children(|p| {

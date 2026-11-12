@@ -13,6 +13,7 @@ use crate::path_tools::PathTool;
 
 pub(crate) mod appearance;
 pub(crate) mod audio;
+pub(crate) mod catalogue;
 pub(crate) mod designs;
 mod economy;
 pub(crate) mod finance;
@@ -96,6 +97,7 @@ const BUTTON: Color = Color::srgb_u8(230, 235, 221);
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
+    Catalogue(catalogue::Command),
     Menu,
     Navigation,
     CloseNavigation,
@@ -559,7 +561,12 @@ pub(super) fn setup(mut commands: Commands) {
                 .with_children(|p| label(p, "Services [M]", 12.0, INK));
             });
             p.spawn(row()).with_children(|p| {
-                button(p, "Inspect", Action::SetPathTool(PathTool::Inspect), 100.0);
+                button(
+                    p,
+                    "Catalogue",
+                    Action::Catalogue(catalogue::Command::Open),
+                    100.0,
+                );
                 button(p, "Path [P]", Action::SetPathTool(PathTool::Build), 100.0);
             });
             p.spawn(row()).with_children(|p| {
@@ -825,6 +832,7 @@ pub(super) fn setup(mut commands: Commands) {
     audio::setup(&mut commands);
     guests::setup(&mut commands);
     services::setup(&mut commands);
+    catalogue::setup(&mut commands);
     finance::setup(&mut commands);
     rides::setup(&mut commands);
     track::setup(&mut commands);
@@ -902,6 +910,16 @@ pub(super) fn button_actions(
                 }
             }
         }
+        return;
+    }
+    if let Some(command) = interactions.iter().find_map(|(i, a)| match a {
+        Action::Catalogue(command) if *i == Interaction::Pressed => Some(*command),
+        _ => None,
+    }) {
+        catalogue::command(&mut view, command);
+        return;
+    }
+    if view.catalogue_open {
         return;
     }
     // Keyboard transitions run next in the update chain. Do not apply a UI
@@ -1215,6 +1233,7 @@ pub(super) fn button_actions(
             continue;
         }
         match action {
+            Action::Catalogue(_) => {}
             Action::Navigation
             | Action::CloseNavigation
             | Action::NavGroup(_)
@@ -1678,11 +1697,7 @@ pub(super) fn refresh(
                 let PathTool::Service(kind)=view.path_tool.mode else {unreachable!()};
                 format!("Build {kind} / {} / C turns serving side",money(kind.build_cost_cents()))
             }
-            Label::Status if view.path_tool.mode==PathTool::Carousel=>{
-                let kind=view.path_tool.flat_ride_kind;
-                let cost=match kind {park_sim::RideKind::Swing=>park_sim::SWING_BUILD_COST_CENTS,park_sim::RideKind::DropTower=>park_sim::DROP_TOWER_BUILD_COST_CENTS,_=>park_sim::CAROUSEL_BUILD_COST_CENTS};
-                format!("Build {kind} / {} / clear 3 x 3 footprint",money(cost))
-            },
+            Label::Status if view.path_tool.mode == PathTool::Carousel => format!("Build {} / C rotates / click to place", view.path_tool.ride_model),
             Label::Status if matches!(view.path_tool.mode, PathTool::Scenery(_)) => {
                 let PathTool::Scenery(kind) = view.path_tool.mode else { unreachable!() };
                 format!("Plant {} / one clear owned tile / {}", kind.name(), money(kind.build_cost_cents()))

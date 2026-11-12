@@ -310,8 +310,12 @@ impl Park {
     fn access_gate_sites(&self, id: RideId) -> Vec<(TilePos, u8, PathDirection)> {
         let mut stations = Vec::new();
         if let Some(carousel) = self.carousel(id) {
-            for dy in 0..3 {
-                for dx in 0..3 {
+            let (mut width, mut depth) = self.ride_model(id).unwrap().dimensions();
+            if carousel.rotation % 2 == 1 {
+                std::mem::swap(&mut width, &mut depth);
+            }
+            for dy in 0..depth {
+                for dx in 0..width {
                     stations.push((
                         TilePos {
                             x: carousel.origin.x + dx,

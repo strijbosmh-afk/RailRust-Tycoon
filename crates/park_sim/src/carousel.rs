@@ -5,7 +5,7 @@ use crate::{
 };
 use std::collections::BTreeSet;
 
-pub const MAX_CAROUSEL_RECORDS: usize = 8;
+pub const MAX_CAROUSEL_RECORDS: usize = 64;
 pub const MAX_RIDE_RECORDS: usize = MAX_CAROUSEL_RECORDS + crate::MAX_COASTER_RECORDS;
 pub const CAROUSEL_SEATS: usize = 6;
 pub const CAROUSEL_RUN_TICKS: u16 = 720;
@@ -51,6 +51,8 @@ impl std::fmt::Display for CarouselPhase {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CarouselRide {
+    #[serde(default, skip_serializing_if = "zero_rotation")]
+    pub rotation: u8,
     /// Historical flat-ride record. Version 31 adds Swing while preserving
     /// the existing carousel layout and passenger/queue pipeline.
     #[serde(default, deserialize_with = "crate::saves::string_enum")]
@@ -60,7 +62,7 @@ pub struct CarouselRide {
     #[serde(deserialize_with = "crate::saves::strict_object")]
     pub origin: TilePos,
     pub height: u8,
-    #[serde(deserialize_with = "crate::saves::bounded_vec::<_,_,9>")]
+    #[serde(deserialize_with = "crate::saves::bounded_vec::<_,_,25>")]
     pub objects: Vec<ObjectId>,
     pub open: bool,
     #[serde(deserialize_with = "crate::saves::string_enum")]
@@ -119,6 +121,10 @@ impl std::fmt::Display for CarouselError {
     }
 }
 impl std::error::Error for CarouselError {}
+
+fn zero_rotation(value: &u8) -> bool {
+    *value == 0
+}
 
 impl Park {
     pub fn carousels(&self) -> &[CarouselRide] {
@@ -317,22 +323,34 @@ impl Park {
         height: u8,
         kind: RideKind,
     ) -> Result<u64, CarouselError> {
-        let clearance = if kind == RideKind::DropTower {
-            DROP_TOWER_CLEARANCE
-        } else {
-            3
-        };
         if self
             .carousels
             .iter()
-            .any(|c| c.kind == kind && !c.objects.is_empty())
+            .any(|c| c.kind == kind && c.ride.model.is_none() && !c.objects.is_empty())
         {
             return Err(CarouselError::ActiveCarouselExists);
+        }
+        self.catalogue_flat_quote(crate::RideModel::legacy(kind), origin, height, 0)
+    }
+    pub(crate) fn catalogue_flat_quote(
+        &self,
+        model: crate::RideModel,
+        origin: TilePos,
+        height: u8,
+        rotation: u8,
+    ) -> Result<u64, CarouselError> {
+        if model.tracked() {
+            return Err(CarouselError::UnknownRide(RideId(0)));
         }
         if self.carousels.len() >= MAX_CAROUSEL_RECORDS {
             return Err(CarouselError::HistoryFull);
         }
-        if self.objects.len() + 9 > crate::saves::MAX_OBJECTS {
+        let (mut width, mut depth) = model.dimensions();
+        if rotation % 2 == 1 {
+            std::mem::swap(&mut width, &mut depth);
+        }
+        let cells = (width * depth) as usize;
+        if self.objects.len() + cells > crate::saves::MAX_OBJECTS {
             return Err(PlacementError::CapacityExceeded {
                 resource: "objects",
                 max: crate::saves::MAX_OBJECTS,
@@ -343,10 +361,10 @@ impl Park {
             .checked_add(1)
             .ok_or(PlacementError::IdExhausted)?;
         self.next_object_id
-            .checked_add(9)
+            .checked_add(cells as u64)
             .ok_or(PlacementError::IdExhausted)?;
-        for y in 0..3 {
-            for x in 0..3 {
+        for y in 0..depth {
+            for x in 0..width {
                 let pos = TilePos {
                     x: origin
                         .x
@@ -357,15 +375,15 @@ impl Park {
                         .checked_add(y)
                         .ok_or(PlacementError::OutOfBounds { pos: origin })?,
                 };
-                self.validate_object_placement(pos, ObjectKind::Carousel, height, clearance)?;
+                self.validate_object_placement(
+                    pos,
+                    ObjectKind::Carousel,
+                    height,
+                    model.clearance(),
+                )?;
             }
         }
-        let cost = match kind {
-            RideKind::Carousel => CAROUSEL_BUILD_COST_CENTS,
-            RideKind::Swing => SWING_BUILD_COST_CENTS,
-            RideKind::DropTower => DROP_TOWER_BUILD_COST_CENTS,
-            RideKind::Coaster => unreachable!("coaster has separate construction"),
-        };
+        let cost = model.flat_cost();
         if self.cash_cents < cost {
             return Err(CarouselError::InsufficientFunds {
                 required_cents: cost,
@@ -394,16 +412,43 @@ impl Park {
         kind: RideKind,
     ) -> Result<RideId, CarouselError> {
         let cost = self.flat_ride_build_quote(origin, height, kind)?;
-        let clearance = if kind == RideKind::DropTower {
-            DROP_TOWER_CLEARANCE
-        } else {
-            3
-        };
+        Ok(self.insert_catalogue_flat(
+            crate::RideModel::legacy(kind),
+            origin,
+            height,
+            0,
+            cost,
+            false,
+        ))
+    }
+    pub(crate) fn place_catalogue_flat(
+        &mut self,
+        model: crate::RideModel,
+        origin: TilePos,
+        height: u8,
+        rotation: u8,
+    ) -> Result<RideId, CarouselError> {
+        let cost = self.catalogue_flat_quote(model, origin, height, rotation)?;
+        Ok(self.insert_catalogue_flat(model, origin, height, rotation % 4, cost, true))
+    }
+    fn insert_catalogue_flat(
+        &mut self,
+        model: crate::RideModel,
+        origin: TilePos,
+        height: u8,
+        rotation: u8,
+        cost: u64,
+        catalogued: bool,
+    ) -> RideId {
         let id = RideId(self.next_ride_id);
         self.next_ride_id += 1;
-        let mut objects = Vec::with_capacity(9);
-        for y in 0..3 {
-            for x in 0..3 {
+        let (mut width, mut depth) = model.dimensions();
+        if rotation % 2 == 1 {
+            std::mem::swap(&mut width, &mut depth);
+        }
+        let mut objects = Vec::new();
+        for y in 0..depth {
+            for x in 0..width {
                 objects.push(self.insert_surface_object(
                     SurfaceObject {
                         id: ObjectId(0),
@@ -416,15 +461,20 @@ impl Park {
                         path_slope: PathSlope::Flat,
                         queue_owner: None,
                         height,
-                        clearance,
+                        clearance: model.clearance(),
                     },
                     self.next_object_id + 1,
                 ));
             }
         }
+        let mut ride = Ride::new(id);
+        if catalogued {
+            ride.model = Some(model);
+        }
         self.carousels.push(CarouselRide {
-            kind,
-            ride: Ride::new(id),
+            rotation,
+            kind: model.base_kind(),
+            ride,
             origin,
             height,
             objects,
@@ -437,7 +487,7 @@ impl Park {
             demolition_refund_cents: 0,
         });
         self.record_ride_transaction(crate::FinanceKind::RideConstruction, id, cost);
-        Ok(id)
+        id
     }
     /// Refund only an actually paid body; no refund is generated for free
     /// imported bodies, gates, queues or the fixed demonstration coaster.
@@ -484,6 +534,14 @@ impl Park {
         let Some(c) = self.carousel(id).filter(|c| !c.objects.is_empty()) else {
             return Vec::new();
         };
+        if let Some(seats) = crate::catalogue_motion::flat_seats(
+            c,
+            self.ride_operating_settings(id)
+                .unwrap_or_default()
+                .cycle_ticks,
+        ) {
+            return seats;
+        }
         if c.kind == RideKind::DropTower {
             // Lift, pause, quick drop, then brake at the loading deck. All
             // positions derive from saved cycle progress, including mid-drop.
@@ -640,7 +698,7 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
             .any(|kind| {
                 park.carousels
                     .iter()
-                    .filter(|c| c.kind == *kind && !c.objects.is_empty())
+                    .filter(|c| c.kind == *kind && c.ride.model.is_none() && !c.objects.is_empty())
                     .count()
                     > 1
             })
@@ -655,24 +713,19 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
         }
     }
     for c in &park.carousels {
-        let clearance = if c.kind == RideKind::DropTower {
-            DROP_TOWER_CLEARANCE
-        } else {
-            3
-        };
-        if c.kind == RideKind::Coaster
-            || !matches!(
-                c.construction_cost_cents,
-                0 | CAROUSEL_BUILD_COST_CENTS
-                    | SWING_BUILD_COST_CENTS
-                    | DROP_TOWER_BUILD_COST_CENTS
-            )
-            || (c.kind == RideKind::Carousel
-                && c.construction_cost_cents != 0
-                && c.construction_cost_cents != CAROUSEL_BUILD_COST_CENTS)
-            || (c.kind == RideKind::Swing && c.construction_cost_cents != SWING_BUILD_COST_CENTS)
-            || (c.kind == RideKind::DropTower
-                && c.construction_cost_cents != DROP_TOWER_BUILD_COST_CENTS)
+        let model = c.ride.model.unwrap_or(crate::RideModel::legacy(c.kind));
+        let clearance = model.clearance();
+        let (mut width, mut depth) = model.dimensions();
+        if c.rotation % 2 == 1 {
+            std::mem::swap(&mut width, &mut depth);
+        }
+        if c.rotation > 3
+            || model.base_kind() != c.kind
+            || model.tracked()
+            || (c.construction_cost_cents != model.flat_cost()
+                && !(c.construction_cost_cents == 0
+                    && c.ride.model.is_none()
+                    && c.kind == RideKind::Carousel))
             || c.demolition_refund_cents
                 != if c.objects.is_empty() {
                     c.construction_cost_cents * u64::from(CAROUSEL_REFUND_PERCENT) / 100
@@ -682,8 +735,14 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
         {
             return Err("carousel construction basis or demolition refund is invalid".into());
         }
-        if c.origin.x.checked_add(2).is_none_or(|x| x >= park.width)
-            || c.origin.y.checked_add(2).is_none_or(|y| y >= park.height)
+        if c.origin
+            .x
+            .checked_add(width - 1)
+            .is_none_or(|x| x >= park.width)
+            || c.origin
+                .y
+                .checked_add(depth - 1)
+                .is_none_or(|y| y >= park.height)
             || c.height > crate::MAX_TERRAIN_HEIGHT - clearance
         {
             return Err("carousel footprint is outside the map or height range".into());
@@ -699,8 +758,8 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
                 return Err("removed carousel has active operation state".into());
             }
         } else {
-            if c.objects.len() != 9 {
-                return Err("carousel footprint needs nine cells".into());
+            if c.objects.len() != (width * depth) as usize {
+                return Err("fixed ride footprint has an incorrect cell count".into());
             }
             for (index, id) in c.objects.iter().enumerate() {
                 let object = park
@@ -710,8 +769,8 @@ pub(crate) fn validate_carousels(park: &Park) -> Result<(), String> {
                     || object.kind != ObjectKind::Carousel
                     || object.pos
                         != (TilePos {
-                            x: c.origin.x + index as u32 % 3,
-                            y: c.origin.y + index as u32 / 3,
+                            x: c.origin.x + index as u32 % width,
+                            y: c.origin.y + index as u32 / width,
                         })
                     || object.height != c.height
                     || object.clearance != clearance
