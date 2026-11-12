@@ -1,4 +1,6 @@
-# Parkbound graphics, large sandbox and coaster test guide (0.79.0)
+# Parkbound graphics, large sandbox and coaster test guide (0.80.0)
+
+**Undo paused edits:** Pause the game, then use **Undo Ctrl+Z** and **Redo Ctrl+Y** in the left sidebar. These controls reverse up to 16 recent park changes, restoring terrain, objects, guests, cash and finance entries together. A new edit clears redo. Resuming time, loading or switching parks clears this session-only history so an old snapshot cannot rewind a running park or replace a different park. The track draft editor keeps its own undo/redo controls while active. Save files contain the current park state, never the undo history.
 
 From **New Park**, choose Sandbox and click **Map** to cycle 32, 64, 128 and 256 tiles per side. The 32-tile choice retains the familiar flat starter paths, guests and coaster. Larger maps start empty with flat heights, $1,000 cash and the existing lake/shore materials. Click **Landscape** to cycle Flat or rolling hills from seeds 1–3. Challenge parks remain the fixed 32-tile scenario layout. Press Enter on New Park to create the selected park; the Create action remains the initial keyboard focus.
 

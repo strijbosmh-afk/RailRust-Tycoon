@@ -113,6 +113,8 @@ pub(super) enum Action {
     Underground,
     RemovePath,
     RestorePaths,
+    UndoPark,
+    RedoPark,
     ToggleTrain,
     FocusTrain,
     TicketPrice(i8),
@@ -462,6 +464,10 @@ pub(super) fn setup(mut commands: Commands) {
             p.spawn(row()).with_children(|p| {
                 button(p, "Remove [Del]", Action::RemovePath, 102.0);
                 button(p, "Restore demo", Action::RestorePaths, 102.0);
+            });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Undo Ctrl+Z", Action::UndoPark, 102.0);
+                button(p, "Redo Ctrl+Y", Action::RedoPark, 102.0);
             });
             p.spawn((
                 Button,
@@ -1256,6 +1262,12 @@ pub(super) fn button_actions(
             Action::RemovePath if !view.track_editor.active => view.remove_path_pending = true,
             Action::RestorePaths if !view.track_editor.active => view.restore_paths_pending = true,
             Action::RemovePath | Action::RestorePaths => {}
+            Action::UndoPark => {
+                view.park_edit_pending = Some(crate::construction_history::EditCommand::Undo)
+            }
+            Action::RedoPark => {
+                view.park_edit_pending = Some(crate::construction_history::EditCommand::Redo)
+            }
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
             Action::TicketPrice(delta) => view.request_price_change(*delta),
@@ -1433,6 +1445,7 @@ pub(super) fn button_actions(
 pub(super) fn refresh(
     sim: Res<Simulation>,
     view: Res<ViewState>,
+    edit_history: Option<Res<crate::construction_history::EditHistory>>,
     front: Option<Res<crate::front_end::FrontEnd>>,
     mut labels: Query<(&Label, &mut Text)>,
     mut buttons: Query<(&Action, &Interaction, &mut BackgroundColor)>,
@@ -1903,7 +1916,11 @@ pub(super) fn refresh(
         let history_disabled = matches!(action,
             Action::Track(crate::track_tools::TrackCommand::Undo) if !view.track_editor.can_undo())
             || matches!(action,
-                Action::Track(crate::track_tools::TrackCommand::Redo) if !view.track_editor.can_redo());
+                Action::Track(crate::track_tools::TrackCommand::Redo) if !view.track_editor.can_redo())
+            || matches!(action, Action::UndoPark if view.speed != Speed::Paused || view.edits_blocked() || view.track_editor.active
+                || edit_history.as_ref().is_none_or(|history| !history.can_undo()))
+            || matches!(action, Action::RedoPark if view.speed != Speed::Paused || view.edits_blocked() || view.track_editor.active
+                || edit_history.as_ref().is_none_or(|history| !history.can_redo()));
         let tool_disabled = matches!(
             action,
             Action::SetPathTool(_)

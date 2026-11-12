@@ -12,6 +12,7 @@ mod legacy_cost_test_support {
 }
 mod campaign;
 mod coaster_testing;
+mod construction_history;
 mod design_file_dialog;
 #[cfg(test)]
 mod design_input_tests;
@@ -158,6 +159,7 @@ struct ViewState {
     navigation_group: ui::navigation::Group,
     remove_path_pending: bool,
     restore_paths_pending: bool,
+    park_edit_pending: Option<construction_history::EditCommand>,
     path_notice: Option<String>,
     path_tool: path_tools::ToolState,
     track_editor: track_tools::TrackEditor,
@@ -261,6 +263,7 @@ impl Default for ViewState {
             navigation_group: default(),
             remove_path_pending: false,
             restore_paths_pending: false,
+            park_edit_pending: None,
             path_notice: None,
             path_tool: default(),
             track_editor: default(),
@@ -640,6 +643,7 @@ fn main() -> AppExit {
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .insert_resource(Simulation(park))
         .insert_resource(view)
+        .init_resource::<construction_history::EditHistory>()
         .insert_resource(campaign)
         .insert_resource(front)
         .init_resource::<design_library::DesignLibrary>()
@@ -677,38 +681,47 @@ fn main() -> AppExit {
             Update,
             (
                 (
+                    construction_history::begin,
                     (
-                        ui::install_ride_name_font,
-                        ui::button_actions,
-                        front_end::input,
-                        display::update,
-                        keyboard_input,
-                        ui::layout::scroll,
-                        ui::audio::apply,
-                        design_library::keyboard_text,
-                        ui::names::keyboard_text,
-                        ui::names::apply,
+                        (
+                            ui::install_ride_name_font,
+                            ui::button_actions,
+                            front_end::input,
+                            display::update,
+                            keyboard_input,
+                            ui::layout::scroll,
+                            ui::audio::apply,
+                            design_library::keyboard_text,
+                            ui::names::keyboard_text,
+                            ui::names::apply,
+                        )
+                            .chain(),
+                        design_library::apply_commands,
+                        design_transfer::open_dialog,
+                        apply_terrain_profile,
+                        apply_path_actions,
+                        apply_train_actions,
+                        apply_price_actions,
+                        coaster_testing::apply_commands,
+                        access_planning::apply_commands,
+                        ride_operations::apply_commands,
+                        ui::appearance::apply,
+                        ui::finance::apply_commands,
+                        ui::visitor_flow::apply_commands,
+                        ui::scenarios::apply_commands,
+                        apply_grounds_action,
+                        apply_service_actions,
                     )
                         .chain(),
-                    design_library::apply_commands,
-                    design_transfer::open_dialog,
-                    apply_terrain_profile,
-                    apply_path_actions,
-                    apply_train_actions,
-                    apply_price_actions,
-                    coaster_testing::apply_commands,
-                    access_planning::apply_commands,
-                    ride_operations::apply_commands,
-                    ui::appearance::apply,
-                    ui::finance::apply_commands,
-                    ui::visitor_flow::apply_commands,
-                    ui::scenarios::apply_commands,
-                    apply_grounds_action,
-                    apply_service_actions,
-                    track_tools::apply_commands,
-                    pointer_input,
-                    persistence::apply_save_action,
-                    campaign::observe,
+                    (
+                        track_tools::apply_commands,
+                        pointer_input,
+                        construction_history::apply,
+                        persistence::apply_save_action,
+                        campaign::observe,
+                        construction_history::finish,
+                    )
+                        .chain(),
                 )
                     .chain(),
                 (
@@ -1123,6 +1136,12 @@ fn keyboard_input(
             if keys.just_pressed(KeyCode::Escape) && view.track_editor.active {
                 view.track_editor.active = false;
                 view.track_editor.preview = None;
+            } else if !view.track_editor.active {
+                view.park_edit_pending = Some(match command {
+                    track_tools::TrackCommand::Undo => construction_history::EditCommand::Undo,
+                    track_tools::TrackCommand::Redo => construction_history::EditCommand::Redo,
+                    _ => unreachable!("history shortcut only returns undo or redo"),
+                });
             } else {
                 track_tools::queue(&mut view, command);
             }

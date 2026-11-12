@@ -1,6 +1,8 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.79.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.80.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+
+Current development stage **0.80.0** adds bounded undo and redo for paused park edits. The controls restore the exact world, cash and finance ledger for the last 16 edits, clear on resumed time or park load, and keep track draft history separate. History is session only; park saves remain strict **43/43**. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). Phases 3–5 remain open.
 
 Current development stage **0.79.0** adds a paid camelback hill to the coaster editor. Its centerline rises one terrain step inside one tile, train motion slows on ascent and gains speed on descent, and the isolated coaster report counts it. Drafts, installed track, design thumbnails, finance and strict **43/43** saves support it; schema 42 parks still load. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates remain open.
 
@@ -136,8 +138,8 @@ The build is unsigned. Minimum hardware and additional supported Windows version
 | Z / Rides → Edit coaster track | Open/close saved track draft tools. Choose Station, Straight, Left/Right curve, Chain lift, Drop, Steep drop or Brake; Apply settles the visible quote for a complete safe loop; Clear removes only the free draft. |
 | Copy live button | Replace the draft with the installed coaster, even while running or occupied, as one undoable edit. Missing/faulted circuits leave the draft unchanged. |
 | Ctrl+D / Designs button | Open the named design library from Track tools. Search saved names, Clear the search or toggle Name/Pieces sorting. Click a matching thumbnail or use Previous/Next; the page follows selection. Inspect the rotating preview and placement quote, then Load into draft. Save new and confirmed Update/Delete retain their existing behavior. |
-| Ctrl+Z / Undo button | Undo one draft edit while the track editor is active. |
-| Ctrl+Y / Ctrl+Shift+Z / Redo button | Redo one undone draft edit while the track editor is active. |
+| Ctrl+Z / Undo button | Undo one draft edit while the track editor is active, or one paused park edit otherwise. |
+| Ctrl+Y / Ctrl+Shift+Z / Redo button | Redo a draft edit while the track editor is active, or a paused park edit otherwise. |
 | J / Queue button | Build a queue owned by the selected ride |
 | I / Gate button | Place the selected ride entrance beside its station or carousel edge |
 | K / Exit button | Place the selected ride exit beside its station or carousel edge; default facing South |
