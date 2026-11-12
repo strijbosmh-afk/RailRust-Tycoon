@@ -1,8 +1,10 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.80.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.81.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
 
-Current development stage **0.80.0** adds bounded undo and redo for paused park edits. The controls restore the exact world, cash and finance ledger for the last 16 edits, clear on resumed time or park load, and keep track draft history separate. History is session only; park saves remain strict **43/43**. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). Phases 3–5 remain open.
+Current development stage **0.81.0** adds priced player-built public paths and queues with half-cost demolition refunds. Flat public paths cost $1, sloped public paths $1.50, flat queues $2 and sloped queues $2.50. Older free paths remain free. A strict **44/44** save records the paid basis and finance receipts. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). Phases 3–5 remain open.
+
+Previous development stage **0.80.0** adds bounded undo and redo for paused park edits. The controls restore the exact world, cash and finance ledger for the last 16 edits, clear on resumed time or park load, and keep track draft history separate. History is session only; park saves remain strict **43/43**. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). Phases 3–5 remain open.
 
 Current development stage **0.79.0** adds a paid camelback hill to the coaster editor. Its centerline rises one terrain step inside one tile, train motion slows on ascent and gains speed on descent, and the isolated coaster report counts it. Drafts, installed track, design thumbnails, finance and strict **43/43** saves support it; schema 42 parks still load. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates remain open.
 
@@ -124,7 +126,7 @@ Final runtime `d19346c` in [draft PR #23](https://github.com/strijbosmh-afk/Rail
 
 ## Play the Windows build
 
-The current build target is `dist/Parkbound-0.51.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. Use **Guests [L]** to inspect Energy and Nausea or choose **Park stats** for the expanded urgent-needs view. **Services [M] → Build Rest** places the new wellness facility beside a public path. See the [wellness guide](docs/VISITOR_WELLNESS_GUIDE.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The adjacent `.zip.sha256` identifies the finished archive.
+The current local build target is `dist/Parkbound-0.81.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. The adjacent `.zip.sha256` identifies the finished archive. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md) for current controls, verification and the shared OneDrive path.
 
 The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Each milestone report records its own named-build evidence.
 

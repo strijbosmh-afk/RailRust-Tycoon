@@ -316,6 +316,10 @@ mod tests {
         let mut prior = current.clone();
         prior["schema_version"] = 27.into();
         prior["park"].as_object_mut().unwrap().remove("decorations");
+        prior["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("path_economy");
         prior["content_version"] = 27.into();
         crate::legacy_cost_test_support::strip_park_open(&mut prior);
         prior["park"]
@@ -338,6 +342,7 @@ mod tests {
         let mut old = current.clone();
         old["schema_version"] = 26.into();
         old["park"].as_object_mut().unwrap().remove("decorations");
+        old["park"].as_object_mut().unwrap().remove("path_economy");
         old["content_version"] = 26.into();
         crate::legacy_cost_test_support::strip_park_open(&mut old);
         let body = old["park"].as_object_mut().unwrap();
@@ -362,6 +367,10 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("decorations");
+        smuggled["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("path_economy");
         smuggled["content_version"] = 26.into();
         assert!(Park::from_save_bytes(&serde_json::to_vec(&smuggled).unwrap()).is_err());
         let mut missing = current;

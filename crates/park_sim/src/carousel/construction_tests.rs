@@ -59,6 +59,7 @@ fn schema_30_migrates_carousel_kind_and_current_requires_valid_kind() {
     let mut old = current.clone();
     old["schema_version"] = json!(30);
     old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     old["content_version"] = json!(30);
     crate::legacy_cost_test_support::strip_park_open(&mut old);
     for field in ["patrol", "clean_enabled", "bins_enabled"] {
@@ -182,6 +183,7 @@ fn drop_tower_lift_drop_and_schema_32_boundary() {
     let mut old = value(&park);
     old["schema_version"] = json!(32);
     old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     old["content_version"] = json!(32);
     assert!(read(&old).is_err());
     let mut legacy = Park::new(32, 32);
@@ -189,6 +191,7 @@ fn drop_tower_lift_drop_and_schema_32_boundary() {
     let mut old = value(&legacy);
     old["schema_version"] = json!(32);
     old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     old["content_version"] = json!(32);
     crate::legacy_cost_test_support::strip_park_open(&mut old);
     assert_eq!(read(&old).unwrap(), legacy);
@@ -580,6 +583,7 @@ fn version_ten_migration_preserves_bodies_and_history_without_refund_windfalls()
     crate::finances::tests::strip_construction_fields(&mut old);
     old["schema_version"] = json!(10);
     old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     crate::legacy_cost_test_support::project_old_fixture(&mut old);
     old["park"].as_object_mut().unwrap().remove("coaster_cars");
     old["content_version"] = json!(10);

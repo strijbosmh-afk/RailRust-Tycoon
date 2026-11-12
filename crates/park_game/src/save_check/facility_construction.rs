@@ -259,6 +259,7 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         .remove("mechanic_route");
     old["park"].as_object_mut().unwrap().remove("grounds");
     old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     old["park"]
         .as_object_mut()
         .unwrap()

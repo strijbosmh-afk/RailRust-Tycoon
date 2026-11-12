@@ -327,12 +327,13 @@ pub(crate) fn value_rows(park: &Park) -> [String; 4] {
     let v = park.park_value();
     [
         format!(
-            "Recorded park value {}\nTrack {} / Flat rides {} / Facilities {} / Decor {}",
+            "Recorded park value {}\nTrack {} / Flat rides {} / Facilities {} / Decor {} / Paths {}",
             money(v.park_cents),
             money(v.track_cents),
             money(v.carousel_cents),
             money(v.service_cents),
-            money(v.decorations_cents)
+            money(v.decorations_cents),
+            money(v.paths_cents)
         ),
         format!(
             "Gross assets {}\nCash {} + recorded park value {}",
@@ -383,6 +384,8 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::LandPurchase => ("Land purchase", "-"),
         FinanceKind::DecorationConstruction => ("Decoration", "-"),
         FinanceKind::DecorationRefund => ("Decoration refund", "+"),
+        FinanceKind::PathConstruction => ("Path construction", "-"),
+        FinanceKind::PathRefund => ("Path refund", "+"),
     };
     let service = entry.ride.map_or_else(
         || {

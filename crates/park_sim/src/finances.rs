@@ -31,6 +31,8 @@ pub enum FinanceKind {
     LandPurchase,
     DecorationConstruction,
     DecorationRefund,
+    PathConstruction,
+    PathRefund,
 }
 impl FinanceKind {
     fn income(self) -> bool {
@@ -44,6 +46,7 @@ impl FinanceKind {
                 | Self::ServiceDemolitionRefund
                 | Self::TrackRefund
                 | Self::DecorationRefund
+                | Self::PathRefund
         )
     }
     pub(crate) fn financing(self) -> bool {
@@ -90,6 +93,8 @@ impl std::fmt::Display for FinanceKind {
             Self::LandPurchase => "Land purchase",
             Self::DecorationConstruction => "Decoration construction",
             Self::DecorationRefund => "Decoration refund",
+            Self::PathConstruction => "Path construction",
+            Self::PathRefund => "Path refund",
         })
     }
 }
@@ -162,11 +167,13 @@ impl FinanceTotals {
             | FinanceKind::TrackConstruction
             | FinanceKind::Landscaping
             | FinanceKind::LandPurchase
-            | FinanceKind::DecorationConstruction => &mut self.construction_cents,
+            | FinanceKind::DecorationConstruction
+            | FinanceKind::PathConstruction => &mut self.construction_cents,
             FinanceKind::RideDemolitionRefund
             | FinanceKind::ServiceDemolitionRefund
             | FinanceKind::TrackRefund
-            | FinanceKind::DecorationRefund => &mut self.demolition_refunds_cents,
+            | FinanceKind::DecorationRefund
+            | FinanceKind::PathRefund => &mut self.demolition_refunds_cents,
         };
         *target = target
             .checked_add(amount)
@@ -490,6 +497,7 @@ impl Park {
                         FinanceKind::Landscaping
                             | FinanceKind::LandPurchase
                             | FinanceKind::DecorationConstruction
+                            | FinanceKind::PathConstruction
                     )
                 })
                 .map(|entry| entry.amount_cents)
@@ -509,7 +517,8 @@ impl Park {
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .chain(std::iter::once(self.track_economy.refund_cents))
             .sum::<u64>()
-            + self.decorations.refund_cents;
+            + self.decorations.refund_cents
+            + self.path_economy.refund_cents;
         let wages_cents = self.finances.archived.wages_cents
             + self
                 .finances
@@ -949,6 +958,40 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         archived_decoration_construction,
     )?;
     archived_check.add(FinanceKind::DecorationRefund, archived_decoration_refunds)?;
+    let retained_path_construction: u64 = ledger
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == FinanceKind::PathConstruction)
+        .map(|entry| entry.amount_cents)
+        .sum();
+    let retained_path_refunds: u64 = ledger
+        .entries
+        .iter()
+        .filter(|entry| entry.kind == FinanceKind::PathRefund)
+        .map(|entry| entry.amount_cents)
+        .sum();
+    let archived_path_construction = park
+        .path_economy
+        .construction_cents
+        .checked_sub(retained_path_construction)
+        .ok_or("path construction receipts exceed purchases")?;
+    let archived_path_refunds = park
+        .path_economy
+        .refund_cents
+        .checked_sub(retained_path_refunds)
+        .ok_or("path refund receipts exceed removals")?;
+    if !archived_path_construction.is_multiple_of(50)
+        || !archived_path_refunds.is_multiple_of(25)
+        || archived_path_refunds > archived_path_construction / 2
+    {
+        return Err("archived path receipts are invalid".into());
+    }
+    minimum_archived += u128::from(archived_path_construction).div_ceil(250)
+        + u128::from(archived_path_refunds).div_ceil(125);
+    maximum_archived +=
+        u128::from(archived_path_construction / 100) + u128::from(archived_path_refunds / 50);
+    archived_check.add(FinanceKind::PathConstruction, archived_path_construction)?;
+    archived_check.add(FinanceKind::PathRefund, archived_path_refunds)?;
     // Landscaping and land purchases have no owner. The bounded ledger
     // merges their older receipts with decoration costs.
     let archived_land = ledger
@@ -1007,6 +1050,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::LandPurchase
                         | FinanceKind::DecorationConstruction
                         | FinanceKind::DecorationRefund
+                        | FinanceKind::PathConstruction
+                        | FinanceKind::PathRefund
                         | FinanceKind::LoanBorrow
                         | FinanceKind::LoanRepayment
                         | FinanceKind::LoanInterest
@@ -1118,6 +1163,18 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             };
             if entry.ride.is_some() || entry.service.is_some() || !valid_amount {
                 return Err("decoration receipt is invalid".into());
+            }
+        } else if matches!(
+            entry.kind,
+            FinanceKind::PathConstruction | FinanceKind::PathRefund
+        ) {
+            let valid_amount = if entry.kind == FinanceKind::PathConstruction {
+                [100, 150, 200, 250].contains(&entry.amount_cents)
+            } else {
+                [50, 75, 100, 125].contains(&entry.amount_cents)
+            };
+            if entry.ride.is_some() || entry.service.is_some() || !valid_amount {
+                return Err("path receipt is invalid".into());
             }
         } else if entry.kind.ride_source() {
             let id = entry.ride.ok_or("ride receipt owner is missing")?;
@@ -1310,6 +1367,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         || balance != park.cash_cents
         || total.construction_cents < park.decorations.construction_cents
         || total.demolition_refunds_cents < park.decorations.refund_cents
+        || total.construction_cents < park.path_economy.construction_cents
+        || total.demolition_refunds_cents < park.path_economy.refund_cents
         || total.admission_revenue_cents != park.visitors.admission_revenue_cents
         || total.advertising_cents
             != park.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS

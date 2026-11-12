@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 43;
-pub const CONTENT_VERSION: u32 = 43;
+pub const SCHEMA_VERSION: u32 = 44;
+pub const CONTENT_VERSION: u32 = 44;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -145,6 +145,8 @@ struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
     grounds: crate::grounds::GroundsState,
     #[serde(default)]
     decorations: crate::decorations::DecorationState,
+    #[serde(default)]
+    path_economy: crate::path_economy::PathEconomy,
     #[serde(default)]
     mechanic_hired: bool,
     #[serde(default)]
@@ -328,6 +330,7 @@ impl VersionNineParkData {
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -501,6 +504,7 @@ impl VersionEightParkData {
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -757,6 +761,7 @@ impl Park {
                 | 40
                 | 41
                 | 42
+                | 43
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -779,6 +784,7 @@ impl Park {
         validate_scenario_fields(bytes, header.schema_version)?;
         validate_land_rights_fields(bytes, header.schema_version)?;
         validate_decoration_field(bytes, header.schema_version)?;
+        validate_path_economy_field(bytes, header.schema_version)?;
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -917,6 +923,17 @@ impl Park {
         {
             return Err(invalid("camelback track requires schema 43"));
         }
+        if header.schema_version < 44
+            && (data.path_economy != crate::path_economy::PathEconomy::default()
+                || data.finances.entries.iter().any(|entry| {
+                    matches!(
+                        entry.kind,
+                        crate::FinanceKind::PathConstruction | crate::FinanceKind::PathRefund
+                    )
+                }))
+        {
+            return Err(invalid("paid paths require schema 44"));
+        }
         if header.schema_version < 40
             && (data
                 .track_draft
@@ -1002,6 +1019,18 @@ fn validate_decoration_field(bytes: &[u8], schema: u32) -> Result<(), SaveError>
             || value["park"]["decorations"].get("fences").is_some())
     {
         return Err(invalid("path signs and fences require schema 42"));
+    }
+    Ok(())
+}
+
+fn validate_path_economy_field(bytes: &[u8], schema: u32) -> Result<(), SaveError> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+    let present = value["park"].get("path_economy").is_some();
+    if schema < 44 && present {
+        return Err(invalid("paid paths require schema 44"));
+    }
+    if schema >= 44 && !present {
+        return Err(invalid("schema 44 requires path economy"));
     }
     Ok(())
 }
@@ -1992,6 +2021,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -2032,6 +2062,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -2075,6 +2106,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -2246,6 +2278,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_costs: Vec::new(),
@@ -2346,6 +2379,7 @@ impl ParkData {
             scenario: park.scenario.clone(),
             grounds: park.grounds.clone(),
             decorations: park.decorations.clone(),
+            path_economy: park.path_economy.clone(),
             mechanic_route: park.mechanic_route,
             mechanic_hired: park.mechanic_hired,
             mechanic_wage_progress: park.mechanic_wage_progress,
@@ -2411,6 +2445,7 @@ impl ParkData {
             scenario: self.scenario,
             grounds: self.grounds,
             decorations: self.decorations,
+            path_economy: self.path_economy,
             mechanic_route: self.mechanic_route,
             mechanic_hired: self.mechanic_hired,
             mechanic_wage_progress: self.mechanic_wage_progress,
@@ -2460,6 +2495,7 @@ impl ParkData {
         crate::staff::validate(&park).map_err(invalid)?;
         crate::grounds::validate(&park).map_err(invalid)?;
         crate::decorations::validate(&park).map_err(invalid)?;
+        crate::path_economy::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;
         crate::scenario::validate(&park).map_err(invalid)?;
         park.circuit = circuit_data
@@ -3175,6 +3211,7 @@ mod tests {
         let mut old = current;
         old["schema_version"] = json!(39);
         old["park"].as_object_mut().unwrap().remove("decorations");
+        old["park"].as_object_mut().unwrap().remove("path_economy");
         old["content_version"] = json!(39);
         for tile in old["park"]["tiles"].as_array_mut().unwrap() {
             tile.as_object_mut().unwrap().remove("owned");

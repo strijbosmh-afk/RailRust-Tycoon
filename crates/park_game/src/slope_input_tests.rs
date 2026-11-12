@@ -62,7 +62,7 @@ fn every_slope_shape_preview_commits_the_picked_tile_at_each_rotation_and_dpi() 
                 let pos = TilePos { x: 15, y: 17 };
                 let park = Park::new(MAP_SIZE, MAP_SIZE);
                 let mut expected = park.clone();
-                let id = expected.place_sloped_path(pos, 8, slope).unwrap();
+                let id = expected.build_paid_path(pos, 8, slope).unwrap();
                 let (mut app, window) = input_app(park.clone(), build_view(slope, rotation), dpi);
                 aim(&mut app, window, pos);
                 frame(&mut app);

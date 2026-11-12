@@ -1656,12 +1656,15 @@ pub(super) fn refresh(
             Label::Status if view.price_notice.is_some() => view.price_notice.clone().unwrap(),
             Label::Status if view.track_editor.active => "Track draft / free planning / Apply settles quote / Z or Esc to finish".into(),
             Label::Status if view.path_tool.mode == PathTool::Build => format!(
-                "Path tool / height {} / click to place",
+                "Path {} / height {} / click to build",
+                money(park_sim::path_cost_cents(false, view.path_tool.slope)),
                 view.path_tool.height
             ),
-            Label::Status if view.path_tool.mode == PathTool::BuildQueue => {
-                "Build a blue queue. Details in Build Tools.".into()
-            }
+            Label::Status if view.path_tool.mode == PathTool::BuildQueue => format!(
+                "Queue {} / height {} / click to build",
+                money(park_sim::path_cost_cents(true, view.path_tool.slope)),
+                view.path_tool.height
+            ),
             Label::Status if view.path_tool.mode == PathTool::Entrance => {
                 "Place a gate facing the selected ride. C turns it.".into()
             }

@@ -271,6 +271,7 @@ fn schema_36_migrates_idle_radio_and_schema_37_requires_radio_state() {
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     json["schema_version"] = serde_json::json!(36);
     json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(36);
     crate::legacy_cost_test_support::strip_radio_fields(&mut json);
     assert_eq!(
@@ -283,6 +284,10 @@ fn schema_36_migrates_idle_radio_and_schema_37_requires_radio_state() {
         .as_object_mut()
         .unwrap()
         .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     current["content_version"] = serde_json::json!(37);
     assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
     json["park"]["visitors"]["radio_campaigns"] = serde_json::json!(0);
@@ -301,6 +306,7 @@ fn schema_36_preserves_an_active_paid_flyer_campaign() {
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     json["schema_version"] = serde_json::json!(36);
     json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(36);
     crate::legacy_cost_test_support::strip_radio_fields(&mut json);
     let loaded = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
@@ -353,6 +359,7 @@ fn schema_33_defaults_to_open_but_schema_34_requires_explicit_status() {
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
     json["schema_version"] = serde_json::json!(33);
     json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(33);
     crate::legacy_cost_test_support::strip_admission_fields(&mut json);
     let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
@@ -383,6 +390,7 @@ fn schema_34_defaults_to_free_flexible_entry_and_schema_35_requires_admission_st
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
     json["schema_version"] = serde_json::json!(34);
     json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(34);
     crate::legacy_cost_test_support::strip_flyer_fields(&mut json);
     let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
@@ -397,6 +405,7 @@ fn schema_35_migrates_idle_flyers_and_schema_36_requires_their_state() {
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     json["schema_version"] = serde_json::json!(35);
     json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(35);
     crate::legacy_cost_test_support::strip_flyer_fields(&mut json);
     let mut current = json.clone();
@@ -405,6 +414,10 @@ fn schema_35_migrates_idle_flyers_and_schema_36_requires_their_state() {
         .as_object_mut()
         .unwrap()
         .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     current["content_version"] = serde_json::json!(36);
     assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
     assert_eq!(
@@ -642,6 +655,10 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         .as_object_mut()
         .unwrap()
         .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     crate::legacy_cost_test_support::strip_admission_fields(&mut current);
     let mut old_default = serde_json::to_value(super::VisitorFlow::default()).unwrap();
     for field in [

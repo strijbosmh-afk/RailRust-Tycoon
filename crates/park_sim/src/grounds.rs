@@ -742,6 +742,7 @@ mod tests {
             serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
         old["schema_version"] = 31.into();
         old["park"].as_object_mut().unwrap().remove("decorations");
+        old["park"].as_object_mut().unwrap().remove("path_economy");
         old["content_version"] = 31.into();
         crate::legacy_cost_test_support::strip_park_open(&mut old);
         for field in ["patrol", "clean_enabled", "bins_enabled"] {
@@ -832,6 +833,7 @@ mod tests {
         let mut old = value.clone();
         old["schema_version"] = 28.into();
         old["park"].as_object_mut().unwrap().remove("decorations");
+        old["park"].as_object_mut().unwrap().remove("path_economy");
         old["content_version"] = 28.into();
         crate::legacy_cost_test_support::strip_park_open(&mut old);
         old["park"].as_object_mut().unwrap().remove("grounds");
@@ -964,6 +966,10 @@ mod tests {
         let mut prior = current.clone();
         prior["schema_version"] = 29.into();
         prior["park"].as_object_mut().unwrap().remove("decorations");
+        prior["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("path_economy");
         prior["content_version"] = 29.into();
         crate::legacy_cost_test_support::strip_park_open(&mut prior);
         let grounds = prior["park"]["grounds"].as_object_mut().unwrap();

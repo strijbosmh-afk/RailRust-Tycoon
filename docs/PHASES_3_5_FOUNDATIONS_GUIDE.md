@@ -1,4 +1,6 @@
-# Parkbound graphics, large sandbox and coaster test guide (0.80.0)
+# Parkbound graphics, large sandbox and coaster test guide (0.81.0)
+
+**Path and queue prices:** New paths placed with Build cost $1 flat or $1.50 for a one-step slope. Queue pieces cost $2 flat or $2.50 sloped. The bottom status bar keeps the selected path/queue price visible, and hover shows the exact build price; unaffordable placement is rejected before allocating an object. Demolition refunds half the path price plus any separately paid furniture refund. Older, already placed paths and fixture paths have no path-price basis and give no path refund. The finance ledger and recorded park value include the paid pieces. Schema/content 44/44 saves retain that basis; older parks migrate with free existing paths.
 
 **Undo paused edits:** Pause the game, then use **Undo Ctrl+Z** and **Redo Ctrl+Y** in the left sidebar. These controls reverse up to 16 recent park changes, restoring terrain, objects, guests, cash and finance entries together. A new edit clears redo. Resuming time, loading or switching parks clears this session-only history so an old snapshot cannot rewind a running park or replace a different park. The track draft editor keeps its own undo/redo controls while active. Save files contain the current park state, never the undo history.
 

@@ -74,6 +74,10 @@ pub(crate) fn strip_services(value: Value) -> Value {
     let mut value = crate::finances::tests::strip_finances(value);
     value["schema_version"] = json!(7);
     value["park"].as_object_mut().unwrap().remove("decorations");
+    value["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     crate::legacy_cost_test_support::project_old_fixture(&mut value);
     value["park"]
         .as_object_mut()
@@ -1018,6 +1022,7 @@ fn schema_24_migrates_wellness_defaults_and_current_reader_requires_both_fields(
     let mut old: Value = serde_json::from_slice(&source.to_save_bytes().unwrap()).unwrap();
     old["schema_version"] = json!(24);
     old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     old["content_version"] = json!(24);
     crate::legacy_cost_test_support::strip_park_open(&mut old);
     old["park"].as_object_mut().unwrap().remove("maintenance");

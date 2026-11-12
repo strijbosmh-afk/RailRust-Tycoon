@@ -9,11 +9,15 @@ mod appearance;
 mod carousel;
 mod crowds;
 mod decorations;
+mod path_economy;
 pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
 pub use decorations::{
     BENCH_CAP, BENCH_COST_CENTS, BenchError, DECORATION_REFUND_PERCENT, FENCE_COST_CENTS,
     PaidScenery, PathAdditionError, PathAdditionKind, PathBench, PathFence, PathSign,
     SIGN_COST_CENTS,
+};
+pub use path_economy::{
+    PUBLIC_PATH_COST_CENTS, PaidPath, QUEUE_PATH_COST_CENTS, SLOPE_SURCHARGE_CENTS, path_cost_cents,
 };
 mod visitors;
 pub use visitors::{
@@ -304,6 +308,7 @@ pub struct Park {
     mechanic_route: staff::MechanicRoute,
     grounds: grounds::GroundsState,
     decorations: decorations::DecorationState,
+    path_economy: path_economy::PathEconomy,
     visitors: visitors::VisitorFlow,
     scenario: Option<scenario::ScenarioState>,
     loans: loans::LoanAccount,
@@ -348,6 +353,7 @@ impl PartialEq for Park {
             && self.mechanic_route == other.mechanic_route
             && self.grounds == other.grounds
             && self.decorations == other.decorations
+            && self.path_economy == other.path_economy
             && self.visitors == other.visitors
             && self.scenario == other.scenario
             && self.loans == other.loans
@@ -414,6 +420,7 @@ impl Park {
             mechanic_route: staff::MechanicRoute::default(),
             grounds: grounds::GroundsState::default(),
             decorations: decorations::DecorationState::default(),
+            path_economy: path_economy::PathEconomy::default(),
             visitors: visitors::VisitorFlow::default(),
             scenario: None,
             loans: loans::LoanAccount::default(),

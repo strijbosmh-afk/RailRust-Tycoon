@@ -55,11 +55,13 @@ fn older_schema_rejects_forged_camelback_but_loads_ordinary_track() {
     let mut old = json_value(&park);
     old["schema_version"] = json!(42);
     old["content_version"] = json!(42);
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     assert!(read(&old).is_err());
     park.clear_track_draft();
     let mut old = json_value(&park);
     old["schema_version"] = json!(42);
     old["content_version"] = json!(42);
+    old["park"].as_object_mut().unwrap().remove("path_economy");
     assert_eq!(read(&old).unwrap(), park);
 }
 

@@ -504,6 +504,7 @@ mod tests {
         old["schema_version"] = 40.into();
         old["content_version"] = 40.into();
         old["park"].as_object_mut().unwrap().remove("decorations");
+        old["park"].as_object_mut().unwrap().remove("path_economy");
         assert_eq!(
             Park::from_save_bytes(&serde_json::to_vec(&old).unwrap()),
             Ok(park.clone())
@@ -562,6 +563,7 @@ mod tests {
         let mut old = value.clone();
         old["schema_version"] = 41.into();
         old["content_version"] = 41.into();
+        old["park"].as_object_mut().unwrap().remove("path_economy");
         old["park"]["decorations"]
             .as_object_mut()
             .unwrap()

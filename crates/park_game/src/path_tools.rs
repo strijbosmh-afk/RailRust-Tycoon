@@ -412,11 +412,13 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 owner
                     .ok_or_else(|| "A queue needs an existing ride.".to_string())
                     .and_then(|ride| {
-                        park.validate_queue_path(pos, height, slope, ride)
+                        park.validate_paid_queue_path(pos, height, slope, ride)
+                            .map(|_| ())
                             .map_err(|error| ride_placement_message(error, slope))
                     })
             } else {
-                park.validate_sloped_path(pos, height, slope)
+                park.validate_paid_path(pos, height, slope)
+                    .map(|_| ())
                     .map_err(|error| {
                         if matches!(error, PlacementError::HeightOutOfRange { .. })
                             && slope != PathSlope::Flat
@@ -483,15 +485,26 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                     )
                 }
             });
+            if reason.is_none() {
+                view.path_tool.hint.push_str(&format!(
+                    "\nBuild cost {}.",
+                    crate::ui::money(park_sim::path_cost_cents(queue, slope))
+                ));
+            }
             if click {
                 if let Some(reason) = reason {
                     view.path_notice = Some(format!("No path placed: {reason}"));
                 } else {
                     let placed = if queue {
-                        park.place_queue_path(pos, height, slope, owner.expect("validated ride"))
-                            .map_err(|error| ride_placement_message(error, slope))
+                        park.build_paid_queue_path(
+                            pos,
+                            height,
+                            slope,
+                            owner.expect("validated ride"),
+                        )
+                        .map_err(|error| ride_placement_message(error, slope))
                     } else {
-                        park.place_sloped_path(pos, height, slope)
+                        park.build_paid_path(pos, height, slope)
                             .map_err(placement_message)
                     };
                     match placed {
@@ -501,10 +514,12 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                             view.scene_dirty = true;
                             view.path_tool.clear_pointer();
                             view.path_notice = Some(format!(
-                                "{name} #{} placed at {}, {} / height {height}.",
+                                "{name} #{} placed at {}, {} / height {height} for ${}.{:02}.",
                                 id.0,
                                 pos.x + 1,
-                                pos.y + 1
+                                pos.y + 1,
+                                park_sim::path_cost_cents(queue, slope) / 100,
+                                park_sim::path_cost_cents(queue, slope) % 100
                             ));
                         }
                         Err(error) => {
@@ -607,6 +622,14 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                         crate::ui::money(refund)
                     );
                 }
+                if object.kind == ObjectKind::Path {
+                    let refund = park.path_demolition_refund_cents(object.id)
+                        + park.decoration_refund_quote(object.id).unwrap_or(0);
+                    view.path_tool.hint = format!(
+                        "Path / total refund {}.\nClick to remove it.",
+                        crate::ui::money(refund)
+                    );
+                }
                 if click {
                     remove_path(park, view, object.id);
                 }
@@ -704,6 +727,8 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
         }
     } else if object.kind == ObjectKind::Track {
         Some(park.track_demolition_refund_cents(id))
+    } else if object.kind == ObjectKind::Path {
+        Some(park.path_demolition_refund_cents(id) + park.decoration_refund_quote(id).unwrap_or(0))
     } else {
         park.decoration_refund_quote(id)
     };
@@ -733,7 +758,7 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
             crate::ui::money(park.cash_cents())
         ),
         Some(amount) if object.kind == ObjectKind::Path => format!(
-            "Path removed / furniture refund {}.\nCash {} / routes recalculated.",
+            "Path removed / total refund {}.\nCash {} / routes recalculated.",
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),
@@ -788,13 +813,18 @@ mod tests {
         view.path_tool.height = 0;
         let point =
             world::path_build_center(pos, &park, view.rotation, 0, PathSlope::Flat).unwrap();
+        let starting_cash = park.cash_cents();
         point_at(&mut park, &mut view, point, false);
         assert!(view.path_tool.hint.contains("Tunnel"));
+        assert!(view.path_tool.hint.contains("$1.00"));
+        assert_eq!(park.cash_cents(), starting_cash);
         point_at(&mut park, &mut view, point, true);
         let Some(SurfaceId::Object(id)) = view.selected else {
             panic!("tunnel path was not selected");
         };
         assert!(park.is_underground(id));
+        assert_eq!(park.cash_cents(), starting_cash - 100);
+        assert_eq!(park.path_demolition_refund_cents(id), 50);
         assert_eq!(
             Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
             park

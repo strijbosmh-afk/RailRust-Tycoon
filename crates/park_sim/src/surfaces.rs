@@ -542,6 +542,7 @@ impl Park {
         self.reconcile_mechanic_after_removal(id);
         self.reconcile_grounds_after_removal(id);
         self.refund_removed_decoration(id);
+        self.refund_removed_path(id);
         self.reconcile_train_after_removal(id);
         for ride in self.all_rides_mut() {
             if ride.entrance.is_some_and(|gate| gate.object == id) {

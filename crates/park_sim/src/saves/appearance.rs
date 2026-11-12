@@ -57,6 +57,7 @@ impl VersionTwentyTwoParkData {
             mechanic_route: crate::staff::MechanicRoute::default(),
             grounds: crate::grounds::GroundsState::default(),
             decorations: crate::decorations::DecorationState::default(),
+            path_economy: crate::path_economy::PathEconomy::default(),
             mechanic_hired: false,
             mechanic_wage_progress: 0,
             ride_names: Vec::new(),

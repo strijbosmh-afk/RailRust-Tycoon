@@ -319,6 +319,7 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             })
             .and_then(|funds| funds.checked_add(park.track_economy.refund_cents))
             .and_then(|funds| funds.checked_add(park.decorations.refund_cents))
+            .and_then(|funds| funds.checked_add(park.path_economy.refund_cents))
             .and_then(|funds| funds.checked_sub(park.track_economy.construction_cents))
             .and_then(|funds| {
                 park.carousels.iter().try_fold(funds, |cash, carousel| {
