@@ -17,11 +17,13 @@ mod guest_render;
 mod layout;
 mod path_preview;
 mod ride_colors;
+mod scene_lighting;
 mod service_render;
 mod static_chunks;
 mod terrain_preview;
 mod track_preview;
 mod train_render;
+mod tunnel_portals;
 
 pub(crate) use atmosphere::water_mesh;
 pub use carousel_render::{carousel_preview_mesh, ride_focus};
@@ -30,6 +32,7 @@ pub use layout::{path_focus, scene_bounds};
 pub use path_preview::{
     path_build_center, path_preview_mesh, pick_sloped_path_plane, sloped_path_plane_occluded,
 };
+pub(crate) use scene_lighting::ambience_mesh;
 pub use service_render::service_preview_mesh;
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
@@ -618,6 +621,10 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         .and_then(|r| park.ride_appearance(r.id))
         .unwrap_or_default();
     for object in park.objects() {
+        if mode == ViewMode::Surface && park.is_underground(object.id) {
+            tunnel_portals::paint(mesh, park, object, rotation, &columns);
+            mesh.end_group(PaintLayer::Object);
+        }
         if !object_visible(park, object, mode) {
             continue;
         }

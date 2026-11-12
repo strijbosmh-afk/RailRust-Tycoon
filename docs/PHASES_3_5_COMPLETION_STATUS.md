@@ -1,10 +1,14 @@
-# Phase 3–5 completion status (0.81.0)
+# Phase 3–5 completion status (0.82.0)
 
 This is an implementation checkpoint on the road to the Phase 3, 4 and 5 exit gates in [FULL_GAME_ROADMAP.md](FULL_GAME_ROADMAP.md). **None of the three full phase gates is complete yet.** Do not describe this branch as a finished graphics, construction or coaster phase in a release announcement.
 
 Source is in [draft PR #76](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/76), stacked on the 0.74.0 checkpoint.
 
 ## Player-visible work in this checkpoint
+
+- Saved Day/Sunset/Night lighting and Clear/Rain presentation, with original lamps and cliff-boundary tunnel portals.
+- Logical Windows keyboard shortcuts repair Ctrl+Z on AZERTY layouts. Native checks cover path/terrain undo, saving and flat 128×128 sandbox creation.
+- A complete 128×128 simulation playthrough covers land purchase, terrain, slopes, queues, guests, ticket revenue, reload continuation and one-time demolition refunds.
 
 - Large Sandbox maps now start with a central 32×32 owned area and a narrow owned route to the west border. Unowned ground has muted color and the boundary is visible. The Build panel buys one adjacent tile for $5; building, scenery and terrain editing reject unowned land. Ownership persists in strict save schema/content 40/40. Existing 39/39 parks migrate with all their land owned.
 - Build offers paid square brushes with radii 0–2 for Raise, Lower, Grass, Sand and Water. Hover uses the same planning and price as commit. A failed brush leaves all tiles, objects, money and identifiers unchanged. Water is level-zero terrain, cannot submerge ground objects, and permits a raised bridge. A new ground path on water is refused. The old terrain preset shortcut is restricted to an untouched empty, fully owned park.
@@ -30,13 +34,15 @@ Source is in [draft PR #76](https://github.com/strijbosmh-afk/RailRust-Tycoon/pu
 
 | Phase | Implemented and retained | Still needed for its roadmap gate |
 | --- | --- | --- |
-| 3 Graphics | Original visual bible and provenance manifest, procedural terrain/ride/service/guest art, four-rotation depth tests, 48 guest appearances, and a [16-view resolution/rotation screenshot audit](PHASE_3_VISUAL_AUDIT_0_76.md) with four near views. | Richer original art in a representative multi-ride busy park at every scale; consistent near/far ride and service detail; night/weather treatment; native inspection of picking and animation. |
-| 4 World | Editable 64/128/256 maps, deterministic starting terrain, land purchase, paid brushes and water, raised paths/bridges and basic tunnels, queues with paid public/queue construction and refunds, paid trees/flowers and functional paid benches, signs and fences, paused session undo/redo, raised capacity with a 128×128 reload/demolition stress case, atomic rejection and save/load. | Tunnel portals and wider scenery; broader native acceptance of undo across all build actions; an end-to-end large-park construction/demolition playthrough with guests and gates. |
+| 3 Graphics | Original visual bible and provenance manifest, procedural terrain/ride/service/guest art, four-rotation depth tests, 48 guest appearances, and a [16-view resolution/rotation screenshot audit](PHASE_3_VISUAL_AUDIT_0_76.md) with four near views. | Continue visual acceptance with the expanded coaster catalogue and multi-ride operation. The 0.82 matrix directly checks four rotations at minimum, HD, QHD and 4K, with saved lighting/weather and original lamps. |
+| 4 World | Editable 64/128/256 maps, deterministic starting terrain, land purchase, paid brushes and water, raised paths/bridges and basic tunnels, queues with paid public/queue construction and refunds, paid trees/flowers and functional paid benches, signs and fences, paused session undo/redo, raised capacity with a 128×128 reload/demolition stress case, atomic rejection and save/load. | Carry these construction guarantees through the remaining coaster editor work. Tunnel portals, native path/terrain history and the 128×128 guest/gate construction, reload and demolition test now pass. |
 | 5 Coasters | One closed coaster, paid track draft/design import-export and test telemetry, station/straight/lift/drop/brake/curve plus bank, launch and camelback, dispatch and passenger accounting. | Inversions/transitions and more special pieces, multiple independent coasters and trains, block operation, richer force/safety telemetry, breakdown and repair, and complete custom-build → test → operate → save → export → rebuild playthrough. |
 
 The development PC is explicitly **not** a performance reference. The above gaps are product work, not a claim that only testing remains.
 
 ## Local verification
+
+The 0.82.0 suite passed **529 game and 413 simulation release tests (942 total)**. Formatting, asset validation and the release build passed. Native Windows checks passed Enter-to-create, paid path placement, logical-keyboard undo/redo, terrain raise/undo, saving, persisted Night/Rain and flat 128×128 sandbox creation. Sixteen directly inspected production captures cover four rotations at 1024×680/100%, 1920×1080/125% Night, 2560×1440/150% Sunset/Rain and 3840×2160/200% Day. Evidence is under `artifacts/phase-3-5-0.82.0/`. This PC remains excluded from performance references.
 
 The 0.81.0 paid-path checkpoint passed **525 game and 412 simulation release tests (937 total)**. Its new tests cover paid public/queue construction, atomic rejection, a one-time half refund after reload, schema-43 free-path migration, strict schema-44 field presence, and archived path receipts. Existing player-input and migration cases were updated to expect the new prices. Formatting, original-asset validation, strict all-target lint, the Windows build, inspected 1024×680 captures and four fresh-extraction save pairs passed; hashes and paths are in the resume guide. This advances Phase 4 without closing its full gate.
 
@@ -66,4 +72,4 @@ The Windows 0.76.0 executable SHA-256 is `f1b8e9a64acc24909f41c3cdb2c71332521be7
 
 ## Continue from another PC
 
-Use [RESUME_DEVELOPMENT.md](../RESUME_DEVELOPMENT.md) for the exact shared OneDrive path, Git branch, source and save transfer, toolchain, package verification, and latest check results. Continue Phase 4 with tunnel portals and a complete large-park player flow; Phase 5 with the multi-coaster model and safe blocks; and Phase 3 with original art and native visual acceptance. Keep each save migration and player flow reviewable.
+Use [RESUME_DEVELOPMENT.md](../RESUME_DEVELOPMENT.md) for the exact shared OneDrive path, Git branch, source and save transfer, toolchain, package verification, and latest check results. Continue Phase 5 with independent coaster state, multiple trains, safe blocks and the missing track pieces. Preserve the demonstrated graphics and construction behavior through those changes. Keep each save migration and player flow reviewable.

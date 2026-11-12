@@ -1,4 +1,8 @@
-# Parkbound graphics, large sandbox and coaster test guide (0.81.0)
+# Parkbound graphics, large sandbox and coaster test guide (0.82.0)
+
+In **Menu → Settings**, choose **Lighting** to cycle Day, Sunset and Night, and **Weather** to switch Clear/Rain presentation. Lamps illuminate public walkways at night. Pausing freezes decorative motion. These choices are saved with display preferences and can be changed while a park is open.
+
+Connected paths entering a fully buried tunnel now show a masonry entrance in Surface view. Underground view exposes the complete route for editing. Portals follow the connecting path height and disappear when the outside connection is removed.
 
 **Path and queue prices:** New paths placed with Build cost $1 flat or $1.50 for a one-step slope. Queue pieces cost $2 flat or $2.50 sloped. The bottom status bar keeps the selected path/queue price visible, and hover shows the exact build price; unaffordable placement is rejected before allocating an object. Demolition refunds half the path price plus any separately paid furniture refund. Older, already placed paths and fixture paths have no path-price basis and give no path refund. The finance ledger and recorded park value include the paid pieces. Schema/content 44/44 saves retain that basis; older parks migrate with free existing paths.
 

@@ -38,6 +38,6 @@ Authored sprites should be transparent PNG with a trim-safe two-pixel margin and
 
 ## Animation and acceptance
 
-Walk and queue motion is sampled from authoritative guest position. Cars and ride parts use the simulation clock; a paused park must not advance them. Decorative effects may animate separately only when they do not imply a ride is operating. Night and weather treatment is reserved for a later simulation-backed state, with status and selection contrast reviewed in both conditions.
+Walk and queue motion is sampled from authoritative guest position. Cars and ride parts use the simulation clock; a paused park must not advance them. Decorative effects may animate separately only when they do not imply a ride is operating. Display settings offer Day, Sunset and Night lighting with Clear or Rain presentation. The world tint follows the lighting choice, while warm path lamps and rain use bounded original geometry at the same world depth. Pausing freezes decorative animation. Selection and menus retain readable colors. These preferences are stored with display settings. Simulation-backed climate and shelter behavior belongs to the park-life phase.
 
 Compare the same busy park at 1024×680, HD, QHD and 4K, and all four rotations. Inspect elevated paths against lower terrain, guest feet against the correct deck, track supports, station/gate visibility and close-view service silhouettes. Captures establish layout and depth; native pointer and mixed-DPI checks remain a separate gate.

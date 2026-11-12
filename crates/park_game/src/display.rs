@@ -107,6 +107,53 @@ pub(crate) struct Settings {
     /// Zero selects the current display. Positive values select a connected
     /// display in stable position/name order and fall back to primary.
     pub(crate) monitor: u8,
+    #[serde(default)]
+    pub(crate) lighting: Lighting,
+    #[serde(default)]
+    pub(crate) weather: Weather,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Lighting {
+    #[default]
+    Day,
+    Sunset,
+    Night,
+}
+
+impl Lighting {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Day => "Day",
+            Self::Sunset => "Sunset",
+            Self::Night => "Night",
+        }
+    }
+    fn next(self) -> Self {
+        match self {
+            Self::Day => Self::Sunset,
+            Self::Sunset => Self::Night,
+            Self::Night => Self::Day,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Weather {
+    #[default]
+    Clear,
+    Rain,
+}
+
+impl Weather {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Clear => "Clear",
+            Self::Rain => "Rain",
+        }
+    }
 }
 
 impl Settings {
@@ -116,6 +163,8 @@ impl Settings {
             scale: ScaleChoice::Auto,
             mode: ModeChoice::Windowed,
             monitor: 0,
+            lighting: Lighting::Day,
+            weather: Weather::Clear,
         }
     }
 
@@ -196,6 +245,16 @@ impl DisplaySettings {
             value.monitor = 0;
             notice = "Safe windowed launch; use Settings to save a new display choice.".into();
         }
+        if let Some(index) = arguments.iter().position(|arg| arg == "--capture-lighting") {
+            value.lighting = match arguments.get(index + 1).and_then(|arg| arg.to_str()) {
+                Some("sunset") => Lighting::Sunset,
+                Some("night") => Lighting::Night,
+                _ => Lighting::Day,
+            };
+        }
+        if arguments.iter().any(|arg| arg == "--capture-rain") {
+            value.weather = Weather::Rain;
+        }
         Self {
             value,
             notice,
@@ -209,6 +268,19 @@ impl DisplaySettings {
 
     pub(crate) fn change_scale(&mut self, delta: i8) {
         self.value.scale = self.value.scale.cycle(delta);
+        self.persist();
+    }
+
+    pub(crate) fn change_lighting(&mut self) {
+        self.value.lighting = self.value.lighting.next();
+        self.persist();
+    }
+
+    pub(crate) fn change_weather(&mut self) {
+        self.value.weather = match self.value.weather {
+            Weather::Clear => Weather::Rain,
+            Weather::Rain => Weather::Clear,
+        };
         self.persist();
     }
 
@@ -365,11 +437,16 @@ mod tests {
         let mut settings = DisplaySettings::new(&session, &[], true);
         settings.change_scale(2);
         settings.change_mode(1);
+        settings.change_lighting();
+        settings.change_lighting();
+        settings.change_weather();
         assert_eq!(settings.value.scale, ScaleChoice::Percent125);
         assert_eq!(settings.value.mode, ModeChoice::Borderless);
         let loaded = DisplaySettings::new(&session, &[], true);
         assert_eq!(loaded.value.scale, settings.value.scale);
         assert_eq!(loaded.value.mode, settings.value.mode);
+        assert_eq!(loaded.value.lighting, Lighting::Night);
+        assert_eq!(loaded.value.weather, Weather::Rain);
         let safe = DisplaySettings::new(&session, &[OsString::from("--safe-windowed")], true);
         assert_eq!(safe.value.mode, ModeChoice::Windowed);
         assert_eq!(
@@ -406,5 +483,16 @@ mod tests {
         assert!(!settings.write_blocked);
         assert_eq!(Settings::read(&path).unwrap().version, 1);
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn older_display_preferences_default_to_clear_day() {
+        let old: Settings = serde_json::from_str(
+            r#"{"version":1,"scale":"percent150","mode":"windowed","monitor":0}"#,
+        )
+        .unwrap();
+        assert_eq!(old.lighting, Lighting::Day);
+        assert_eq!(old.weather, Weather::Clear);
+        assert_eq!(old.scale, ScaleChoice::Percent150);
     }
 }

@@ -66,6 +66,7 @@ mod visitor_scenes;
 #[derive(Clone, Copy)]
 enum Scene {
     Overview,
+    TunnelEntrances,
     FlatStart,
     ColorsCoaster,
     ColorsCarousel,
@@ -795,6 +796,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("loaded") => Scene::Loaded,
                 Some("backup") => Scene::Backup,
                 Some("load-error") => Scene::LoadError,
+                Some("tunnel-entrances") => Scene::TunnelEntrances,
                 Some("path-valid") => Scene::PathValid,
                 Some("path-blocked") => Scene::PathBlocked,
                 Some("path-built") => Scene::PathBuilt,
@@ -1568,6 +1570,27 @@ fn apply_preset(
         }
         // A loaded scene intentionally retains the normal load's fitted camera
         // and paused state, instead of modifying its terrain or simulating ahead.
+    }
+    if matches!(capture.scene, Scene::TunnelEntrances) {
+        let mut park = Park::new(32, 32);
+        for y in 14..=18 {
+            for x in 14..=18 {
+                park.set_terrain_height(TilePos { x, y }, 3).unwrap();
+            }
+        }
+        for x in 11..=21 {
+            park.build_paid_path(TilePos { x, y: 16 }, 0, park_sim::PathSlope::Flat)
+                .unwrap();
+        }
+        view.rotation = capture.rotation.unwrap_or(0);
+        view.view_mode = capture.view_mode;
+        view.zoom = 3.5;
+        view.pan = world::tile_center(TilePos { x: 16, y: 16 }, 32, view.rotation);
+        view.selected = None;
+        view.hovered = None;
+        view.terrain_custom = true;
+        view.scene_dirty = true;
+        sim.0 = park;
     }
     if capture.detail {
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;

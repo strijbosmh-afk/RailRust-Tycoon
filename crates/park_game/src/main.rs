@@ -26,6 +26,7 @@ mod display;
 mod frame_probe;
 mod front_end;
 mod gpu_probe;
+mod history_shortcuts;
 #[cfg(test)]
 mod input_tests;
 mod measurement;
@@ -644,6 +645,7 @@ fn main() -> AppExit {
         .insert_resource(Simulation(park))
         .insert_resource(view)
         .init_resource::<construction_history::EditHistory>()
+        .init_resource::<history_shortcuts::HistoryShortcuts>()
         .insert_resource(campaign)
         .insert_resource(front)
         .init_resource::<design_library::DesignLibrary>()
@@ -685,6 +687,7 @@ fn main() -> AppExit {
                     (
                         (
                             ui::install_ride_name_font,
+                            history_shortcuts::collect,
                             ui::button_actions,
                             front_end::input,
                             display::update,
@@ -829,6 +832,7 @@ fn setup_scene(
 ) {
     commands.spawn(Camera2d);
     let material = materials.add(ColorMaterial::from(Color::WHITE));
+    commands.insert_resource(presentation::WorldMaterial(material.clone()));
     let mut landscape = static_landscape::StaticLandscape::new(material.clone());
     landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
     commands.insert_resource(landscape);
@@ -855,7 +859,7 @@ fn setup_scene(
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((
         Mesh2d(selection.clone()),
-        MeshMaterial2d(material.clone()),
+        MeshMaterial2d(materials.add(ColorMaterial::from(Color::WHITE))),
         NoFrustumCulling,
     ));
     commands.spawn((
@@ -1034,6 +1038,7 @@ fn keyboard_input(
     time: Res<Time>,
     mut view: ResMut<ViewState>,
     sim: Option<Res<Simulation>>,
+    shortcuts: Option<Res<history_shortcuts::HistoryShortcuts>>,
 ) {
     // UI transitions are gathered first; neither their closing click nor a
     // simultaneous keyboard command may reach controls under the modal.
@@ -1130,7 +1135,15 @@ fn keyboard_input(
     }
     // Consume history chords before plain Y/Z can toggle a panel. Other modal
     // transitions above still win, and loading wins over a same-frame edit.
-    if let Some(command) = track_history_shortcut(&keys) {
+    let history_command = if shortcuts
+        .as_ref()
+        .is_some_and(|shortcuts| shortcuts.observed_letter)
+    {
+        shortcuts.as_ref().and_then(|shortcuts| shortcuts.command)
+    } else {
+        track_history_shortcut(&keys)
+    };
+    if let Some(command) = history_command {
         if !view.edits_blocked() {
             request_keyboard_save(&keys, &mut view);
             if keys.just_pressed(KeyCode::Escape) && view.track_editor.active {
@@ -1146,6 +1159,16 @@ fn keyboard_input(
                 track_tools::queue(&mut view, command);
             }
         }
+        view.ui_pointer_consumed = true;
+        return;
+    }
+    if shortcuts
+        .as_ref()
+        .is_some_and(|shortcuts| shortcuts.observed_letter)
+        && [KeyCode::ControlLeft, KeyCode::ControlRight]
+            .into_iter()
+            .any(|key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key))
+    {
         view.ui_pointer_consumed = true;
         return;
     }

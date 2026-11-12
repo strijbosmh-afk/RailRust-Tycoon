@@ -7,6 +7,8 @@ mod access_planning;
 mod admission;
 mod appearance;
 mod carousel;
+#[cfg(test)]
+mod construction_playthrough_tests;
 mod crowds;
 mod decorations;
 mod path_economy;
