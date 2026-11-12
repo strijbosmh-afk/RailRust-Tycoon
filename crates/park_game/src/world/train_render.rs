@@ -273,6 +273,12 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
     {
         return faces;
     }
+    let model = park
+        .ride_model(park.object_ride(piece.object).unwrap())
+        .unwrap();
+    if model != park_sim::RideModel::ClassicCoaster {
+        return catalogue_track_faces(park, piece, rotation, model);
+    }
     let size = park.width();
     let paint = park
         .object_ride(piece.object)
@@ -886,11 +892,12 @@ fn paint_single_train(
                     .is_some_and(|tile| f32::from(tile.height) > center.z + 1.0))
         })
         .collect();
-    for (pose, visible) in poses.iter().zip(&visible) {
+    let model = park.ride_model(id).unwrap();
+    for (car, (pose, visible)) in poses.iter().zip(&visible).enumerate() {
         if !visible {
             continue;
         }
-        for face in car_faces(*pose, park.width(), rotation) {
+        for face in catalogue_car_faces(*pose, park.width(), rotation, model, car) {
             let paint = park.ride_appearance(id).unwrap_or_default().vehicles;
             painter.surface(face.surface, ride_colors::vehicle(paint, face.ink));
         }
@@ -902,7 +909,7 @@ fn paint_single_train(
         {
             continue;
         }
-        let car = usize::from(passenger.seat % seats) / 2;
+        let car = usize::from((passenger.seat % seats) / model.seats_per_car());
         if let Some(pose) = poses.get(car).filter(|_| visible.get(car) == Some(&true)) {
             for face in passenger_faces(passenger, *pose, park.width(), rotation) {
                 painter.surface(face.surface, face.ink);
@@ -932,6 +939,227 @@ fn paint_single_train(
             painter.surface(face.surface, face.ink);
         }
     }
+}
+
+fn catalogue_track_faces(
+    park: &Park,
+    piece: &TrackPiece,
+    rotation: u8,
+    model: park_sim::RideModel,
+) -> Vec<Face> {
+    use park_sim::RideModel as M;
+    let mut out = Vec::new();
+    let size = park.width();
+    let paint = park
+        .ride_appearance(park.object_ride(piece.object).unwrap())
+        .unwrap_or_default();
+    let color = ride_colors::inks(
+        paint.structure,
+        [rgb(240, 65, 77), rgb(163, 28, 52), rgb(97, 16, 36)],
+    );
+    let steel = [rgb(185, 210, 218), rgb(100, 132, 151), rgb(57, 86, 108)];
+    let water = [rgb(38, 193, 232), rgb(21, 116, 178), rgb(14, 66, 119)];
+    for i in 0..piece.samples.len() - 1 {
+        let a = ground(piece.samples[i]);
+        let b = ground(piece.samples[i + 1]);
+        let (na, ua) = track_axes(park, piece, i);
+        let (nb, ub) = track_axes(park, piece, i + 1);
+        let mut band = |left: f32, right: f32, bottom: f32, top: f32, inks: [Ink; 3]| {
+            let p = strip(a, b, na, nb, left, right);
+            let u = [ua, ub, ub, ua];
+            let high = std::array::from_fn(|j| p[j] + u[j] * top);
+            let low: [Vec3; 4] = std::array::from_fn(|j| p[j] + u[j] * bottom);
+            face(&mut out, high, inks[0], size, rotation);
+            for j in 0..4 {
+                let n = (j + 1) % 4;
+                face(
+                    &mut out,
+                    [high[j], high[n], low[n], low[j]],
+                    inks[1 + j % 2],
+                    size,
+                    rotation,
+                );
+            }
+        };
+        match model {
+            M::LogFlume | M::RiverRapids => {
+                band(-0.46, 0.46, 0.0, 0.12, steel);
+                band(-0.39, 0.39, 0.12, 0.17, water);
+                for (l, r) in [(-0.47, -0.39), (0.39, 0.47)] {
+                    band(l, r, 0.12, 0.65, color);
+                }
+            }
+            M::Monorail => {
+                band(-0.12, 0.12, 0.0, 0.42, steel);
+                band(-0.16, 0.16, 0.42, 0.48, color);
+            }
+            M::ParkRailway => {
+                band(-0.30, 0.30, 0.0, 0.12, [rgb(117, 102, 83); 3]);
+                for (l, r) in [(-0.19, -0.15), (0.15, 0.19)] {
+                    band(l, r, 0.12, 0.25, steel);
+                }
+            }
+            M::InvertedCoaster => {
+                band(-0.12, 0.12, 1.15, 1.38, color);
+                for (l, r) in [(-0.23, -0.17), (0.17, 0.23)] {
+                    band(l, r, 1.30, 1.42, steel);
+                }
+            }
+            _ => {
+                band(-0.075, 0.075, 0.04, 0.19, color);
+                for (l, r) in [(-0.21, -0.14), (0.14, 0.21)] {
+                    band(l, r, 0.20, 0.28, steel);
+                }
+            }
+        }
+        if piece.kind == TrackKind::Station {
+            band(
+                -0.49,
+                -0.31,
+                0.0,
+                0.25,
+                [rgb(238, 217, 156), rgb(165, 129, 79), rgb(111, 84, 53)],
+            );
+            band(
+                0.31,
+                0.49,
+                0.0,
+                0.25,
+                [rgb(238, 217, 156), rgb(165, 129, 79), rgb(111, 84, 53)],
+            );
+        }
+    }
+    let index = piece.samples.len() / 2;
+    let point = ground(piece.samples[index]);
+    let height = if model == M::InvertedCoaster {
+        1.4
+    } else {
+        0.12
+    };
+    if let Some(bottom) = support_is_clear(park, piece.object, point + Vec3::Z * height) {
+        let side = normal(park, piece, index);
+        for offset in [-0.35, 0.35] {
+            let p = point + side * offset;
+            let q = Vec3::new(p.x, p.y, bottom);
+            slab(
+                &mut out,
+                [
+                    q + Vec3::new(-0.03, -0.03, 0.0),
+                    q + Vec3::new(-0.03, 0.03, 0.0),
+                    q + Vec3::new(0.03, 0.03, 0.0),
+                    q + Vec3::new(0.03, -0.03, 0.0),
+                ],
+                0.0,
+                point.z + height - bottom,
+                steel,
+                size,
+                rotation,
+            );
+        }
+    }
+    out
+}
+fn catalogue_car_faces(
+    pose: TrainPose,
+    size: u32,
+    rotation: u8,
+    model: park_sim::RideModel,
+    car: usize,
+) -> Vec<Face> {
+    use park_sim::RideModel as M;
+    if matches!(model, M::ClassicCoaster | M::SteelCoaster) {
+        return car_faces(pose, size, rotation);
+    }
+    if model == M::RiverRapids {
+        let mut faces = Vec::new();
+        let center = ground(pose.center);
+        for i in 0..16 {
+            let a = i as f32 * std::f32::consts::TAU / 16.0;
+            let b = (i + 1) as f32 * std::f32::consts::TAU / 16.0;
+            let radius =
+                |angle: f32, r: f32| center + Vec3::new(angle.cos() * r, angle.sin() * r, 0.0);
+            let foot = [
+                radius(a, 0.43),
+                radius(b, 0.43),
+                radius(b, 0.29),
+                radius(a, 0.29),
+            ];
+            vehicle_slab(
+                &mut faces,
+                foot,
+                0.23,
+                0.43,
+                [rgb(49, 61, 74), rgb(25, 35, 47), rgb(17, 25, 36)],
+                size,
+                rotation,
+            );
+            vehicle_slab(
+                &mut faces,
+                foot,
+                0.43,
+                0.73,
+                [rgb(240, 63, 75), rgb(172, 35, 51), rgb(106, 22, 39)],
+                size,
+                rotation,
+            );
+        }
+        bank_vehicle_faces(&mut faces, pose, center, size, rotation);
+        return faces;
+    }
+    let mut out = Vec::new();
+    let a = ground(pose.rear);
+    let b = ground(pose.front);
+    let d = (b - a).truncate().normalize_or_zero();
+    let n = Vec3::new(-d.y, d.x, 0.0);
+    let mut part =
+        |lo: f32, hi: f32, left: f32, right: f32, bottom: f32, top: f32, color: [Ink; 3]| {
+            vehicle_slab(
+                &mut out,
+                strip(a.lerp(b, lo), a.lerp(b, hi), n, n, left, right),
+                bottom,
+                top,
+                color,
+                size,
+                rotation,
+            );
+        };
+    let red = [rgb(240, 63, 75), rgb(172, 35, 51), rgb(106, 22, 39)];
+    let gold = [rgb(254, 198, 56), rgb(176, 116, 36), rgb(126, 75, 25)];
+    let dark = [rgb(51, 64, 78), rgb(28, 39, 53), rgb(18, 28, 42)];
+    let glass = [rgb(163, 235, 246), rgb(70, 151, 180), rgb(35, 95, 137)];
+    match model {
+        M::LogFlume => {
+            part(0.0, 1.0, -0.30, 0.30, 0.18, 0.38, gold);
+            for (l, r) in [(-0.30, -0.25), (0.25, 0.30)] {
+                part(0.0, 1.0, l, r, 0.38, 0.85, red);
+            }
+            part(0.90, 1.0, -0.25, 0.25, 0.38, 0.75, gold);
+        }
+        M::InvertedCoaster => {
+            part(0.05, 0.85, -0.21, 0.21, 0.36, 0.65, red);
+            part(0.04, 0.15, -0.035, 0.035, 0.60, 1.43, dark);
+            part(0.7, 0.8, -0.035, 0.035, 0.60, 1.43, dark);
+            part(0.03, 0.16, -0.22, 0.22, 1.36, 1.46, gold);
+        }
+        M::ParkRailway if car == 0 => {
+            part(0.0, 1.0, -0.25, 0.25, 0.25, 0.70, dark);
+            part(0.45, 0.60, -0.10, 0.10, 0.7, 1.1, dark);
+            part(0.0, 0.4, -0.25, 0.25, 0.70, 1.25, red);
+            part(0.0, 0.4, -0.20, 0.20, 0.9, 1.15, glass);
+            part(-0.04, 0.44, -0.29, 0.29, 1.25, 1.35, gold);
+        }
+        _ => {
+            part(0.0, 1.0, -0.25, 0.25, 0.28, 0.75, red);
+            part(0.0, 1.0, -0.24, 0.24, 0.75, 1.25, glass);
+            part(-0.03, 1.03, -0.28, 0.28, 1.25, 1.36, gold);
+            for x in [0.0, 0.45, 0.92] {
+                part(x, x + 0.05, -0.26, 0.26, 0.7, 1.26, dark);
+            }
+        }
+    }
+    bank_vehicle_faces(&mut out, pose, ground(pose.center), size, rotation);
+    out.retain(|f| f.surface.has_area());
+    out
 }
 
 #[cfg(test)]

@@ -23,8 +23,8 @@ impl std::fmt::Display for TrainConfigurationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Operating(error) => error.fmt(f),
-            Self::InvalidCars => f.write_str("Choose 1 to 3 coaster cars"),
-            Self::InvalidTrains => f.write_str("Choose 1 to 3 coaster trains"),
+            Self::InvalidCars => f.write_str("Choose a car count supported by this ride"),
+            Self::InvalidTrains => f.write_str("Choose a train count supported by this ride"),
             Self::Blocks(error) => error.fmt(f),
             Self::MinimumLoad { minimum, capacity } => write!(
                 f,
@@ -51,15 +51,17 @@ impl Park {
         match self.ride_kind(id)? {
             RideKind::Coaster => Some(usize::from(
                 self.coaster_car_count(id)?
-                    * SEATS_PER_COASTER_CAR
+                    * self.ride_model(id)?.seats_per_car()
                     * self.coaster_train_count(id)?,
             )),
-            RideKind::Carousel | RideKind::Swing | RideKind::DropTower => Some(crate::TRAIN_SEATS),
+            RideKind::Carousel | RideKind::Swing | RideKind::DropTower => {
+                Some(self.ride_model(id)?.flat_capacity())
+            }
         }
     }
 
     pub fn coaster_seats_per_train(&self, id: RideId) -> Option<u8> {
-        Some(self.coaster_car_count(id)? * SEATS_PER_COASTER_CAR)
+        Some(self.coaster_car_count(id)? * self.ride_model(id)?.seats_per_car())
     }
 
     pub fn set_coaster_train_count(
@@ -70,7 +72,7 @@ impl Park {
         let current = self
             .coaster_train_count(id)
             .ok_or(RideOperatingError::UnsupportedSetting)?;
-        if !(1..=crate::coaster_fleet::MAX_COASTER_TRAINS).contains(&count) {
+        if !(1..=self.ride_model(id).unwrap().max_trains()).contains(&count) {
             return Err(TrainConfigurationError::InvalidTrains);
         }
         if count == current {
@@ -126,7 +128,7 @@ impl Park {
                 RideOperatingError::UnsupportedSetting
             }
         })?;
-        if !(MIN_COASTER_CARS..=MAX_COASTER_CARS).contains(&cars) {
+        if !(MIN_COASTER_CARS..=self.ride_model(id).unwrap().max_cars()).contains(&cars) {
             return Err(TrainConfigurationError::InvalidCars);
         }
         if cars == current {
@@ -142,7 +144,7 @@ impl Park {
             .ride_dispatch_policy(id)
             .expect("known ride")
             .minimum_passengers;
-        let capacity = cars * SEATS_PER_COASTER_CAR;
+        let capacity = cars * self.ride_model(id).unwrap().seats_per_car();
         if minimum > capacity {
             return Err(TrainConfigurationError::MinimumLoad { minimum, capacity });
         }
@@ -153,7 +155,16 @@ impl Park {
 }
 
 pub(crate) fn validate_saved_configuration(park: &Park) -> Result<(), String> {
-    if !(MIN_COASTER_CARS..=MAX_COASTER_CARS).contains(&park.coaster_cars)
+    if park
+        .ride
+        .as_ref()
+        .is_some_and(|r| r.model.is_some_and(|m| !m.tracked()))
+        || park.extra_trains.len() + 1 > usize::from(park.selected_ride_model().max_trains())
+    {
+        return Err("incompatible tracked ride model or train count".into());
+    }
+
+    if !(MIN_COASTER_CARS..=park.selected_ride_model().max_cars()).contains(&park.coaster_cars)
         || (park.ride.is_none() && park.coaster_cars != DEFAULT_COASTER_CARS)
     {
         return Err("coaster car configuration is invalid".into());

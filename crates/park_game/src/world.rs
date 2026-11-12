@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 mod atmosphere;
 mod carousel_render;
+mod catalogue_render;
 mod entrance_render;
 mod guest_render;
 mod layout;
@@ -3207,6 +3208,45 @@ mod tests {
                 };
                 assert!(colors.contains(&rgb(235, 112, 44)));
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod catalogue_tests {
+    use super::*;
+    use bevy::mesh::VertexAttributeValues;
+    #[test]
+    fn all_catalogue_models_produce_finite_depth_geometry_in_four_views() {
+        let park = park_sim::diagnostics::build_catalogue_showcase().unwrap();
+        for rotation in 0..4 {
+            for ride in park.all_rides() {
+                let object = if let Some(c) = park.carousel(ride.id) {
+                    c.objects[0]
+                } else {
+                    park.coaster_circuit(ride.id).unwrap().pieces[0].object
+                };
+                let faces = if let Some(piece) = train_render::piece_for(&park, object) {
+                    train_render::piece_faces(&park, piece, rotation)
+                        .into_iter()
+                        .map(|f| f.surface)
+                        .collect::<Vec<_>>()
+                } else {
+                    carousel_render::object_faces(&park, object, rotation)
+                        .into_iter()
+                        .map(|f| f.surface)
+                        .collect()
+                };
+                assert!(!faces.is_empty(), "{}", park.ride_model(ride.id).unwrap());
+                assert!(faces.iter().flat_map(|f| f.vertices).all(|p| p.is_finite()));
+            }
+            let mesh = train_mesh(&park, rotation, ViewMode::Surface);
+            let Some(VertexAttributeValues::Float32x3(points)) =
+                mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            else {
+                panic!("missing vehicles")
+            };
+            assert!(points.iter().flatten().all(|v| v.is_finite()));
         }
     }
 }

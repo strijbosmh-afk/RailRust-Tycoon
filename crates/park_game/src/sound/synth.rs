@@ -17,6 +17,8 @@ pub(super) struct MixState {
     pub paused: bool,
     pub crowd: f32,
     pub coaster: f32,
+    pub ride_model: Option<park_sim::RideModel>,
+    pub flat_model: Option<park_sim::RideModel>,
     pub coaster_pan: f32,
     pub coaster_presence: f32,
     pub carousel: bool,
@@ -31,6 +33,8 @@ impl Default for MixState {
             paused: false,
             crowd: 0.3,
             coaster: 0.0,
+            ride_model: None,
+            flat_model: None,
             coaster_pan: 0.0,
             coaster_presence: 1.0,
             carousel: false,
@@ -192,8 +196,44 @@ impl Mixer {
             } else {
                 0.0
             };
-            let coaster = (rail + click) * self.ride_presence[0];
-            let carousel = carousel * self.ride_presence[1];
+            let track_sound = match self.state.ride_model {
+                Some(park_sim::RideModel::LogFlume | park_sim::RideModel::RiverRapids) => {
+                    self.wind * 0.45 * moving + n * 0.04 * moving
+                }
+                Some(park_sim::RideModel::ParkRailway) => {
+                    (osc(self.sample, 82.0) * 0.05 + n * 0.08 * osc(self.sample, 4.0).max(0.0))
+                        * moving
+                }
+                Some(park_sim::RideModel::Monorail) => {
+                    (osc(self.sample, 135.0) * 0.055 + osc(self.sample, 270.0) * 0.018) * moving
+                }
+                Some(park_sim::RideModel::SteelCoaster | park_sim::RideModel::InvertedCoaster) => {
+                    rail * 0.85 + n * 0.025 * moving
+                }
+                _ => rail + click,
+            };
+            let coaster = track_sound * self.ride_presence[0];
+            let carousel = match self.state.flat_model {
+                Some(park_sim::RideModel::FerrisWheel | park_sim::RideModel::ObservationTower) => {
+                    carousel * 0.20
+                        + osc(self.sample, 75.0)
+                            * 0.014
+                            * f32::from(self.state.carousel && !self.state.paused)
+                }
+                Some(park_sim::RideModel::PirateShip | park_sim::RideModel::Swing) => {
+                    self.wind
+                        * osc(self.sample, 0.6).abs()
+                        * 0.05
+                        * f32::from(self.state.carousel && !self.state.paused)
+                }
+                Some(park_sim::RideModel::DropTower) => {
+                    self.wind
+                        * osc(self.sample, 1.0).max(0.0)
+                        * 0.05
+                        * f32::from(self.state.carousel && !self.state.paused)
+                }
+                _ => carousel,
+            } * self.ride_presence[1];
             let mut effects = 0.0;
             for v in &mut self.voices {
                 let age = v.age as f32 / RATE as f32;

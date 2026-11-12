@@ -232,6 +232,7 @@ impl Park {
         isolated.extra_trains.clear();
         isolated.train = Some(Train {
             number: 0,
+            at_destination: false,
             in_depot: false,
             blocked: false,
             open: true,

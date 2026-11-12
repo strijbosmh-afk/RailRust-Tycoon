@@ -4,7 +4,7 @@ use crate::path_tools::CarouselPreview;
 use park_sim::{ObjectId, PATH_UNITS, PathPoint, RideId, RideKind};
 type Face = service_render::Face;
 
-fn at(point: Vec3, size: u32, rotation: u8) -> Vec3 {
+pub(super) fn at(point: Vec3, size: u32, rotation: u8) -> Vec3 {
     let offset = rotated_offset(point.truncate(), rotation);
     let shift = match rotation % 4 {
         0 => Vec2::ZERO,
@@ -15,7 +15,7 @@ fn at(point: Vec3, size: u32, rotation: u8) -> Vec3 {
     project(offset.x + shift.x, offset.y + shift.y, point.z, size)
 }
 
-fn face(result: &mut Vec<Face>, points: [Vec3; 4], ink: Ink, size: u32, rotation: u8) {
+pub(super) fn face(result: &mut Vec<Face>, points: [Vec3; 4], ink: Ink, size: u32, rotation: u8) {
     let surface = Surface {
         vertices: points.map(|p| at(p, size, rotation)),
         kind: SurfaceKind::Top,
@@ -25,7 +25,14 @@ fn face(result: &mut Vec<Face>, points: [Vec3; 4], ink: Ink, size: u32, rotation
     }
 }
 
-fn cuboid(result: &mut Vec<Face>, min: Vec3, max: Vec3, inks: [Ink; 3], size: u32, rotation: u8) {
+pub(super) fn cuboid(
+    result: &mut Vec<Face>,
+    min: Vec3,
+    max: Vec3,
+    inks: [Ink; 3],
+    size: u32,
+    rotation: u8,
+) {
     let upper = [
         Vec3::new(min.x, min.y, max.z),
         Vec3::new(min.x, max.y, max.z),
@@ -75,11 +82,44 @@ pub(super) fn object_faces(park: &Park, object: ObjectId, rotation: u8) -> Vec<F
         .filter(|c| c.objects.first() == Some(&object))
         .map_or_else(Vec::new, |c| {
             let appearance = park.ride_appearance(c.ride.id).unwrap_or_default();
+            let model = park.ride_model(c.ride.id).unwrap();
+            if matches!(
+                model,
+                park_sim::RideModel::FerrisWheel
+                    | park_sim::RideModel::TeaCups
+                    | park_sim::RideModel::ObservationTower
+                    | park_sim::RideModel::PirateShip
+            ) {
+                return super::catalogue_render::paint_static(
+                    super::catalogue_render::static_faces(
+                        model,
+                        c.origin,
+                        c.height,
+                        c.rotation,
+                        park.width(),
+                        rotation,
+                    ),
+                    appearance,
+                );
+            }
+            let art_rotation = if c.ride.model.is_some() { 0 } else { rotation };
             let mut result = match c.kind {
-                RideKind::Swing => swing_faces(c.origin, c.height, park.width(), rotation),
-                RideKind::DropTower => drop_tower_faces(c.origin, c.height, park.width(), rotation),
-                _ => faces(c.origin, c.height, park.width(), rotation),
+                RideKind::Swing => swing_faces(c.origin, c.height, park.width(), art_rotation),
+                RideKind::DropTower => {
+                    drop_tower_faces(c.origin, c.height, park.width(), art_rotation)
+                }
+                _ => faces(c.origin, c.height, park.width(), art_rotation),
             };
+            if c.ride.model.is_some() {
+                result = super::catalogue_render::orient_legacy(
+                    result,
+                    c.origin,
+                    model,
+                    c.rotation,
+                    park.width(),
+                    rotation,
+                );
+            }
             for f in &mut result {
                 for (paint, colors) in [
                     (
@@ -429,7 +469,7 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
     result
 }
 
-fn nominal(point: PathPoint) -> Vec3 {
+pub(super) fn nominal(point: PathPoint) -> Vec3 {
     Vec3::new(point.x as f32, point.y as f32, point.height as f32) / PATH_UNITS as f32
         + Vec3::Z * PATH_TOP_OFFSET
 }
@@ -444,6 +484,20 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
             continue;
         }
         if mode == ViewMode::Surface && carousel.objects.iter().any(|id| park.is_underground(*id)) {
+            continue;
+        }
+        if matches!(
+            park.ride_model(carousel.ride.id),
+            Some(
+                park_sim::RideModel::FerrisWheel
+                    | park_sim::RideModel::TeaCups
+                    | park_sim::RideModel::ObservationTower
+                    | park_sim::RideModel::PirateShip
+            )
+        ) {
+            for face in super::catalogue_render::dynamic_faces(park, carousel, rotation) {
+                painter.surface(face.surface, face.ink);
+            }
             continue;
         }
         for (seat, point) in park
@@ -507,7 +561,12 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
                 );
             } else if carousel.kind == RideKind::Swing {
                 let pivot = Vec3::new(
-                    carousel.origin.x as f32 + 1.5,
+                    carousel.origin.x as f32
+                        + if carousel.ride.model.is_some() {
+                            1.0
+                        } else {
+                            1.5
+                        },
                     p.y,
                     f32::from(carousel.height) + 2.50,
                 );
@@ -662,12 +721,45 @@ pub fn carousel_preview_mesh(preview: Option<CarouselPreview>, park: &Park, rota
     if park.width() != park.height() || park.tile(preview.origin).is_none() {
         return painter.finish();
     }
-    let surfaces = match preview.kind {
-        RideKind::Swing => swing_faces(preview.origin, preview.height, park.width(), rotation),
-        RideKind::DropTower => {
-            drop_tower_faces(preview.origin, preview.height, park.width(), rotation)
-        }
-        _ => faces(preview.origin, preview.height, park.width(), rotation),
+    let surfaces = if preview.model.tracked() {
+        super::catalogue_render::prefab_faces(
+            preview.model,
+            preview.origin,
+            preview.height,
+            preview.rotation,
+            park.width(),
+            rotation,
+        )
+    } else if matches!(
+        preview.model,
+        park_sim::RideModel::FerrisWheel
+            | park_sim::RideModel::TeaCups
+            | park_sim::RideModel::ObservationTower
+            | park_sim::RideModel::PirateShip
+    ) {
+        super::catalogue_render::static_faces(
+            preview.model,
+            preview.origin,
+            preview.height,
+            preview.rotation,
+            park.width(),
+            rotation,
+        )
+    } else {
+        super::catalogue_render::orient_legacy(
+            match preview.kind {
+                RideKind::Swing => swing_faces(preview.origin, preview.height, park.width(), 0),
+                RideKind::DropTower => {
+                    drop_tower_faces(preview.origin, preview.height, park.width(), 0)
+                }
+                _ => faces(preview.origin, preview.height, park.width(), 0),
+            },
+            preview.origin,
+            preview.model,
+            preview.rotation,
+            park.width(),
+            rotation,
+        )
     };
     let mut ink = if !preview.valid {
         rgb(225, 68, 63)
@@ -702,7 +794,22 @@ pub fn ride_focus(park: &Park, id: RideId, rotation: u8) -> Option<Vec2> {
         return None;
     }
     if let Some(c) = park.carousel(id).filter(|c| !c.objects.is_empty()) {
-        Some(center(c.origin, c.height, c.kind, park.width(), rotation) - Vec2::Y * HEIGHT_STEP)
+        let (mut w, mut d) = park.ride_model(id)?.dimensions();
+        if c.rotation % 2 == 1 {
+            std::mem::swap(&mut w, &mut d);
+        }
+        Some(
+            at(
+                Vec3::new(
+                    c.origin.x as f32 + (w - 1) as f32 / 2.0,
+                    c.origin.y as f32 + (d - 1) as f32 / 2.0,
+                    c.height as f32 + 2.0,
+                ),
+                park.width(),
+                rotation,
+            )
+            .truncate(),
+        )
     } else if park.ride_kind(id) == Some(park_sim::RideKind::Coaster) {
         super::train_render::coaster_focus(park, id, rotation)
     } else {
@@ -755,6 +862,8 @@ mod tests {
             }
             let ghost = carousel_preview_mesh(
                 Some(CarouselPreview {
+                    model: park_sim::RideModel::legacy(RideKind::Swing),
+                    rotation: 0,
                     kind: RideKind::Swing,
                     origin,
                     height: 8,
@@ -789,6 +898,8 @@ mod tests {
             );
             let ghost = carousel_preview_mesh(
                 Some(CarouselPreview {
+                    model: park_sim::RideModel::legacy(RideKind::DropTower),
+                    rotation: 0,
                     kind: RideKind::DropTower,
                     origin,
                     height: 8,
@@ -838,6 +949,8 @@ mod tests {
             for valid in [true, false] {
                 let ghost = carousel_preview_mesh(
                     Some(CarouselPreview {
+                        model: park_sim::RideModel::legacy(park_sim::RideKind::Carousel),
+                        rotation: 0,
                         kind: park_sim::RideKind::Carousel,
                         origin,
                         height: 8,

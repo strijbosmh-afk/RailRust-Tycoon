@@ -8,6 +8,39 @@ use park_sim::{TrackBuildKind, TrackDirection};
 
 const PAID_SITE: TilePos = TilePos { x: 14, y: 5 };
 
+pub(super) fn prepare_follow(park: &mut Park, view: &mut ViewState) {
+    *park = Park::new(32, 32);
+    view.set_modal(false, false, false, false);
+    view.terrain_custom = true;
+    view.path_tool.set_mode(PathTool::Inspect);
+    view.selected = None;
+    view.hovered = None;
+    view.track_editor = track_tools::TrackEditor {
+        active: true,
+        height: 0,
+        ..default()
+    };
+    let start = TilePos { x: 10, y: 15 };
+    let point = track_tools::build_center(park, start, 0, view.rotation);
+    track_tools::point_at(park, view, point, true);
+    for kind in [
+        TrackBuildKind::Lift,
+        TrackBuildKind::Lift,
+        TrackBuildKind::Lift,
+        TrackBuildKind::CurveRight,
+        TrackBuildKind::TransitionDown,
+    ] {
+        track_tools::apply_command(park, view, track_tools::TrackCommand::Piece(kind));
+        track_tools::apply_command(park, view, track_tools::TrackCommand::AddNext);
+    }
+    assert_eq!(park.track_draft().len(), 6);
+    assert_eq!(view.track_editor.height, 2);
+    view.zoom = 3.0;
+    view.pan = world::tile_center(TilePos { x: 13, y: 16 }, 32, view.rotation)
+        + Vec2::Y * world::HEIGHT_STEP;
+    view.scene_dirty = true;
+}
+
 fn is_editing_scene(scene: Scene) -> bool {
     matches!(
         scene,

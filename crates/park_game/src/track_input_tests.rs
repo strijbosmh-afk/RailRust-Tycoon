@@ -24,6 +24,73 @@ fn add_commands(app: &mut App) {
     );
 }
 
+#[test]
+fn next_piece_keyboard_button_and_saved_slopes_use_connected_exit_heights() {
+    for rotation in 0..4 {
+        let directory = InputSaveDirectory::new();
+        let mut state = view(rotation);
+        state.track_editor.height = 0;
+        let original = Park::new(32, 32);
+        let (mut app, window) = persistence_input_app(&directory, original.clone(), state);
+        add_commands(&mut app);
+        aim(&mut app, window, TilePos { x: 10, y: 15 }, 0);
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        frame(&mut app);
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .reset_all();
+        assert_eq!(
+            app.world().resource::<Simulation>().0.track_draft().len(),
+            1
+        );
+        press_action(&mut app, TrackCommand::Piece(Kind::Lift));
+        let button = app
+            .world_mut()
+            .spawn((
+                Button,
+                Interaction::Pressed,
+                ui::Action::Track(TrackCommand::AddNext),
+            ))
+            .id();
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Left);
+        persistence_key_frame(&mut app, &[KeyCode::Enter]);
+        app.world_mut().despawn(button);
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .reset_all();
+        assert_eq!(
+            app.world().resource::<Simulation>().0.track_draft().len(),
+            2
+        );
+        persistence_key_frame(&mut app, &[KeyCode::Enter]);
+        assert_eq!(app.world().resource::<ViewState>().track_editor.height, 2);
+        press_action(&mut app, TrackCommand::Piece(Kind::CurveRight));
+        press_action(&mut app, TrackCommand::AddNext);
+        assert_eq!(
+            app.world().resource::<ViewState>().track_editor.direction,
+            Direction::South
+        );
+        press_action(&mut app, TrackCommand::Piece(Kind::Drop));
+        persistence_key_frame(&mut app, &[KeyCode::Enter, KeyCode::F5]);
+        let saved = &app.world().resource::<Simulation>().0;
+        assert_eq!(saved.track_draft().len(), 5);
+        assert_eq!(directory.store().load().unwrap(), *saved);
+        for pair in saved.track_draft().windows(2) {
+            assert_eq!(pair[0].samples().last(), pair[1].samples().first());
+        }
+        assert_only_draft_changed(&original, saved);
+        persistence_key_frame(&mut app, &[KeyCode::PageUp]);
+        assert!(!app.world().resource::<ViewState>().track_editor.auto_follow);
+        assert_eq!(app.world().resource::<ViewState>().track_editor.height, 2);
+        press_action(&mut app, TrackCommand::Follow);
+        assert_eq!(app.world().resource::<ViewState>().track_editor.height, 1);
+    }
+}
+
 fn press_action(app: &mut App, command: TrackCommand) {
     let entity = app
         .world_mut()

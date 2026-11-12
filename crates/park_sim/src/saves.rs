@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 47;
-pub const CONTENT_VERSION: u32 = 47;
+pub const SCHEMA_VERSION: u32 = 48;
+pub const CONTENT_VERSION: u32 = 48;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -862,6 +862,39 @@ impl Park {
         validate_decoration_field(bytes, header.schema_version)?;
         validate_path_economy_field(bytes, header.schema_version)?;
         let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+        if header.schema_version < 48 {
+            fn catalogue_fields(value: &serde_json::Value) -> bool {
+                match value {
+                    serde_json::Value::Object(map) => map.iter().any(|(key, value)| {
+                        matches!(
+                            key.as_str(),
+                            "model" | "rotation" | "at_destination" | "souvenir" | "information"
+                        ) || (key == "kind"
+                            && value.as_str().is_some_and(|v| {
+                                matches!(v, "IceCream" | "Souvenir" | "Information" | "FirstAid")
+                            }))
+                            || (key == "thought"
+                                && value.as_str().is_some_and(|v| {
+                                    matches!(
+                                        v,
+                                        "WantsSouvenir"
+                                            | "NeedsInformation"
+                                            | "HadIceCream"
+                                            | "BoughtSouvenir"
+                                            | "FoundInformation"
+                                            | "ReceivedCare"
+                                    )
+                                }))
+                            || catalogue_fields(value)
+                    }),
+                    serde_json::Value::Array(values) => values.iter().any(catalogue_fields),
+                    _ => false,
+                }
+            }
+            if catalogue_fields(&value["park"]) {
+                return Err(invalid("catalogue content requires schema 48"));
+            }
+        }
         if header.schema_version < 47 {
             fn contains_new_track(value: &serde_json::Value) -> bool {
                 match value {
@@ -1483,7 +1516,14 @@ fn validate_wellness_fields(bytes: &[u8], schema: u32) -> Result<(), SaveError> 
             .get("needs")
             .and_then(serde_json::Value::as_object)
             .ok_or_else(|| invalid("guest needs are missing"))?;
-        let expected = if schema < 25 { 3 } else { 5 };
+        let expected = if schema < 25 {
+            3
+        } else if schema < 48 {
+            5
+        } else {
+            5 + usize::from(needs.contains_key("souvenir"))
+                + usize::from(needs.contains_key("information"))
+        };
         if needs.len() != expected
             || !needs.contains_key("hunger")
             || !needs.contains_key("thirst")
@@ -1624,6 +1664,7 @@ struct VersionFourGuest {
 impl From<VersionFourRide> for crate::Ride {
     fn from(old: VersionFourRide) -> Self {
         Self {
+            model: None,
             id: old.id,
             entrance: old.entrance,
             exit: None,
@@ -1833,6 +1874,7 @@ struct VersionFiveGuest {
 impl From<VersionFiveRide> for crate::Ride {
     fn from(old: VersionFiveRide) -> Self {
         Self {
+            model: None,
             id: old.id,
             entrance: old.entrance,
             exit: old.exit,
@@ -2056,6 +2098,7 @@ struct VersionSixGuest {
 impl From<VersionSixRide> for crate::Ride {
     fn from(old: VersionSixRide) -> Self {
         Self {
+            model: None,
             id: old.id,
             entrance: old.entrance,
             exit: old.exit,
@@ -2641,13 +2684,29 @@ impl ParkData {
         crate::visitors::validate(&park).map_err(invalid)?;
         crate::scenario::validate(&park).map_err(invalid)?;
         let primary = circuit_data
-            .map(|data| rebuild_circuit(&park, &objects, data, legacy_banks))
+            .map(|data| {
+                rebuild_circuit(
+                    &park,
+                    &objects,
+                    data,
+                    park.ride.as_ref().and_then(|r| r.model),
+                    legacy_banks,
+                )
+            })
             .transpose()?;
         let circuits = other_data
             .into_iter()
             .map(|data| {
                 data.circuit
-                    .map(|c| rebuild_circuit(&park, &objects, c, legacy_banks))
+                    .map(|c| {
+                        rebuild_circuit(
+                            &park,
+                            &objects,
+                            c,
+                            data.ride.as_ref().and_then(|r| r.model),
+                            legacy_banks,
+                        )
+                    })
                     .transpose()
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -2692,6 +2751,7 @@ fn upgrade_banked_geometry(park: &mut Park) {
             let circuit = park.circuit.as_mut().unwrap();
             let mut offsets = Vec::new();
             let mut total = 0;
+            circuit.station_stop = 0;
             for (piece, spec) in circuit.pieces.iter_mut().zip(&circuit.specs) {
                 offsets.push(total);
                 piece.samples = spec.samples();
@@ -2700,7 +2760,7 @@ fn upgrade_banked_geometry(park: &mut Park) {
                     .windows(2)
                     .map(|p| crate::trains::point_distance(p[0], p[1]))
                     .sum();
-                if spec.kind == TrackKind::Station {
+                if spec.kind == TrackKind::Station && circuit.station_stop == 0 {
                     circuit.station_stop = total + 3 * TRACK_UNITS as u32 / 4;
                 }
                 total += piece.length;
@@ -2935,14 +2995,28 @@ fn rebuild_circuit(
     park: &Park,
     objects: &BTreeMap<ObjectId, &SurfaceObject>,
     data: CircuitData,
+    model: Option<crate::RideModel>,
     legacy_banks: bool,
 ) -> Result<TrainCircuit, SaveError> {
     if data.pieces.len() > MAX_CIRCUIT_PIECES {
         return Err(invalid("circuit exceeds the piece limit"));
     }
     let specs: Vec<_> = data.pieces.iter().map(|piece| piece.spec).collect();
-    let mut geometry = crate::trains::validate_specs(park, &specs)
-        .map_err(|error| invalid(format!("circuit: {error}")))?;
+    if model.is_none()
+        && specs
+            .iter()
+            .filter(|p| p.kind == TrackKind::Station)
+            .count()
+            != 1
+    {
+        return Err(invalid("legacy circuits require one station"));
+    }
+    let mut geometry = crate::trains::validate_specs_for_model(
+        park,
+        &specs,
+        model.unwrap_or(crate::RideModel::ClassicCoaster),
+    )
+    .map_err(|error| invalid(format!("circuit: {error}")))?;
     if legacy_banks {
         for (spec, samples) in specs.iter().zip(&mut geometry) {
             if spec.kind == TrackKind::BankedCurve {
@@ -2979,7 +3053,7 @@ fn rebuild_circuit(
         if length <= crate::trains::MAX_SPEED {
             return Err(invalid("circuit piece is too short"));
         }
-        if saved.spec.kind == TrackKind::Station {
+        if saved.spec.kind == TrackKind::Station && station_stop == 0 {
             station_stop = total_length
                 .checked_add(3 * TRACK_UNITS as u32 / 4)
                 .ok_or_else(|| invalid("circuit station distance overflow"))?;
@@ -3085,6 +3159,7 @@ fn validate_one_train(park: &Park) -> Result<(), SaveError> {
             if train.phase != TrainPhase::Fault
                 || train.open
                 || train.departed
+                || train.at_destination
                 || train.speed != 0
                 || train.distance != 0
                 || train.piece_index != 0
@@ -3110,6 +3185,27 @@ fn validate_one_train(park: &Park) -> Result<(), SaveError> {
         return Err(invalid(
             "train position, piece index, speed or dwell is out of range",
         ));
+    }
+    if train.at_destination {
+        let Some(stop) = circuit
+            .destination_stop()
+            .filter(|_| park.selected_ride_model().transport())
+        else {
+            return Err(invalid("destination stop requires a transport ride"));
+        };
+        if train.distance != stop
+            || train.lap_progress
+                != (stop + circuit.total_length - circuit.station_stop) % circuit.total_length
+            || train.departed
+            || train.speed != 0
+            || train.phase != TrainPhase::Station
+            || train.dwell_ticks != 0
+            || train.in_depot
+            || train.blocked
+        {
+            return Err(invalid("transport destination state is inconsistent"));
+        }
+        return Ok(());
     }
     if train.departed {
         let expected_phase = match circuit.pieces[train.piece_index].kind {

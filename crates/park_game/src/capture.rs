@@ -66,6 +66,12 @@ mod visitor_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
+    Catalogue,
+    CatalogueMenu,
+    CatalogueWater,
+    CatalogueTransport,
+    CatalogueFacilities,
+    TrackFollow,
     Overview,
     TunnelEntrances,
     FlatStart,
@@ -750,6 +756,12 @@ pub(super) fn configure(app: &mut App) {
         .position(|value| value == "--capture-scene")
         .map(
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("catalogue") => Scene::Catalogue,
+                Some("catalogue-menu") => Scene::CatalogueMenu,
+                Some("catalogue-water") => Scene::CatalogueWater,
+                Some("catalogue-transport") => Scene::CatalogueTransport,
+                Some("catalogue-facilities") => Scene::CatalogueFacilities,
+                Some("track-follow") => Scene::TrackFollow,
                 Some("overview") => Scene::Overview,
                 Some("flat-start") => Scene::FlatStart,
                 Some("help") => Scene::Help,
@@ -1614,6 +1626,43 @@ fn apply_preset(
         view.terrain_custom = true;
         view.scene_dirty = true;
         sim.0 = park;
+    }
+    if matches!(
+        capture.scene,
+        Scene::Catalogue
+            | Scene::CatalogueMenu
+            | Scene::CatalogueWater
+            | Scene::CatalogueTransport
+            | Scene::CatalogueFacilities
+    ) {
+        sim.0 = park_sim::diagnostics::build_catalogue_showcase().expect("catalogue fixture");
+        for _ in 0..capture.ticks {
+            sim.0.advance(Speed::Normal);
+        }
+        view.rotation = capture.rotation.unwrap_or(0);
+        view.terrain_custom = true;
+        view.set_modal(false, false, false, false);
+        view.selected = None;
+        view.hovered = None;
+        view.path_tool.set_mode(PathTool::Inspect);
+        let anchor = match capture.scene {
+            Scene::CatalogueWater => TilePos { x: 52, y: 19 },
+            Scene::CatalogueTransport => TilePos { x: 25, y: 35 },
+            Scene::CatalogueFacilities => TilePos { x: 15, y: 58 },
+            _ => TilePos { x: 31, y: 29 },
+        };
+        view.zoom = if matches!(capture.scene, Scene::Catalogue | Scene::CatalogueMenu) {
+            0.65
+        } else {
+            2.0
+        };
+        view.pan = world::tile_center(anchor, 64, view.rotation);
+        view.catalogue_open = matches!(capture.scene, Scene::CatalogueMenu);
+        view.catalogue_category = 0;
+        view.scene_dirty = true;
+    }
+    if matches!(capture.scene, Scene::TrackFollow) {
+        track_construction_scenes::prepare_follow(&mut sim.0, &mut view);
     }
     if capture.detail {
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;

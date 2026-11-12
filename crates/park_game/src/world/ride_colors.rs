@@ -23,6 +23,7 @@ pub(super) fn darken(inks: [Ink; 3], amount: f32) -> [Ink; 3] {
 }
 pub(super) fn vehicle(paint: RidePaint, ink: Ink) -> Ink {
     for (group, amount) in [
+        ([rgb(240, 63, 75), rgb(172, 35, 51), rgb(106, 22, 39)], 1.0),
         ([rgb(218, 67, 57), rgb(160, 40, 45), rgb(114, 32, 40)], 1.0),
         ([rgb(196, 66, 54), rgb(142, 43, 44), rgb(101, 35, 42)], 0.90),
     ] {

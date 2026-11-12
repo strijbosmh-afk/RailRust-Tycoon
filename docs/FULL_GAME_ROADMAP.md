@@ -4,7 +4,7 @@ Planning checkpoint after 0.70.0, updated for the 0.84.0 [Phase 3–5 audit](PHA
 
 ## Starting point and release target
 
-- The current game has a deterministic `park_sim` library, a Bevy `park_game` application, a flat 32×32 starter park, construction and ride systems, visitors, finance, saves, and two original campaign challenges. Park saves are strict schema/content 47/47; awards are stored separately. Completed Phase 3–5 work includes original art records, editable large maps, paid construction, independent coasters, three-train blocks, transitions/inversions, force estimates and design exchange. The audit records acceptance evidence and the interrupted final manual interaction check.
+- The current game has a deterministic `park_sim` library, a Bevy `park_game` application, a flat 32×32 starter park, construction and ride systems, visitors, finance, saves, and two original campaign challenges. Park saves are strict schema/content 48/48; awards are stored separately. Completed Phase 3–5 work includes original art records, editable large maps, paid construction, independent coasters, three-train blocks, transitions/inversions, force estimates and design exchange. The audit records acceptance evidence and the interrupted final manual interaction check.
 - Normal play has an intro/title and park library. The default window is 1280×800 with a 1024×680 minimum; display settings and grouped, scrolling panels cover major flows, while the complete mixed-DPI acceptance matrix remains open. Large maps are playable and editable with current path/object/guest limits rather than diagnostic-only renders.
 - The 1.0 target is a free, offline, full-function Windows x64 game with original code, artwork, music, sounds, scenarios, and interface. Players should not need Rust or files from another game. Decide the public source license and every third-party asset right before release.
 - This development PC is not a performance reference. Set public hardware and frame-time targets only after testing a representative target PC and a clean Windows installation.
@@ -116,13 +116,11 @@ flowchart LR
 
 **Gate:** construct a custom coaster without a starter design, test it, fix a rejected layout, open with guests, run multiple trains where supported, close/repair it, save, reload, and rebuild the design in another park. Invalid or colliding layouts never run.
 
-## 6. Full ride and facility catalogue
+## 6. Full ride and facility catalogue — complete in 0.85.0
 
-1. Deliver the agreed 1.0 set in coherent batches: gentle rides, thrill rides, water rides, transport rides, coaster families, shops, toilets, rest/medical and supporting facilities. Do not call a family complete because one representative ride works.
-2. For each entry include build/demolish economics, capacity, queues and exits, ride choice, prices, operations, breakdown/service, visuals at four rotations, sound, analytics, and save migration.
-3. Add original signage, color variants and animations while reusing validated mechanics where appropriate. Maintain a content manifest with stable IDs, design ownership and redistribution rights.
+The approved catalogue contains 14 rides across gentle, thrill, water, transport and coaster families, plus eight facilities. The [catalogue guide](PHASE_6_CATALOGUE.md) lists every entry, capacity, price and access rule. Each entry uses the shared construction, finance, guest, maintenance and save systems. The latest acceptance record is in [resume section 53](../RESUME_DEVELOPMENT.md#53-phase-6-ride-and-facility-catalogue--0850).
 
-**Gate:** each catalogue item passes a common mixed-park acceptance checklist and can coexist with other attractions without conflicting IDs, routes, finances or rendering. The exact catalogue is fixed in Phase 0.
+The common acceptance gate covers paid placement, demolition, operation, guest use, four-view presentation, sound and exact save continuation in a mixed park. The approved catalogue passes that gate in 0.85.0. Verification is recorded in resume section 53.
 
 ## 7. Visitors, staff, weather, and park life
 
@@ -179,9 +177,9 @@ flowchart LR
 
 Use one branch/PR per bounded slice. Record the precise user flow, affected saves/content IDs, visual captures, and acceptance result in its report and in `RESUME_DEVELOPMENT.md`. Keep a playable package at each checkpoint. For simulation changes, verify deterministic continuation and old-save migration. For interface/art changes, inspect native input and captures at more than one display size. The Windows CI and a clean-PC playthrough remain independent of this development PC's speed.
 
-1. **Next PR:** application state and skippable original intro/title screen, with New Sandbox, Continue, Settings, Credits and Quit. Preserve diagnostic startup paths and current saves. Capture 1024×680 and 1920×1080.
-2. **Following PR:** park library and migration from the existing single slot, then campaign choice on New Park. Prove a fresh process can unlock Boardwalk, return to title and create a separate park.
-3. **Following PR:** shared UI scale/layout primitives and display settings, then migrate title and one management panel before converting every panel. Run the display matrix and map-picking regression after each conversion.
-4. **Then:** approve the visual bible and implement the first terrain/ride/service/guest art batch before expanding map and ride content.
+1. Continue Phase 7 with expanded guest behavior and park life, using the completed catalogue as the mixed-park test input.
+2. Extend staff from the current mechanic and handyman into independently managed workers, routes, wages and workplace access.
+3. Implement the agreed security, entertainer and service roles, with visible tasks and safe recovery after construction edits.
+4. Add the agreed shelter, weather and incident effects, then run long mixed-park continuation checks before Phase 8 management work.
 
 The order can change when a proof exposes a prerequisite, but a later phase cannot be declared complete while its checklist gate or save/visual acceptance is still open.

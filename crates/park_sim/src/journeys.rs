@@ -99,7 +99,7 @@ impl Park {
             }
             .into());
         }
-        self.entrance_station(ride, pos, height, facing)?;
+        self.gate_station(ride, pos, height, facing, true)?;
         Ok(())
     }
     pub fn place_ride_exit(
@@ -146,7 +146,7 @@ impl Park {
             access.status = RideExitStatus::NoExit;
             return access;
         };
-        let Ok(station) = self.entrance_station(id, gate.pos, gate.height, exit.facing) else {
+        let Ok(station) = self.gate_station(id, gate.pos, gate.height, exit.facing, true) else {
             access.status = RideExitStatus::StationDisconnected;
             return access;
         };
@@ -310,15 +310,24 @@ impl Park {
                 .copied();
         }
         let capacity = self.coaster_seats_per_train(id)?;
+        let seats_per_car = self.ride_model(id)?.seats_per_car();
+        let local = seat % seats_per_car;
         let pose = *self
             .coaster_train_cars_for(id, seat / capacity)
-            .get(usize::from(seat % capacity) / 2)?;
+            .get(usize::from((seat % capacity) / seats_per_car))?;
         let dx = i64::from(pose.front.x - pose.rear.x);
         let dy = i64::from(pose.front.y - pose.rear.y);
         let length = ((dx * dx + dy * dy) as u64).isqrt().max(1) as i64;
-        let offset = if seat.is_multiple_of(2) { -64 } else { 64 };
-        let x = i64::from(pose.center.x) - dy * offset / length;
-        let y = i64::from(pose.center.y) + dx * offset / length;
+        let (offset, longitudinal) = if self.ride_model(id)? == crate::RideModel::RiverRapids {
+            let (sin, cos) = crate::catalogue_motion::circle(u32::from(local), 6);
+            (i64::from(sin) * 180 / 1024, i64::from(cos) * 180 / 1024)
+        } else {
+            let side = if local.is_multiple_of(2) { -64 } else { 64 };
+            let along = (i64::from(local / 2) * 2 - i64::from(seats_per_car / 2 - 1)) * 95;
+            (side, along)
+        };
+        let x = i64::from(pose.center.x) - dy * offset / length + dx * longitudinal / length;
+        let y = i64::from(pose.center.y) + dx * offset / length + dy * longitudinal / length;
         let point = PathPoint {
             x: (x * i64::from(PATH_UNITS) / i64::from(TRACK_UNITS)) as i32,
             y: (y * i64::from(PATH_UNITS) / i64::from(TRACK_UNITS)) as i32,
@@ -501,7 +510,10 @@ impl Park {
             }
             return;
         }
-        if !self.ride_is_open(ride_id)
+        if self
+            .coaster_train(ride_id)
+            .is_some_and(|t| t.at_destination)
+            || !self.ride_is_open(ride_id)
             || exit.status != RideExitStatus::Ready
             || self.ride_by_id(ride_id).unwrap().draining
         {

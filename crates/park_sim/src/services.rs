@@ -31,9 +31,22 @@ pub enum ServiceKind {
     Drink,
     Toilet,
     Rest,
+    IceCream,
+    Souvenir,
+    Information,
+    FirstAid,
 }
 impl ServiceKind {
-    pub const ALL: [Self; 4] = [Self::Food, Self::Drink, Self::Toilet, Self::Rest];
+    pub const ALL: [Self; 8] = [
+        Self::Food,
+        Self::Drink,
+        Self::Toilet,
+        Self::Rest,
+        Self::IceCream,
+        Self::Souvenir,
+        Self::Information,
+        Self::FirstAid,
+    ];
     const BASIC_NEEDS: [Self; 3] = [Self::Food, Self::Drink, Self::Toilet];
     pub const fn build_cost_cents(self) -> u64 {
         match self {
@@ -41,6 +54,10 @@ impl ServiceKind {
             Self::Drink => 8_000,
             Self::Toilet => 10_000,
             Self::Rest => 14_000,
+            Self::IceCream => 11_000,
+            Self::Souvenir => 16_000,
+            Self::Information => 9_000,
+            Self::FirstAid => 18_000,
         }
     }
     pub const fn upkeep_cost_cents(self) -> u32 {
@@ -49,6 +66,10 @@ impl ServiceKind {
             Self::Drink => 20,
             Self::Toilet => 10,
             Self::Rest => 25,
+            Self::IceCream => 25,
+            Self::Souvenir => 35,
+            Self::Information => 15,
+            Self::FirstAid => 40,
         }
     }
     pub const fn supply_cost_cents(self) -> u32 {
@@ -57,6 +78,10 @@ impl ServiceKind {
             Self::Drink => 25,
             Self::Toilet => 10,
             Self::Rest => 20,
+            Self::IceCream => 40,
+            Self::Souvenir => 150,
+            Self::Information => 5,
+            Self::FirstAid => 30,
         }
     }
     pub const fn default_price_cents(self) -> u32 {
@@ -65,6 +90,10 @@ impl ServiceKind {
             Self::Drink => 100,
             Self::Toilet => 0,
             Self::Rest => 0,
+            Self::IceCream => 150,
+            Self::Souvenir => 400,
+            Self::Information => 0,
+            Self::FirstAid => 0,
         }
     }
     fn cadence(self) -> u64 {
@@ -73,6 +102,7 @@ impl ServiceKind {
             Self::Drink => 60,
             Self::Toilet => 120,
             Self::Rest => 120,
+            Self::IceCream | Self::Souvenir | Self::Information | Self::FirstAid => 120,
         }
     }
     fn need_thought(self) -> GuestThought {
@@ -81,6 +111,10 @@ impl ServiceKind {
             Self::Drink => GuestThought::Thirsty,
             Self::Toilet => GuestThought::NeedsToilet,
             Self::Rest => GuestThought::NeedsRest,
+            Self::IceCream => GuestThought::Thirsty,
+            Self::Souvenir => GuestThought::WantsSouvenir,
+            Self::Information => GuestThought::NeedsInformation,
+            Self::FirstAid => GuestThought::FeelingSick,
         }
     }
     fn relief_thought(self) -> GuestThought {
@@ -89,6 +123,10 @@ impl ServiceKind {
             Self::Drink => GuestThought::HadDrink,
             Self::Toilet => GuestThought::UsedToilet,
             Self::Rest => GuestThought::Rested,
+            Self::IceCream => GuestThought::HadIceCream,
+            Self::Souvenir => GuestThought::BoughtSouvenir,
+            Self::Information => GuestThought::FoundInformation,
+            Self::FirstAid => GuestThought::ReceivedCare,
         }
     }
 }
@@ -99,6 +137,10 @@ impl std::fmt::Display for ServiceKind {
             Self::Drink => "Drinks",
             Self::Toilet => "Toilets",
             Self::Rest => "Rest",
+            Self::IceCream => "Ice cream",
+            Self::Souvenir => "Souvenirs",
+            Self::Information => "Information",
+            Self::FirstAid => "First aid",
         })
     }
 }
@@ -106,6 +148,10 @@ impl std::fmt::Display for ServiceKind {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GuestNeeds {
+    #[serde(default, skip_serializing_if = "need_zero")]
+    pub souvenir: u8,
+    #[serde(default, skip_serializing_if = "need_zero")]
+    pub information: u8,
     pub hunger: u8,
     pub thirst: u8,
     pub toilet: u8,
@@ -114,12 +160,17 @@ pub struct GuestNeeds {
     #[serde(default)]
     pub nausea: u8,
 }
+fn need_zero(value: &u8) -> bool {
+    *value == 0
+}
 const fn default_energy() -> u8 {
     80
 }
 impl Default for GuestNeeds {
     fn default() -> Self {
         Self {
+            souvenir: 0,
+            information: 0,
             hunger: 20,
             thirst: 20,
             toilet: 20,
@@ -133,6 +184,8 @@ impl GuestNeeds {
         let mut state = seed ^ id.0.wrapping_mul(0xd6e8_feb8_6659_fd93) ^ 0x6e65_6564_7373_6565;
         let mut sample = || 10 + (crate::crowds::next_random(&mut state) % 21) as u8;
         Self {
+            souvenir: 0,
+            information: 0,
             hunger: sample(),
             thirst: sample(),
             toilet: sample(),
@@ -153,6 +206,10 @@ impl GuestNeeds {
             ServiceKind::Drink => self.thirst,
             ServiceKind::Toilet => self.toilet,
             ServiceKind::Rest => 100_u8.saturating_sub(self.energy).max(self.nausea),
+            ServiceKind::IceCream => self.hunger.min(self.thirst),
+            ServiceKind::Souvenir => self.souvenir,
+            ServiceKind::Information => self.information,
+            ServiceKind::FirstAid => self.nausea,
         }
     }
     fn value_mut(&mut self, kind: ServiceKind) -> &mut u8 {
@@ -160,11 +217,26 @@ impl GuestNeeds {
             ServiceKind::Food => &mut self.hunger,
             ServiceKind::Drink => &mut self.thirst,
             ServiceKind::Toilet => &mut self.toilet,
-            ServiceKind::Rest => unreachable!("rest treats both energy and nausea"),
+            ServiceKind::Souvenir => &mut self.souvenir,
+            ServiceKind::Information => &mut self.information,
+            ServiceKind::FirstAid => &mut self.nausea,
+            ServiceKind::IceCream | ServiceKind::Rest => {
+                unreachable!("rest treats both energy and nausea")
+            }
         }
     }
-    fn relieve(&mut self, kind: ServiceKind) {
+    pub(crate) fn relieve(&mut self, kind: ServiceKind) {
         match kind {
+            ServiceKind::IceCream => {
+                self.hunger = self.hunger.saturating_sub(45);
+                self.thirst = self.thirst.saturating_sub(45);
+            }
+            ServiceKind::Souvenir => self.souvenir = 0,
+            ServiceKind::Information => self.information = 0,
+            ServiceKind::FirstAid => {
+                self.nausea = 0;
+                self.energy = self.energy.max(65);
+            }
             ServiceKind::Rest => {
                 self.energy = self.energy.max(90);
                 self.nausea = self.nausea.min(10);
@@ -532,9 +604,14 @@ impl Park {
             summary.tired_guests += usize::from(guest.needs.energy <= 100 - NEED_SEEK_THRESHOLD);
             summary.nauseous_guests += usize::from(guest.needs.nausea >= NEED_SEEK_THRESHOLD);
             summary.critical_guests += usize::from(
-                ServiceKind::ALL
-                    .iter()
-                    .any(|kind| guest.needs.value(*kind) >= NEED_CRITICAL_THRESHOLD),
+                [
+                    ServiceKind::Food,
+                    ServiceKind::Drink,
+                    ServiceKind::Toilet,
+                    ServiceKind::Rest,
+                ]
+                .iter()
+                .any(|kind| guest.needs.value(*kind) >= NEED_CRITICAL_THRESHOLD),
             );
             summary.services_used += guest.services_used;
             if let Some(visit) = &guest.service_visit {
@@ -551,6 +628,12 @@ impl Park {
     pub(crate) fn step_needs(&mut self) {
         let benches = &self.decorations.benches;
         for guest in &mut self.guests {
+            if self.ticks.is_multiple_of(180) {
+                guest.needs.souvenir = guest.needs.souvenir.saturating_add(1).min(100);
+            }
+            if self.ticks.is_multiple_of(240) {
+                guest.needs.information = guest.needs.information.saturating_add(1).min(100);
+            }
             for kind in ServiceKind::BASIC_NEEDS {
                 if !self.ticks.is_multiple_of(kind.cadence()) {
                     continue;
@@ -959,8 +1042,10 @@ pub(crate) fn validate_services(park: &Park) -> Result<(), String> {
         let access = park.service_access(visit.service);
         if guest.ride_visit.is_some()
             || guest.service_cooldown != 0
-            || (service.kind != ServiceKind::Rest
-                && guest.needs.value(service.kind) < NEED_SEEK_THRESHOLD)
+            || (matches!(
+                service.kind,
+                ServiceKind::Food | ServiceKind::Drink | ServiceKind::Toilet
+            ) && guest.needs.value(service.kind) < NEED_SEEK_THRESHOLD)
             || guest.current.is_none()
             || guest.state == GuestState::Lost
             || access.status != ServiceAccessStatus::Ready

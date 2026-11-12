@@ -58,6 +58,12 @@ pub enum GuestThought {
     UsedToilet,
     NeedsRest,
     Rested,
+    WantsSouvenir,
+    NeedsInformation,
+    HadIceCream,
+    BoughtSouvenir,
+    FoundInformation,
+    ReceivedCare,
     FeelingSick,
 }
 impl std::fmt::Display for GuestThought {
@@ -88,6 +94,12 @@ impl std::fmt::Display for GuestThought {
             Self::UsedToilet => "I feel better after using the toilet",
             Self::NeedsRest => "I need a place to rest",
             Self::Rested => "I feel rested",
+            Self::WantsSouvenir => "I would like a souvenir",
+            Self::NeedsInformation => "I need a park map",
+            Self::HadIceCream => "That ice cream was refreshing",
+            Self::BoughtSouvenir => "I found a souvenir to take home",
+            Self::FoundInformation => "I know my way around now",
+            Self::ReceivedCare => "The first-aid team helped me",
             Self::FeelingSick => "That ride made me feel unwell",
         })
     }

@@ -506,6 +506,8 @@ fn using_legacy_service_continues_with_zero_basis_and_a_new_paid_service_after_m
         })
     });
     for guest in &mut legacy.guests {
+        guest.needs.souvenir = 0;
+        guest.needs.information = 0;
         guest.needs.energy = 80;
         guest.needs.nausea = 0;
     }

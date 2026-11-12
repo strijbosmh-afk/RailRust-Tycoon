@@ -222,7 +222,7 @@ fn update(
             (pan, 1.0 / (1.0 + distance * distance))
         })
     };
-    let (coaster, coaster_pan, coaster_presence) = sim
+    let (coaster, coaster_pan, coaster_presence, ride_model) = sim
         .0
         .coaster_ids()
         .into_iter()
@@ -247,10 +247,15 @@ fn update(
                 train.number,
                 view.rotation,
             ));
-            Some((train.speed as f32 / 96.0, pan, presence))
+            Some((
+                train.speed as f32 / 96.0,
+                pan,
+                presence,
+                sim.0.ride_model(id),
+            ))
         })
         .max_by(|a, b| (a.0 * a.2).total_cmp(&(b.0 * b.2)))
-        .unwrap_or((0.0, 0.0, 0.0));
+        .unwrap_or((0.0, 0.0, 0.0, None));
     let running_carousel = sim
         .0
         .carousels()
@@ -265,6 +270,8 @@ fn update(
         paused: view.speed == park_sim::Speed::Paused,
         crowd: (sim.0.guests().len() as f32 / 64.0).min(1.0),
         coaster,
+        ride_model,
+        flat_model: running_carousel.and_then(|r| sim.0.ride_model(r.ride.id)),
         coaster_pan,
         coaster_presence,
         carousel: running_carousel.is_some(),

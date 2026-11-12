@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phases 3–5 are complete in 0.84.0, including coaster fleets, transitions and inversions.** Continue on `codex/phases-3-5-land-track-checkpoint` in [PR #76](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/76). See section 52 and the [phase status audit](docs/PHASES_3_5_COMPLETION_STATUS.md). Save schema/content is **47/47**. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
+**Current development is 0.85.1 with automatic coaster continuation, following the completed Phase 6 catalogue in 0.85.0 on `codex/phase-6-catalogue`, in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77).** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 54](#54-automatic-coaster-continuation--0851), [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1369,3 +1369,79 @@ The next development phase is **Phase 6, the full ride and facility catalogue**.
 The first 0.84 portable archive passed a fresh extraction in `artifacts/phase-3-5-0.84.0/package proof é/` with **137 matching payload hashes and 124 current guides**. Six independent processes passed the coaster, front-screen and track-construction writer/verifier pairs. The executable matched the SHA-256 above. The final documentation refresh is packaged again and checked in a second fresh extraction. The adjacent **`dist/Parkbound-0.84.0-windows-x64.zip.sha256`** identifies the final archive.
 
 The acceptance launch used the isolated profile **`artifacts/phase-3-5-0.84.0/native final profile/`**. That window may remain open after the interrupted manual check. Save progress made in that window there, or launch the game without `--save-dir` to use `%LOCALAPPDATA%\Parkbound\saves`. The final source is on the branch listed at the top of this document. The portable ZIP and raw evidence remain local in the shared OneDrive checkout.
+
+
+## 53. Phase 6 ride and facility catalogue — 0.85.0
+
+### Scope and checkout
+
+The user approved 14 rides and eight facilities. The implementation is on `codex/phase-6-catalogue`, based on `b7ee080`, the completed Phase 3–5 checkpoint. The remote is `https://github.com/strijbosmh-afk/RailRust-Tycoon`.
+
+The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing before using the checkout on another PC. The normal Git history is also sufficient for a fresh clone. Use the pinned Rust toolchain in `rust-toolchain.toml` and Windows MSVC build tools.
+
+### Player flow
+
+Open **Build → Catalogue**, or use **Build catalogue** in Rides and **All facilities** in Services. Choose Gentle, Thrill, Water, Transport, Coasters or Facilities. Pick an entry, position the preview and click. **C** rotates the complete ride or facility. Existing height controls, construction history, demolition and management windows remain available.
+
+The full entry list, capacities, costs and access rules are in `docs/PHASE_6_CATALOGUE.md`. There are seven fixed rides, two water rides, two transports, three coaster models and eight facilities. New rides begin closed and need entrance, queue and exit access. Round-trip prefabs provide three station tiles for ground-level gates along the outer edge. Transport entrances belong to the first station and exits to the far station.
+
+### Implementation map
+
+- `crates/park_sim/src/catalogue.rs` defines stable ride models, prices, capacities, footprint rules and atomic placement.
+- `catalogue_motion.rs` provides deterministic fixed-ride passenger positions.
+- `trains.rs`, `journeys.rs` and `ride_access.rs` implement destination stops, correct unloading and empty transport return.
+- `services.rs` adds ice cream, souvenirs, information and first aid, with their own supplies, upkeep and effects.
+- `crates/park_game/src/ui/catalogue.rs` provides the responsive catalogue menu and normal placement entry points.
+- `world/catalogue_render.rs`, `world/train_render.rs` and `world/service_render.rs` contain original geometry. The sound mixer adds water, steam, monorail and fixed-ride profiles.
+- `save_check/catalogue.rs` writes and verifies a complete mixed-park continuation in separate processes. `diagnostics::build_catalogue_showcase` uses explicit synthetic historical admission receipts to fund that acceptance fixture. Normal new-park finances are unchanged.
+
+The four original `RideKind` engine families remain compatible with existing saves and callers. `RideModel` identifies the 14 catalogue entries. Current saves preserve the model, fixed-ride orientation, destination stop state and new guest demand values. Older schema files receive their legacy defaults. Old headers carrying new catalogue data are rejected.
+
+### Verification record
+
+The code checkpoint is `8934a30bf710f8bfdbc7a0abff90b82563747649` in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77). All **965 tests pass**, comprising 430 simulation tests and 535 application tests, in the [Windows CI checks for PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77/checks). Formatting, strict Clippy, original asset validation and the release build pass. The final executable passes the new catalogue continuation proof and the existing 24,000-tick services proof in separate processes. Captures were inspected at 1024×680, 1920×1080, 2560×1440 and 3840×2160, including all four map rotations.
+
+The executable SHA-256 is `c5d69f8a2e24df0ef81dd5f9247357ce3e8a33398fcaebcf257a5770198b51b2`. The local package is `dist/Parkbound-0.85.0-windows-x64.zip`. Its adjacent `.zip.sha256` file identifies the archive. Evidence is retained under `artifacts/phase-6-0.85.0`. The extracted package passes its 138-file integrity check, contains 125 guides, and completes fresh-process catalogue and service continuation checks from an independent working directory. The extracted menu and water captures were also inspected. The final archive checksum is supplied in the adjacent `.zip.sha256` file, so the handoff document can remain inside the archive without a circular hash reference.
+
+The locally started application test run had loaded an earlier simulation library during editing. Its sole remaining service-summary failure was resolved in the final source and executable, then verified through the production service writer/verifier and the clean Windows CI run. The CI test stage passes all application tests. The Windows catalogue verification command uses an output pipeline to wait for the windowed executable before reading its exit code, matching the existing verification steps.
+
+The finite catalogue is complete. Transport currently carries passengers from its first station to the destination station, then returns empty. Continue with Phase 7 guest behavior, staff and park life. Performance figures from this development PC are excluded from hardware targets.
+
+### Continuing on another PC
+
+1. Sync the shared folder or clone the GitHub repository and check out `codex/phase-6-catalogue`.
+2. Read this section and the catalogue guide, then check `git status` before editing.
+3. Run `cargo fmt --all -- --check`, `cargo test --workspace --release --locked` and `cargo clippy --workspace --all-targets --release --locked -- -D warnings`.
+4. Run the catalogue writer and verifier in a new absolute proof directory. The commands are in the guide.
+5. Build with `scripts/package-windows.ps1`. Keep player saves and diagnostic profiles separate.
+6. Continue with Phase 7 from `docs/FULL_GAME_ROADMAP.md` after verifying this checkpoint.
+
+Graphics and functional tests on this PC establish correctness. Use an agreed representative Windows machine for performance targets and frame-time comparisons.
+
+## 54. Automatic coaster continuation — 0.85.1
+
+The user found climbs and descents difficult because each piece required a separately selected height. The track editor now starts with **Follow heights on**. After placing a piece, its exit sets the next piece's start level and direction. **Add next piece**, also available with **Enter**, places the selected piece in the adjoining tile. A station selects Straight for its successor. Curves turn the next piece automatically. A slope that reaches the floor or height limit selects Straight for the successor.
+
+The top of the Track Draft panel now shows the follow toggle, Add next piece, **Start → End** levels and explicit **Raise [PgUp] / Lower [PgDn]** buttons. Raising, lowering or manually turning after a placement switches Follow off. Turning Follow on returns to the last placed piece's exit. A green ghost previews the continuation and a red ghost shows an invalid placement. Occupied continuation tiles are preserved and a completed join is reported.
+
+Undo and redo restore the correct continuation anchor, including edits made to an earlier draft tile. Reopening an incomplete saved draft finds the last open endpoint. The follow setting and undo anchors are session state. Saved geometry uses the existing schema/content **48/48**. Importing or copying a draft recalculates its endpoint.
+
+### Changed files and verification
+
+`crates/park_game/src/track_tools.rs` owns continuation and draft history. `ui/track.rs` owns the controls and level display. `main.rs` routes Enter through the existing input barrier. `world/track_preview.rs` draws the next-piece ghost. `track_input_tests.rs` covers pointer placement, simultaneous keyboard/button input, slope joins, manual override and saving through production input systems. `capture/track_construction_scenes.rs` and the `track-follow` capture scene exercise the same commands for visual inspection.
+
+The final runtime source is `60ba23f1e39f755ae09e74095a18147dc3f63ec2`. All **970 release tests pass**, comprising 540 application tests and 430 simulation tests. The complete local log is `artifacts/phase6-follow-full-tests.log`. Formatting, strict all-target Clippy, release compilation and validation of all 12 original asset families pass. The exact-source Windows workflow passes all 64 steps in [run 43258436886](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/43258436886). The final source also shortens the two Smooth slope labels to fit their buttons. These final labels were checked in the rebuilt and extracted executable.
+
+The final executable SHA-256 is `165e5ee0e79f89355778485a6347aa64d4ed5e1df0f335e41a8b853209137292`. The current Windows package is `dist/Parkbound-0.85.1-windows-x64.zip`, also extracted beside it as `dist/Parkbound-0.85.1-windows-x64/`. The adjacent `.zip.sha256` file identifies the archive. Extract the complete package and run `Parkbound.exe`.
+
+The extracted package passes **138 payload hashes and 125 current guides**, then six separate writer/verifier processes for `catalogue`, `services` and `track-construction` from `C:\Windows`. These include mixed-park continuation, the 24,000-tick services proof, and saved drafts/paid track. Evidence is in `artifacts/coaster-continuation-0.85.1/packaged-verification/` and `artifacts/phase6-follow-package-proof.log`. The final documentation refresh is packaged using the same verified executable and checked again against every payload hash.
+
+The extracted executable produced inspected Track Draft images at **1024×680, 1920×1080 and 2560×1440**, covering all four camera rotations. The final files are `packaged-verification/track-follow.png`, `final-hd.png`, `final-hd-opposite.png` and `final-qhd.png` under `artifacts/coaster-continuation-0.85.1/`. Its catalogue menu was also inspected at the minimum window size. Earlier images in that folder retain the initial longer button labels. The minimum panel scrolls to expose the lower controls. Automated production-input tests cover keyboard and button activation. A separate physical mouse/keyboard session was not performed for this update.
+
+The initial targeted test run exposed an old fixed-plane replacement test that expected automatic following to be disabled. That test now explicitly uses manual mode, and the new continuation tests exercise the default automatic mode. The complete suite passes with both behaviors covered.
+
+### Cross-PC continuation
+
+The working branch remains `codex/phase-6-catalogue` in PR #77. The shared local path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing, inspect `git status`, and check out that branch before continuing. Read the current controls in `docs/PHASES_3_5_FOUNDATIONS_GUIDE.md`. The next planned content stage remains Phase 7 in `docs/FULL_GAME_ROADMAP.md`.
+
+This development PC is excluded from performance targets. Its timing measurements establish neither release hardware requirements nor frame-rate acceptance.

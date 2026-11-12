@@ -30,7 +30,10 @@ impl Park {
         let kind = self.ride_kind(id)?;
         let record = self.ride_costs.iter().find(|r| r.ride == id);
         Some(RideRunningCosts {
-            cost_per_interval_cents: ride_upkeep_cost_cents(kind),
+            cost_per_interval_cents: self
+                .ride_model(id)
+                .map_or(0, |m| m.upkeep())
+                .max(ride_upkeep_cost_cents(kind)),
             upkeep_progress: record.map_or(0, |r| r.upkeep_progress),
             upkeep_cents: record.map_or(0, |r| r.upkeep_cents),
             closed_for_funds: record.is_some_and(|r| r.closed_for_funds),
@@ -65,7 +68,7 @@ impl Park {
                     );
                     index
                 });
-            let amount = u64::from(ride_upkeep_cost_cents(self.ride_kind(id).unwrap()));
+            let amount = u64::from(self.ride_running_costs(id).unwrap().cost_per_interval_cents);
             if self.ride_costs[index].upkeep_progress + 1 < RIDE_UPKEEP_TICKS {
                 self.ride_costs[index].upkeep_progress += 1;
             } else if self.cash_cents < amount {
@@ -85,10 +88,11 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
     }
     let mut previous = None;
     for record in &park.ride_costs {
-        let kind = park
-            .ride_kind(record.ride)
-            .ok_or("ride costs have an unknown owner")?;
-        let cost = u64::from(ride_upkeep_cost_cents(kind));
+        let cost = u64::from(
+            park.ride_running_costs(record.ride)
+                .ok_or("ride costs have an unknown owner")?
+                .cost_per_interval_cents,
+        );
         if previous.is_some_and(|id| id >= record.ride)
             || record.started_tick > park.ticks
             || record.upkeep_progress >= RIDE_UPKEEP_TICKS

@@ -15,6 +15,12 @@ pub(crate) const SITES: [(TilePos, ServiceKind); 3] = [
 
 pub(crate) fn needs_after_tick(old: &Guest, tick: u64) -> (GuestNeeds, u8) {
     let mut needs = old.needs;
+    if tick.is_multiple_of(180) {
+        needs.souvenir = needs.souvenir.saturating_add(1).min(100);
+    }
+    if tick.is_multiple_of(240) {
+        needs.information = needs.information.saturating_add(1).min(100);
+    }
     let mut satisfaction = old.satisfaction;
     for (value, period) in [
         (&mut needs.hunger, 90),
@@ -46,6 +52,16 @@ pub(crate) fn needs_after_tick(old: &Guest, tick: u64) -> (GuestNeeds, u8) {
 
 fn relieved(needs: &mut GuestNeeds, kind: ServiceKind) {
     match kind {
+        ServiceKind::IceCream => {
+            needs.hunger = needs.hunger.saturating_sub(45);
+            needs.thirst = needs.thirst.saturating_sub(45);
+        }
+        ServiceKind::Souvenir => needs.souvenir = 0,
+        ServiceKind::Information => needs.information = 0,
+        ServiceKind::FirstAid => {
+            needs.nausea = 0;
+            needs.energy = needs.energy.max(65);
+        }
         ServiceKind::Food => needs.hunger = 20,
         ServiceKind::Drink => needs.thirst = 20,
         ServiceKind::Toilet => needs.toilet = 20,
@@ -61,7 +77,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let summary = park.guest_needs_summary();
     let guests = park.guests();
     if guests.iter().any(|g| {
-        g.needs.hunger > 100
+        g.needs.souvenir > 100
+            || g.needs.information > 100
+            || g.needs.hunger > 100
             || g.needs.thirst > 100
             || g.needs.toilet > 100
             || g.needs.energy > 100
@@ -162,6 +180,10 @@ pub(crate) fn advance_checked(park: &mut Park) -> Result<(), String> {
                 ServiceKind::Drink => GuestThought::HadDrink,
                 ServiceKind::Toilet => GuestThought::UsedToilet,
                 ServiceKind::Rest => GuestThought::Rested,
+                ServiceKind::IceCream => GuestThought::HadIceCream,
+                ServiceKind::Souvenir => GuestThought::BoughtSouvenir,
+                ServiceKind::Information => GuestThought::FoundInformation,
+                ServiceKind::FirstAid => GuestThought::ReceivedCare,
             };
             if new.satisfaction != satisfaction.saturating_add(5).min(100)
                 || new.thought != thought

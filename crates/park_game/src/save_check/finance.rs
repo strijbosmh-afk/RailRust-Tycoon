@@ -16,6 +16,10 @@ fn upkeep_cost(kind: ServiceKind) -> u64 {
         ServiceKind::Drink => 20,
         ServiceKind::Toilet => 10,
         ServiceKind::Rest => 25,
+        ServiceKind::IceCream => 25,
+        ServiceKind::Souvenir => 35,
+        ServiceKind::Information => 15,
+        ServiceKind::FirstAid => 40,
     }
 }
 fn supply_cost(kind: ServiceKind) -> u64 {
@@ -24,6 +28,10 @@ fn supply_cost(kind: ServiceKind) -> u64 {
         ServiceKind::Drink => 25,
         ServiceKind::Toilet => 10,
         ServiceKind::Rest => 20,
+        ServiceKind::IceCream => 40,
+        ServiceKind::Souvenir => 150,
+        ServiceKind::Information => 5,
+        ServiceKind::FirstAid => 30,
     }
 }
 fn income(kind: FinanceKind) -> bool {

@@ -827,7 +827,7 @@ fn loading_control_bounds_disable_and_preserve_park_without_wrapping() {
         ),
         (
             RideDispatchPolicy {
-                minimum_passengers: park_sim::MAX_DISPATCH_PASSENGERS,
+                minimum_passengers: park_sim::TRAIN_SEATS as u8,
                 maximum_extra_wait_ticks: park_sim::MAX_EXTRA_WAIT_TICKS,
             },
             1,

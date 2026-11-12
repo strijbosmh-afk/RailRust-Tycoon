@@ -438,7 +438,16 @@ impl Park {
             .iter()
             .filter(|piece| piece.kind == TrackKind::Station)
             .collect();
-        if stations.len() != 1 {
+        if stations.is_empty()
+            || stations.len()
+                > if self.selected_ride_model().transport() {
+                    2
+                } else if self.ride.as_ref().is_some_and(|r| r.model.is_some()) {
+                    3
+                } else {
+                    1
+                }
+        {
             return Err(TrainError::StationCount {
                 count: stations.len(),
             }
@@ -624,7 +633,7 @@ impl Park {
             if length <= crate::trains::MAX_SPEED {
                 return Err(TrainError::InvalidLength.into());
             }
-            if spec.kind == TrackKind::Station {
+            if spec.kind == TrackKind::Station && station_stop == 0 {
                 station_stop = total_length + 3 * crate::TRACK_UNITS as u32 / 4;
             }
             total_length = total_length
@@ -656,6 +665,7 @@ impl Park {
         };
         candidate.train = Some(Train {
             number: 0,
+            at_destination: false,
             in_depot: false,
             blocked: false,
             open: false,

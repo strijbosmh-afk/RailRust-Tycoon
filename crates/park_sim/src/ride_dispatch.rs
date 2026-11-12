@@ -2,7 +2,7 @@
 //! The extra wait counts only otherwise safe departure opportunities.
 use crate::{Park, RideId, RideOperatingError, RideVisitPhase};
 
-pub const MAX_DISPATCH_PASSENGERS: u8 = crate::TRAIN_SEATS as u8;
+pub const MAX_DISPATCH_PASSENGERS: u8 = 12;
 pub const MIN_EXTRA_WAIT_TICKS: u16 = 30;
 pub const MAX_EXTRA_WAIT_TICKS: u16 = 1800;
 pub const EXTRA_WAIT_STEP_TICKS: u16 = 30;
@@ -36,7 +36,9 @@ impl std::fmt::Display for RideDispatchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Operating(error) => error.fmt(f),
-            Self::InvalidMinimumPassengers => f.write_str("Minimum load must be 0 to 6 passengers"),
+            Self::InvalidMinimumPassengers => {
+                f.write_str("Minimum load must be 0 to 12 passengers")
+            }
             Self::InvalidMaximumExtraWait => {
                 f.write_str("Extra loading wait must be 1 to 60 whole seconds")
             }
@@ -706,7 +708,7 @@ mod tests {
 
     #[test]
     fn carousel_zero_dwell_requires_accrued_loading_wait() {
-        for minimum in [1, MAX_DISPATCH_PASSENGERS] {
+        for minimum in [1, crate::CAROUSEL_SEATS as u8] {
             let (mut park, _, carousel) = empty_rides();
             configure(&mut park, carousel, minimum, 30);
             park.set_ride_open(carousel, true).unwrap();
@@ -728,7 +730,7 @@ mod tests {
     fn carousel_loading_timeout_snapshot_resumes_at_next_safe_departure() {
         for maximum in [MIN_EXTRA_WAIT_TICKS, MAX_EXTRA_WAIT_TICKS] {
             let (mut park, _, carousel) = empty_rides();
-            configure(&mut park, carousel, MAX_DISPATCH_PASSENGERS, maximum);
+            configure(&mut park, carousel, crate::CAROUSEL_SEATS as u8, maximum);
             park.set_ride_open(carousel, true).unwrap();
             // Carousel's legacy departure opportunity occurs on tick 30;
             // that opportunity consumes the first extra tick while held.

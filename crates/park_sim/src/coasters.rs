@@ -1,7 +1,7 @@
 //! Independent coaster records with a selected construction workspace.
 use crate::{Park, Ride, RideId, TrackEconomy, TrackPieceSpec, Train, TrainCircuit};
 
-pub const MAX_COASTER_RECORDS: usize = 8;
+pub const MAX_COASTER_RECORDS: usize = 32;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct CoasterState {
@@ -217,7 +217,7 @@ impl std::fmt::Display for CoasterSelectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::UnknownRide => "Choose an existing coaster",
-            Self::Capacity => "The park has reached its eight coaster records",
+            Self::Capacity => "The park has reached its 32 tracked ride records",
             Self::UnbuiltDraft => {
                 "Clear or build the current draft before starting another coaster"
             }

@@ -218,6 +218,146 @@ impl DiagnosticPathGraph {
     }
 }
 
+/// Complete catalogue park for acceptance captures and deterministic continuation checks.
+/// Its recorded historical admission receipts are confined to this diagnostic fixture.
+pub fn build_catalogue_showcase() -> Result<Park, String> {
+    use crate::{PathDirection, PathSlope, RideModel, ServiceKind};
+    let mut park = Park::new(64, 64);
+    park.apply_terrain_profile(TerrainProfile::Flat);
+    for tile in &mut park.tiles {
+        tile.terrain = crate::Terrain::Grass;
+    }
+    // A mature fixture history supplies the construction budget. The same
+    // receipt writer used by admissions keeps the bounded ledger consistent.
+    for visit in 0..1000 {
+        park.ticks = (visit + 1) * u64::from(crate::VISITOR_ARRIVAL_TICKS);
+        park.record_cash(crate::FinanceKind::ParkAdmission, None, 1900);
+    }
+    park.ticks += crate::VISITOR_STAY_TICKS;
+    park.crowd_seed = Some(0x706861736536);
+    park.crowd_rng = 0x706861736536;
+    park.next_guest_id = 1001;
+    park.visitors.spawned = 1000;
+    park.visitors.admission_revenue_cents = 1_900_000;
+    park.visitors.departed = crate::DepartedVisitors {
+        count: 1000,
+        highest_id: 1000,
+        wallet_cents: 100_000,
+        spent_cents: 1_900_000,
+        ..Default::default()
+    };
+    for row in 0..4 {
+        for x in 1..=61 {
+            park.place_path(TilePos { x, y: 1 + row * 14 }, 0)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    for y in 2..=57 {
+        if ![15, 29, 43].contains(&y) {
+            park.place_path(TilePos { x: 1, y }, 0)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    for (index, model) in RideModel::ALL.into_iter().enumerate() {
+        let origin = TilePos {
+            x: 4 + (index as u32 % 4) * 15,
+            y: 4 + (index as u32 / 4) * 14,
+        };
+        let id = park
+            .build_catalogue_ride(model, origin, 0, 0)
+            .map_err(|e| format!("{model}: {e}"))?;
+        let entrance_x = origin.x + u32::from(model.tracked());
+        park.place_ride_entrance(
+            TilePos {
+                x: entrance_x,
+                y: origin.y - 1,
+            },
+            0,
+            PathDirection::South,
+            id,
+        )
+        .map_err(|e| e.to_string())?;
+        park.place_queue_path(
+            TilePos {
+                x: entrance_x,
+                y: origin.y - 2,
+            },
+            0,
+            PathSlope::Flat,
+            id,
+        )
+        .map_err(|e| e.to_string())?;
+        if model.transport() {
+            park.place_ride_exit(
+                TilePos {
+                    x: origin.x + 7,
+                    y: origin.y + 7,
+                },
+                0,
+                PathDirection::North,
+                id,
+            )
+            .map_err(|e| e.to_string())?;
+            for x in origin.x - 2..=origin.x + 7 {
+                park.place_path(TilePos { x, y: origin.y + 8 }, 0)
+                    .map_err(|e| e.to_string())?;
+            }
+            for y in origin.y - 2..origin.y + 8 {
+                park.place_path(TilePos { x: origin.x - 2, y }, 0)
+                    .map_err(|e| e.to_string())?;
+            }
+        } else {
+            let exit_x = entrance_x + 2;
+            park.place_ride_exit(
+                TilePos {
+                    x: exit_x,
+                    y: origin.y - 1,
+                },
+                0,
+                PathDirection::South,
+                id,
+            )
+            .map_err(|e| e.to_string())?;
+            park.place_path(
+                TilePos {
+                    x: exit_x,
+                    y: origin.y - 2,
+                },
+                0,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        park.set_ride_ticket_price(id, 100)
+            .map_err(|e| e.to_string())?;
+        park.set_ride_open_checked(id, true)
+            .map_err(|e| format!("{model}: {e}"))?;
+    }
+    for (index, kind) in ServiceKind::ALL.into_iter().enumerate() {
+        let x = 4 + index as u32 * 3;
+        park.place_service(TilePos { x, y: 58 }, 0, PathDirection::North, kind)
+            .map_err(|e| e.to_string())?;
+        for dx in 2..=x {
+            if !park
+                .objects
+                .iter()
+                .any(|o| o.is_public_path() && o.pos == TilePos { x: dx, y: 57 })
+            {
+                park.place_path(TilePos { x: dx, y: 57 }, 0)
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    let entry = park
+        .objects
+        .iter()
+        .find(|o| o.is_public_path() && o.pos == TilePos { x: 1, y: 1 })
+        .unwrap()
+        .id;
+    park.set_visitor_entry(entry).map_err(|e| e.to_string())?;
+    park.set_visitor_arrivals(true).map_err(|e| e.to_string())?;
+    Ok(park)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

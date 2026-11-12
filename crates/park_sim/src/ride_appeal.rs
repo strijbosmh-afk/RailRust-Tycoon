@@ -44,15 +44,19 @@ impl Park {
         if !self.ride_available(id) {
             return None;
         }
-        let layout_challenge = match self.ride_kind(id)? {
-            RideKind::Coaster => {
-                let (_, _, metrics) =
-                    crate::ride_testing::layout_metrics(self.coaster_circuit(id)?.specs());
-                layout_challenge(metrics)
+        let layout_challenge = if self.ride_by_id(id)?.model.is_some() {
+            self.ride_model(id)?.challenge()
+        } else {
+            match self.ride_kind(id)? {
+                RideKind::Coaster => {
+                    let (_, _, metrics) =
+                        crate::ride_testing::layout_metrics(self.coaster_circuit(id)?.specs());
+                    layout_challenge(metrics)
+                }
+                RideKind::Carousel => 20,
+                RideKind::Swing => 55,
+                RideKind::DropTower => 72,
             }
-            RideKind::Carousel => 20,
-            RideKind::Swing => 55,
-            RideKind::DropTower => 72,
         };
         let reputation_rating_tenths = reputation(ride.rating_count, ride.rating_total);
         Some(RideAppealProfile {
