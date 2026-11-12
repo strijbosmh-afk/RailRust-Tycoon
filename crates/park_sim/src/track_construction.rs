@@ -58,6 +58,11 @@ pub fn track_piece_cost_cents(spec: TrackPieceSpec) -> u64 {
         TrackKind::Station => 10_000,
         TrackKind::Straight => 1_000,
         TrackKind::Curve => 1_500,
+        TrackKind::BankedCurve => 2_500,
+        TrackKind::Launch => 3_000,
+        TrackKind::Camelback => 3_500,
+        TrackKind::HeartlineRoll => 6_000,
+        TrackKind::TransitionUp | TrackKind::TransitionDown => 2_000,
         TrackKind::Lift => 2_500,
         TrackKind::Drop if spec.entry.height.abs_diff(spec.exit.height) == 2 => 2_000,
         TrackKind::Drop => 1_500,
@@ -71,10 +76,17 @@ pub enum TrackBuildKind {
     Straight,
     CurveLeft,
     CurveRight,
+    BankedLeft,
+    BankedRight,
     Lift,
     Drop,
     SteepDrop,
     Brake,
+    Launch,
+    Camelback,
+    TransitionUp,
+    TransitionDown,
+    HeartlineRoll,
 }
 
 impl TrackBuildKind {
@@ -83,6 +95,11 @@ impl TrackBuildKind {
             Self::Station => 10_000,
             Self::Straight => 1_000,
             Self::CurveLeft | Self::CurveRight | Self::Drop => 1_500,
+            Self::BankedLeft | Self::BankedRight => 2_500,
+            Self::Launch => 3_000,
+            Self::Camelback => 3_500,
+            Self::HeartlineRoll => 6_000,
+            Self::TransitionUp | Self::TransitionDown => 2_000,
             Self::Lift => 2_500,
             Self::SteepDrop | Self::Brake => 2_000,
         }
@@ -90,16 +107,17 @@ impl TrackBuildKind {
     /// Lowest entry height that preserves this piece's complete grade.
     pub const fn min_height(self) -> u8 {
         match self {
-            Self::Drop => 1,
+            Self::Drop | Self::TransitionDown => 1,
             Self::SteepDrop => 2,
             _ => 0,
         }
     }
 
-    /// Highest entry height with two steps of clearance above both endpoints.
+    /// Highest entry height with clearance for the entire sampled piece.
     pub const fn max_height(self) -> u8 {
         match self {
-            Self::Lift => crate::MAX_TERRAIN_HEIGHT - 3,
+            Self::HeartlineRoll => crate::MAX_TERRAIN_HEIGHT - 5,
+            Self::Lift | Self::TransitionUp | Self::Camelback => crate::MAX_TERRAIN_HEIGHT - 3,
             _ => crate::MAX_TERRAIN_HEIGHT - 2,
         }
     }
@@ -115,14 +133,19 @@ impl TrackBuildKind {
             | Self::Lift
             | Self::Drop
             | Self::SteepDrop
-            | Self::Brake => direction,
-            Self::CurveLeft => match direction {
+            | Self::Brake
+            | Self::Launch
+            | Self::Camelback
+            | Self::TransitionUp
+            | Self::TransitionDown
+            | Self::HeartlineRoll => direction,
+            Self::CurveLeft | Self::BankedLeft => match direction {
                 North => West,
                 West => South,
                 South => East,
                 East => North,
             },
-            Self::CurveRight => match direction {
+            Self::CurveRight | Self::BankedRight => match direction {
                 North => East,
                 East => South,
                 South => West,
@@ -135,9 +158,15 @@ impl TrackBuildKind {
                 Self::Station => TrackKind::Station,
                 Self::Straight => TrackKind::Straight,
                 Self::CurveLeft | Self::CurveRight => TrackKind::Curve,
+                Self::BankedLeft | Self::BankedRight => TrackKind::BankedCurve,
                 Self::Lift => TrackKind::Lift,
                 Self::Drop | Self::SteepDrop => TrackKind::Drop,
                 Self::Brake => TrackKind::Brake,
+                Self::Launch => TrackKind::Launch,
+                Self::Camelback => TrackKind::Camelback,
+                Self::TransitionUp => TrackKind::TransitionUp,
+                Self::TransitionDown => TrackKind::TransitionDown,
+                Self::HeartlineRoll => TrackKind::HeartlineRoll,
             },
             entry: TrackPort {
                 edge: direction.opposite(),
@@ -146,8 +175,8 @@ impl TrackBuildKind {
             exit: TrackPort {
                 edge: exit,
                 height: match self {
-                    Self::Lift => height.saturating_add(1),
-                    Self::Drop => height.checked_sub(1).unwrap_or(u8::MAX),
+                    Self::Lift | Self::TransitionUp => height.saturating_add(1),
+                    Self::Drop | Self::TransitionDown => height.checked_sub(1).unwrap_or(u8::MAX),
                     Self::SteepDrop => height.checked_sub(2).unwrap_or(u8::MAX),
                     _ => height,
                 },
@@ -224,14 +253,28 @@ impl Park {
     }
 
     pub fn track_demolition_refund_cents(&self, id: crate::ObjectId) -> u64 {
-        self.track_economy
-            .paid_pieces
-            .iter()
+        std::iter::once(&self.track_economy)
+            .chain(self.other_coasters.iter().map(|c| &c.track_economy))
+            .flat_map(|economy| &economy.paid_pieces)
             .find(|piece| piece.object == id)
             .map_or(0, |piece| piece.paid_cents / 2)
     }
 
     pub(crate) fn refund_removed_track(&mut self, id: crate::ObjectId) {
+        if let Some(owner) = self
+            .other_coasters
+            .iter()
+            .find(|c| c.track_economy.paid_pieces.iter().any(|p| p.object == id))
+            .and_then(|c| c.ride.as_ref())
+            .map(|r| r.id)
+        {
+            self.with_coaster(owner, |park| park.refund_selected_track(id));
+        } else {
+            self.refund_selected_track(id);
+        }
+    }
+
+    fn refund_selected_track(&mut self, id: crate::ObjectId) {
         let Some(index) = self
             .track_economy
             .paid_pieces
@@ -443,6 +486,7 @@ impl Park {
             return Err(TrackConstructionError::DisconnectedPieces);
         }
         crate::trains::validate_specs(self, &ordered)?;
+        self.validate_draft_fleet(&ordered)?;
         for spec in &ordered {
             self.validate_draft_clearance(*spec)?;
         }
@@ -483,7 +527,7 @@ impl Park {
     /// Report the operating-state prerequisite for construction independently
     /// of any draft's geometry or price. This never stops a train or its guests.
     pub fn track_construction_operating_error(&self) -> Option<TrackConstructionError> {
-        if self.train.as_ref().is_some_and(|train| {
+        if self.train.iter().chain(&self.extra_trains).any(|train| {
             train.open
                 || train.departed
                 || train.speed != 0
@@ -529,6 +573,7 @@ impl Park {
         }
         let geometry = crate::trains::validate_specs(self, &specs)?;
         let mut candidate = self.clone();
+        candidate.select_first_train();
         let retained: Vec<_> = self
             .circuit
             .as_ref()
@@ -610,17 +655,21 @@ impl Park {
             station_stop,
         };
         candidate.train = Some(Train {
+            number: 0,
+            in_depot: false,
+            blocked: false,
             open: false,
             phase: TrainPhase::Closed,
             speed: 0,
             distance: station_stop,
-            laps: self.train.as_ref().map_or(0, |train| train.laps),
+            laps: candidate.train.as_ref().map_or(0, |train| train.laps),
             dwell_ticks: 0,
             piece_index: circuit.locate(station_stop).0,
             lap_progress: 0,
             departed: false,
         });
         candidate.circuit = Some(circuit);
+        candidate.rebuild_extra_trains()?;
         candidate.validate_train_circuit()?;
         candidate
             .track_economy
@@ -691,17 +740,17 @@ fn validate_piece_shape_in_bounds(
     if spec.pos.x >= width || spec.pos.y >= height {
         return Err(PlacementError::OutOfBounds { pos: spec.pos }.into());
     }
-    let highest = spec.entry.height.max(spec.exit.height);
-    if highest > crate::MAX_TERRAIN_HEIGHT - 2 {
+    if !crate::trains::valid_piece_ports(spec) {
+        return Err(TrackConstructionError::UnsupportedPiece);
+    }
+    let (_, bottom, clearance) = crate::trains::envelope(spec);
+    if u16::from(bottom) + u16::from(clearance) > u16::from(crate::MAX_TERRAIN_HEIGHT) {
         return Err(PlacementError::HeightOutOfRange {
-            height: highest,
-            clearance: 2,
+            height: bottom,
+            clearance,
             max: crate::MAX_TERRAIN_HEIGHT,
         }
         .into());
-    }
-    if !crate::trains::valid_piece_ports(spec) {
-        return Err(TrackConstructionError::UnsupportedPiece);
     }
     Ok(())
 }
@@ -764,6 +813,7 @@ pub(crate) fn validate_track_economy(park: &Park) -> Result<(), String> {
             .ok_or("paid track object is missing")?;
         let (axis, height, clearance) = crate::trains::envelope(paid.spec);
         if object.kind != ObjectKind::Track
+            || park.object_ride(paid.object) != park.ride.as_ref().map(|ride| ride.id)
             || object.pos != paid.spec.pos
             || object.axis != axis
             || object.height != height

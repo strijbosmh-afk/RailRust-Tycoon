@@ -105,6 +105,10 @@ pub(super) fn setup(commands: &mut Commands) {
                 .with_children(|p| label(p, "Designs", 11.0, INK));
             });
             p.spawn(row()).with_children(|p| {
+                small_button(p, "New coaster", TrackCommand::NewCoaster, 100.0);
+                small_button(p, "Next coaster", TrackCommand::NextCoaster, 100.0);
+            });
+            p.spawn(row()).with_children(|p| {
                 small_button(
                     p,
                     "Station",
@@ -129,6 +133,20 @@ pub(super) fn setup(commands: &mut Commands) {
                     p,
                     "Right curve",
                     TrackCommand::Piece(TrackBuildKind::CurveRight),
+                    100.0,
+                );
+            });
+            p.spawn(row()).with_children(|p| {
+                small_button(
+                    p,
+                    "Bank left",
+                    TrackCommand::Piece(TrackBuildKind::BankedLeft),
+                    100.0,
+                );
+                small_button(
+                    p,
+                    "Bank right",
+                    TrackCommand::Piece(TrackBuildKind::BankedRight),
                     100.0,
                 );
             });
@@ -160,6 +178,38 @@ pub(super) fn setup(commands: &mut Commands) {
                     100.0,
                 );
             });
+            small_button(
+                p,
+                "Launch",
+                TrackCommand::Piece(TrackBuildKind::Launch),
+                207.0,
+            );
+            small_button(
+                p,
+                "Camelback / $35",
+                TrackCommand::Piece(TrackBuildKind::Camelback),
+                207.0,
+            );
+            p.spawn(row()).with_children(|p| {
+                small_button(
+                    p,
+                    "Smooth rise +1",
+                    TrackCommand::Piece(TrackBuildKind::TransitionUp),
+                    100.0,
+                );
+                small_button(
+                    p,
+                    "Smooth drop -1",
+                    TrackCommand::Piece(TrackBuildKind::TransitionDown),
+                    100.0,
+                );
+            });
+            small_button(
+                p,
+                "Heartline roll / $60",
+                TrackCommand::Piece(TrackBuildKind::HeartlineRoll),
+                207.0,
+            );
             small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
             p.spawn(row()).with_children(|p| {
                 small_button(p, "-", TrackCommand::Height(-1), 32.0);

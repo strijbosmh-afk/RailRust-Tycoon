@@ -23,8 +23,8 @@ impl Park {
         let kind = self.ride_kind(id)?;
         let (construction_cents, refunds_cents) = match kind {
             RideKind::Coaster => (
-                self.track_economy.construction_cents,
-                self.track_economy.refund_cents,
+                self.coaster_economy(id)?.construction_cents,
+                self.coaster_economy(id)?.refund_cents,
             ),
             RideKind::Carousel | RideKind::Swing | RideKind::DropTower => {
                 let carousel = self.carousel(id)?;

@@ -97,7 +97,7 @@ fn queue_and_entrance_previews_commit_once_at_every_rotation_and_dpi() {
                         .unwrap()
                 } else {
                     expected
-                        .place_queue_path(pos, 8, PathSlope::Flat, ride)
+                        .build_paid_queue_path(pos, 8, PathSlope::Flat, ride)
                         .unwrap()
                 };
                 let (mut app, window) = input_app(park.clone(), tool_view(mode, rotation), dpi);

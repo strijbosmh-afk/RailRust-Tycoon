@@ -17,11 +17,13 @@ mod guest_render;
 mod layout;
 mod path_preview;
 mod ride_colors;
+mod scene_lighting;
 mod service_render;
 mod static_chunks;
 mod terrain_preview;
 mod track_preview;
 mod train_render;
+mod tunnel_portals;
 
 pub(crate) use atmosphere::water_mesh;
 pub use carousel_render::{carousel_preview_mesh, ride_focus};
@@ -30,11 +32,12 @@ pub use layout::{path_focus, scene_bounds};
 pub use path_preview::{
     path_build_center, path_preview_mesh, pick_sloped_path_plane, sloped_path_plane_occluded,
 };
+pub(crate) use scene_lighting::ambience_mesh;
 pub use service_render::service_preview_mesh;
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
 pub(crate) use track_preview::{pick_track_draft, pick_track_plane, track_preview_mesh};
-pub(crate) use train_render::leading_car_focus;
+pub(crate) use train_render::{leading_car_focus, leading_train_focus};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
@@ -604,6 +607,7 @@ pub fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
 }
 
 /// Projected circuit bounds, including the height of its sampled hills.
+#[cfg(test)]
 pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
     train_render::train_focus(park, rotation)
 }
@@ -618,6 +622,10 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         .and_then(|r| park.ride_appearance(r.id))
         .unwrap_or_default();
     for object in park.objects() {
+        if mode == ViewMode::Surface && park.is_underground(object.id) {
+            tunnel_portals::paint(mesh, park, object, rotation, &columns);
+            mesh.end_group(PaintLayer::Object);
+        }
         if !object_visible(park, object, mode) {
             continue;
         }
@@ -1014,10 +1022,18 @@ fn scene_painter(
             let center =
                 elevated_tile_center(park, pos, rotation).expect("loop stays inside square park");
             let variation = (noise(pos) % 5) as i16 - 2;
-            let color = match tile.terrain {
-                Terrain::Grass => varied(75, 171, 58, variation),
-                Terrain::Water => varied(39, 167, 183, variation),
-                Terrain::Sand => varied(229, 202, 130, variation),
+            let color = if tile.owned {
+                match tile.terrain {
+                    Terrain::Grass => varied(75, 171, 58, variation),
+                    Terrain::Water => varied(39, 167, 183, variation),
+                    Terrain::Sand => varied(229, 202, 130, variation),
+                }
+            } else {
+                match tile.terrain {
+                    Terrain::Grass => varied(103, 131, 91, variation),
+                    Terrain::Water => varied(53, 121, 138, variation),
+                    Terrain::Sand => varied(178, 169, 130, variation),
+                }
             };
             let surfaces = column_surfaces(park, pos, rotation);
             let top = surfaces[0].expect("every tile has a roof");
@@ -1028,6 +1044,15 @@ fn scene_painter(
                     SurfaceKind::RightCliff => varied(112, 87, 58, variation),
                 };
                 mesh.surface(surface, ink);
+                if surface.kind == SurfaceKind::Top && !tile.owned {
+                    let boundary = (x > 0 && park.owns_land(TilePos { x: x - 1, y }))
+                        || (x + 1 < size && park.owns_land(TilePos { x: x + 1, y }))
+                        || (y > 0 && park.owns_land(TilePos { x, y: y - 1 }))
+                        || (y + 1 < size && park.owns_land(TilePos { x, y: y + 1 }));
+                    if boundary {
+                        mesh.surface_outline(surface, 1.1, DETAIL_BIAS, rgb(241, 189, 65));
+                    }
+                }
                 if surface.kind != SurfaceKind::Top {
                     let a = surface.vertices[0].truncate();
                     let b = surface.vertices[1].truncate();
@@ -1292,6 +1317,124 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 2.2,
                 DETAIL_BIAS * 4.0,
                 rgb(48, 232, 212),
+            );
+        }
+    }
+    for bench in park.path_benches() {
+        let Some(path) = park
+            .object(bench.path)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let foot = base.truncate() + Vec2::new(9.0, 1.0);
+        mesh.surface_ellipse(roof, foot, 9.5, 3.2, DETAIL_BIAS * 3.0, rgb(56, 74, 43));
+        mesh.line(
+            foot + Vec2::new(-8.0, 5.0),
+            foot + Vec2::new(8.0, 5.0),
+            4.0,
+            base.z + 0.046,
+            rgb(181, 101, 49),
+        );
+        mesh.line(
+            foot + Vec2::new(-8.0, 8.0),
+            foot + Vec2::new(8.0, 8.0),
+            3.0,
+            base.z + 0.047,
+            rgb(225, 154, 65),
+        );
+        for x in [-6.5, 6.5] {
+            mesh.line(
+                foot + Vec2::new(x, 1.0),
+                foot + Vec2::new(x, 7.0),
+                1.5,
+                base.z + 0.048,
+                rgb(70, 72, 61),
+            );
+        }
+    }
+    for sign in park.path_signs() {
+        let Some(path) = park
+            .object(sign.path)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let foot = base.truncate() + Vec2::new(-9.0, 1.0);
+        mesh.surface_ellipse(roof, foot, 4.5, 2.0, DETAIL_BIAS * 3.0, rgb(47, 73, 62));
+        mesh.line(
+            foot,
+            foot + Vec2::new(0.0, 16.0),
+            2.3,
+            base.z + 0.05,
+            rgb(244, 220, 137),
+        );
+        mesh.quad(
+            [
+                foot + Vec2::new(-8.0, 12.0),
+                foot + Vec2::new(8.0, 12.0),
+                foot + Vec2::new(8.0, 23.0),
+                foot + Vec2::new(-8.0, 23.0),
+            ],
+            base.z + 0.051,
+            rgb(26, 119, 141),
+        );
+        mesh.line(
+            foot + Vec2::new(0.0, 16.0),
+            foot + Vec2::new(0.0, 20.0),
+            2.2,
+            base.z + 0.052,
+            rgb(251, 241, 184),
+        );
+        mesh.ellipse(
+            foot + Vec2::new(0.0, 22.0),
+            1.4,
+            1.4,
+            base.z + 0.053,
+            rgb(251, 241, 184),
+        );
+    }
+    for fence in park.path_fences() {
+        let Some(path) = park
+            .object(fence.path)
+            .filter(|path| object_visible(park, path, mode))
+        else {
+            continue;
+        };
+        let Some(center) = path.path_center() else {
+            continue;
+        };
+        let base = project_path_point(center, park.width(), rotation);
+        let roof = object_surfaces(park, path, rotation)[0];
+        let left = base.truncate() + Vec2::new(-15.0, -7.0);
+        let right = base.truncate() + Vec2::new(15.0, -7.0);
+        for post in [left, right] {
+            mesh.surface_ellipse(roof, post, 3.0, 1.5, DETAIL_BIAS * 3.0, rgb(68, 88, 55));
+            mesh.line(
+                post,
+                post + Vec2::new(0.0, 10.0),
+                3.0,
+                base.z + 0.055,
+                rgb(223, 168, 83),
+            );
+        }
+        for rise in [4.0, 8.0] {
+            mesh.line(
+                left + Vec2::new(0.0, rise),
+                right + Vec2::new(0.0, rise),
+                2.2,
+                base.z + 0.056,
+                rgb(164, 94, 51),
             );
         }
     }
@@ -2858,6 +3001,29 @@ mod tests {
         park.apply_terrain_profile(TerrainProfile::Flat);
         assert_eq!(park.object(track.id), Some(&track));
         assert!(!park.is_underground(track.id));
+        for rotation in 0..4 {
+            assert_eq!(
+                selectable_surfaces(&park, id, rotation, ViewMode::Surface).len(),
+                3
+            );
+        }
+    }
+
+    #[test]
+    fn buried_path_is_selectable_only_in_underground_view_at_all_rotations() {
+        let mut park = Park::new(8, 8);
+        let pos = TilePos { x: 3, y: 3 };
+        park.set_terrain_height(pos, 4).unwrap();
+        let path = park.place_path(pos, 0).unwrap();
+        let id = SurfaceId::Object(path);
+        for rotation in 0..4 {
+            assert!(selectable_surfaces(&park, id, rotation, ViewMode::Surface).is_empty());
+            assert_eq!(
+                selectable_surfaces(&park, id, rotation, ViewMode::Underground).len(),
+                3
+            );
+        }
+        park.set_terrain_height(pos, 0).unwrap();
         for rotation in 0..4 {
             assert_eq!(
                 selectable_surfaces(&park, id, rotation, ViewMode::Surface).len(),

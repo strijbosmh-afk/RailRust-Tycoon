@@ -13,6 +13,8 @@ pub(crate) enum TrackCommand {
     Erase,
     Clear,
     CopyInstalled,
+    NewCoaster,
+    NextCoaster,
     Undo,
     Redo,
     Apply,
@@ -169,14 +171,21 @@ pub(crate) fn kind_name(kind: TrackBuildKind) -> &'static str {
         TrackBuildKind::Straight => "Straight",
         TrackBuildKind::CurveLeft => "Left curve",
         TrackBuildKind::CurveRight => "Right curve",
+        TrackBuildKind::BankedLeft => "Banked left",
+        TrackBuildKind::BankedRight => "Banked right",
         TrackBuildKind::Lift => "Chain lift",
         TrackBuildKind::Drop => "Drop -1",
         TrackBuildKind::SteepDrop => "Drop -2",
         TrackBuildKind::Brake => "Brakes",
+        TrackBuildKind::Launch => "Launch",
+        TrackBuildKind::Camelback => "Camelback",
+        TrackBuildKind::TransitionUp => "Smooth rise",
+        TrackBuildKind::TransitionDown => "Smooth descent",
+        TrackBuildKind::HeartlineRoll => "Heartline roll",
     }
 }
 
-pub(crate) fn begin(park: &Park, view: &mut ViewState) {
+pub(crate) fn begin(park: &mut Park, view: &mut ViewState) {
     if view.capture_active
         || view.diagnostic_case.is_some()
         || view
@@ -185,11 +194,17 @@ pub(crate) fn begin(park: &Park, view: &mut ViewState) {
     {
         return;
     }
+    let selected = crate::ui::rides::selected_id(park, view)
+        .filter(|id| park.ride_kind(*id) == Some(park_sim::RideKind::Coaster))
+        .or_else(|| park.ride().map(|ride| ride.id));
+    if let Some(id) = selected {
+        park.select_coaster(id).expect("selected coaster exists");
+    }
     view.set_modal(false, false, false, false);
     view.modal_transition_pending = true;
     view.path_tool
         .set_mode(crate::path_tools::PathTool::Inspect);
-    view.selected_ride = park.ride().map(|ride| ride.id);
+    view.selected_ride = selected;
     view.selected = None;
     view.track_editor.active = true;
     view.track_editor.synchronize_history(park.track_draft());
@@ -235,6 +250,45 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
     view.track_editor.synchronize_history(park.track_draft());
     view.track_editor.preview = None;
     match command {
+        TrackCommand::NewCoaster | TrackCommand::NextCoaster => {
+            let result = match command {
+                TrackCommand::NewCoaster => park.new_coaster_draft(),
+                _ => {
+                    let ids = park.coaster_ids();
+                    let next = park
+                        .ride()
+                        .and_then(|r| ids.iter().position(|id| *id == r.id))
+                        .map_or(0, |i| (i + 1) % ids.len().max(1));
+                    ids.get(next)
+                        .map_or(Ok(false), |id| park.select_coaster(*id))
+                }
+            };
+            match result {
+                Ok(changed) => {
+                    if command == TrackCommand::NewCoaster && park.ride().is_none() {
+                        view.track_editor.kind = TrackBuildKind::Station;
+                        view.track_editor.height = 0;
+                        view.track_editor.erase = false;
+                    }
+                    view.selected_ride = park.ride().map(|ride| ride.id);
+                    if changed {
+                        view.track_editor.reset_history(park.track_draft());
+                    }
+                    view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
+                    view.scene_dirty = true;
+                    view.track_editor.notice = park.ride().map_or_else(
+                        || "New coaster draft. Place a station to begin.".into(),
+                        |ride| {
+                            format!(
+                                "Editing {}. Each coaster keeps its own draft.",
+                                park.ride_name(ride.id).unwrap_or("coaster")
+                            )
+                        },
+                    );
+                }
+                Err(error) => view.track_editor.notice = error.to_string(),
+            }
+        }
         TrackCommand::Piece(kind) => {
             view.track_editor.kind = kind;
             view.track_editor.erase = false;
@@ -312,6 +366,7 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
                     view.track_editor.reset_history(park.track_draft());
                     view.scene_dirty = true;
                     view.selected = None;
+                    view.selected_ride = park.ride().map(|ride| ride.id);
                     view.hovered = None;
                     view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
                     let payment = quote.map_or_else(
@@ -685,7 +740,7 @@ mod tests {
         apply_command(&mut park, &mut view, TrackCommand::CopyInstalled);
         assert_eq!(history(&view), (1, 1), "identical copy keeps redo");
         apply_command(&mut park, &mut view, TrackCommand::Done);
-        begin(&park, &mut view);
+        begin(&mut park, &mut view);
         assert_eq!(history(&view), (1, 1));
         assert_eq!(park.track_draft(), copied);
 

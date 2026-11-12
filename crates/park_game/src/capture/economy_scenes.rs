@@ -69,7 +69,9 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, scene: Scene) {
             seek(park, reservation, "an unpaid locked fare during boarding");
             assert_eq!(park.ride_economy_stats(ride).revenue_cents, 0);
             assert_eq!(
-                park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+                park.cash_cents()
+                    + park.finance_stats().ride_upkeep_cents
+                    + park.finance_stats().construction_cents,
                 INITIAL_PARK_CASH_CENTS
             );
             if matches!(scene, Scene::EconomyPriceChange) {
@@ -134,7 +136,9 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, scene: Scene) {
             assert_eq!(stats.revenue_cents, 0);
             assert_eq!(stats.reserved_fares_cents, 0);
             assert_eq!(
-                park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+                park.cash_cents()
+                    + park.finance_stats().ride_upkeep_cents
+                    + park.finance_stats().construction_cents,
                 INITIAL_PARK_CASH_CENTS
             );
         }
@@ -146,7 +150,9 @@ fn prepare_state(park: &mut Park, view: &mut ViewState, scene: Scene) {
             );
             assert_eq!(park.ride_economy_stats(ride).revenue_cents, 0);
             assert_eq!(
-                park.cash_cents() + park.finance_stats().ride_upkeep_cents,
+                park.cash_cents()
+                    + park.finance_stats().ride_upkeep_cents
+                    + park.finance_stats().construction_cents,
                 INITIAL_PARK_CASH_CENTS
             );
         }

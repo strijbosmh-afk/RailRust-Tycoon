@@ -31,7 +31,7 @@ pub enum ObjectKind {
     FlowerBed,
 }
 
-pub const MAX_SCENERY_OBJECTS: usize = 512;
+pub const MAX_SCENERY_OBJECTS: usize = 1024;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SceneryKind {
     Tree,
@@ -89,6 +89,12 @@ pub enum PlacementError {
     OutOfBounds {
         pos: TilePos,
     },
+    LandNotOwned {
+        pos: TilePos,
+    },
+    WaterNeedsBridge {
+        pos: TilePos,
+    },
     EmptyClearance,
     HeightOutOfRange {
         height: u8,
@@ -142,6 +148,16 @@ impl std::fmt::Display for PlacementError {
                 "object tile ({}, {}) is outside the park",
                 pos.x, pos.y
             ),
+            Self::LandNotOwned { pos } => {
+                write!(formatter, "tile ({}, {}) is not owned", pos.x, pos.y)
+            }
+            Self::WaterNeedsBridge { pos } => {
+                write!(
+                    formatter,
+                    "tile ({}, {}) is water; build above it",
+                    pos.x, pos.y
+                )
+            }
             Self::EmptyClearance => write!(formatter, "object clearance must be positive"),
             Self::CarouselRequiresDefinition => write!(
                 formatter,
@@ -220,12 +236,12 @@ impl Park {
         }
     }
 
-    /// Missing identities are not underground. Buried track becomes exposed
-    /// when terrain is lowered without moving or replacing the track itself.
+    /// Missing identities are not underground. Buried track and paths become
+    /// exposed when terrain is lowered without moving or replacing them.
     pub fn is_underground(&self, id: ObjectId) -> bool {
         self.object(id).is_some_and(|object| {
             self.tile(object.pos).is_some_and(|tile| {
-                object.kind == ObjectKind::Track
+                matches!(object.kind, ObjectKind::Track | ObjectKind::Path)
                     && u16::from(object.height) + u16::from(object.clearance)
                         <= u16::from(tile.height)
             })
@@ -239,9 +255,9 @@ impl Park {
             .iter()
             .map(|object| object.height + u8::from(object.path_slope != PathSlope::Flat))
             .fold(self.max_terrain_height(), u8::max);
-        self.circuit
-            .as_ref()
+        self.coaster_ids()
             .into_iter()
+            .filter_map(|id| self.coaster_circuit(id))
             .flat_map(|circuit| &circuit.pieces)
             .flat_map(|piece| &piece.samples)
             .map(|point| (point.height / crate::TRACK_UNITS) as u8)
@@ -249,8 +265,8 @@ impl Park {
     }
 
     /// Validate the complete placement before allocating an ID or changing state.
-    /// Paths must lie on/above terrain. Track can also be completely buried;
-    /// its occupied range must never straddle the terrain surface.
+    /// Paths and track can lie on/above terrain or be completely buried;
+    /// their occupied ranges must never straddle the terrain surface.
     pub fn place_object(
         &mut self,
         pos: TilePos,
@@ -283,6 +299,9 @@ impl Park {
         kind: SceneryKind,
     ) -> Result<u64, PlacementError> {
         let tile = self.tile(pos).ok_or(PlacementError::OutOfBounds { pos })?;
+        if !tile.owned {
+            return Err(PlacementError::LandNotOwned { pos });
+        }
         if tile.terrain == crate::Terrain::Water {
             return Err(PlacementError::SceneryRequiresLand);
         }
@@ -413,6 +432,9 @@ impl Park {
         clearance: u8,
     ) -> Result<u64, PlacementError> {
         let tile = self.tile(pos).ok_or(PlacementError::OutOfBounds { pos })?;
+        if !tile.owned {
+            return Err(PlacementError::LandNotOwned { pos });
+        }
         if clearance == 0 {
             return Err(PlacementError::EmptyClearance);
         }
@@ -429,6 +451,9 @@ impl Park {
                 pos,
                 terrain_height: tile.height,
             });
+        }
+        if tile.terrain == crate::Terrain::Water && height < 2 {
+            return Err(PlacementError::WaterNeedsBridge { pos });
         }
         if let Some(object) = self.objects.iter().find(|object| {
             object.pos == pos
@@ -516,6 +541,8 @@ impl Park {
         }
         self.reconcile_mechanic_after_removal(id);
         self.reconcile_grounds_after_removal(id);
+        self.refund_removed_decoration(id);
+        self.refund_removed_path(id);
         self.reconcile_train_after_removal(id);
         for ride in self.all_rides_mut() {
             if ride.entrance.is_some_and(|gate| gate.object == id) {
@@ -596,7 +623,7 @@ pub(crate) fn terrain_allows(kind: ObjectKind, height: u8, clearance: u8, terrai
         return height == terrain;
     }
     height >= terrain
-        || (kind == ObjectKind::Track
+        || (matches!(kind, ObjectKind::Track | ObjectKind::Path)
             && u16::from(height) + u16::from(clearance) <= u16::from(terrain))
 }
 
@@ -664,7 +691,7 @@ mod tests {
 
     #[test]
     fn scenery_capacity_rejects_next_placement_without_allocating_an_id() {
-        let mut park = Park::new(32, 32);
+        let mut park = Park::new(64, 64);
         let land: Vec<_> = (0..park.height)
             .flat_map(|y| (0..park.width).map(move |x| TilePos { x, y }))
             .filter(|pos| park.validate_scenery(*pos, SceneryKind::FlowerBed).is_ok())
@@ -686,6 +713,47 @@ mod tests {
         assert_eq!(
             Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
             park
+        );
+    }
+
+    #[test]
+    fn large_park_builds_past_old_path_and_scenery_limits_then_reloads_and_demolishes() {
+        let mut park = Park::new(128, 128);
+        let paths: Vec<_> = (0..1025)
+            .map(|index| {
+                park.place_path(
+                    TilePos {
+                        x: index % 128,
+                        y: index / 128,
+                    },
+                    2,
+                )
+                .unwrap()
+            })
+            .collect();
+        let flowers: Vec<_> = (0..513)
+            .map(|index| {
+                park.place_scenery(
+                    TilePos {
+                        x: index % 128,
+                        y: 100 + index / 128,
+                    },
+                    SceneryKind::FlowerBed,
+                )
+                .unwrap()
+            })
+            .collect();
+        assert_eq!(park.objects().len(), 1538);
+        assert!(park.public_path_route(paths[0], paths[1024]).is_some());
+        let mut loaded = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+        assert_eq!(loaded, park);
+        assert!(loaded.public_path_route(paths[0], paths[1024]).is_some());
+        assert!(loaded.remove_object(paths[0]).is_some());
+        assert!(loaded.remove_object(flowers[0]).is_some());
+        assert_eq!(loaded.objects().len(), 1536);
+        assert_eq!(
+            Park::from_save_bytes(&loaded.to_save_bytes().unwrap()).unwrap(),
+            loaded
         );
     }
 
@@ -749,14 +817,14 @@ mod tests {
 
     #[test]
     fn player_path_cap_is_shared_with_saves_and_demolition_reopens_capacity() {
-        let mut park = Park::new(32, 32);
+        let mut park = Park::new(64, 64);
         for index in 0..crate::saves::MAX_PATHS {
             park.place_path(
                 TilePos {
-                    x: (index % 32) as u32,
-                    y: (index / 32) as u32,
+                    x: (index % 64) as u32,
+                    y: (index / 64) as u32,
                 },
-                0,
+                2,
             )
             .unwrap();
         }
@@ -768,17 +836,17 @@ mod tests {
             resource: "paths",
             max: crate::saves::MAX_PATHS,
         };
-        assert_eq!(park.validate_path(pos, 2), Err(error));
-        assert_eq!(park.place_path(pos, 2), Err(error));
+        assert_eq!(park.validate_path(pos, 4), Err(error));
+        assert_eq!(park.place_path(pos, 4), Err(error));
         assert_eq!(park, snapshot);
         assert_eq!(park.path_cache_stats(), cache);
         let old = park.objects()[0].id;
         park.remove_object(old).unwrap();
-        let replacement = park.place_path(pos, 0).unwrap();
+        let replacement = park.place_path(pos, 2).unwrap();
         assert!(replacement.0 > snapshot.objects().last().unwrap().id.0);
         assert!(park.to_save_bytes().is_ok());
         // Explicit diagnostic constructors keep their preexisting freedom.
-        park.place_object(pos, ObjectKind::Path, Axis::Y, 2, PATH_CLEARANCE)
+        park.place_object(pos, ObjectKind::Path, Axis::Y, 0, PATH_CLEARANCE)
             .unwrap();
         assert!(park.to_save_bytes().is_err());
     }
@@ -794,12 +862,12 @@ mod tests {
                 },
                 ObjectKind::Track,
                 Axis::Y,
-                (index / 1024 * 2) as u8,
+                (index / 1024 * 2 + 2) as u8,
                 2,
             )
             .unwrap();
         }
-        park.place_path(TilePos { x: 31, y: 31 }, 6).unwrap();
+        park.place_path(TilePos { x: 31, y: 31 }, 12).unwrap();
         assert!(park.to_save_bytes().is_ok());
         let snapshot = park.clone();
         let error = PlacementError::CapacityExceeded {
@@ -807,8 +875,8 @@ mod tests {
             max: crate::saves::MAX_OBJECTS,
         };
         let pos = TilePos { x: 0, y: 0 };
-        assert_eq!(park.validate_path(pos, 8), Err(error));
-        assert_eq!(park.place_path(pos, 8), Err(error));
+        assert_eq!(park.validate_path(pos, 14), Err(error));
+        assert_eq!(park.place_path(pos, 14), Err(error));
         assert_eq!(park, snapshot);
         assert_eq!(park.path_cache_stats(), snapshot.path_cache_stats());
     }
@@ -999,7 +1067,7 @@ mod tests {
         assert!(!park.is_underground(path));
         let snapshot = park.clone();
         for (kind, height, clearance) in [
-            (ObjectKind::Path, 0, 2),
+            (ObjectKind::Path, 3, 2),
             (ObjectKind::Track, 3, 2),
             (ObjectKind::Track, 0, 5),
         ] {
@@ -1019,6 +1087,37 @@ mod tests {
         park.set_terrain_height(pos, 2).unwrap();
         assert!(!park.is_underground(track));
         assert_eq!(park.object(track), snapshot.object(track));
+    }
+
+    #[test]
+    fn buried_public_path_connects_to_surface_and_survives_save_and_exposure() {
+        let mut park = Park::new(4, 4);
+        let outside = TilePos { x: 0, y: 1 };
+        let tunnel = TilePos { x: 1, y: 1 };
+        park.set_terrain_height(tunnel, 4).unwrap();
+        let approach = park.place_path(outside, 0).unwrap();
+        let underground = park.place_path(tunnel, 0).unwrap();
+        assert!(park.is_underground(underground));
+        assert_eq!(
+            park.public_path_route(approach, underground),
+            Some(std::collections::VecDeque::from([underground]))
+        );
+        assert!(matches!(
+            park.place_path(tunnel, 3),
+            Err(PlacementError::TerrainIntersection { .. })
+        ));
+        let mut loaded = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+        assert_eq!(loaded, park);
+        loaded.set_terrain_height(tunnel, 0).unwrap();
+        assert!(!loaded.is_underground(underground));
+        assert_eq!(
+            loaded.public_path_route(approach, underground),
+            Some(std::collections::VecDeque::from([underground]))
+        );
+        assert_eq!(
+            Park::from_save_bytes(&loaded.to_save_bytes().unwrap()).unwrap(),
+            loaded
+        );
     }
 
     #[test]
@@ -1150,7 +1249,7 @@ mod tests {
     #[test]
     fn conflicting_profile_rejects_every_height_change_atomically() {
         let mut park = Park::new(32, 32);
-        park.place_object(TilePos { x: 12, y: 16 }, ObjectKind::Path, Axis::X, 0, 2)
+        park.place_object(TilePos { x: 12, y: 16 }, ObjectKind::Path, Axis::X, 5, 2)
             .unwrap();
         let snapshot = park.clone();
         assert!(matches!(

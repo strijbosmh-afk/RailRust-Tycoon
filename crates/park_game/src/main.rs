@@ -12,6 +12,7 @@ mod legacy_cost_test_support {
 }
 mod campaign;
 mod coaster_testing;
+mod construction_history;
 mod design_file_dialog;
 #[cfg(test)]
 mod design_input_tests;
@@ -25,6 +26,7 @@ mod display;
 mod frame_probe;
 mod front_end;
 mod gpu_probe;
+mod history_shortcuts;
 #[cfg(test)]
 mod input_tests;
 mod measurement;
@@ -133,6 +135,7 @@ struct ViewState {
     guest_stats_pending: bool,
     handyman_toggle_pending: bool,
     bin_toggle_pending: bool,
+    path_addition_pending: Option<park_sim::PathAdditionKind>,
     patrol_toggle_pending: bool,
     cleaning_toggle_pending: bool,
     empty_bins_toggle_pending: bool,
@@ -157,6 +160,7 @@ struct ViewState {
     navigation_group: ui::navigation::Group,
     remove_path_pending: bool,
     restore_paths_pending: bool,
+    park_edit_pending: Option<construction_history::EditCommand>,
     path_notice: Option<String>,
     path_tool: path_tools::ToolState,
     track_editor: track_tools::TrackEditor,
@@ -235,6 +239,7 @@ impl Default for ViewState {
             guest_stats_pending: false,
             handyman_toggle_pending: false,
             bin_toggle_pending: false,
+            path_addition_pending: None,
             patrol_toggle_pending: false,
             cleaning_toggle_pending: false,
             empty_bins_toggle_pending: false,
@@ -259,6 +264,7 @@ impl Default for ViewState {
             navigation_group: default(),
             remove_path_pending: false,
             restore_paths_pending: false,
+            park_edit_pending: None,
             path_notice: None,
             path_tool: default(),
             track_editor: default(),
@@ -638,6 +644,8 @@ fn main() -> AppExit {
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
         .insert_resource(Simulation(park))
         .insert_resource(view)
+        .init_resource::<construction_history::EditHistory>()
+        .init_resource::<history_shortcuts::HistoryShortcuts>()
         .insert_resource(campaign)
         .insert_resource(front)
         .init_resource::<design_library::DesignLibrary>()
@@ -675,38 +683,48 @@ fn main() -> AppExit {
             Update,
             (
                 (
+                    construction_history::begin,
                     (
-                        ui::install_ride_name_font,
-                        ui::button_actions,
-                        front_end::input,
-                        display::update,
-                        keyboard_input,
-                        ui::layout::scroll,
-                        ui::audio::apply,
-                        design_library::keyboard_text,
-                        ui::names::keyboard_text,
-                        ui::names::apply,
+                        (
+                            ui::install_ride_name_font,
+                            history_shortcuts::collect,
+                            ui::button_actions,
+                            front_end::input,
+                            display::update,
+                            keyboard_input,
+                            ui::layout::scroll,
+                            ui::audio::apply,
+                            design_library::keyboard_text,
+                            ui::names::keyboard_text,
+                            ui::names::apply,
+                        )
+                            .chain(),
+                        design_library::apply_commands,
+                        design_transfer::open_dialog,
+                        apply_terrain_profile,
+                        apply_path_actions,
+                        apply_train_actions,
+                        apply_price_actions,
+                        coaster_testing::apply_commands,
+                        access_planning::apply_commands,
+                        ride_operations::apply_commands,
+                        ui::appearance::apply,
+                        ui::finance::apply_commands,
+                        ui::visitor_flow::apply_commands,
+                        ui::scenarios::apply_commands,
+                        apply_grounds_action,
+                        apply_service_actions,
                     )
                         .chain(),
-                    design_library::apply_commands,
-                    design_transfer::open_dialog,
-                    apply_terrain_profile,
-                    apply_path_actions,
-                    apply_train_actions,
-                    apply_price_actions,
-                    coaster_testing::apply_commands,
-                    access_planning::apply_commands,
-                    ride_operations::apply_commands,
-                    ui::appearance::apply,
-                    ui::finance::apply_commands,
-                    ui::visitor_flow::apply_commands,
-                    ui::scenarios::apply_commands,
-                    apply_grounds_action,
-                    apply_service_actions,
-                    track_tools::apply_commands,
-                    pointer_input,
-                    persistence::apply_save_action,
-                    campaign::observe,
+                    (
+                        track_tools::apply_commands,
+                        pointer_input,
+                        construction_history::apply,
+                        persistence::apply_save_action,
+                        campaign::observe,
+                        construction_history::finish,
+                    )
+                        .chain(),
                 )
                     .chain(),
                 (
@@ -788,7 +806,9 @@ fn new_sandbox_park(size: u32) -> Park {
         new_game_park()
     } else {
         assert!((MAP_SIZE..=park_sim::MAX_MAP_SIZE).contains(&size));
-        Park::new(size, size)
+        let mut park = Park::new(size, size);
+        assert!(park.prepare_large_sandbox_land());
+        park
     }
 }
 
@@ -812,6 +832,7 @@ fn setup_scene(
 ) {
     commands.spawn(Camera2d);
     let material = materials.add(ColorMaterial::from(Color::WHITE));
+    commands.insert_resource(presentation::WorldMaterial(material.clone()));
     let mut landscape = static_landscape::StaticLandscape::new(material.clone());
     landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
     commands.insert_resource(landscape);
@@ -838,7 +859,7 @@ fn setup_scene(
     // would incorrectly hide the highlight after panning away from that tile.
     commands.spawn((
         Mesh2d(selection.clone()),
-        MeshMaterial2d(material.clone()),
+        MeshMaterial2d(materials.add(ColorMaterial::from(Color::WHITE))),
         NoFrustumCulling,
     ));
     commands.spawn((
@@ -875,6 +896,28 @@ fn setup_scene(
 }
 
 fn apply_grounds_action(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {
+    if let Some(kind) = view.path_addition_pending.take()
+        && !view.edits_blocked()
+    {
+        view.ui_pointer_consumed = true;
+        view.path_notice = Some(match view.selected {
+            Some(SurfaceId::Object(id)) => match sim.0.toggle_path_addition(id, kind) {
+                Ok(true) => format!(
+                    "{} built for {}; 50% refund on removal.",
+                    kind.name(),
+                    ui::money(kind.cost_cents())
+                ),
+                Ok(false) => format!(
+                    "{} removed; {} refunded.",
+                    kind.name(),
+                    ui::money(kind.cost_cents() / 2)
+                ),
+                Err(error) => format!("Cannot change {}: {error}", kind.name()),
+            },
+            _ => format!("Select a public path first, then use {}.", kind.name()),
+        });
+        view.scene_dirty = true;
+    }
     if view.handyman_toggle_pending {
         view.handyman_toggle_pending = false;
         let assigned = sim.0.grounds_status().assigned;
@@ -994,7 +1037,8 @@ fn keyboard_input(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut view: ResMut<ViewState>,
-    sim: Option<Res<Simulation>>,
+    mut sim: Option<ResMut<Simulation>>,
+    shortcuts: Option<Res<history_shortcuts::HistoryShortcuts>>,
 ) {
     // UI transitions are gathered first; neither their closing click nor a
     // simultaneous keyboard command may reach controls under the modal.
@@ -1091,16 +1135,40 @@ fn keyboard_input(
     }
     // Consume history chords before plain Y/Z can toggle a panel. Other modal
     // transitions above still win, and loading wins over a same-frame edit.
-    if let Some(command) = track_history_shortcut(&keys) {
+    let history_command = if shortcuts
+        .as_ref()
+        .is_some_and(|shortcuts| shortcuts.observed_letter)
+    {
+        shortcuts.as_ref().and_then(|shortcuts| shortcuts.command)
+    } else {
+        track_history_shortcut(&keys)
+    };
+    if let Some(command) = history_command {
         if !view.edits_blocked() {
             request_keyboard_save(&keys, &mut view);
             if keys.just_pressed(KeyCode::Escape) && view.track_editor.active {
                 view.track_editor.active = false;
                 view.track_editor.preview = None;
+            } else if !view.track_editor.active {
+                view.park_edit_pending = Some(match command {
+                    track_tools::TrackCommand::Undo => construction_history::EditCommand::Undo,
+                    track_tools::TrackCommand::Redo => construction_history::EditCommand::Redo,
+                    _ => unreachable!("history shortcut only returns undo or redo"),
+                });
             } else {
                 track_tools::queue(&mut view, command);
             }
         }
+        view.ui_pointer_consumed = true;
+        return;
+    }
+    if shortcuts
+        .as_ref()
+        .is_some_and(|shortcuts| shortcuts.observed_letter)
+        && [KeyCode::ControlLeft, KeyCode::ControlRight]
+            .into_iter()
+            .any(|key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key))
+    {
         view.ui_pointer_consumed = true;
         return;
     }
@@ -1111,8 +1179,8 @@ fn keyboard_input(
     }
     if view.rides_open {
         if keys.just_pressed(KeyCode::KeyZ) {
-            if let Some(sim) = sim.as_ref() {
-                track_tools::begin(&sim.0, &mut view);
+            if let Some(sim) = sim.as_mut() {
+                track_tools::begin(&mut sim.0, &mut view);
             }
             return;
         }
@@ -1188,8 +1256,8 @@ fn keyboard_input(
             view.track_editor.active = false;
             view.track_editor.preview = None;
             view.ui_pointer_consumed = true;
-        } else if let Some(sim) = sim.as_ref() {
-            track_tools::begin(&sim.0, &mut view);
+        } else if let Some(sim) = sim.as_mut() {
+            track_tools::begin(&mut sim.0, &mut view);
         }
         return;
     }
@@ -1341,7 +1409,21 @@ fn apply_terrain_profile(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState
     }
     if view.terrain_change_pending {
         view.ui_pointer_consumed = true;
-        if let Err(error) = sim.0.try_apply_terrain_profile(view.terrain_profile) {
+        let fully_owned = (0..sim.0.height())
+            .all(|y| (0..sim.0.width()).all(|x| sim.0.owns_land(park_sim::TilePos { x, y })));
+        let fresh_empty = sim.0.objects().is_empty()
+            && sim.0.guests().is_empty()
+            && sim.0.finance_ledger().entries.is_empty()
+            && sim.0.ticks() == 0
+            && fully_owned;
+        let result = if fresh_empty {
+            sim.0
+                .try_apply_terrain_profile(view.terrain_profile)
+                .map_err(|error| error.to_string())
+        } else {
+            Err("presets are available only before building on fully owned land".into())
+        };
+        if let Err(error) = result {
             view.terrain_error = Some(format!("Terrain unchanged: {error}"));
             view.terrain_profile = match view.terrain_profile {
                 TerrainProfile::Flat => TerrainProfile::Terraced,
@@ -1905,10 +1987,16 @@ mod tests {
             assert_eq!(view.camera_span, size as f32 / 32.0);
             assert!(view.pan_limit.x > 1800.0 || size == 64);
             let site = TilePos {
-                x: size - 2,
-                y: size - 2,
+                x: size / 2,
+                y: size / 2,
             };
-            park.set_terrain_height(site, 1).unwrap();
+            assert!(park.owns_land(site));
+            assert!(!park.owns_land(TilePos {
+                x: size - 2,
+                y: size - 2
+            }));
+            park.apply_terrain_brush(site, 0, park_sim::TerrainBrushKind::Raise)
+                .unwrap();
             let bytes = park.to_save_bytes().unwrap();
             assert!(bytes.len() <= park_sim::MAX_SAVE_BYTES);
             assert_eq!(Park::from_save_bytes(&bytes).unwrap(), park);

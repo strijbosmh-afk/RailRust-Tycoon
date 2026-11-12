@@ -2,6 +2,28 @@
 // never used by production readers or authentic old-binary migration proofs.
 pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
     use serde_json::json;
+    if value["schema_version"].as_u64().is_some_and(|v| v < 45) {
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("other_coasters");
+    }
+    if value["schema_version"].as_u64().is_some_and(|v| v < 44) {
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("path_economy");
+    }
+    if value["schema_version"].as_u64().is_some_and(|v| v < 41) {
+        value["park"].as_object_mut().unwrap().remove("decorations");
+    }
+    if value["schema_version"].as_u64().is_some_and(|v| v < 40)
+        && let Some(tiles) = value["park"]["tiles"].as_array_mut()
+    {
+        for tile in tiles {
+            tile.as_object_mut().unwrap().remove("owned");
+        }
+    }
     strip_park_open(value);
     if value["schema_version"].as_u64().is_some_and(|v| v <= 30)
         && let Some(rides) = value
@@ -206,6 +228,12 @@ pub(crate) fn project_old_fixture(value: &mut serde_json::Value) {
 }
 
 pub(crate) fn strip_park_open(value: &mut serde_json::Value) {
+    if value["schema_version"].as_u64().is_some_and(|v| v < 45) {
+        value["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("other_coasters");
+    }
     strip_admission_fields(value);
     if value["schema_version"].as_u64().is_some_and(|v| v <= 33)
         && let Some(flow) = value

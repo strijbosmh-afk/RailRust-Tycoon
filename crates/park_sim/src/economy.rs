@@ -317,8 +317,18 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
                     .iter()
                     .try_fold(funds, |cash, record| cash.checked_sub(record.upkeep_cents))
             })
-            .and_then(|funds| funds.checked_add(park.track_economy.refund_cents))
-            .and_then(|funds| funds.checked_sub(park.track_economy.construction_cents))
+            .and_then(|funds| {
+                std::iter::once(&park.track_economy)
+                    .chain(park.other_coasters.iter().map(|c| &c.track_economy))
+                    .try_fold(funds, |cash, e| cash.checked_add(e.refund_cents))
+            })
+            .and_then(|funds| funds.checked_add(park.decorations.refund_cents))
+            .and_then(|funds| funds.checked_add(park.path_economy.refund_cents))
+            .and_then(|funds| {
+                std::iter::once(&park.track_economy)
+                    .chain(park.other_coasters.iter().map(|c| &c.track_economy))
+                    .try_fold(funds, |cash, e| cash.checked_sub(e.construction_cents))
+            })
             .and_then(|funds| {
                 park.carousels.iter().try_fold(funds, |cash, carousel| {
                     cash.checked_sub(carousel.construction_cost_cents)
@@ -335,6 +345,29 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             .and_then(|funds| funds.checked_sub(park.loans.interest_paid_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().wages_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().advertising_cents))
+            .and_then(|funds| {
+                // Ride, service and track paid bases are already subtracted
+                // above. The remainder of construction is paid landscaping.
+                let known = park
+                    .carousels
+                    .iter()
+                    .map(|ride| ride.construction_cost_cents)
+                    .chain(
+                        park.services
+                            .iter()
+                            .map(|service| service.construction_cost_cents),
+                    )
+                    .chain(
+                        std::iter::once(&park.track_economy)
+                            .chain(park.other_coasters.iter().map(|c| &c.track_economy))
+                            .map(|e| e.construction_cents),
+                    )
+                    .try_fold(0_u64, u64::checked_add)?;
+                park.finance_stats()
+                    .construction_cents
+                    .checked_sub(known)
+                    .and_then(|landscaping| funds.checked_sub(landscaping))
+            })
             != Some(park.cash_cents)
     {
         return Err("ride price, revenue, and park cash do not conserve funds".into());

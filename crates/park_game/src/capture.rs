@@ -32,6 +32,7 @@ mod access_scenes;
 mod admission_scenes;
 mod appeal_scenes;
 mod cashflow_scenes;
+pub(crate) mod coaster_scenes;
 mod color_scenes;
 mod construction_scenes;
 mod design_scenes;
@@ -66,6 +67,7 @@ mod visitor_scenes;
 #[derive(Clone, Copy)]
 enum Scene {
     Overview,
+    TunnelEntrances,
     FlatStart,
     ColorsCoaster,
     ColorsCarousel,
@@ -293,6 +295,11 @@ enum Scene {
     TrackInvalid,
     TrackReady,
     TrackBuilt,
+    TrackCamelback,
+    MultipleCoasters,
+    CoasterCompletion,
+    CoasterInversion,
+    CoasterFleetControls,
     TrackOccupied,
     TrackReplacement,
     TrackUnaffordable,
@@ -514,6 +521,7 @@ impl Scene {
                 | Self::TrackInvalid
                 | Self::TrackReady
                 | Self::TrackBuilt
+                | Self::TrackCamelback
                 | Self::TrackOccupied
                 | Self::TrackReplacement
                 | Self::TrackUnaffordable
@@ -793,6 +801,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("loaded") => Scene::Loaded,
                 Some("backup") => Scene::Backup,
                 Some("load-error") => Scene::LoadError,
+                Some("tunnel-entrances") => Scene::TunnelEntrances,
                 Some("path-valid") => Scene::PathValid,
                 Some("path-blocked") => Scene::PathBlocked,
                 Some("path-built") => Scene::PathBuilt,
@@ -970,6 +979,11 @@ pub(super) fn configure(app: &mut App) {
                 Some("track-invalid") => Scene::TrackInvalid,
                 Some("track-ready") => Scene::TrackReady,
                 Some("track-built") => Scene::TrackBuilt,
+                Some("track-camelback") => Scene::TrackCamelback,
+                Some("multiple-coasters") => Scene::MultipleCoasters,
+                Some("coaster-completion") => Scene::CoasterCompletion,
+                Some("coaster-inversion") => Scene::CoasterInversion,
+                Some("coaster-fleet-controls") => Scene::CoasterFleetControls,
                 Some("track-occupied") => Scene::TrackOccupied,
                 Some("track-replacement") => Scene::TrackReplacement,
                 Some("track-unaffordable") => Scene::TrackUnaffordable,
@@ -1529,6 +1543,20 @@ fn apply_preset(
     if capture.scene.is_facility_construction() {
         facility_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
+    if matches!(capture.scene, Scene::MultipleCoasters) {
+        coaster_scenes::prepare(&mut sim.0, &mut view);
+    }
+    if matches!(
+        capture.scene,
+        Scene::CoasterCompletion | Scene::CoasterInversion | Scene::CoasterFleetControls
+    ) {
+        coaster_scenes::prepare_completion(
+            &mut sim.0,
+            &mut view,
+            matches!(capture.scene, Scene::CoasterInversion),
+            matches!(capture.scene, Scene::CoasterFleetControls),
+        );
+    }
     if capture.scene.is_track_construction() {
         track_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
@@ -1566,13 +1594,38 @@ fn apply_preset(
         // A loaded scene intentionally retains the normal load's fitted camera
         // and paused state, instead of modifying its terrain or simulating ahead.
     }
+    if matches!(capture.scene, Scene::TunnelEntrances) {
+        let mut park = Park::new(32, 32);
+        for y in 14..=18 {
+            for x in 14..=18 {
+                park.set_terrain_height(TilePos { x, y }, 3).unwrap();
+            }
+        }
+        for x in 11..=21 {
+            park.build_paid_path(TilePos { x, y: 16 }, 0, park_sim::PathSlope::Flat)
+                .unwrap();
+        }
+        view.rotation = capture.rotation.unwrap_or(0);
+        view.view_mode = capture.view_mode;
+        view.zoom = 3.5;
+        view.pan = world::tile_center(TilePos { x: 16, y: 16 }, 32, view.rotation);
+        view.selected = None;
+        view.hovered = None;
+        view.terrain_custom = true;
+        view.scene_dirty = true;
+        sim.0 = park;
+    }
     if capture.detail {
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
         view.zoom = 3.5 * view.camera_span;
         match capture.scene {
             scene if scene.is_train() => {
-                view.pan = world::leading_car_focus(&sim.0, view.rotation)
-                    .expect("detail capture train")
+                view.pan = world::leading_car_focus(
+                    &sim.0,
+                    sim.0.ride().expect("detail coaster").id,
+                    view.rotation,
+                )
+                .expect("detail capture train")
                     - elevation;
             }
             Scene::CarouselBuilt | Scene::DualRiding | Scene::SwingMap | Scene::DropTowerMap => {

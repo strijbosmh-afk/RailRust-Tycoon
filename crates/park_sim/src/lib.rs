@@ -7,8 +7,25 @@ mod access_planning;
 mod admission;
 mod appearance;
 mod carousel;
+#[cfg(test)]
+mod coaster_acceptance;
+mod coaster_fleet;
+mod coasters;
+pub use coasters::{CoasterSelectionError, MAX_COASTER_RECORDS};
+#[cfg(test)]
+mod construction_playthrough_tests;
 mod crowds;
+mod decorations;
+mod path_economy;
 pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
+pub use decorations::{
+    BENCH_CAP, BENCH_COST_CENTS, BenchError, DECORATION_REFUND_PERCENT, FENCE_COST_CENTS,
+    PaidScenery, PathAdditionError, PathAdditionKind, PathBench, PathFence, PathSign,
+    SIGN_COST_CENTS,
+};
+pub use path_economy::{
+    PUBLIC_PATH_COST_CENTS, PaidPath, QUEUE_PATH_COST_CENTS, SLOPE_SURCHARGE_CENTS, path_cost_cents,
+};
 mod visitors;
 pub use visitors::{
     ChargingRule, DepartedVisitors, FLYER_ARRIVAL_TICKS, FLYER_CAMPAIGN_COST_CENTS,
@@ -77,10 +94,12 @@ pub use scenario::{
     BOARDWALK_RIDE_GOAL, MEADOW_ARRIVAL_GOAL, MEADOW_CASH_GOAL_CENTS, MEADOW_RIDE_GOAL,
     ScenarioError, ScenarioKind, ScenarioStatus,
 };
+mod land_rights;
 mod services;
 #[cfg(test)]
 mod slope_tests;
 mod surfaces;
+mod terrain_construction;
 mod terrain_generation;
 mod track_construction;
 mod track_designs;
@@ -115,6 +134,7 @@ pub use journeys::{
     PassengerJourney, RIDE_TRANSFER_TICKS, RideExitAccess, RideExitStatus, RideGuestPosition,
     RideJourneyStats, RideTransfer, TRAIN_SEATS,
 };
+pub use land_rights::{LAND_TILE_PRICE_CENTS, LandRightsError};
 pub use path_geometry::{
     MAX_SLOPED_PATH_HEIGHT, PATH_UNITS, PathDirection, PathPoint, PathSlope, SLOPED_PATH_CLEARANCE,
     paths_connect,
@@ -132,8 +152,8 @@ pub use ride_operations::{
     RideOperatingError, RideOperatingSettings, STATION_WAIT_STEP_TICKS,
 };
 pub use ride_testing::{
-    COASTER_TEST_LIMITATIONS, CoasterLayoutMetrics, CoasterLayoutRatings, CoasterTestError,
-    CoasterTestInput, CoasterTestReport, MAX_COASTER_TEST_TICKS,
+    COASTER_TEST_LIMITATIONS, CoasterForceEstimates, CoasterLayoutMetrics, CoasterLayoutRatings,
+    CoasterTestError, CoasterTestInput, CoasterTestReport, MAX_COASTER_TEST_TICKS,
 };
 pub use saves::{
     CONTENT_VERSION as SAVE_CONTENT_VERSION, MAX_SAVE_BYTES, SCHEMA_VERSION as SAVE_SCHEMA_VERSION,
@@ -148,6 +168,9 @@ pub use services::{
 pub use surfaces::{
     Axis, MAX_PATH_HEIGHT, MAX_SCENERY_OBJECTS, ObjectId, ObjectKind, PATH_CLEARANCE,
     PlacementError, SceneryKind, SurfaceId, SurfaceObject,
+};
+pub use terrain_construction::{
+    MAX_TERRAIN_BRUSH_RADIUS, TerrainBrushError, TerrainBrushKind, TerrainBrushQuote,
 };
 pub use track_construction::{
     MAX_TRACK_DRAFT_PIECES, PaidTrackPiece, TRACK_REFUND_PERCENT, TrackBuildKind,
@@ -196,6 +219,8 @@ pub struct Tile {
     pub terrain: Terrain,
     /// Elevation in abstract simulation steps, between 0 and MAX_TERRAIN_HEIGHT.
     pub height: u8,
+    #[serde(default = "land_rights::owned_by_default")]
+    pub owned: bool,
 }
 
 /// Repeatable elevation presets. Terrain materials and park time are preserved.
@@ -273,7 +298,9 @@ pub struct Park {
     track_draft: Vec<TrackPieceSpec>,
     track_economy: TrackEconomy,
     train: Option<Train>,
+    extra_trains: Vec<Train>,
     ride: Option<Ride>,
+    other_coasters: Vec<coasters::CoasterState>,
     carousels: Vec<CarouselRide>,
     ride_operating_settings: Vec<ride_operations::RideOperatingSettingsRecord>,
     ride_dispatch: Vec<ride_dispatch::RideDispatchRecord>,
@@ -289,6 +316,8 @@ pub struct Park {
     mechanic_wage_progress: u16,
     mechanic_route: staff::MechanicRoute,
     grounds: grounds::GroundsState,
+    decorations: decorations::DecorationState,
+    path_economy: path_economy::PathEconomy,
     visitors: visitors::VisitorFlow,
     scenario: Option<scenario::ScenarioState>,
     loans: loans::LoanAccount,
@@ -316,7 +345,9 @@ impl PartialEq for Park {
             && self.track_draft == other.track_draft
             && self.track_economy == other.track_economy
             && self.train == other.train
+            && self.extra_trains == other.extra_trains
             && self.ride == other.ride
+            && self.other_coasters == other.other_coasters
             && self.carousels == other.carousels
             && self.ride_operating_settings == other.ride_operating_settings
             && self.ride_dispatch == other.ride_dispatch
@@ -332,6 +363,8 @@ impl PartialEq for Park {
             && self.mechanic_wage_progress == other.mechanic_wage_progress
             && self.mechanic_route == other.mechanic_route
             && self.grounds == other.grounds
+            && self.decorations == other.decorations
+            && self.path_economy == other.path_economy
             && self.visitors == other.visitors
             && self.scenario == other.scenario
             && self.loans == other.loans
@@ -361,6 +394,7 @@ impl Park {
                 tiles.push(Tile {
                     terrain: terrain_at(TilePos { x, y }, width, height),
                     height: 0,
+                    owned: true,
                 });
             }
         }
@@ -380,7 +414,9 @@ impl Park {
             track_draft: Vec::new(),
             track_economy: TrackEconomy::default(),
             train: None,
+            extra_trains: Vec::new(),
             ride: None,
+            other_coasters: Vec::new(),
             carousels: Vec::new(),
             ride_operating_settings: Vec::new(),
             ride_dispatch: Vec::new(),
@@ -396,6 +432,8 @@ impl Park {
             mechanic_wage_progress: 0,
             mechanic_route: staff::MechanicRoute::default(),
             grounds: grounds::GroundsState::default(),
+            decorations: decorations::DecorationState::default(),
+            path_economy: path_economy::PathEconomy::default(),
             visitors: visitors::VisitorFlow::default(),
             scenario: None,
             loans: loans::LoanAccount::default(),
@@ -540,7 +578,7 @@ impl Park {
             self.step_visitor_arrivals();
             self.step_crowd();
             self.step_ride_journeys();
-            self.step_train();
+            self.step_coasters();
             self.step_carousels();
             self.reconcile_passenger_laps();
             self.step_maintenance();
@@ -854,7 +892,12 @@ mod tests {
         // A ground track occupies [0,2); the path occupies [8,10).
         // Terrain can expose the track at zero, or cover it up to the path.
         for height in [0, 1, 2, 7, 8, 9, MAX_TERRAIN_HEIGHT] {
-            assert_terrain_preview_commit(&park, overlap, height, matches!(height, 0 | 2..=8));
+            assert_terrain_preview_commit(
+                &park,
+                overlap,
+                height,
+                matches!(height, 0 | 2..=8) || height == MAX_TERRAIN_HEIGHT,
+            );
         }
         let graded = park
             .objects

@@ -602,6 +602,7 @@ fn graded_piece_buttons_and_keyboard_height_limits_produce_valid_ports() {
         (Kind::Drop, 1, 30, -1),
         (Kind::SteepDrop, 2, 30, -2),
         (Kind::Brake, 0, 30, 0),
+        (Kind::Camelback, 0, 29, 0),
     ] {
         app.world_mut()
             .resource_mut::<ViewState>()
@@ -650,7 +651,13 @@ fn graded_piece_buttons_and_keyboard_height_limits_produce_valid_ports() {
 #[test]
 fn graded_pointer_build_and_save_preserve_each_selected_kind_and_world_heading() {
     for rotation in 0..4 {
-        for kind in [Kind::Lift, Kind::Drop, Kind::SteepDrop, Kind::Brake] {
+        for kind in [
+            Kind::Lift,
+            Kind::Drop,
+            Kind::SteepDrop,
+            Kind::Brake,
+            Kind::Camelback,
+        ] {
             let directory = InputSaveDirectory::new();
             let original = train_park();
             let (mut app, window) =

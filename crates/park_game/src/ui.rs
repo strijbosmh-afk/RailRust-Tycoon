@@ -113,6 +113,8 @@ pub(super) enum Action {
     Underground,
     RemovePath,
     RestorePaths,
+    UndoPark,
+    RedoPark,
     ToggleTrain,
     FocusTrain,
     TicketPrice(i8),
@@ -126,6 +128,9 @@ pub(super) enum Action {
     Scenario(scenarios::ScenarioCommand),
     ToggleHandyman,
     ToggleBin,
+    ToggleBench,
+    ToggleSign,
+    ToggleFence,
     TogglePatrol,
     ToggleCleaning,
     ToggleEmptyBins,
@@ -163,6 +168,7 @@ pub(super) enum Action {
     LoadBackup,
     SetPathTool(PathTool),
     PathHeight(i8),
+    TerrainBrushRadius(i8),
     CyclePathShape,
     Sound,
     Help,
@@ -192,6 +198,7 @@ pub(super) enum Label {
     ParkName,
     ParkInfo,
     PathHeight,
+    TerrainBrushRadius,
     PathShape,
     PathHint,
     PathResult,
@@ -458,6 +465,10 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "Remove [Del]", Action::RemovePath, 102.0);
                 button(p, "Restore demo", Action::RestorePaths, 102.0);
             });
+            p.spawn(row()).with_children(|p| {
+                button(p, "Undo Ctrl+Z", Action::UndoPark, 102.0);
+                button(p, "Redo Ctrl+Y", Action::RedoPark, 102.0);
+            });
             p.spawn((
                 Button,
                 Action::Guests,
@@ -580,6 +591,22 @@ pub(super) fn setup(mut commands: Commands) {
                 );
             });
             p.spawn(row()).with_children(|p| {
+                button(p, "Water", Action::SetPathTool(PathTool::PaintWater), 65.0);
+                button(p, "Grass", Action::SetPathTool(PathTool::PaintGrass), 65.0);
+                button(p, "Sand", Action::SetPathTool(PathTool::PaintSand), 65.0);
+            });
+            button(
+                p,
+                "Buy Land / $5",
+                Action::SetPathTool(PathTool::BuyLand),
+                207.0,
+            );
+            p.spawn(row()).with_children(|p| {
+                button(p, "Brush -", Action::TerrainBrushRadius(-1), 100.0);
+                button(p, "Brush +", Action::TerrainBrushRadius(1), 100.0);
+            });
+            dynamic_label(p, "Brush: 1 x 1", 11.0, INK, Label::TerrainBrushRadius);
+            p.spawn(row()).with_children(|p| {
                 button(p, "Slope [C]", Action::CyclePathShape, 65.0);
                 button(
                     p,
@@ -597,6 +624,11 @@ pub(super) fn setup(mut commands: Commands) {
             p.spawn(row()).with_children(|p| {
                 button(p, "Bin on path", Action::ToggleBin, 100.0);
                 button(p, "Patrol path", Action::TogglePatrol, 100.0);
+            });
+            button(p, "Bench on path / $1", Action::ToggleBench, 207.0);
+            p.spawn(row()).with_children(|p| {
+                button(p, "Sign / $2", Action::ToggleSign, 100.0);
+                button(p, "Fence / $3", Action::ToggleFence, 100.0);
             });
             dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
             p.spawn(row()).with_children(|p| {
@@ -806,7 +838,7 @@ type ChangedButtons<'w, 's> =
 pub(super) fn button_actions(
     interactions: ChangedButtons<'_, '_>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
-    sim: Option<Res<Simulation>>,
+    mut sim: Option<ResMut<Simulation>>,
     mut view: ResMut<ViewState>,
 ) {
     // A button may close an overlay before pointer_input runs this frame.
@@ -838,7 +870,7 @@ pub(super) fn button_actions(
                     return;
                 }
                 Action::NavTarget(target) => {
-                    navigation::select(&mut view, sim.as_deref(), *target);
+                    navigation::select(&mut view, sim.as_deref_mut(), *target);
                     return;
                 }
                 _ => continue,
@@ -947,8 +979,8 @@ pub(super) fn button_actions(
         .min();
     if let Some(transition) = ride_transition {
         if transition == 3 {
-            if let Some(sim) = sim.as_ref() {
-                crate::track_tools::begin(&sim.0, &mut view);
+            if let Some(sim) = sim.as_mut() {
+                crate::track_tools::begin(&mut sim.0, &mut view);
             }
         } else if transition == 1 {
             view.choose_carousel();
@@ -1230,6 +1262,12 @@ pub(super) fn button_actions(
             Action::RemovePath if !view.track_editor.active => view.remove_path_pending = true,
             Action::RestorePaths if !view.track_editor.active => view.restore_paths_pending = true,
             Action::RemovePath | Action::RestorePaths => {}
+            Action::UndoPark => {
+                view.park_edit_pending = Some(crate::construction_history::EditCommand::Undo)
+            }
+            Action::RedoPark => {
+                view.park_edit_pending = Some(crate::construction_history::EditCommand::Redo)
+            }
             Action::ToggleTrain => view.toggle_train_pending = true,
             Action::FocusTrain => view.focus_train_pending = true,
             Action::TicketPrice(delta) => view.request_price_change(*delta),
@@ -1253,6 +1291,15 @@ pub(super) fn button_actions(
                 view.handyman_toggle_pending = true;
             }
             Action::ToggleBin => view.bin_toggle_pending = true,
+            Action::ToggleBench => {
+                view.path_addition_pending = Some(park_sim::PathAdditionKind::Bench)
+            }
+            Action::ToggleSign => {
+                view.path_addition_pending = Some(park_sim::PathAdditionKind::Sign)
+            }
+            Action::ToggleFence => {
+                view.path_addition_pending = Some(park_sim::PathAdditionKind::Fence)
+            }
             Action::TogglePatrol => view.patrol_toggle_pending = true,
             Action::ToggleCleaning if view.guests_open && view.guest_stats_view => {
                 view.cleaning_toggle_pending = true;
@@ -1377,6 +1424,13 @@ pub(super) fn button_actions(
             Action::LoadBackup => view.request_save(SaveAction::Backup),
             Action::SetPathTool(mode) => view.set_path_tool(*mode),
             Action::PathHeight(delta) => view.adjust_path_height(*delta),
+            Action::TerrainBrushRadius(delta) => {
+                view.path_tool.brush_radius = (i16::from(view.path_tool.brush_radius)
+                    + i16::from(*delta))
+                .clamp(0, i16::from(park_sim::MAX_TERRAIN_BRUSH_RADIUS))
+                    as u8;
+                view.path_tool.clear_pointer();
+            }
             Action::CyclePathShape => view.cycle_path_shape(),
             Action::Sound => {}
             Action::Help => {
@@ -1391,6 +1445,7 @@ pub(super) fn button_actions(
 pub(super) fn refresh(
     sim: Res<Simulation>,
     view: Res<ViewState>,
+    edit_history: Option<Res<crate::construction_history::EditHistory>>,
     front: Option<Res<crate::front_end::FrontEnd>>,
     mut labels: Query<(&Label, &mut Text)>,
     mut buttons: Query<(&Action, &Interaction, &mut BackgroundColor)>,
@@ -1469,9 +1524,10 @@ pub(super) fn refresh(
             Label::SelectionDetails => match view.selected {
                 Some(SurfaceId::Terrain(p)) => sim.0.tile(p).map_or(String::new(), |tile| {
                     format!(
-                        "{}\nHeight: {} steps\n{}",
+                        "{}\nHeight: {} steps\n{} / {}",
                         terrain_name(tile.terrain),
                         tile.height,
+                        if tile.owned { "Owned" } else { "Unowned ($5)" },
                         if view.view_mode == ViewMode::Underground {
                             "Hidden in this view"
                         } else {
@@ -1546,7 +1602,7 @@ pub(super) fn refresh(
                             let refund=sim.0.carousel_demolition_quote(owner).map_or_else(|_|"Removal blocked: passengers aboard".into(),|amount|format!("Demolition refund {}",money(amount)));
                             return format!("Ride #{} / height {} / six seats\n{refund}\nX / Delete: remove body and gates.\nOwned queue stays in place.",owner.0,object.height);
                         }
-                        if let Some(piece) = sim.0.circuit().and_then(|circuit| {
+                        if let Some(piece) = sim.0.object_ride(id).and_then(|ride| sim.0.coaster_circuit(ride)).and_then(|circuit| {
                             circuit.pieces.iter().find(|piece| piece.object == id)
                         }) {
                             let low = piece.samples.iter().map(|p| p.height).min().unwrap_or(0);
@@ -1600,12 +1656,15 @@ pub(super) fn refresh(
             Label::Status if view.price_notice.is_some() => view.price_notice.clone().unwrap(),
             Label::Status if view.track_editor.active => "Track draft / free planning / Apply settles quote / Z or Esc to finish".into(),
             Label::Status if view.path_tool.mode == PathTool::Build => format!(
-                "Path tool / height {} / click to place",
+                "Path {} / height {} / click to build",
+                money(park_sim::path_cost_cents(false, view.path_tool.slope)),
                 view.path_tool.height
             ),
-            Label::Status if view.path_tool.mode == PathTool::BuildQueue => {
-                "Build a blue queue. Details in Build Tools.".into()
-            }
+            Label::Status if view.path_tool.mode == PathTool::BuildQueue => format!(
+                "Queue {} / height {} / click to build",
+                money(park_sim::path_cost_cents(true, view.path_tool.slope)),
+                view.path_tool.height
+            ),
             Label::Status if view.path_tool.mode == PathTool::Entrance => {
                 "Place a gate facing the selected ride. C turns it.".into()
             }
@@ -1626,14 +1685,18 @@ pub(super) fn refresh(
             },
             Label::Status if matches!(view.path_tool.mode, PathTool::Scenery(_)) => {
                 let PathTool::Scenery(kind) = view.path_tool.mode else { unreachable!() };
-                format!("Plant {} / one clear land tile / free", kind.name())
+                format!("Plant {} / one clear owned tile / {}", kind.name(), money(kind.build_cost_cents()))
             },
             Label::Status if view.path_tool.mode == PathTool::RaiseTerrain => {
-                "Raise terrain / click dry land / +1 step".into()
+                format!("Raise terrain / radius {} / paid per tile", view.path_tool.brush_radius)
             }
             Label::Status if view.path_tool.mode == PathTool::LowerTerrain => {
-                "Lower terrain / click dry land / -1 step".into()
+                format!("Lower terrain / radius {} / paid per tile", view.path_tool.brush_radius)
             }
+            Label::Status if matches!(view.path_tool.mode, PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand) => {
+                format!("Paint terrain / radius {} / paid per tile", view.path_tool.brush_radius)
+            }
+            Label::Status if view.path_tool.mode == PathTool::BuyLand => "Buy adjacent unowned land / $5 per tile".into(),
             Label::Status if view.path_notice.is_some() && view.hovered.is_none() => {
                 "Edit result: see Build tools".into()
             }
@@ -1707,11 +1770,9 @@ pub(super) fn refresh(
                     sim.0.crowd_stats().lost
                 )
             }
-            Label::Train => sim
-                .0
-                .train()
+            Label::Train => ride_id.and_then(|id| sim.0.coaster_train(id))
                 .map_or("No circuit installed".into(), |train| {
-                    let phase = match train.phase {
+                    let phase = if train.blocked { "Waiting for free block" } else { match train.phase {
                         TrainPhase::Station if train.speed > 0 => "Station track",
                         TrainPhase::Station => "Station wait",
                         TrainPhase::Lift => "Chain lift",
@@ -1720,7 +1781,7 @@ pub(super) fn refresh(
                         TrainPhase::Cruising => "Running",
                         TrainPhase::Closed => "Parked at station",
                         TrainPhase::Fault => "Track incomplete",
-                    };
+                    }};
                     let operation = if train.phase == TrainPhase::Fault {
                         "Unavailable"
                     } else if ride_id.and_then(|id|sim.0.ride_running_costs(id)).is_some_and(|c|c.closed_for_funds) {
@@ -1760,18 +1821,23 @@ pub(super) fn refresh(
             Label::PathShape
                 if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit | PathTool::Service(_)) =>
             {
-                format!(
-                    "Face {} [C]",
-                    direction_name(if matches!(view.path_tool.mode,PathTool::Service(_)) {
-                        view.path_tool.service_facing
-                    } else if view.path_tool.mode == PathTool::Exit {
-                        view.path_tool.exit_facing
-                    } else {
-                        view.path_tool.entrance_facing
-                    }),
-                )
+                let facing = if matches!(view.path_tool.mode, PathTool::Service(_)) {
+                    view.path_tool.service_facing
+                } else if view.path_tool.mode == PathTool::Exit {
+                    view.path_tool.exit_facing
+                } else {
+                    view.path_tool.entrance_facing
+                };
+                let initial = match facing {
+                    PathDirection::North => 'N',
+                    PathDirection::East => 'E',
+                    PathDirection::South => 'S',
+                    PathDirection::West => 'W',
+                };
+                format!("{initial} [C]")
             }
-            Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"3 x 3 / no facing".into(),
+            Label::PathShape if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) => "Brush".into(),
+            Label::PathShape if view.path_tool.mode==PathTool::Carousel=>"3 x 3".into(),
             Label::PathShape if matches!(view.path_tool.mode, PathTool::Scenery(_)) => "Ground".into(),
             Label::PathShape => format!("{} [C]", match view.path_tool.slope {
                 PathSlope::Flat => "Flat",
@@ -1780,8 +1846,10 @@ pub(super) fn refresh(
                 PathSlope::South => "S",
                 PathSlope::West => "W",
             }),
+            Label::TerrainBrushRadius => format!("Brush: {} x {} / paid per tile", 1 + 2 * view.path_tool.brush_radius, 1 + 2 * view.path_tool.brush_radius),
             Label::PathHeight => {
-                if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
+                if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) {"Tool follows visible terrain".into()}
+                else if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
                 else if view.path_tool.mode==PathTool::Carousel {format!("Flat ride height: {}",view.path_tool.height)}
                 else if matches!(view.path_tool.mode,PathTool::Service(_)) {
                     format!("Facility height: {}",view.path_tool.height)
@@ -1849,11 +1917,16 @@ pub(super) fn refresh(
         let history_disabled = matches!(action,
             Action::Track(crate::track_tools::TrackCommand::Undo) if !view.track_editor.can_undo())
             || matches!(action,
-                Action::Track(crate::track_tools::TrackCommand::Redo) if !view.track_editor.can_redo());
+                Action::Track(crate::track_tools::TrackCommand::Redo) if !view.track_editor.can_redo())
+            || matches!(action, Action::UndoPark if view.speed != Speed::Paused || view.edits_blocked() || view.track_editor.active
+                || edit_history.as_ref().is_none_or(|history| !history.can_undo()))
+            || matches!(action, Action::RedoPark if view.speed != Speed::Paused || view.edits_blocked() || view.track_editor.active
+                || edit_history.as_ref().is_none_or(|history| !history.can_redo()));
         let tool_disabled = matches!(
             action,
             Action::SetPathTool(_)
                 | Action::PathHeight(_)
+                | Action::TerrainBrushRadius(_)
                 | Action::CyclePathShape
                 | Action::EditTrack
                 | Action::Track(_)
@@ -1947,6 +2020,12 @@ fn track_name(kind: TrackKind) -> &'static str {
         TrackKind::Drop => "Drop",
         TrackKind::Brake => "Brakes",
         TrackKind::Curve => "Curve",
+        TrackKind::BankedCurve => "Banked curve",
+        TrackKind::Launch => "Launch",
+        TrackKind::Camelback => "Camelback",
+        TrackKind::TransitionUp => "Smooth rise",
+        TrackKind::TransitionDown => "Smooth descent",
+        TrackKind::HeartlineRoll => "Heartline roll",
         TrackKind::Straight => "Straight",
     }
 }

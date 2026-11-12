@@ -270,6 +270,8 @@ fn schema_36_migrates_idle_radio_and_schema_37_requires_radio_state() {
     let mut json: serde_json::Value =
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     json["schema_version"] = serde_json::json!(36);
+    json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(36);
     crate::legacy_cost_test_support::strip_radio_fields(&mut json);
     assert_eq!(
@@ -278,6 +280,14 @@ fn schema_36_migrates_idle_radio_and_schema_37_requires_radio_state() {
     );
     let mut current = json.clone();
     current["schema_version"] = serde_json::json!(37);
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     current["content_version"] = serde_json::json!(37);
     assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
     json["park"]["visitors"]["radio_campaigns"] = serde_json::json!(0);
@@ -295,6 +305,8 @@ fn schema_36_preserves_an_active_paid_flyer_campaign() {
     let mut json: serde_json::Value =
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     json["schema_version"] = serde_json::json!(36);
+    json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(36);
     crate::legacy_cost_test_support::strip_radio_fields(&mut json);
     let loaded = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
@@ -346,6 +358,8 @@ fn schema_33_defaults_to_open_but_schema_34_requires_explicit_status() {
         .remove("park_open");
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
     json["schema_version"] = serde_json::json!(33);
+    json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(33);
     crate::legacy_cost_test_support::strip_admission_fields(&mut json);
     let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
@@ -375,6 +389,8 @@ fn schema_34_defaults_to_free_flexible_entry_and_schema_35_requires_admission_st
         .remove("admission_revenue_cents");
     assert!(Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).is_err());
     json["schema_version"] = serde_json::json!(34);
+    json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(34);
     crate::legacy_cost_test_support::strip_flyer_fields(&mut json);
     let old = Park::from_save_bytes(&serde_json::to_vec(&json).unwrap()).unwrap();
@@ -388,10 +404,20 @@ fn schema_35_migrates_idle_flyers_and_schema_36_requires_their_state() {
     let mut json: serde_json::Value =
         serde_json::from_slice(&park.to_save_bytes().unwrap()).unwrap();
     json["schema_version"] = serde_json::json!(35);
+    json["park"].as_object_mut().unwrap().remove("decorations");
+    json["park"].as_object_mut().unwrap().remove("path_economy");
     json["content_version"] = serde_json::json!(35);
     crate::legacy_cost_test_support::strip_flyer_fields(&mut json);
     let mut current = json.clone();
     current["schema_version"] = serde_json::json!(36);
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     current["content_version"] = serde_json::json!(36);
     assert!(Park::from_save_bytes(&serde_json::to_vec(&current).unwrap()).is_err());
     assert_eq!(
@@ -534,24 +560,28 @@ fn population_cap_holds_one_due_arrival_until_a_slot_is_free() {
     let (mut p, entry) = simple();
     p.crowd_seed = Some(0);
     let path = *p.object(entry).unwrap();
-    for id in 1..=64 {
+    for id in 1..=VISITOR_ACTIVE_CAP as u64 {
         p.guests.push(new_guest(GuestId(id), path, 0));
     }
-    p.next_guest_id = 65;
+    p.next_guest_id = VISITOR_ACTIVE_CAP as u64 + 1;
     p.set_visitor_arrivals(true).unwrap();
     for _ in 0..900 {
         p.advance(Speed::Normal);
     }
-    assert_eq!(p.guests().len(), 64);
+    assert_eq!(p.guests().len(), VISITOR_ACTIVE_CAP);
     assert_eq!(p.visitor_flow_stats().spawned, 0);
     p.request_guest_departure(GuestId(1)).unwrap();
     for _ in 0..150 {
         p.advance(Speed::Normal);
     }
     assert_eq!(p.departed_visitors().count, 1);
-    assert_eq!(p.guests().len(), 64);
+    assert_eq!(p.guests().len(), VISITOR_ACTIVE_CAP);
     assert_eq!(p.visitor_flow_stats().spawned, 1);
-    assert!(p.guests().iter().any(|g| g.id == GuestId(65)));
+    assert!(
+        p.guests()
+            .iter()
+            .any(|g| g.id == GuestId(VISITOR_ACTIVE_CAP as u64 + 1))
+    );
     p.to_save_bytes().unwrap();
 }
 
@@ -621,6 +651,14 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         .unwrap()
         .remove("handyman_wages_cents");
     current["schema_version"] = serde_json::json!(21);
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     crate::legacy_cost_test_support::strip_admission_fields(&mut current);
     let mut old_default = serde_json::to_value(super::VisitorFlow::default()).unwrap();
     for field in [
@@ -664,6 +702,17 @@ fn authentic_v21_migration_preserves_every_field_and_has_no_automatic_arrivals()
         guest["needs"].as_object_mut().unwrap().remove("energy");
         guest["needs"].as_object_mut().unwrap().remove("nausea");
     }
+    for tile in current["park"]["tiles"].as_array_mut().unwrap() {
+        assert_eq!(tile["owned"], serde_json::json!(true));
+        tile.as_object_mut().unwrap().remove("owned");
+    }
+    assert_eq!(
+        current["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("other_coasters"),
+        Some(serde_json::json!([]))
+    );
     assert_eq!(current["park"], original["park"]);
     assert!(!p.visitor_flow_stats().enabled);
     let mut continuous = p.clone();

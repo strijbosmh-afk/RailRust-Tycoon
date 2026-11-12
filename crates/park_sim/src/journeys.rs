@@ -309,17 +309,30 @@ impl Park {
                 .get(usize::from(seat))
                 .copied();
         }
-        let pose = *self.train_cars().get(usize::from(seat) / 2)?;
+        let capacity = self.coaster_seats_per_train(id)?;
+        let pose = *self
+            .coaster_train_cars_for(id, seat / capacity)
+            .get(usize::from(seat % capacity) / 2)?;
         let dx = i64::from(pose.front.x - pose.rear.x);
         let dy = i64::from(pose.front.y - pose.rear.y);
         let length = ((dx * dx + dy * dy) as u64).isqrt().max(1) as i64;
         let offset = if seat.is_multiple_of(2) { -64 } else { 64 };
         let x = i64::from(pose.center.x) - dy * offset / length;
         let y = i64::from(pose.center.y) + dx * offset / length;
-        Some(PathPoint {
+        let point = PathPoint {
             x: (x * i64::from(PATH_UNITS) / i64::from(TRACK_UNITS)) as i32,
             y: (y * i64::from(PATH_UNITS) / i64::from(TRACK_UNITS)) as i32,
             height: pose.center.height * PATH_UNITS / TRACK_UNITS + 35,
+        };
+        let point = pose.bank_point(crate::TrackPoint {
+            x: point.x * TRACK_UNITS / PATH_UNITS,
+            y: point.y * TRACK_UNITS / PATH_UNITS,
+            height: point.height * TRACK_UNITS / PATH_UNITS,
+        });
+        Some(PathPoint {
+            x: point.x * PATH_UNITS / TRACK_UNITS,
+            y: point.y * PATH_UNITS / TRACK_UNITS,
+            height: point.height * PATH_UNITS / TRACK_UNITS,
         })
     }
     pub(crate) fn ride_holds_train(&self) -> bool {
@@ -335,6 +348,9 @@ impl Park {
                 .passenger
                 .as_ref()
         }) {
+            if !self.station_seat(id, passenger.seat) {
+                continue;
+            }
             occupied = true;
             completed |= passenger.completed_lap;
             if passenger.transfer.is_some() {
@@ -342,7 +358,7 @@ impl Park {
             }
         }
         occupied
-            && !self.ride_is_running(id)
+            && self.loading_stationary(id)
             && (completed || self.ride_exit_access(id).status != RideExitStatus::Ready)
     }
     pub(crate) fn step_ride_journeys(&mut self) {
@@ -430,7 +446,7 @@ impl Park {
                 }
             }
         }
-        if !self.ride_stationary(ride_id)
+        if !self.loading_stationary(ride_id)
             || self.guests.iter().any(|guest| {
                 guest.ride_visit.as_ref().is_some_and(|visit| {
                     visit.ride == ride_id
@@ -451,7 +467,8 @@ impl Park {
             .filter_map(|(index, guest)| {
                 let visit = guest.ride_visit.as_ref().filter(|v| v.ride == ride_id)?;
                 let passenger = visit.passenger.as_ref()?;
-                (visit.phase == RideVisitPhase::Riding
+                (self.station_seat(ride_id, passenger.seat)
+                    && visit.phase == RideVisitPhase::Riding
                     && (passenger.completed_lap || !self.ride_is_open(ride_id)))
                 .then_some((passenger.seat, index))
             })
@@ -503,8 +520,8 @@ impl Park {
                     .map(|passenger| passenger.seat)
             })
             .collect();
-        let Some(seat) =
-            (0..self.ride_capacity(ride_id).unwrap_or(0) as u8).find(|seat| !used.contains(seat))
+        let Some(seat) = (0..self.ride_capacity(ride_id).unwrap_or(0) as u8)
+            .find(|seat| self.station_seat(ride_id, *seat) && !used.contains(seat))
         else {
             return;
         };
@@ -566,16 +583,27 @@ impl Park {
         }
     }
     pub(crate) fn reconcile_passenger_laps(&mut self) {
-        let running: BTreeMap<_, _> = self
-            .all_rides()
-            .map(|r| (r.id, self.ride_is_running(r.id)))
+        let running: Vec<_> = self
+            .guests
+            .iter()
+            .map(|guest| {
+                guest
+                    .ride_visit
+                    .as_ref()
+                    .and_then(|v| {
+                        v.passenger
+                            .as_ref()
+                            .map(|p| self.passenger_running(v.ride, p.seat))
+                    })
+                    .unwrap_or(false)
+            })
             .collect();
-        for guest in &mut self.guests {
+        for (guest, running) in self.guests.iter_mut().zip(running) {
             if let Some(visit) = &mut guest.ride_visit
                 && visit.phase == RideVisitPhase::Riding
                 && let Some(passenger) = &mut visit.passenger
             {
-                if running.get(&visit.ride) == Some(&true) {
+                if running {
                     passenger.departed = true;
                 } else if passenger.departed {
                     passenger.completed_lap = true;
@@ -661,7 +689,15 @@ fn validate_owner_journeys(
             .passenger
             .as_ref()
             .ok_or("passenger phase lacks seat state")?;
-        let running = park.ride_is_running(ride.id);
+        let running = park.passenger_running(ride.id, passenger.seat);
+        if let Some(capacity) = park.coaster_seats_per_train(ride.id)
+            && !park
+                .coaster_trains(ride.id)
+                .iter()
+                .any(|t| t.number == passenger.seat / capacity && !t.in_depot)
+        {
+            return Err("passenger assigned to a depot train".into());
+        }
         if !park.ride_available(ride.id)
             || usize::from(passenger.seat) >= park.ride_capacity(ride.id).unwrap_or(0)
             || !seats.insert(passenger.seat)
@@ -690,7 +726,10 @@ fn validate_owner_journeys(
             }
             RideVisitPhase::Boarding | RideVisitPhase::Exiting => {
                 transfers += 1;
-                if !park.ride_stationary(ride.id) || guest.state != GuestState::Walking {
+                if !park.loading_stationary(ride.id)
+                    || !park.station_seat(ride.id, passenger.seat)
+                    || guest.state != GuestState::Walking
+                {
                     return Err("transfer requires a stopped train".into());
                 }
                 let transfer = passenger

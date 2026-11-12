@@ -52,6 +52,71 @@ fn two_rides() -> (Park, RideId, RideId) {
 }
 
 #[test]
+fn fleet_buttons_save_load_and_reset_the_selected_coaster() {
+    let mut park = Park::new(32, 32);
+    park.install_train_fixture().unwrap();
+    park.set_train_open(false);
+    let mut specs = park.circuit().unwrap().specs().to_vec();
+    for piece in &mut specs {
+        if [(20, 10), (16, 4)].contains(&(piece.pos.x, piece.pos.y)) {
+            piece.kind = park_sim::TrackKind::Brake;
+        }
+    }
+    park.replace_track_draft(&specs).unwrap();
+    park.apply_track_draft().unwrap();
+    let id = park.ride().unwrap().id;
+    let directory = SaveDirectory::new();
+    let mut app = app(
+        &directory,
+        park,
+        ViewState {
+            rides_open: true,
+            selected_ride: Some(id),
+            speed: Speed::Paused,
+            ..default()
+        },
+    );
+    click(
+        &mut app,
+        OperationCommand::Adjust(OperatingField::Trains, 1),
+    );
+    click(
+        &mut app,
+        OperationCommand::Adjust(OperatingField::Trains, 1),
+    );
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .coaster_train_count(id),
+        Some(3)
+    );
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F5]);
+    frame(&mut app, &[ui::Action::Rides], &[]);
+    frame(&mut app, &[], &[]);
+    click(&mut app, OperationCommand::ResetDefaults);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .coaster_train_count(id),
+        Some(1)
+    );
+    frame(&mut app, &[ui::Action::CloseRides], &[]);
+    frame(&mut app, &[], &[]);
+    frame(&mut app, &[], &[KeyCode::F9]);
+    assert_eq!(
+        app.world()
+            .resource::<Simulation>()
+            .0
+            .coaster_train_count(id),
+        Some(3)
+    );
+}
+
+#[test]
 fn funds_closure_buttons_refuse_without_money_and_preserve_the_overdue_bill_after_recovery() {
     let (mut park, id, reserve) = crate::save_check::ride_costs::install().unwrap();
     crate::save_check::ride_costs::paid(&mut park, id).unwrap();
@@ -615,6 +680,7 @@ fn operating_rows_show_family_specific_units_and_panel_fits_minimum_window() {
                     && matches!(
                         field.0,
                         OperatingField::Cars
+                            | OperatingField::Trains
                             | OperatingField::LiftSpeed
                             | OperatingField::BrakeSpeed
                     ));

@@ -37,6 +37,17 @@ fn prepare_state(park: &mut Park, scene: Scene) {
     )
     .unwrap();
     track_construction::draft(park, !matches!(scene, Scene::TrackDraft)).unwrap();
+    if matches!(scene, Scene::TrackCamelback) {
+        park.set_track_draft_piece(TrackBuildKind::Camelback.spec(
+            PAID_SITE,
+            11,
+            TrackDirection::North,
+        ))
+        .unwrap();
+        track_construction::apply(park).unwrap();
+        let report = park.test_coaster().unwrap();
+        assert_eq!(report.layout.camelbacks, 1);
+    }
     if matches!(scene, Scene::TrackInvalid) {
         park.set_track_draft_piece(TrackBuildKind::Lift.spec(
             TilePos { x: 15, y: 8 },
@@ -155,7 +166,14 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
             ..default()
         };
     }
+    if matches!(scene, Scene::TrackCamelback) {
+        view.track_editor.active = true;
+        view.track_editor.kind = TrackBuildKind::Camelback;
+        view.track_editor.notice =
+            "Paid camelback: one raised crest.\nTrain slows uphill, gains speed downhill.".into();
+    }
     let anchor = match scene {
+        Scene::TrackCamelback => PAID_SITE,
         Scene::TrackCopied
         | Scene::TrackEdited
         | Scene::TrackUndone
@@ -238,13 +256,21 @@ fn present(park: &mut Park, view: &mut ViewState, scene: Scene) {
     }
     view.speed = Speed::Paused;
     view.scene_dirty = true;
-    view.zoom = if matches!(scene, Scene::TrackInvalid) {
+    view.zoom = if matches!(scene, Scene::TrackCamelback) {
+        2.2
+    } else if matches!(scene, Scene::TrackInvalid) {
         1.8
     } else {
         1.25
     };
     let center = world::tile_center(anchor, park.width(), view.rotation)
-        + Vec2::Y * 8.0 * world::HEIGHT_STEP;
+        + Vec2::Y
+            * if matches!(scene, Scene::TrackCamelback) {
+                11.0
+            } else {
+                8.0
+            }
+            * world::HEIGHT_STEP;
     view.pan = center - Vec2::Y * f32::from(park.max_surface_height()) * world::HEIGHT_STEP * 0.5;
     assert_eq!(
         *park, before,
@@ -269,6 +295,7 @@ mod tests {
             Scene::TrackInvalid,
             Scene::TrackReady,
             Scene::TrackBuilt,
+            Scene::TrackCamelback,
             Scene::TrackOccupied,
             Scene::TrackReplacement,
             Scene::TrackUnaffordable,

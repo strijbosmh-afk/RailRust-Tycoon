@@ -36,6 +36,8 @@ fn income(kind: FinanceKind) -> bool {
             | FinanceKind::RideDemolitionRefund
             | FinanceKind::ServiceDemolitionRefund
             | FinanceKind::TrackRefund
+            | FinanceKind::PathRefund
+            | FinanceKind::DecorationRefund
     )
 }
 fn total(entries: &[FinanceEntry], kind: FinanceKind, service: Option<ServiceId>) -> u64 {
@@ -72,7 +74,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             .iter()
             .map(|s| s.construction_cost_cents)
             .sum::<u64>()
-        + park.track_economy().construction_cents;
+        + park.track_economy().construction_cents
+        + park.path_construction_total_cents();
     let refunds: u64 = park
         .carousels()
         .iter()
@@ -83,7 +86,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             .iter()
             .map(|s| s.demolition_refund_cents)
             .sum::<u64>()
-        + park.track_economy().refund_cents;
+        + park.track_economy().refund_cents
+        + park.path_refund_total_cents();
     if stats.cash_cents != park.cash_cents()
         || stats.ride_revenue_cents != ride
         || stats.admission_revenue_cents != admission
@@ -163,6 +167,12 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::ParkAdmission
                     | FinanceKind::Advertising
                     | FinanceKind::RadioAdvertising
+                    | FinanceKind::Landscaping
+                    | FinanceKind::LandPurchase
+                    | FinanceKind::DecorationConstruction
+                    | FinanceKind::DecorationRefund
+                    | FinanceKind::PathConstruction
+                    | FinanceKind::PathRefund
             ) && (entry.ride.is_some() || entry.service.is_some()))
             || (!matches!(
                 entry.kind,
@@ -172,6 +182,12 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::ParkAdmission
                     | FinanceKind::Advertising
                     | FinanceKind::RadioAdvertising
+                    | FinanceKind::Landscaping
+                    | FinanceKind::LandPurchase
+                    | FinanceKind::DecorationConstruction
+                    | FinanceKind::DecorationRefund
+                    | FinanceKind::PathConstruction
+                    | FinanceKind::PathRefund
             ) && (matches!(
                 entry.kind,
                 FinanceKind::RideRevenue
@@ -229,11 +245,13 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             + total(&ledger.entries, FinanceKind::RideConstruction, None)
             + total(&ledger.entries, FinanceKind::ServiceConstruction, None)
             + total(&ledger.entries, FinanceKind::TrackConstruction, None)
+            + total(&ledger.entries, FinanceKind::PathConstruction, None)
             != construction
         || archived.demolition_refunds_cents
             + total(&ledger.entries, FinanceKind::RideDemolitionRefund, None)
             + total(&ledger.entries, FinanceKind::ServiceDemolitionRefund, None)
             + total(&ledger.entries, FinanceKind::TrackRefund, None)
+            + total(&ledger.entries, FinanceKind::PathRefund, None)
             != refunds
     {
         return Err(

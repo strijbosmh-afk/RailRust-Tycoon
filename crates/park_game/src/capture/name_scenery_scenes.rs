@@ -44,10 +44,28 @@ pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
             };
             let tree = clear(park, SceneryKind::Tree);
             let tree_id = park
-                .place_scenery(tree, SceneryKind::Tree)
+                .build_scenery(tree, SceneryKind::Tree)
                 .expect("tree capture");
+            let bench_pos = (tree.x.saturating_sub(2)..=tree.x + 2)
+                .flat_map(|x| {
+                    (tree.y.saturating_sub(2)..=tree.y + 2).map(move |y| TilePos { x, y })
+                })
+                .find(|pos| {
+                    park.tile(*pos)
+                        .is_some_and(|tile| park.validate_path(*pos, tile.height).is_ok())
+                })
+                .expect("clear capture bench path");
+            let bench_height = park.tile(bench_pos).unwrap().height;
+            let bench_path = park
+                .place_path(bench_pos, bench_height)
+                .expect("bench path capture");
+            park.toggle_path_bench(bench_path).expect("bench capture");
+            park.toggle_path_addition(bench_path, park_sim::PathAdditionKind::Sign)
+                .expect("sign capture");
+            park.toggle_path_addition(bench_path, park_sim::PathAdditionKind::Fence)
+                .expect("fence capture");
             let flowers = clear(park, SceneryKind::FlowerBed);
-            park.place_scenery(flowers, SceneryKind::FlowerBed)
+            park.build_scenery(flowers, SceneryKind::FlowerBed)
                 .expect("flowers capture");
             view.path_tool
                 .set_mode(PathTool::Scenery(SceneryKind::FlowerBed));

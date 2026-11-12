@@ -212,18 +212,6 @@ fn update(
         return;
     };
     let focused = window.iter().next().is_none_or(|w| w.focused);
-    let coaster = sim
-        .0
-        .train()
-        .filter(|t| {
-            !matches!(
-                t.phase,
-                park_sim::TrainPhase::Station
-                    | park_sim::TrainPhase::Closed
-                    | park_sim::TrainPhase::Fault
-            )
-        })
-        .map_or(0.0, |t| t.speed as f32 / 96.0);
     let camera =
         view.pan + Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
     let spatial = |point: Option<Vec2>| {
@@ -234,7 +222,35 @@ fn update(
             (pan, 1.0 / (1.0 + distance * distance))
         })
     };
-    let (coaster_pan, coaster_presence) = spatial(world::leading_car_focus(&sim.0, view.rotation));
+    let (coaster, coaster_pan, coaster_presence) = sim
+        .0
+        .coaster_ids()
+        .into_iter()
+        .flat_map(|id| {
+            sim.0
+                .coaster_trains(id)
+                .into_iter()
+                .map(move |train| (id, train))
+        })
+        .filter_map(|(id, train)| {
+            if matches!(
+                train.phase,
+                park_sim::TrainPhase::Station
+                    | park_sim::TrainPhase::Closed
+                    | park_sim::TrainPhase::Fault
+            ) {
+                return None;
+            }
+            let (pan, presence) = spatial(world::leading_train_focus(
+                &sim.0,
+                id,
+                train.number,
+                view.rotation,
+            ));
+            Some((train.speed as f32 / 96.0, pan, presence))
+        })
+        .max_by(|a, b| (a.0 * a.2).total_cmp(&(b.0 * b.2)))
+        .unwrap_or((0.0, 0.0, 0.0));
     let running_carousel = sim
         .0
         .carousels()

@@ -700,7 +700,7 @@ fn exit_return_route_can_be_built_with_generated_prepare_and_deliberate_pointer_
             frame(&mut app, &[], &[], true);
             let mut expected = before;
             expected
-                .place_sloped_path(suggestion.pos, suggestion.height, suggestion.slope)
+                .build_paid_path(suggestion.pos, suggestion.height, suggestion.slope)
                 .unwrap();
             assert_eq!(
                 app.world().resource::<Simulation>().0,
@@ -867,7 +867,7 @@ fn track_occluded_path_center_has_an_exposed_target_that_real_pointer_can_build(
     frame(&mut app, &[], &[], true);
     let mut expected = before;
     expected
-        .place_sloped_path(suggestion.pos, suggestion.height, suggestion.slope)
+        .build_paid_path(suggestion.pos, suggestion.height, suggestion.slope)
         .unwrap();
     assert_eq!(app.world().resource::<Simulation>().0, expected);
 }

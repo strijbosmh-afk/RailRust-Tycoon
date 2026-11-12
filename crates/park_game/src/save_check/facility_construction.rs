@@ -248,6 +248,9 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         serde_json::from_slice(&park.to_save_bytes().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
     old["schema_version"] = 11.into();
+    for tile in old["park"]["tiles"].as_array_mut().unwrap() {
+        tile.as_object_mut().unwrap().remove("owned");
+    }
     old["park"].as_object_mut().unwrap().remove("scenario");
     old["park"].as_object_mut().unwrap().remove("maintenance");
     old["park"]
@@ -255,6 +258,12 @@ fn mixed_legacy_baseline() -> Result<(Park, ServiceId), String> {
         .unwrap()
         .remove("mechanic_route");
     old["park"].as_object_mut().unwrap().remove("grounds");
+    old["park"].as_object_mut().unwrap().remove("decorations");
+    old["park"].as_object_mut().unwrap().remove("path_economy");
+    old["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("other_coasters");
     old["park"]
         .as_object_mut()
         .unwrap()

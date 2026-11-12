@@ -71,10 +71,16 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             FinanceKind::ServiceSupplies => supplies += amount,
             FinanceKind::RideConstruction
             | FinanceKind::TrackConstruction
-            | FinanceKind::ServiceConstruction => construction += amount,
+            | FinanceKind::ServiceConstruction
+            | FinanceKind::Landscaping
+            | FinanceKind::LandPurchase
+            | FinanceKind::DecorationConstruction
+            | FinanceKind::PathConstruction => construction += amount,
             FinanceKind::RideDemolitionRefund
             | FinanceKind::TrackRefund
-            | FinanceKind::ServiceDemolitionRefund => refunds += amount,
+            | FinanceKind::ServiceDemolitionRefund
+            | FinanceKind::DecorationRefund
+            | FinanceKind::PathRefund => refunds += amount,
         }
     }
     let report = park.finance_summary();

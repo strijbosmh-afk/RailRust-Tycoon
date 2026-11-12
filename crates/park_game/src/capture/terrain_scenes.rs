@@ -93,7 +93,17 @@ pub(super) fn prepare(park: &mut Park, view: &mut ViewState, scene: Scene) {
             };
             assert_eq!(park.tile(pos).unwrap().height, expected);
             let mut oracle = before.clone();
-            oracle.set_terrain_height(pos, expected).unwrap();
+            oracle
+                .apply_terrain_brush(
+                    pos,
+                    0,
+                    if matches!(scene, Scene::TerrainRaised) {
+                        park_sim::TerrainBrushKind::Raise
+                    } else {
+                        park_sim::TerrainBrushKind::Lower
+                    },
+                )
+                .unwrap();
             assert_eq!(*park, oracle);
             assert_eq!(view.selected, Some(SurfaceId::Terrain(pos)));
             assert!(view.path_tool.terrain_preview.is_none());

@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 pub const VISITOR_ARRIVAL_TICKS: u16 = 900;
 pub const VISITOR_STAY_TICKS: u64 = 18_000;
-pub const VISITOR_ACTIVE_CAP: usize = 64;
+pub const VISITOR_ACTIVE_CAP: usize = 256;
 pub const VISITOR_LIFETIME_CAP: u64 = 1_000_000;
 pub const FLYER_CAMPAIGN_COST_CENTS: u64 = 2_500;
 pub const FLYER_CAMPAIGN_TICKS: u16 = 9_000;
@@ -324,11 +324,8 @@ impl Park {
             ChargingRule::Flexible => {}
             ChargingRule::FreeEntry => self.visitors.entry_price_cents = 0,
             ChargingRule::FreeRides => {
-                if let Some(ride) = self.ride.as_mut() {
+                for ride in self.all_rides_mut() {
                     ride.ticket_price_cents = 0;
-                }
-                for carousel in &mut self.carousels {
-                    carousel.ride.ticket_price_cents = 0;
                 }
             }
         }

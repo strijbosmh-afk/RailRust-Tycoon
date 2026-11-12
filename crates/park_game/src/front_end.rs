@@ -82,6 +82,8 @@ pub(super) enum Action {
     WindowMode(i8),
     Monitor(i8),
     ResetDisplay,
+    Lighting,
+    Weather,
     Page(i8),
 }
 
@@ -763,6 +765,17 @@ pub(super) fn input(
                 front.dirty_ui = true;
             }
         }
+        Action::Lighting | Action::Weather => {
+            if let Some(settings) = display.as_mut() {
+                if matches!(action, Action::Lighting) {
+                    settings.change_lighting();
+                } else {
+                    settings.change_weather();
+                }
+                front.notice = settings.notice.clone();
+                front.dirty_ui = true;
+            }
+        }
         Action::WindowMode(delta) => {
             if let Some(settings) = display.as_mut() {
                 settings.change_mode(delta);
@@ -855,6 +868,8 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
             Action::WindowMode(1),
             Action::Monitor(-1),
             Action::Monitor(1),
+            Action::Lighting,
+            Action::Weather,
             Action::ResetDisplay,
             Action::ToggleSound,
             Action::Volume(-10),
@@ -988,6 +1003,8 @@ fn spawn_overlay(
                                 button(p, "Previous window mode", Action::WindowMode(-1)); button(p, "Next window mode", Action::WindowMode(1));
                                 title(p, &format!("Display: {}", display.monitor_label()), 16.0, cream);
                                 button(p, "Previous display", Action::Monitor(-1)); button(p, "Next display", Action::Monitor(1));
+                                button(p, &format!("Lighting: {}", display.value.lighting.label()), Action::Lighting);
+                                button(p, &format!("Weather: {}", display.value.weather.label()), Action::Weather);
                                 button(p, "Reset display settings", Action::ResetDisplay);
                                 title(p, "F11 restores windowed Auto scale. --safe-windowed recovers startup.", 12.0, cream);
                                 if !display.notice.is_empty() { title(p, &display.notice, 12.0, gold); }
@@ -1080,6 +1097,8 @@ fn action_name(action: Action) -> &'static str {
         Action::WindowMode(_) => "Window mode",
         Action::Monitor(_) => "Display",
         Action::ResetDisplay => "Reset display",
+        Action::Lighting => "Lighting",
+        Action::Weather => "Weather",
         Action::Page(_) => "Page",
         Action::Select(_) => "Park",
         Action::ConfirmDelete
@@ -1180,7 +1199,10 @@ mod tests {
         assert!(sim.0.objects().is_empty());
         let site = (0..64)
             .flat_map(|y| (0..64).map(move |x| park_sim::TilePos { x, y }))
-            .find(|&pos| sim.0.tile(pos).unwrap().terrain == park_sim::Terrain::Grass)
+            .find(|&pos| {
+                let tile = sim.0.tile(pos).unwrap();
+                tile.owned && tile.terrain == park_sim::Terrain::Grass
+            })
             .unwrap();
         sim.0.place_path(site, 0).unwrap();
         front.save(&sim.0, &mut view);

@@ -29,6 +29,10 @@ pub(super) enum PathTool {
     Demolish,
     RaiseTerrain,
     LowerTerrain,
+    PaintWater,
+    PaintGrass,
+    PaintSand,
+    BuyLand,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,6 +51,7 @@ pub(super) struct PathPreview {
 pub(super) struct ToolState {
     pub mode: PathTool,
     pub height: u8,
+    pub brush_radius: u8,
     pub slope: PathSlope,
     pub entrance_facing: PathDirection,
     pub exit_facing: PathDirection,
@@ -64,6 +69,7 @@ impl Default for ToolState {
         Self {
             mode: PathTool::Inspect,
             height: 8,
+            brush_radius: 0,
             slope: PathSlope::Flat,
             entrance_facing: PathDirection::North,
             exit_facing: PathDirection::South,
@@ -166,16 +172,24 @@ impl ToolState {
             PathTool::Carousel => {
                 "Point at a clear 3 x 3 footprint.\nClick once to build the ride."
             }
-            PathTool::Scenery(_) => "Point to open grass or sand.\nClick once to plant scenery.",
+            PathTool::Scenery(_) => {
+                "Point to open grass or sand.\nClick once to plant paid scenery."
+            }
             PathTool::Demolish => {
                 "Point to a path, gate, facility or scenery.\nClick once to remove it."
             }
             PathTool::RaiseTerrain => {
-                "Point to visible grass or sand.\nClick once to raise one step."
+                "Point to visible grass or sand.\nRaise brush costs $1 per tile."
             }
             PathTool::LowerTerrain => {
-                "Point to visible grass or sand.\nClick once to lower one step."
+                "Point to visible grass or sand.\nLower brush costs $1 per tile."
             }
+            PathTool::PaintWater => {
+                "Paint level, clear land as water.\nBrush charges per changed tile."
+            }
+            PathTool::PaintGrass => "Paint terrain as grass.\nBrush charges per changed tile.",
+            PathTool::PaintSand => "Paint terrain as sand.\nBrush charges per changed tile.",
+            PathTool::BuyLand => "Point to unowned adjacent land.\nEach tile costs $5.",
         }
         .into();
         if self.mode == PathTool::Carousel {
@@ -197,6 +211,13 @@ impl ToolState {
                 "{kind}: {} / face public path.\n{}% paid cost back on demolition.",
                 crate::ui::money(kind.build_cost_cents()),
                 park_sim::SERVICE_REFUND_PERCENT
+            );
+        }
+        if let PathTool::Scenery(kind) = self.mode {
+            self.hint = format!(
+                "{}: {} / clear owned land.\n50% paid cost back on demolition.",
+                kind.name(),
+                crate::ui::money(kind.build_cost_cents())
             );
         }
     }
@@ -221,12 +242,16 @@ pub(super) fn placement_message(error: PlacementError) -> String {
             object.0
         ),
         PlacementError::TerrainIntersection { terrain_height, .. } => {
-            format!("Path is below the ground.\nGround height: {terrain_height}.")
+            format!(
+                "Path crosses the ground.\nBuild above height {terrain_height} or fully below it."
+            )
         }
         PlacementError::HeightOutOfRange { .. } => {
             format!("Choose a path height from 0 to {MAX_PATH_HEIGHT}.")
         }
         PlacementError::OutOfBounds { .. } => "Outside the park.".into(),
+        PlacementError::LandNotOwned { .. } => "Buy this land before building.".into(),
+        PlacementError::WaterNeedsBridge { .. } => "Raise the path or track above water.".into(),
         PlacementError::CapacityExceeded { resource, max } => {
             format!("Park limit reached: {max} {resource}.")
         }
@@ -274,6 +299,38 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         return;
     }
     match view.path_tool.mode {
+        PathTool::BuyLand => {
+            let Some(SurfaceId::Terrain(pos)) = view
+                .hovered
+                .filter(|_| view.view_mode == world::ViewMode::Surface)
+            else {
+                view.path_tool.hint = "Point to visible unowned land.".into();
+                return;
+            };
+            let quote = park.quote_land_purchase(pos);
+            view.path_tool.hint = quote.as_ref().map_or_else(
+                |error| error.to_string(),
+                |cost| {
+                    format!(
+                        "Tile {}, {} / adjacent land\nClick to buy for {}.",
+                        pos.x + 1,
+                        pos.y + 1,
+                        crate::ui::money(*cost)
+                    )
+                },
+            );
+            if click {
+                match park.buy_land(pos) {
+                    Ok(()) => {
+                        view.scene_dirty = true;
+                        view.selected = Some(SurfaceId::Terrain(pos));
+                        view.path_notice =
+                            Some(format!("Bought tile {}, {} for $5.", pos.x + 1, pos.y + 1));
+                    }
+                    Err(error) => view.path_notice = Some(format!("Land unchanged: {error}")),
+                }
+            }
+        }
         PathTool::Scenery(kind) => {
             let Some(SurfaceId::Terrain(pos)) = view
                 .hovered
@@ -282,20 +339,21 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 view.path_tool.hint = "Point to open visible land.\nScenery fills one tile.".into();
                 return;
             };
-            let result = park.validate_scenery(pos, kind);
+            let result = park.quote_scenery(pos, kind);
             view.path_tool.hint = result.as_ref().map_or_else(
                 |error| placement_message(*error),
-                |_| {
+                |cost| {
                     format!(
-                        "{} / tile {}, {}\nClick to plant it.",
+                        "{} / tile {}, {} / {}\nClick to plant it; 50% refund.",
                         kind.name(),
                         pos.x + 1,
-                        pos.y + 1
+                        pos.y + 1,
+                        crate::ui::money(*cost)
                     )
                 },
             );
             if click {
-                match park.place_scenery(pos, kind) {
+                match park.build_scenery(pos, kind) {
                     Ok(id) => {
                         view.selected = Some(SurfaceId::Object(id));
                         view.hovered = view.selected;
@@ -315,9 +373,11 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 }
             }
         }
-        PathTool::RaiseTerrain | PathTool::LowerTerrain => {
-            terrain_tools::point_at(park, view, click)
-        }
+        PathTool::RaiseTerrain
+        | PathTool::LowerTerrain
+        | PathTool::PaintWater
+        | PathTool::PaintGrass
+        | PathTool::PaintSand => terrain_tools::point_at(park, view, click),
         PathTool::Inspect => {
             if click {
                 view.selected = view.hovered;
@@ -352,11 +412,13 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 owner
                     .ok_or_else(|| "A queue needs an existing ride.".to_string())
                     .and_then(|ride| {
-                        park.validate_queue_path(pos, height, slope, ride)
+                        park.validate_paid_queue_path(pos, height, slope, ride)
+                            .map(|_| ())
                             .map_err(|error| ride_placement_message(error, slope))
                     })
             } else {
-                park.validate_sloped_path(pos, height, slope)
+                park.validate_paid_path(pos, height, slope)
+                    .map(|_| ())
                     .map_err(|error| {
                         if matches!(error, PlacementError::HeightOutOfRange { .. })
                             && slope != PathSlope::Flat
@@ -391,7 +453,17 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                 });
             }
             view.path_tool.hint = reason.clone().unwrap_or_else(|| {
-                if queue {
+                let buried = park.tile(pos).is_some_and(|tile| {
+                    u16::from(height) + u16::from(slope.clearance()) <= u16::from(tile.height)
+                        && height < tile.height
+                });
+                if buried {
+                    format!(
+                        "Tunnel at {}, {} / height {height}.\nClick to build; inspect underground.",
+                        pos.x + 1,
+                        pos.y + 1
+                    )
+                } else if queue {
                     format!(
                         "Queue / {} -> {}\nFor selected ride #{}.",
                         height,
@@ -413,15 +485,26 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                     )
                 }
             });
+            if reason.is_none() {
+                view.path_tool.hint.push_str(&format!(
+                    "\nBuild cost {}.",
+                    crate::ui::money(park_sim::path_cost_cents(queue, slope))
+                ));
+            }
             if click {
                 if let Some(reason) = reason {
                     view.path_notice = Some(format!("No path placed: {reason}"));
                 } else {
                     let placed = if queue {
-                        park.place_queue_path(pos, height, slope, owner.expect("validated ride"))
-                            .map_err(|error| ride_placement_message(error, slope))
+                        park.build_paid_queue_path(
+                            pos,
+                            height,
+                            slope,
+                            owner.expect("validated ride"),
+                        )
+                        .map_err(|error| ride_placement_message(error, slope))
                     } else {
-                        park.place_sloped_path(pos, height, slope)
+                        park.build_paid_path(pos, height, slope)
                             .map_err(placement_message)
                     };
                     match placed {
@@ -431,10 +514,12 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                             view.scene_dirty = true;
                             view.path_tool.clear_pointer();
                             view.path_notice = Some(format!(
-                                "{name} #{} placed at {}, {} / height {height}.",
+                                "{name} #{} placed at {}, {} / height {height} for ${}.{:02}.",
                                 id.0,
                                 pos.x + 1,
-                                pos.y + 1
+                                pos.y + 1,
+                                park_sim::path_cost_cents(queue, slope) / 100,
+                                park_sim::path_cost_cents(queue, slope) % 100
                             ));
                         }
                         Err(error) => {
@@ -530,6 +615,20 @@ pub(super) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
                         ),
                         Err(error) => format!("Removal unavailable: {error}"),
                     };
+                }
+                if let Some(refund) = park.decoration_refund_quote(object.id) {
+                    view.path_tool.hint = format!(
+                        "{name} / refund {}.\nClick to remove it.",
+                        crate::ui::money(refund)
+                    );
+                }
+                if object.kind == ObjectKind::Path {
+                    let refund = park.path_demolition_refund_cents(object.id)
+                        + park.decoration_refund_quote(object.id).unwrap_or(0);
+                    view.path_tool.hint = format!(
+                        "Path / total refund {}.\nClick to remove it.",
+                        crate::ui::money(refund)
+                    );
                 }
                 if click {
                     remove_path(park, view, object.id);
@@ -628,8 +727,10 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
         }
     } else if object.kind == ObjectKind::Track {
         Some(park.track_demolition_refund_cents(id))
+    } else if object.kind == ObjectKind::Path {
+        Some(park.path_demolition_refund_cents(id) + park.decoration_refund_quote(id).unwrap_or(0))
     } else {
-        None
+        park.decoration_refund_quote(id)
     };
     if park.remove_object(id).is_none() {
         view.path_notice = Some(format!(
@@ -656,8 +757,13 @@ fn remove_path(park: &mut Park, view: &mut ViewState, id: ObjectId) {
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),
+        Some(amount) if object.kind == ObjectKind::Path => format!(
+            "Path removed / total refund {}.\nCash {} / routes recalculated.",
+            crate::ui::money(amount),
+            crate::ui::money(park.cash_cents())
+        ),
         Some(amount) => format!(
-            "Removed / refund {}.\nCash {} / visits cancelled.",
+            "Removed / refund {}.\nCash {}.",
             crate::ui::money(amount),
             crate::ui::money(park.cash_cents())
         ),
@@ -695,8 +801,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn underground_build_tool_places_a_saved_tunnel_path() {
+        let mut park = Park::new(8, 8);
+        let pos = TilePos { x: 3, y: 3 };
+        park.set_terrain_height(pos, 4).unwrap();
+        let mut view = ViewState {
+            view_mode: world::ViewMode::Underground,
+            ..ViewState::default()
+        };
+        view.path_tool.set_mode(PathTool::Build);
+        view.path_tool.height = 0;
+        let point =
+            world::path_build_center(pos, &park, view.rotation, 0, PathSlope::Flat).unwrap();
+        let starting_cash = park.cash_cents();
+        point_at(&mut park, &mut view, point, false);
+        assert!(view.path_tool.hint.contains("Tunnel"));
+        assert!(view.path_tool.hint.contains("$1.00"));
+        assert_eq!(park.cash_cents(), starting_cash);
+        point_at(&mut park, &mut view, point, true);
+        let Some(SurfaceId::Object(id)) = view.selected else {
+            panic!("tunnel path was not selected");
+        };
+        assert!(park.is_underground(id));
+        assert_eq!(park.cash_cents(), starting_cash - 100);
+        assert_eq!(park.path_demolition_refund_cents(id), 50);
+        assert_eq!(
+            Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
+            park
+        );
+    }
+
+    #[test]
     fn scenery_map_tools_plant_save_and_demolish() {
         let mut park = Park::new(32, 32);
+        let starting_cash = park.cash_cents();
         let pos = (0..park.height())
             .flat_map(|y| (0..park.width()).map(move |x| TilePos { x, y }))
             .find(|pos| park.validate_scenery(*pos, SceneryKind::Tree).is_ok())
@@ -708,12 +846,15 @@ mod tests {
         let point = world::surface_center(&park, SurfaceId::Terrain(pos), view.rotation).unwrap();
         point_at(&mut park, &mut view, point, false);
         assert!(park.objects().is_empty(), "pointer preview must not plant");
+        assert_eq!(park.cash_cents(), starting_cash);
+        assert!(view.path_tool.hint.contains("$2.50"));
         point_at(&mut park, &mut view, point, true);
         let id = match view.selected {
             Some(SurfaceId::Object(id)) => id,
             _ => panic!("tree was not selected"),
         };
         assert_eq!(park.object(id).unwrap().kind, ObjectKind::SceneryTree);
+        assert_eq!(park.cash_cents(), starting_cash - 250);
         assert_eq!(
             Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap(),
             park
@@ -722,6 +863,7 @@ mod tests {
         view.hovered = Some(SurfaceId::Object(id));
         point_at(&mut park, &mut view, point, true);
         assert!(park.object(id).is_none());
+        assert_eq!(park.cash_cents(), starting_cash - 125);
         assert_eq!(park.validate_scenery(pos, SceneryKind::FlowerBed), Ok(()));
     }
 

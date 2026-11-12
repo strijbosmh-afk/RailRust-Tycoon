@@ -190,6 +190,14 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
         .unwrap()
         .remove("park_open");
     current["schema_version"] = serde_json::json!(22);
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("decorations");
+    current["park"]
+        .as_object_mut()
+        .unwrap()
+        .remove("path_economy");
     crate::legacy_cost_test_support::strip_admission_fields(&mut current);
     current["park"]
         .as_object_mut()
@@ -237,6 +245,17 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
         guest["needs"].as_object_mut().unwrap().remove("energy");
         guest["needs"].as_object_mut().unwrap().remove("nausea");
     }
+    for tile in current["park"]["tiles"].as_array_mut().unwrap() {
+        assert_eq!(tile["owned"], serde_json::json!(true));
+        tile.as_object_mut().unwrap().remove("owned");
+    }
+    assert_eq!(
+        current["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("other_coasters"),
+        Some(serde_json::json!([]))
+    );
     assert_eq!(current["park"], original["park"]);
     let mut uninterrupted = p.clone();
     let mut resumed = p;

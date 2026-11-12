@@ -326,10 +326,20 @@ fn gate_demolition_and_circuit_fault_repair_preserve_owner_and_fresh_object_ids(
 #[test]
 fn queue_and_entrance_limits_reject_atomically_before_allocating() {
     let (mut park, ride) = fixture();
-    for y in 0..32 {
-        for x in 0..32 {
-            park.place_path(TilePos { x, y }, 24).unwrap();
-        }
+    let existing_paths = park
+        .objects()
+        .iter()
+        .filter(|object| object.kind == ObjectKind::Path)
+        .count();
+    for index in 0..crate::saves::MAX_PATHS - existing_paths {
+        park.place_path(
+            TilePos {
+                x: (index % 32) as u32,
+                y: ((index / 32) % 32) as u32,
+            },
+            24 + ((index / 1024) * 2) as u8,
+        )
+        .unwrap();
     }
     let before = park.clone();
     let stats = park.path_cache_stats();

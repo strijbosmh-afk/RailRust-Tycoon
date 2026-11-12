@@ -178,6 +178,7 @@ fn every_entry_height_respects_kind_bounds_without_saturating_grades() {
         TrackBuildKind::Drop,
         TrackBuildKind::SteepDrop,
         TrackBuildKind::Brake,
+        TrackBuildKind::Camelback,
     ] {
         for height in 0..=u8::MAX {
             let spec = kind.spec(pos, height, TrackDirection::East);
@@ -842,4 +843,38 @@ fn schema_fourteen_rejects_bad_grades_and_ports_without_mutating_drafts() {
         forged["park"]["track_draft"][0] = json!(piece);
         assert!(read(&forged).is_err());
     }
+}
+
+#[test]
+fn launch_and_banked_curve_survive_paid_apply_test_and_save() {
+    let mut park = Park::new(32, 32);
+    park.install_ground_starter_coaster().unwrap();
+    park.set_train_open(false);
+    park.copy_installed_track_to_draft().unwrap();
+    let mut launch = *park
+        .track_draft()
+        .iter()
+        .find(|piece| piece.kind == TrackKind::Straight)
+        .unwrap();
+    launch.kind = TrackKind::Launch;
+    park.set_track_draft_piece(launch).unwrap();
+    let mut bank = *park
+        .track_draft()
+        .iter()
+        .find(|piece| piece.kind == TrackKind::Curve)
+        .unwrap();
+    bank.kind = TrackKind::BankedCurve;
+    park.set_track_draft_piece(bank).unwrap();
+    let quote = park.track_construction_quote().unwrap();
+    assert_eq!(quote.construction_cents, 5_500);
+    park.apply_track_draft().unwrap();
+    assert!(park.circuit().unwrap().specs().contains(&launch));
+    assert!(park.circuit().unwrap().specs().contains(&bank));
+    let report = park.test_coaster().unwrap();
+    assert_eq!(report.layout.launches, 1);
+    assert_eq!(report.layout.banked_curves, 1);
+    assert!(report.max_speed_units_per_tick >= 32);
+    let restored = Park::from_save_bytes(&park.to_save_bytes().unwrap()).unwrap();
+    assert_eq!(restored, park);
+    assert_eq!(restored.test_coaster().unwrap(), report);
 }

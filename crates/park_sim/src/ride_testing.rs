@@ -9,7 +9,7 @@ use crate::{
 /// long supported circuit can exceed this limit and returns a clear failure.
 pub const MAX_COASTER_TEST_TICKS: u32 = 36_000;
 
-pub const COASTER_TEST_LIMITATIONS: &str = "Mechanics test excludes passenger loading policy. Layout estimates use approximate motion; no G-force simulation, safety certification or guest-demand prediction.";
+pub const COASTER_TEST_LIMITATIONS: &str = "Mechanics test excludes passenger loading policy and block delays. Approximate centerline forces use 4 metres per tile and 1 metre per height step. Ratings are layout estimates.";
 
 /// Comparable inputs for a UI cache. Layout/settings changes invalidate a
 /// previous result naturally; a UI must also clear results after park loading.
@@ -17,6 +17,7 @@ pub const COASTER_TEST_LIMITATIONS: &str = "Mechanics test excludes passenger lo
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoasterTestInput {
     pub cars: u8,
+    pub trains: u8,
     pub ride: RideId,
     pub specs: Vec<TrackPieceSpec>,
     pub settings: RideOperatingSettings,
@@ -26,12 +27,13 @@ impl CoasterTestInput {
     /// Cheap cache validation: no lap simulation, allocation or park mutation.
     /// An opened, moving, occupied, missing or faulted coaster invalidates it.
     pub fn matches(&self, park: &Park) -> bool {
-        park.ride().is_some_and(|ride| ride.id == self.ride)
+        park.ride_kind(self.ride) == Some(crate::RideKind::Coaster)
             && park.coaster_car_count(self.ride) == Some(self.cars)
+            && park.coaster_train_count(self.ride) == Some(self.trains)
             && park.ride_operating_settings_status(self.ride).is_ok()
             && park.ride_operating_settings(self.ride) == Some(self.settings)
             && park
-                .circuit()
+                .coaster_circuit(self.ride)
                 .is_some_and(|circuit| circuit.specs() == self.specs.as_slice())
     }
 }
@@ -43,6 +45,11 @@ pub struct CoasterLayoutMetrics {
     pub lifts: u32,
     pub drops: u32,
     pub brakes: u32,
+    pub launches: u32,
+    pub banked_curves: u32,
+    pub camelbacks: u32,
+    pub inversions: u32,
+    pub transitions: u32,
     pub ascent_steps: u32,
     pub descent_steps: u32,
     /// Sum of successive descending pieces, including across the input seam.
@@ -82,6 +89,58 @@ pub struct CoasterTestReport {
     pub max_height: u8,
     pub layout: CoasterLayoutMetrics,
     pub ratings: CoasterLayoutRatings,
+    pub forces: CoasterForceEstimates,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CoasterForceEstimates {
+    pub min_vertical_millig: i32,
+    pub max_vertical_millig: i32,
+    pub max_lateral_millig: u32,
+}
+
+fn estimate_forces(circuit: &crate::TrainCircuit, speeds: &[u32]) -> CoasterForceEstimates {
+    let mut result = CoasterForceEstimates {
+        min_vertical_millig: 1000,
+        max_vertical_millig: 1000,
+        max_lateral_millig: 0,
+    };
+    let mut start = 0;
+    for (index, piece) in circuit.pieces.iter().enumerate() {
+        let velocity = f64::from(speeds[index]) * 120.0 / f64::from(TRACK_UNITS);
+        let mut local = 0;
+        for points in piece.samples.windows(3) {
+            let vector = |a: crate::TrackPoint, b: crate::TrackPoint| {
+                [
+                    f64::from(b.x - a.x) * 4.0 / 1024.0,
+                    f64::from(b.y - a.y) * 4.0 / 1024.0,
+                    f64::from(b.height - a.height) / 1024.0,
+                ]
+            };
+            let a = vector(points[0], points[1]);
+            let b = vector(points[1], points[2]);
+            let length = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(0.0001);
+            let la = length(a);
+            let lb = length(b);
+            let factor = velocity * velocity / ((la + lb) * 0.5);
+            let acceleration: [f64; 3] =
+                std::array::from_fn(|axis| (b[axis] / lb - a[axis] / la) * factor);
+            local += crate::trains::point_distance(points[0], points[1]);
+            let roll = (f64::from(circuit.roll_at(start + local)) / 1000.0).to_radians();
+            let horizontal = (b[0] * b[0] + b[1] * b[1]).sqrt().max(0.0001);
+            let lateral = (-b[1] * acceleration[0] + b[0] * acceleration[1]) / horizontal / 9.80665;
+            let vertical = 1.0 + acceleration[2] / 9.80665;
+            let banked_vertical =
+                ((vertical * roll.cos() - lateral * roll.sin()) * 1000.0).round() as i32;
+            let banked_lateral =
+                ((lateral * roll.cos() + vertical * roll.sin()).abs() * 1000.0).round() as u32;
+            result.min_vertical_millig = result.min_vertical_millig.min(banked_vertical);
+            result.max_vertical_millig = result.max_vertical_millig.max(banked_vertical);
+            result.max_lateral_millig = result.max_lateral_millig.max(banked_lateral);
+        }
+        start += piece.length;
+    }
+    result
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -124,6 +183,9 @@ impl Park {
         crate::trains::validate_specs(self, circuit.specs()).map_err(CoasterTestError::Circuit)?;
         Ok(CoasterTestInput {
             cars: self.coaster_car_count(ride.id).expect("validated coaster"),
+            trains: self
+                .coaster_train_count(ride.id)
+                .expect("validated coaster"),
             ride: ride.id,
             specs: circuit.specs().to_vec(),
             settings: self.coaster_operating_settings(),
@@ -136,6 +198,17 @@ impl Park {
     /// No authoritative clock, RNG, guest, other ride or finance system runs.
     pub fn test_coaster(&self) -> Result<CoasterTestReport, CoasterTestError> {
         self.test_coaster_with_limit(MAX_COASTER_TEST_TICKS)
+    }
+
+    pub fn test_coaster_for(&self, id: RideId) -> Result<CoasterTestReport, CoasterTestError> {
+        if self.ride.as_ref().is_some_and(|ride| ride.id == id) {
+            return self.test_coaster();
+        }
+        let mut selected = self.clone();
+        selected
+            .select_coaster(id)
+            .map_err(|_| CoasterTestError::NoCoaster)?;
+        selected.test_coaster()
     }
 
     fn test_coaster_with_limit(&self, limit: u32) -> Result<CoasterTestReport, CoasterTestError> {
@@ -156,7 +229,11 @@ impl Park {
             .filter(|record| record.ride == input.ride)
             .cloned()
             .collect();
+        isolated.extra_trains.clear();
         isolated.train = Some(Train {
+            number: 0,
+            in_depot: false,
+            blocked: false,
             open: true,
             phase: TrainPhase::Station,
             speed: 0,
@@ -185,6 +262,8 @@ impl Park {
             }
             if train.laps == 1 {
                 let station_wait_ticks = input.settings.station_wait_ticks;
+                let forces =
+                    estimate_forces(isolated.circuit.as_ref().unwrap(), &segment_peak_speeds);
                 return Ok(CoasterTestReport {
                     input,
                     length_units,
@@ -198,6 +277,7 @@ impl Park {
                     max_height,
                     layout,
                     ratings: layout_ratings(length_units, max_speed, layout),
+                    forces,
                 });
             }
         }
@@ -220,14 +300,31 @@ pub(crate) fn layout_metrics(specs: &[TrackPieceSpec]) -> (u8, u8, CoasterLayout
     for spec in specs.iter().cycle().skip(station).take(specs.len()) {
         min_height = min_height.min(spec.entry.height).min(spec.exit.height);
         max_height = max_height.max(spec.entry.height).max(spec.exit.height);
-        metrics.curves += u32::from(spec.kind == TrackKind::Curve);
+        if spec.kind == TrackKind::Camelback {
+            max_height = max_height.max(spec.entry.height.saturating_add(1));
+        }
+        if spec.kind == TrackKind::HeartlineRoll {
+            max_height = max_height.max(spec.entry.height.saturating_add(2));
+        }
+        metrics.curves += u32::from(matches!(
+            spec.kind,
+            TrackKind::Curve | TrackKind::BankedCurve
+        ));
+        metrics.banked_curves += u32::from(spec.kind == TrackKind::BankedCurve);
+        metrics.launches += u32::from(spec.kind == TrackKind::Launch);
+        metrics.camelbacks += u32::from(spec.kind == TrackKind::Camelback);
+        metrics.inversions += u32::from(spec.kind == TrackKind::HeartlineRoll);
+        metrics.transitions += u32::from(matches!(
+            spec.kind,
+            TrackKind::TransitionUp | TrackKind::TransitionDown
+        ));
         metrics.lifts += u32::from(spec.kind == TrackKind::Lift);
         metrics.drops += u32::from(spec.kind == TrackKind::Drop);
         metrics.brakes += u32::from(spec.kind == TrackKind::Brake);
         let rise = u32::from(spec.exit.height.saturating_sub(spec.entry.height));
         let drop = u32::from(spec.entry.height.saturating_sub(spec.exit.height));
-        metrics.ascent_steps += rise;
-        metrics.descent_steps += drop;
+        metrics.ascent_steps += rise + u32::from(spec.kind == TrackKind::Camelback);
+        metrics.descent_steps += drop + u32::from(spec.kind == TrackKind::Camelback);
         drop_run = if drop > 0 { drop_run + drop } else { 0 };
         metrics.longest_drop_steps = metrics.longest_drop_steps.max(drop_run);
     }
@@ -246,10 +343,20 @@ fn layout_ratings(
     // Nausea: quarter intensity +third turn density +half descent (max20).
     let pace = max_speed.min(crate::trains::MAX_SPEED) * 100 / crate::trains::MAX_SPEED;
     let turn_density = metrics.curves.saturating_mul(100) / metrics.pieces.max(1);
-    let variety = [metrics.curves, metrics.lifts, metrics.drops, metrics.brakes]
-        .into_iter()
-        .filter(|&count| count > 0)
-        .count() as u32;
+    let variety = [
+        metrics.curves,
+        metrics.lifts,
+        metrics.drops,
+        metrics.brakes,
+        metrics.launches,
+        metrics.banked_curves,
+        metrics.camelbacks,
+        metrics.inversions,
+        metrics.transitions,
+    ]
+    .into_iter()
+    .filter(|&count| count > 0)
+    .count() as u32;
     let excitement = ((length / TRACK_UNITS as u32).min(120) / 6
         + pace / 3
         + metrics.descent_steps.min(20)
@@ -565,6 +672,6 @@ mod tests {
             layout_metrics(&rotated),
             layout_metrics(park.circuit().unwrap().specs())
         );
-        assert!(COASTER_TEST_LIMITATIONS.contains("no G-force"));
+        assert!(COASTER_TEST_LIMITATIONS.contains("Approximate centerline forces"));
     }
 }

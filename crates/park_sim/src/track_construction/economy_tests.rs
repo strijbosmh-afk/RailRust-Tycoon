@@ -11,6 +11,61 @@ fn paid_loop() -> Park {
 }
 
 #[test]
+fn camelback_is_paid_saved_and_tested_as_a_raised_internal_hill() {
+    let mut park = Park::new(32, 32);
+    let mut specs = loop_specs(3, 3, 8);
+    specs[2].kind = TrackKind::Camelback;
+    let hill = specs[2];
+    let samples = hill.samples();
+    assert_eq!(samples.first().unwrap().height, 8 * crate::TRACK_UNITS);
+    assert_eq!(samples.last().unwrap().height, 8 * crate::TRACK_UNITS);
+    assert_eq!(samples[samples.len() / 2].height, 9 * crate::TRACK_UNITS);
+    assert_eq!(track_piece_cost_cents(hill), 3_500);
+    assert_eq!(crate::trains::envelope(hill).2, 3);
+    draft(&mut park, &specs);
+    let quote = park.track_construction_quote().unwrap();
+    assert!(quote.affordable());
+    park.apply_track_draft().unwrap();
+    assert_eq!(park.cash_cents(), 100_000 - quote.construction_cents);
+    assert_eq!(park.circuit().unwrap().pieces[2].samples, samples);
+    let report = park.test_coaster().unwrap();
+    assert_eq!(report.layout.camelbacks, 1);
+    assert_eq!(report.max_height, 9);
+    assert_eq!(report.input.specs, specs);
+    let mut loaded = roundtrip(&park);
+    park.set_train_open(true);
+    loaded.set_train_open(true);
+    for _ in 0..1_500 {
+        park.advance(Speed::Normal);
+        loaded.advance(Speed::Normal);
+        assert_eq!(park, loaded);
+        if park.train().unwrap().laps > 0 {
+            break;
+        }
+    }
+    assert!(park.train().unwrap().laps > 0);
+}
+
+#[test]
+fn older_schema_rejects_forged_camelback_but_loads_ordinary_track() {
+    let mut park = Park::new(32, 32);
+    let mut specs = loop_specs(3, 3, 8);
+    specs[2].kind = TrackKind::Camelback;
+    draft(&mut park, &specs);
+    let mut old = json_value(&park);
+    old["schema_version"] = json!(42);
+    old["content_version"] = json!(42);
+    old["park"].as_object_mut().unwrap().remove("path_economy");
+    assert!(read(&old).is_err());
+    park.clear_track_draft();
+    let mut old = json_value(&park);
+    old["schema_version"] = json!(42);
+    old["content_version"] = json!(42);
+    old["park"].as_object_mut().unwrap().remove("path_economy");
+    assert_eq!(read(&old).unwrap(), park);
+}
+
+#[test]
 fn every_price_is_fixed_and_quotes_are_pure_with_net_cash_and_exact_retention() {
     let mut park = Park::new(32, 32);
     let specs = graded_loop_specs();

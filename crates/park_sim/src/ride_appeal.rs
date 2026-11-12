@@ -46,7 +46,8 @@ impl Park {
         }
         let layout_challenge = match self.ride_kind(id)? {
             RideKind::Coaster => {
-                let (_, _, metrics) = crate::ride_testing::layout_metrics(self.circuit()?.specs());
+                let (_, _, metrics) =
+                    crate::ride_testing::layout_metrics(self.coaster_circuit(id)?.specs());
                 layout_challenge(metrics)
             }
             RideKind::Carousel => 20,

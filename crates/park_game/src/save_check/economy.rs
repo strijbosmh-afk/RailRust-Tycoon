@@ -98,6 +98,7 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
         })
         .sum::<u64>()
         + park.track_economy().construction_cents
+        + park.path_construction_total_cents()
         + park
             .all_rides()
             .map(|r| park.ride_running_costs(r.id).unwrap().upkeep_cents)
@@ -107,7 +108,8 @@ pub(crate) fn require_accounting(park: &Park) -> Result<(), String> {
         .iter()
         .map(|s| s.demolition_refund_cents)
         .sum::<u64>()
-        + park.track_economy().refund_cents;
+        + park.track_economy().refund_cents
+        + park.path_refund_total_cents();
     if spent - service_spent != actual.revenue_cents
         || service_spent != service_revenue
         || services_used != service_count

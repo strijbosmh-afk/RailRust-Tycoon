@@ -60,10 +60,10 @@ impl Park {
             return Err(RideOpeningError::MaintenanceShutdown);
         }
         if kind == RideKind::Coaster {
-            self.validate_train_circuit()
+            self.validate_coaster_circuit(id)
                 .map_err(RideOpeningError::Circuit)?;
             if self
-                .train()
+                .coaster_train(id)
                 .is_none_or(|train| train.phase == TrainPhase::Fault)
             {
                 return Err(RideOpeningError::Unavailable);

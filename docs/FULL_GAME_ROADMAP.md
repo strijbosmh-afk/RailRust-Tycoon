@@ -1,11 +1,11 @@
 # Parkbound: stepwise roadmap to a complete Windows game
 
-Planning checkpoint after 0.70.0; [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
+Planning checkpoint after 0.70.0, updated for the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0; later stages advanced Phase 2 and completed the Phase 3–5 exit gates in 0.84.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
 
 ## Starting point and release target
 
-- The current game has a deterministic `park_sim` library, a Bevy `park_game` application, a flat 32×32 starter park, construction and ride systems, visitors, finance, saves, and two original campaign challenges. Park saves are strict schema/content 39/39; awards are stored separately.
-- Normal play currently opens straight into a fresh park. The application has one park save slot and a separate local campaign record. The default window is 1280×800 with a 1024×680 minimum. Many panels have fixed pixel dimensions. A 256×256 map has been used for rendering diagnostics, not general editable play.
+- The current game has a deterministic `park_sim` library, a Bevy `park_game` application, a flat 32×32 starter park, construction and ride systems, visitors, finance, saves, and two original campaign challenges. Park saves are strict schema/content 47/47; awards are stored separately. Completed Phase 3–5 work includes original art records, editable large maps, paid construction, independent coasters, three-train blocks, transitions/inversions, force estimates and design exchange. The audit records acceptance evidence and the interrupted final manual interaction check.
+- Normal play has an intro/title and park library. The default window is 1280×800 with a 1024×680 minimum; display settings and grouped, scrolling panels cover major flows, while the complete mixed-DPI acceptance matrix remains open. Large maps are playable and editable with current path/object/guest limits rather than diagnostic-only renders.
 - The 1.0 target is a free, offline, full-function Windows x64 game with original code, artwork, music, sounds, scenarios, and interface. Players should not need Rust or files from another game. Decide the public source license and every third-party asset right before release.
 - This development PC is not a performance reference. Set public hardware and frame-time targets only after testing a representative target PC and a clean Windows installation.
 
@@ -88,7 +88,7 @@ flowchart LR
 
 **Gate:** screenshot comparisons and native input checks pass this matrix, including 100%, 150%, and 200% Windows display scaling. Judge performance on a separate representative PC, not this development PC.
 
-## 3. Graphics quality and an original asset pipeline
+## 3. Graphics quality and an original asset pipeline — complete in 0.84.0
 
 1. Make a visual bible: saturated but controlled palette, terrain and water materials, light/shadow style, outlines, detail density, camera scale, four-direction silhouettes, animation timing, and night/weather treatment. Use the supplied park image for direction, not as an asset source.
 2. Decide and document which objects use procedural geometry, authored sprites/textures, or a hybrid. Define asset dimensions, naming, variants, atlases, import validation, and redistribution records. Preserve stable content IDs so art upgrades do not break saves.
@@ -98,7 +98,7 @@ flowchart LR
 
 **Gate:** a representative busy park remains visually legible at all four rotations and supported scales; terrain/track/guests respect the same depth rules as picking; an original-asset provenance list covers everything shipped. Compare screenshots at minimum, HD, QHD, and 4K resolutions.
 
-## 4. Complete world construction and editable map scale
+## 4. Complete world construction and editable map scale — complete in 0.84.0
 
 1. Make larger maps editable and saveable, expanding map, object, path, guest, and file-size limits together with explicit migration and stress cases. Keep 32×32 as a fast test fixture.
 2. Add land ownership/construction rights, terrain brushes and slope tools, water editing, landscaping costs, and a terrain generator with reproducible seeds.
@@ -107,7 +107,7 @@ flowchart LR
 
 **Gate:** create a large owned park from an empty map, sculpt and decorate it, build a working path/queue network across height changes, save/reload, and remove parts without dangling guests, gates, or money. Large-map rendering diagnostics alone do not satisfy this gate.
 
-## 5. Coasters and ride engineering
+## 5. Coasters and ride engineering — complete in 0.84.0
 
 1. Finish station, curve, slope, bank, transition, inversion, brake, lift, launch, and special pieces for the ride families that support them; validate connection geometry and clearance before payment.
 2. Support multiple independent coasters and appropriate multi-train/block-section operation. Keep passenger conservation and dispatch safety authoritative in `park_sim`.

@@ -9,7 +9,7 @@ pub(super) struct Face {
 }
 
 pub(super) fn piece_for(park: &Park, id: ObjectId) -> Option<&TrackPiece> {
-    park.circuit()?
+    park.coaster_circuit(park.object_ride(id)?)?
         .pieces
         .iter()
         .find(|piece| piece.object == id)
@@ -70,9 +70,9 @@ fn slab(
 
 /// Shared boundary tangents use samples on both sides of a piece join.
 /// The final-to-first join uses the same rule, keeping offset rails watertight.
-fn normal(park: &Park, piece: &TrackPiece, index: usize) -> Vec3 {
+fn track_axes(park: &Park, piece: &TrackPiece, index: usize) -> (Vec3, Vec3) {
     let circuit = park
-        .circuit()
+        .coaster_circuit(park.object_ride(piece.object).expect("track owner"))
         .expect("a rendered piece belongs to a circuit");
     let piece_index = circuit
         .pieces
@@ -102,18 +102,18 @@ fn normal(park: &Park, piece: &TrackPiece, index: usize) -> Vec3 {
     let tangent = if index == 0 {
         let prior =
             &circuit.pieces[(piece_index + circuit.pieces.len() - 1) % circuit.pieces.len()];
-        if piece.kind != TrackKind::Curve {
+        if !matches!(piece.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(piece.samples[1]) - ground(piece.samples[0])
-        } else if prior.kind != TrackKind::Curve {
+        } else if !matches!(prior.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(piece.samples[0]) - ground(previous)
         } else {
             ground(next) - ground(previous)
         }
     } else if index + 1 == piece.samples.len() {
         let following = &circuit.pieces[(piece_index + 1) % circuit.pieces.len()];
-        if piece.kind != TrackKind::Curve {
+        if !matches!(piece.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(piece.samples[index]) - ground(previous)
-        } else if following.kind != TrackKind::Curve {
+        } else if !matches!(following.kind, TrackKind::Curve | TrackKind::BankedCurve) {
             ground(next) - ground(piece.samples[index])
         } else {
             ground(next) - ground(previous)
@@ -125,7 +125,33 @@ fn normal(park: &Park, piece: &TrackPiece, index: usize) -> Vec3 {
     // finite curve chord would twist the adjacent graded quad out of plane.
     let delta = tangent.truncate();
     let side = Vec2::new(-delta.y, delta.x).normalize_or_zero();
-    side.extend(0.0)
+    let distance: u32 = piece
+        .samples
+        .windows(2)
+        .take(index)
+        .map(|pair| pair[0].distance_to(pair[1]))
+        .sum();
+    let roll = circuit.specs()[piece_index].roll_millidegrees(distance * 1000 / piece.length);
+    if roll == 0 {
+        (side.extend(0.0), Vec3::Z)
+    } else {
+        banked_axes(tangent, roll)
+    }
+}
+
+fn normal(park: &Park, piece: &TrackPiece, index: usize) -> Vec3 {
+    track_axes(park, piece, index).0
+}
+
+pub(super) fn banked_axes(tangent: Vec3, roll: i32) -> (Vec3, Vec3) {
+    let tangent = (tangent * Vec3::new(1.0, 1.0, 0.25)).normalize_or_zero();
+    let side = Vec3::new(-tangent.y, tangent.x, 0.0).normalize_or_zero();
+    let up = tangent.cross(side).normalize_or_zero();
+    let (sin, cos) = (roll as f32 / 1000.0).to_radians().sin_cos();
+    (
+        (side * cos + up * sin) * Vec3::new(1.0, 1.0, 4.0),
+        (up * cos - side * sin) * Vec3::new(0.25, 0.25, 1.0),
+    )
 }
 
 fn strip(a: Vec3, b: Vec3, na: Vec3, nb: Vec3, left: f32, right: f32) -> [Vec3; 4] {
@@ -178,8 +204,8 @@ fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8
     };
     let side = normal(park, piece, middle);
     let paint = park
-        .ride()
-        .and_then(|r| park.ride_appearance(r.id))
+        .object_ride(piece.object)
+        .and_then(|id| park.ride_appearance(id))
         .unwrap_or_default();
     let colors = ride_colors::inks(
         paint.supports,
@@ -249,15 +275,37 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
     }
     let size = park.width();
     let paint = park
-        .ride()
-        .and_then(|r| park.ride_appearance(r.id))
+        .object_ride(piece.object)
+        .and_then(|id| park.ride_appearance(id))
         .unwrap_or_default();
     supports(&mut faces, park, piece, rotation);
     for index in 0..piece.samples.len() - 1 {
         let a = ground(piece.samples[index]);
         let b = ground(piece.samples[index + 1]);
-        let na = normal(park, piece, index);
-        let nb = normal(park, piece, index + 1);
+        let (na, ua) = track_axes(park, piece, index);
+        let (nb, ub) = track_axes(park, piece, index + 1);
+        let slab = |faces: &mut Vec<Face>,
+                    footprint: [Vec3; 4],
+                    bottom: f32,
+                    top: f32,
+                    colors: [Ink; 3],
+                    size: u32,
+                    rotation: u8| {
+            let up = [ua, ub, ub, ua];
+            let upper = std::array::from_fn(|i| footprint[i] + up[i] * top);
+            let lower: [Vec3; 4] = std::array::from_fn(|i| footprint[i] + up[i] * bottom);
+            face(faces, upper, colors[0], size, rotation);
+            for i in 0..4 {
+                let next = (i + 1) % 4;
+                face(
+                    faces,
+                    [upper[i], upper[next], lower[next], lower[i]],
+                    colors[1 + i % 2],
+                    size,
+                    rotation,
+                );
+            }
+        };
         let bed = strip(a, b, na, nb, -0.27, 0.27);
         slab(
             &mut faces,
@@ -380,7 +428,37 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                     );
                 }
             }
-            TrackKind::Drop | TrackKind::Curve | TrackKind::Straight => {}
+            TrackKind::Launch => {
+                slab(
+                    &mut faces,
+                    strip(a, b, na, nb, -0.055, 0.055),
+                    0.13,
+                    0.25,
+                    [rgb(73, 213, 230), rgb(31, 128, 161), rgb(24, 83, 112)],
+                    size,
+                    rotation,
+                );
+            }
+            TrackKind::BankedCurve => {
+                for offset in [-0.31, 0.31] {
+                    slab(
+                        &mut faces,
+                        strip(a, b, na, nb, offset - 0.016, offset + 0.016),
+                        0.15,
+                        0.37,
+                        [rgb(244, 190, 72), rgb(166, 106, 48), rgb(116, 76, 40)],
+                        size,
+                        rotation,
+                    );
+                }
+            }
+            TrackKind::Drop
+            | TrackKind::Curve
+            | TrackKind::Camelback
+            | TrackKind::Straight
+            | TrackKind::TransitionUp
+            | TrackKind::TransitionDown
+            | TrackKind::HeartlineRoll => {}
         }
     }
     faces
@@ -397,13 +475,18 @@ pub(super) fn piece_center(park: &Park, piece: &TrackPiece, rotation: u8) -> Opt
     Some(projected(point + Vec3::Z * 0.25, park.width(), rotation).truncate())
 }
 
+#[cfg(test)]
 pub(super) fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
+    coaster_focus(park, park.ride()?.id, rotation)
+}
+
+pub(super) fn coaster_focus(park: &Park, id: park_sim::RideId, rotation: u8) -> Option<Vec2> {
     if park.width() != park.height() {
         return None;
     }
     let mut min = Vec2::splat(f32::INFINITY);
     let mut max = Vec2::splat(f32::NEG_INFINITY);
-    for piece in &park.circuit()?.pieces {
+    for piece in &park.coaster_circuit(id)?.pieces {
         if park.object(piece.object).is_none() {
             continue;
         }
@@ -417,12 +500,83 @@ pub(super) fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
 }
 
 /// The leading car's current world position for camera-relative sound.
-pub(crate) fn leading_car_focus(park: &Park, rotation: u8) -> Option<Vec2> {
+pub(crate) fn leading_car_focus(park: &Park, id: park_sim::RideId, rotation: u8) -> Option<Vec2> {
+    leading_train_focus(park, id, park.coaster_train(id)?.number, rotation)
+}
+
+pub(crate) fn leading_train_focus(
+    park: &Park,
+    id: park_sim::RideId,
+    number: u8,
+    rotation: u8,
+) -> Option<Vec2> {
     if park.width() != park.height() {
         return None;
     }
-    let pose = park.train_cars().into_iter().next()?;
+    let pose = park.coaster_train_cars_for(id, number).into_iter().next()?;
     Some(projected(ground(pose.center), park.width(), rotation).truncate())
+}
+
+// Keep edge-on faces until the complete vehicle has been banked. A face that
+// starts edge-on can gain visible area after rotating around the track axis.
+fn vehicle_slab(
+    faces: &mut Vec<Face>,
+    footprint: [Vec3; 4],
+    bottom: f32,
+    top: f32,
+    colors: [Ink; 3],
+    size: u32,
+    rotation: u8,
+) {
+    let upper = footprint.map(|p| p + Vec3::Z * top);
+    let lower = footprint.map(|p| p + Vec3::Z * bottom);
+    let mut emit = |vertices: [Vec3; 4], ink| {
+        faces.push(Face {
+            surface: Surface {
+                vertices: vertices.map(|p| projected(p, size, rotation)),
+                kind: SurfaceKind::Top,
+            },
+            ink,
+        })
+    };
+    emit(upper, colors[0]);
+    for i in 0..4 {
+        let next = (i + 1) % 4;
+        emit(
+            [upper[i], upper[next], lower[next], lower[i]],
+            colors[1 + i % 2],
+        );
+    }
+}
+
+fn bank_vehicle_faces(faces: &mut [Face], pose: TrainPose, center: Vec3, size: u32, rotation: u8) {
+    if pose.roll_millidegrees == 0 {
+        return;
+    }
+    let origin = projected(Vec3::ZERO, size, rotation);
+    let projection = Mat3::from_cols(
+        projected(Vec3::X, size, rotation) - origin,
+        projected(Vec3::Y, size, rotation) - origin,
+        projected(Vec3::Z, size, rotation) - origin,
+    );
+    let inverse = projection.inverse();
+    let tangent =
+        ((ground(pose.front) - ground(pose.rear)) * Vec3::new(1.0, 1.0, 0.25)).normalize_or_zero();
+    let bank = Quat::from_axis_angle(
+        tangent,
+        (pose.roll_millidegrees as f32 / 1000.0).to_radians(),
+    );
+    for face in faces {
+        for vertex in &mut face.surface.vertices {
+            let point = inverse * (*vertex - origin);
+            let offset = (point - center) * Vec3::new(1.0, 1.0, 0.25);
+            *vertex = projected(
+                center + (bank * offset) * Vec3::new(1.0, 1.0, 4.0),
+                size,
+                rotation,
+            );
+        }
+    }
 }
 
 fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
@@ -444,7 +598,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
     // Four solid black wheel blocks sit exactly on the rail heads.
     for (start, end) in [(0.05, 0.25), (0.75, 0.95)] {
         for (lo, hi) in [(-0.205, -0.135), (0.135, 0.205)] {
-            slab(
+            vehicle_slab(
                 &mut faces,
                 footprint(start, end, lo, hi),
                 0.25,
@@ -455,7 +609,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
             );
         }
     }
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.0, 1.0, -0.215, 0.215),
         0.36,
@@ -465,7 +619,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
         rotation,
     );
     // Gold nose, dark seat cushion, and gold side rims form the original livery.
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.83, 1.0, -0.215, 0.215),
         0.77,
@@ -474,7 +628,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
         size,
         rotation,
     );
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.16, 0.72, -0.15, 0.15),
         0.77,
@@ -484,7 +638,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
         rotation,
     );
     for (lo, hi) in [(-0.215, -0.18), (0.18, 0.215)] {
-        slab(
+        vehicle_slab(
             &mut faces,
             footprint(0.0, 0.83, lo, hi),
             0.77,
@@ -497,7 +651,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
     // The inset side panel and narrow highlight make the car shape legible at
     // close zoom within the track clearance while preserving ride paint.
     for (lo, hi) in [(-0.219, -0.207), (0.207, 0.219)] {
-        slab(
+        vehicle_slab(
             &mut faces,
             footprint(0.18, 0.72, lo, hi),
             0.54,
@@ -506,7 +660,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
             size,
             rotation,
         );
-        slab(
+        vehicle_slab(
             &mut faces,
             footprint(0.20, 0.70, lo, hi),
             0.72,
@@ -519,7 +673,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
     // Two small lamps sit on the leading lip. They share the car's physical
     // depth, so a foreground track or cliff can still hide them.
     for (lo, hi) in [(-0.16, -0.10), (0.10, 0.16)] {
-        slab(
+        vehicle_slab(
             &mut faces,
             footprint(0.94, 0.99, lo, hi),
             0.84,
@@ -529,7 +683,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
             rotation,
         );
     }
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.06, 0.19, -0.15, 0.15),
         0.80,
@@ -538,6 +692,8 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
         size,
         rotation,
     );
+    bank_vehicle_faces(&mut faces, pose, ground(pose.center), size, rotation);
+    faces.retain(|f| f.surface.has_area());
     faces
 }
 
@@ -581,7 +737,7 @@ fn passenger_faces(
     } else {
         rgb(239, 192, 143)
     };
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.045, 0.038),
         0.02,
@@ -590,7 +746,7 @@ fn passenger_faces(
         size,
         rotation,
     );
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.040, 0.034),
         0.36,
@@ -599,7 +755,7 @@ fn passenger_faces(
         size,
         rotation,
     );
-    slab(
+    vehicle_slab(
         &mut faces,
         footprint(0.042, 0.036),
         0.63,
@@ -608,6 +764,8 @@ fn passenger_faces(
         size,
         rotation,
     );
+    bank_vehicle_faces(&mut faces, pose, center, size, rotation);
+    faces.retain(|f| f.surface.has_area());
     faces
 }
 
@@ -617,8 +775,21 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         return painter.finish();
     }
     super::carousel_render::paint_dynamic(&mut painter, park, rotation, mode);
-    let Some(circuit) = park.circuit() else {
-        return painter.finish();
+    for id in park.coaster_ids() {
+        paint_coaster_train(&mut painter, park, id, rotation, mode);
+    }
+    painter.finish()
+}
+
+fn paint_coaster_train(
+    painter: &mut Painter,
+    park: &Park,
+    id: park_sim::RideId,
+    rotation: u8,
+    mode: ViewMode,
+) {
+    let Some(circuit) = park.coaster_circuit(id) else {
+        return;
     };
     // A missing piece invalidates the circuit. Never display cars floating
     // across the deleted object while the simulation reports a fault.
@@ -627,9 +798,80 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         .iter()
         .any(|piece| park.object(piece.object).is_none())
     {
-        return painter.finish();
+        return;
     }
-    let poses = park.train_cars();
+    for train in park.coaster_trains(id) {
+        paint_single_train(painter, park, id, train.number, rotation, mode);
+    }
+    if park.coaster_train_count(id).unwrap_or(1) > 1 {
+        let blocks = park.coaster_block_occupancy(id);
+        for (piece, occupied) in circuit
+            .pieces
+            .iter()
+            .filter(|p| matches!(p.kind, TrackKind::Brake | TrackKind::Station))
+            .zip(blocks)
+        {
+            let point = ground(piece.samples[0]) + normal(park, piece, 0) * 0.40;
+            let pos = TilePos {
+                x: point.x.round().max(0.0) as u32,
+                y: point.y.round().max(0.0) as u32,
+            };
+            if mode == ViewMode::Surface
+                && park
+                    .tile(pos)
+                    .is_some_and(|t| f32::from(t.height) > point.z + 1.0)
+            {
+                continue;
+            }
+            let mut faces = Vec::new();
+            let square = |half: f32| {
+                [
+                    point + Vec3::new(-half, -half, 0.0),
+                    point + Vec3::new(-half, half, 0.0),
+                    point + Vec3::new(half, half, 0.0),
+                    point + Vec3::new(half, -half, 0.0),
+                ]
+            };
+            slab(
+                &mut faces,
+                square(0.025),
+                0.2,
+                0.8,
+                [rgb(39, 53, 58); 3],
+                park.width(),
+                rotation,
+            );
+            let light = if occupied.is_some() {
+                rgb(249, 79, 57)
+            } else {
+                rgb(82, 236, 115)
+            };
+            slab(
+                &mut faces,
+                square(0.055),
+                0.72,
+                0.87,
+                [light; 3],
+                park.width(),
+                rotation,
+            );
+            for face in faces {
+                painter.surface(face.surface, face.ink);
+            }
+        }
+    }
+}
+
+fn paint_single_train(
+    painter: &mut Painter,
+    park: &Park,
+    id: park_sim::RideId,
+    number: u8,
+    rotation: u8,
+    mode: ViewMode,
+) {
+    let seats = park.coaster_seats_per_train(id).unwrap_or(6);
+    let poses = park.coaster_train_cars_for(id, number);
     let visible: Vec<bool> = poses
         .iter()
         .map(|pose| {
@@ -649,21 +891,18 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             continue;
         }
         for face in car_faces(*pose, park.width(), rotation) {
-            let paint = park
-                .ride()
-                .and_then(|r| park.ride_appearance(r.id))
-                .unwrap_or_default()
-                .vehicles;
+            let paint = park.ride_appearance(id).unwrap_or_default().vehicles;
             painter.surface(face.surface, ride_colors::vehicle(paint, face.ink));
         }
     }
     for passenger in park.ride_guest_positions() {
         if passenger.phase != RideVisitPhase::Riding
-            || park.ride().is_none_or(|ride| ride.id != passenger.ride)
+            || id != passenger.ride
+            || passenger.seat / seats != number
         {
             continue;
         }
-        let car = usize::from(passenger.seat) / 2;
+        let car = usize::from(passenger.seat % seats) / 2;
         if let Some(pose) = poses.get(car).filter(|_| visible.get(car) == Some(&true)) {
             for face in passenger_faces(passenger, *pose, park.width(), rotation) {
                 painter.surface(face.surface, face.ink);
@@ -693,7 +932,6 @@ pub(super) fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             painter.surface(face.surface, face.ink);
         }
     }
-    painter.finish()
 }
 
 #[cfg(test)]
@@ -701,6 +939,95 @@ mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
     use park_sim::{Speed, TrainPhase};
+
+    #[test]
+    fn banked_and_inverted_track_joins_and_vehicle_geometry_agree_in_every_rotation() {
+        let mut source = Park::new(32, 32);
+        source.install_train_fixture().unwrap();
+        let mut specs = source.circuit().unwrap().specs().to_vec();
+        let bank = specs
+            .iter()
+            .position(|s| s.kind == TrackKind::Curve)
+            .unwrap();
+        specs[bank].kind = TrackKind::BankedCurve;
+        let roll = specs
+            .iter()
+            .position(|s| s.kind == TrackKind::Straight)
+            .unwrap();
+        specs[roll].kind = TrackKind::HeartlineRoll;
+        let mut park = Park::new(32, 32);
+        park.install_train_circuit(&specs).unwrap();
+        let pieces = &park.circuit().unwrap().pieces;
+        for (i, piece) in pieces.iter().enumerate() {
+            let next = &pieces[(i + 1) % pieces.len()];
+            let end = piece.samples.len() - 1;
+            assert!(normal(&park, piece, end).distance(normal(&park, next, 0)) < 0.00001);
+            for rotation in 0..4 {
+                let a = ground(piece.samples[end]) + normal(&park, piece, end) * 0.17;
+                let b = ground(next.samples[0]) + normal(&park, next, 0) * 0.17;
+                assert!(projected(a, 32, rotation).distance(projected(b, 32, rotation)) < 0.001);
+            }
+        }
+        let center = TrackPoint {
+            x: 10 * TRACK_UNITS,
+            y: 10 * TRACK_UNITS,
+            height: 4 * TRACK_UNITS,
+        };
+        let pose = TrainPose {
+            center,
+            front: TrackPoint {
+                x: center.x + 120,
+                ..center
+            },
+            rear: TrackPoint {
+                x: center.x - 120,
+                ..center
+            },
+            roll_millidegrees: 180_000,
+        };
+        let diagonal = TrainPose {
+            front: TrackPoint {
+                x: center.x + 85,
+                y: center.y + 85,
+                ..center
+            },
+            rear: TrackPoint {
+                x: center.x - 85,
+                y: center.y - 85,
+                ..center
+            },
+            roll_millidegrees: 0,
+            ..pose
+        };
+        let banked = TrainPose {
+            roll_millidegrees: 30_000,
+            ..diagonal
+        };
+        assert!(car_faces(banked, 32, 0).len() > car_faces(diagonal, 32, 0).len());
+        let seat = pose.bank_point(TrackPoint {
+            height: center.height + 350,
+            ..center
+        });
+        assert!(seat.height < center.height);
+        for rotation in 0..4 {
+            let origin = projected(Vec3::ZERO, 32, rotation);
+            let inverse = Mat3::from_cols(
+                projected(Vec3::X, 32, rotation) - origin,
+                projected(Vec3::Y, 32, rotation) - origin,
+                projected(Vec3::Z, 32, rotation) - origin,
+            )
+            .inverse();
+            let faces = car_faces(pose, 32, rotation);
+            assert!(!faces.is_empty());
+            for face in faces {
+                for point in face.surface.vertices {
+                    let point = inverse * (point - origin);
+                    assert!(point.is_finite());
+                    assert!(point.z < 4.0 && point.z > 2.99);
+                }
+            }
+        }
+    }
 
     fn positions(mesh: &Mesh) -> &[[f32; 3]] {
         match mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() {
@@ -970,6 +1297,7 @@ mod tests {
                 height: 4 * TRACK_UNITS,
             };
             let pose = TrainPose {
+                roll_millidegrees: 0,
                 center,
                 rear: TrackPoint {
                     x: center.x - 120,
@@ -1017,6 +1345,7 @@ mod tests {
                 height: 4 * TRACK_UNITS,
             };
             let pose = TrainPose {
+                roll_millidegrees: 0,
                 center,
                 rear: TrackPoint {
                     x: center.x - 120,

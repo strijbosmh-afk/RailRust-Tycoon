@@ -119,7 +119,7 @@ pub(crate) fn run_selected(
         state.notice = Some(reason);
         return false;
     }
-    match park.test_coaster() {
+    match park.test_coaster_for(selected.expect("validated coaster selection")) {
         Ok(report) => {
             state.report = Some(report);
             state.notice =
@@ -181,7 +181,7 @@ pub(crate) fn metrics_text(state: &CoasterTesting) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "Length {:.2} tiles / {} pieces\nLap {:.1} s + wait {:.1} s = {:.1} s\nSpeed {:.2}-{:.2} tiles/s while moving\nHeight {}-{} terrain steps\nCurves {} / lifts {} / drops {} / brakes {}\nClimb {} steps / descent {} steps\nLongest continuous drop {} steps\nFastest track pieces:\n{}\nPassenger loading policy excluded.",
+        "Length {:.2} tiles / {} pieces\nLap {:.1} s + wait {:.1} s = {:.1} s\nSpeed {:.2}-{:.2} tiles/s while moving\nHeight {}-{} terrain steps\nCurves {} / lifts {} / drops {} / brakes {}\nLaunches {} / banked {} / camelbacks {}\nInversions {} / transitions {}\nVertical G {:.2} to {:.2} / lateral {:.2}\nClimb {} steps / descent {} steps\nLongest continuous drop {} steps\nFastest track pieces:\n{}\nPassenger loading policy excluded.",
         f64::from(report.length_units) / f64::from(TRACK_UNITS),
         report.layout.pieces,
         seconds(report.moving_ticks),
@@ -195,6 +195,14 @@ pub(crate) fn metrics_text(state: &CoasterTesting) -> String {
         report.layout.lifts,
         report.layout.drops,
         report.layout.brakes,
+        report.layout.launches,
+        report.layout.banked_curves,
+        report.layout.camelbacks,
+        report.layout.inversions,
+        report.layout.transitions,
+        f64::from(report.forces.min_vertical_millig) / 1000.0,
+        f64::from(report.forces.max_vertical_millig) / 1000.0,
+        f64::from(report.forces.max_lateral_millig) / 1000.0,
         report.layout.ascent_steps,
         report.layout.descent_steps,
         report.layout.longest_drop_steps,
