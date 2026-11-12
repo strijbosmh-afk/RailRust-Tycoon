@@ -1017,6 +1017,8 @@ mod tests {
                             kind,
                             direction,
                             height: 8,
+                            // Deliberate replacement keeps its fixed build plane.
+                            auto_follow: false,
                             ..default()
                         },
                         ..default()
