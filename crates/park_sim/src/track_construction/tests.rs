@@ -178,6 +178,7 @@ fn every_entry_height_respects_kind_bounds_without_saturating_grades() {
         TrackBuildKind::Drop,
         TrackBuildKind::SteepDrop,
         TrackBuildKind::Brake,
+        TrackBuildKind::Camelback,
     ] {
         for height in 0..=u8::MAX {
             let spec = kind.spec(pos, height, TrackDirection::East);

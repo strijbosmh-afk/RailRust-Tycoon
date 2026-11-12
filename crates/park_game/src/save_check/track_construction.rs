@@ -412,6 +412,7 @@ fn piece_cost(spec: TrackPieceSpec) -> u64 {
         TrackKind::Curve => 1_500,
         TrackKind::BankedCurve => 2_500,
         TrackKind::Launch => 3_000,
+        TrackKind::Camelback => 3_500,
         TrackKind::Lift => 2_500,
         TrackKind::Drop if spec.entry.height.abs_diff(spec.exit.height) == 2 => 2_000,
         TrackKind::Drop => 1_500,

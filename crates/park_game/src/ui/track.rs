@@ -180,6 +180,12 @@ pub(super) fn setup(commands: &mut Commands) {
                 TrackCommand::Piece(TrackBuildKind::Launch),
                 207.0,
             );
+            small_button(
+                p,
+                "Camelback / $35",
+                TrackCommand::Piece(TrackBuildKind::Camelback),
+                207.0,
+            );
             small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
             p.spawn(row()).with_children(|p| {
                 small_button(p, "-", TrackCommand::Height(-1), 32.0);

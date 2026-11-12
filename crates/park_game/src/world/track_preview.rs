@@ -151,7 +151,7 @@ fn ghost(painter: &mut Painter, park: &Park, spec: TrackPieceSpec, rotation: u8,
                 painter.surface(strip(-0.33, -0.29), ink);
                 painter.surface(strip(0.29, 0.33), ink);
             }
-            TrackKind::Drop | TrackKind::Curve | TrackKind::Straight => {}
+            TrackKind::Drop | TrackKind::Curve | TrackKind::Camelback | TrackKind::Straight => {}
         }
     }
     // An explicit travel arrow removes left/right ambiguity after camera turns.

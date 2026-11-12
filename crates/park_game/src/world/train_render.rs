@@ -404,7 +404,7 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                     );
                 }
             }
-            TrackKind::Drop | TrackKind::Curve | TrackKind::Straight => {}
+            TrackKind::Drop | TrackKind::Curve | TrackKind::Camelback | TrackKind::Straight => {}
         }
     }
     faces

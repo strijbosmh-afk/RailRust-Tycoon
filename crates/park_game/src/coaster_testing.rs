@@ -181,7 +181,7 @@ pub(crate) fn metrics_text(state: &CoasterTesting) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "Length {:.2} tiles / {} pieces\nLap {:.1} s + wait {:.1} s = {:.1} s\nSpeed {:.2}-{:.2} tiles/s while moving\nHeight {}-{} terrain steps\nCurves {} / lifts {} / drops {} / brakes {}\nClimb {} steps / descent {} steps\nLongest continuous drop {} steps\nFastest track pieces:\n{}\nPassenger loading policy excluded.",
+        "Length {:.2} tiles / {} pieces\nLap {:.1} s + wait {:.1} s = {:.1} s\nSpeed {:.2}-{:.2} tiles/s while moving\nHeight {}-{} terrain steps\nCurves {} / lifts {} / drops {} / brakes {}\nLaunches {} / banked {} / camelbacks {}\nClimb {} steps / descent {} steps\nLongest continuous drop {} steps\nFastest track pieces:\n{}\nPassenger loading policy excluded.",
         f64::from(report.length_units) / f64::from(TRACK_UNITS),
         report.layout.pieces,
         seconds(report.moving_ticks),
@@ -195,6 +195,9 @@ pub(crate) fn metrics_text(state: &CoasterTesting) -> String {
         report.layout.lifts,
         report.layout.drops,
         report.layout.brakes,
+        report.layout.launches,
+        report.layout.banked_curves,
+        report.layout.camelbacks,
         report.layout.ascent_steps,
         report.layout.descent_steps,
         report.layout.longest_drop_steps,

@@ -45,6 +45,7 @@ pub struct CoasterLayoutMetrics {
     pub brakes: u32,
     pub launches: u32,
     pub banked_curves: u32,
+    pub camelbacks: u32,
     pub ascent_steps: u32,
     pub descent_steps: u32,
     /// Sum of successive descending pieces, including across the input seam.
@@ -222,19 +223,23 @@ pub(crate) fn layout_metrics(specs: &[TrackPieceSpec]) -> (u8, u8, CoasterLayout
     for spec in specs.iter().cycle().skip(station).take(specs.len()) {
         min_height = min_height.min(spec.entry.height).min(spec.exit.height);
         max_height = max_height.max(spec.entry.height).max(spec.exit.height);
+        if spec.kind == TrackKind::Camelback {
+            max_height = max_height.max(spec.entry.height.saturating_add(1));
+        }
         metrics.curves += u32::from(matches!(
             spec.kind,
             TrackKind::Curve | TrackKind::BankedCurve
         ));
         metrics.banked_curves += u32::from(spec.kind == TrackKind::BankedCurve);
         metrics.launches += u32::from(spec.kind == TrackKind::Launch);
+        metrics.camelbacks += u32::from(spec.kind == TrackKind::Camelback);
         metrics.lifts += u32::from(spec.kind == TrackKind::Lift);
         metrics.drops += u32::from(spec.kind == TrackKind::Drop);
         metrics.brakes += u32::from(spec.kind == TrackKind::Brake);
         let rise = u32::from(spec.exit.height.saturating_sub(spec.entry.height));
         let drop = u32::from(spec.entry.height.saturating_sub(spec.exit.height));
-        metrics.ascent_steps += rise;
-        metrics.descent_steps += drop;
+        metrics.ascent_steps += rise + u32::from(spec.kind == TrackKind::Camelback);
+        metrics.descent_steps += drop + u32::from(spec.kind == TrackKind::Camelback);
         drop_run = if drop > 0 { drop_run + drop } else { 0 };
         metrics.longest_drop_steps = metrics.longest_drop_steps.max(drop_run);
     }
@@ -260,6 +265,7 @@ fn layout_ratings(
         metrics.brakes,
         metrics.launches,
         metrics.banked_curves,
+        metrics.camelbacks,
     ]
     .into_iter()
     .filter(|&count| count > 0)

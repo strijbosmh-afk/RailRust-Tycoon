@@ -1,6 +1,8 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.78.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.79.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 are underway; each has a player-visible acceptance gate.
+
+Current development stage **0.79.0** adds a paid camelback hill to the coaster editor. Its centerline rises one terrain step inside one tile, train motion slows on ascent and gains speed on descent, and the isolated coaster report counts it. Drafts, installed track, design thumbnails, finance and strict **43/43** saves support it; schema 42 parks still load. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates remain open.
 
 Current development stage **0.78.0** adds paid signs and fences on public paths. They can coexist with benches, follow path height and visibility, refund half their cost on direct removal or path demolition, and survive strict **42/42** saves. Schema 41 parks retain their paid scenery and benches when loaded. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md), [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md). The full Phase 3–5 gates remain open.
 

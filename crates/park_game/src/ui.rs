@@ -2004,6 +2004,7 @@ fn track_name(kind: TrackKind) -> &'static str {
         TrackKind::Curve => "Curve",
         TrackKind::BankedCurve => "Banked curve",
         TrackKind::Launch => "Launch",
+        TrackKind::Camelback => "Camelback",
         TrackKind::Straight => "Straight",
     }
 }

@@ -27,6 +27,7 @@ pub enum TrackKind {
     Curve,
     BankedCurve,
     Launch,
+    Camelback,
     Straight,
 }
 
@@ -535,11 +536,19 @@ impl Park {
             train.departed = true;
             train.speed = settings.brake_speed;
         }
-        let kind = circuit.pieces[train.piece_index].kind;
+        let (current_piece, local_distance) = circuit.locate(train.distance);
+        let kind = circuit.pieces[current_piece].kind;
         train.speed = match kind {
             TrackKind::Lift => settings.lift_speed,
             TrackKind::Drop => (train.speed + 3).min(MAX_SPEED),
             TrackKind::Launch => (train.speed + 6).min(64),
+            TrackKind::Camelback => {
+                if local_distance < circuit.pieces[current_piece].length / 2 {
+                    train.speed.saturating_sub(1).max(8)
+                } else {
+                    (train.speed + 2).min(MAX_SPEED)
+                }
+            }
             TrackKind::Brake | TrackKind::Station => {
                 train.speed.saturating_sub(5).max(settings.brake_speed)
             }
@@ -589,9 +598,11 @@ impl Park {
             TrackKind::Lift => TrainPhase::Lift,
             TrackKind::Drop => TrainPhase::Drop,
             TrackKind::Brake => TrainPhase::Brake,
-            TrackKind::Curve | TrackKind::BankedCurve | TrackKind::Launch | TrackKind::Straight => {
-                TrainPhase::Cruising
-            }
+            TrackKind::Curve
+            | TrackKind::BankedCurve
+            | TrackKind::Launch
+            | TrackKind::Camelback
+            | TrackKind::Straight => TrainPhase::Cruising,
         };
     }
 }
@@ -643,15 +654,22 @@ pub(crate) fn valid_piece_ports(spec: TrackPieceSpec) -> bool {
         }
         TrackKind::Lift => straight && grade == 1,
         TrackKind::Drop => straight && (-2..=-1).contains(&grade),
-        TrackKind::Station | TrackKind::Brake | TrackKind::Launch | TrackKind::Straight => {
-            straight && grade == 0
-        }
+        TrackKind::Station
+        | TrackKind::Brake
+        | TrackKind::Launch
+        | TrackKind::Camelback
+        | TrackKind::Straight => straight && grade == 0,
     }
 }
 
 pub(crate) fn envelope(spec: TrackPieceSpec) -> (Axis, u8, u8) {
     let height = spec.entry.height.min(spec.exit.height);
-    let clearance = spec.entry.height.abs_diff(spec.exit.height) + 2;
+    let clearance = spec.entry.height.abs_diff(spec.exit.height)
+        + if spec.kind == TrackKind::Camelback {
+            3
+        } else {
+            2
+        };
     let axis = match spec.entry.edge {
         TrackDirection::East | TrackDirection::West => Axis::X,
         TrackDirection::North | TrackDirection::South => Axis::Y,
@@ -691,7 +709,14 @@ fn piece_samples(spec: TrackPieceSpec) -> Vec<TrackPoint> {
                     height: from.height,
                 }
             } else {
-                interpolate(from, to, step as u32, SAMPLES_PER_PIECE as u32)
+                let mut point = interpolate(from, to, step as u32, SAMPLES_PER_PIECE as u32);
+                if spec.kind == TrackKind::Camelback {
+                    // One internal height step, with exactly matching level ports.
+                    point.height += (4 * TRACK_UNITS as i64 * step * (SAMPLES_PER_PIECE - step)
+                        / (SAMPLES_PER_PIECE * SAMPLES_PER_PIECE))
+                        as i32;
+                }
+                point
             }
         })
         .collect()

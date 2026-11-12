@@ -293,6 +293,7 @@ enum Scene {
     TrackInvalid,
     TrackReady,
     TrackBuilt,
+    TrackCamelback,
     TrackOccupied,
     TrackReplacement,
     TrackUnaffordable,
@@ -514,6 +515,7 @@ impl Scene {
                 | Self::TrackInvalid
                 | Self::TrackReady
                 | Self::TrackBuilt
+                | Self::TrackCamelback
                 | Self::TrackOccupied
                 | Self::TrackReplacement
                 | Self::TrackUnaffordable
@@ -970,6 +972,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("track-invalid") => Scene::TrackInvalid,
                 Some("track-ready") => Scene::TrackReady,
                 Some("track-built") => Scene::TrackBuilt,
+                Some("track-camelback") => Scene::TrackCamelback,
                 Some("track-occupied") => Scene::TrackOccupied,
                 Some("track-replacement") => Scene::TrackReplacement,
                 Some("track-unaffordable") => Scene::TrackUnaffordable,

@@ -60,6 +60,7 @@ pub fn track_piece_cost_cents(spec: TrackPieceSpec) -> u64 {
         TrackKind::Curve => 1_500,
         TrackKind::BankedCurve => 2_500,
         TrackKind::Launch => 3_000,
+        TrackKind::Camelback => 3_500,
         TrackKind::Lift => 2_500,
         TrackKind::Drop if spec.entry.height.abs_diff(spec.exit.height) == 2 => 2_000,
         TrackKind::Drop => 1_500,
@@ -80,6 +81,7 @@ pub enum TrackBuildKind {
     SteepDrop,
     Brake,
     Launch,
+    Camelback,
 }
 
 impl TrackBuildKind {
@@ -90,6 +92,7 @@ impl TrackBuildKind {
             Self::CurveLeft | Self::CurveRight | Self::Drop => 1_500,
             Self::BankedLeft | Self::BankedRight => 2_500,
             Self::Launch => 3_000,
+            Self::Camelback => 3_500,
             Self::Lift => 2_500,
             Self::SteepDrop | Self::Brake => 2_000,
         }
@@ -103,10 +106,10 @@ impl TrackBuildKind {
         }
     }
 
-    /// Highest entry height with two steps of clearance above both endpoints.
+    /// Highest entry height with clearance for the entire sampled piece.
     pub const fn max_height(self) -> u8 {
         match self {
-            Self::Lift => crate::MAX_TERRAIN_HEIGHT - 3,
+            Self::Lift | Self::Camelback => crate::MAX_TERRAIN_HEIGHT - 3,
             _ => crate::MAX_TERRAIN_HEIGHT - 2,
         }
     }
@@ -123,7 +126,8 @@ impl TrackBuildKind {
             | Self::Drop
             | Self::SteepDrop
             | Self::Brake
-            | Self::Launch => direction,
+            | Self::Launch
+            | Self::Camelback => direction,
             Self::CurveLeft | Self::BankedLeft => match direction {
                 North => West,
                 West => South,
@@ -148,6 +152,7 @@ impl TrackBuildKind {
                 Self::Drop | Self::SteepDrop => TrackKind::Drop,
                 Self::Brake => TrackKind::Brake,
                 Self::Launch => TrackKind::Launch,
+                Self::Camelback => TrackKind::Camelback,
             },
             entry: TrackPort {
                 edge: direction.opposite(),
@@ -701,17 +706,17 @@ fn validate_piece_shape_in_bounds(
     if spec.pos.x >= width || spec.pos.y >= height {
         return Err(PlacementError::OutOfBounds { pos: spec.pos }.into());
     }
-    let highest = spec.entry.height.max(spec.exit.height);
-    if highest > crate::MAX_TERRAIN_HEIGHT - 2 {
+    if !crate::trains::valid_piece_ports(spec) {
+        return Err(TrackConstructionError::UnsupportedPiece);
+    }
+    let (_, bottom, clearance) = crate::trains::envelope(spec);
+    if u16::from(bottom) + u16::from(clearance) > u16::from(crate::MAX_TERRAIN_HEIGHT) {
         return Err(PlacementError::HeightOutOfRange {
-            height: highest,
-            clearance: 2,
+            height: bottom,
+            clearance,
             max: crate::MAX_TERRAIN_HEIGHT,
         }
         .into());
-    }
-    if !crate::trains::valid_piece_ports(spec) {
-        return Err(TrackConstructionError::UnsupportedPiece);
     }
     Ok(())
 }

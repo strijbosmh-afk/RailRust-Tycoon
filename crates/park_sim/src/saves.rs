@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 42;
-pub const CONTENT_VERSION: u32 = 42;
+pub const SCHEMA_VERSION: u32 = 43;
+pub const CONTENT_VERSION: u32 = 43;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -756,6 +756,7 @@ impl Park {
                 | 39
                 | 40
                 | 41
+                | 42
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -896,6 +897,25 @@ impl Park {
                 }))
         {
             return Err(invalid("path signs and fences require schema 42"));
+        }
+        if header.schema_version < 43
+            && (data
+                .track_draft
+                .iter()
+                .any(|spec| spec.kind == TrackKind::Camelback)
+                || data.circuit.as_ref().is_some_and(|circuit| {
+                    circuit
+                        .pieces
+                        .iter()
+                        .any(|piece| piece.spec.kind == TrackKind::Camelback)
+                })
+                || data
+                    .track_economy
+                    .paid_pieces
+                    .iter()
+                    .any(|piece| piece.spec.kind == TrackKind::Camelback))
+        {
+            return Err(invalid("camelback track requires schema 43"));
         }
         if header.schema_version < 40
             && (data
@@ -2798,9 +2818,11 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
             TrackKind::Lift => TrainPhase::Lift,
             TrackKind::Drop => TrainPhase::Drop,
             TrackKind::Brake => TrainPhase::Brake,
-            TrackKind::Curve | TrackKind::BankedCurve | TrackKind::Launch | TrackKind::Straight => {
-                TrainPhase::Cruising
-            }
+            TrackKind::Curve
+            | TrackKind::BankedCurve
+            | TrackKind::Launch
+            | TrackKind::Camelback
+            | TrackKind::Straight => TrainPhase::Cruising,
         };
         if train.phase != expected_phase
             || train.dwell_ticks != 0
