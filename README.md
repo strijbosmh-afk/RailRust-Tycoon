@@ -1,6 +1,6 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.85.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 meet their audited player-visible acceptance gates in 0.84.0. Later phases expand the full game.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.85.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 meet their audited player-visible acceptance gates in 0.84.0. Phase 6 completes the approved 14-ride, eight-facility catalogue. Later phases expand park life, management, scenarios and release readiness.
 
 Current development stage **0.85.0** adds the agreed **14-ride, eight-facility catalogue**. Build gentle, thrill, water and transport rides alongside three coaster models. Railways and monorails unload at a second station. Ice cream, souvenirs, information and first aid join the original services. New artwork, ride motion, sound profiles and the catalogue menu share the existing finance, guest and construction systems. Saves use **48/48**. See the [catalogue guide](docs/PHASE_6_CATALOGUE.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md).
 

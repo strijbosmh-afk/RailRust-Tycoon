@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Current work is Phase 6, version 0.85.0, on `codex/phase-6-catalogue`.** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
+**Phase 6 is complete in version 0.85.0 on `codex/phase-6-catalogue`, in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77).** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1399,7 +1399,13 @@ The four original `RideKind` engine families remain compatible with existing sav
 
 ### Verification record
 
-Validation is in progress. Replace this paragraph with the final test counts, exact package checksums and GitHub checkpoint before handing off.
+The code checkpoint is `8934a30bf710f8bfdbc7a0abff90b82563747649` in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77). All **965 tests pass**, comprising 430 simulation tests and 535 application tests, in the [Windows CI code-checkpoint run](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/43250336165). Formatting, strict Clippy, original asset validation and the release build pass. The final executable passes the new catalogue continuation proof and the existing 24,000-tick services proof in separate processes. Captures were inspected at 1024×680, 1920×1080, 2560×1440 and 3840×2160, including all four map rotations.
+
+The executable SHA-256 is `c5d69f8a2e24df0ef81dd5f9247357ce3e8a33398fcaebcf257a5770198b51b2`. The local package is `dist/Parkbound-0.85.0-windows-x64.zip`. Its adjacent `.zip.sha256` file identifies the archive. Evidence is retained under `artifacts/phase-6-0.85.0`. The extracted package passes its 138-file integrity check, contains 125 guides, and completes fresh-process catalogue and service continuation checks from an independent working directory. The extracted menu and water captures were also inspected. The final archive checksum is supplied in the adjacent `.zip.sha256` file, so the handoff document can remain inside the archive without a circular hash reference.
+
+The locally started application test run had loaded an earlier simulation library during editing. Its sole remaining service-summary failure was resolved in the final source and executable, then verified through the production service writer/verifier and the clean Windows CI run. The CI test stage passes all application tests.
+
+The finite catalogue is complete. Transport currently carries passengers from its first station to the destination station, then returns empty. Continue with Phase 7 guest behavior, staff and park life. Performance figures from this development PC are excluded from hardware targets.
 
 ### Continuing on another PC
 
