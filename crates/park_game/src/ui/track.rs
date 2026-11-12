@@ -215,13 +215,13 @@ pub(super) fn setup(commands: &mut Commands) {
             p.spawn(row()).with_children(|p| {
                 small_button(
                     p,
-                    "Smooth rise +1",
+                    "Smooth +1",
                     TrackCommand::Piece(TrackBuildKind::TransitionUp),
                     100.0,
                 );
                 small_button(
                     p,
-                    "Smooth drop -1",
+                    "Smooth -1",
                     TrackCommand::Piece(TrackBuildKind::TransitionDown),
                     100.0,
                 );
