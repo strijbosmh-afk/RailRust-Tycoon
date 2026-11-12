@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 44;
-pub const CONTENT_VERSION: u32 = 44;
+pub const SCHEMA_VERSION: u32 = 47;
+pub const CONTENT_VERSION: u32 = 47;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -135,8 +135,77 @@ struct VersionSevenParkData<O = SurfaceObject, G = VersionSevenGuest, R = crate:
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CoasterData {
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "bounded_objects::<_, _, 2>"
+    )]
+    extra_trains: Vec<Train>,
+    #[serde(deserialize_with = "required_object_option")]
+    ride: Option<crate::Ride>,
+    #[serde(deserialize_with = "required_object_option")]
+    circuit: Option<CircuitData>,
+    #[serde(deserialize_with = "required_object_option")]
+    train: Option<Train>,
+    #[serde(deserialize_with = "bounded_objects::<_, _, { crate::MAX_TRACK_DRAFT_PIECES }>")]
+    track_draft: Vec<TrackPieceSpec>,
+    #[serde(deserialize_with = "strict_object")]
+    track_economy: crate::TrackEconomy,
+    cars: u8,
+}
+
+impl CoasterData {
+    fn from_state(state: &crate::coasters::CoasterState) -> Self {
+        Self {
+            ride: state.ride.clone(),
+            extra_trains: state.extra_trains.clone(),
+            train: state.train.clone(),
+            circuit: state.circuit.as_ref().map(|circuit| CircuitData {
+                pieces: circuit
+                    .pieces
+                    .iter()
+                    .zip(&circuit.specs)
+                    .map(|(piece, spec)| CircuitPieceData {
+                        object: piece.object,
+                        spec: *spec,
+                    })
+                    .collect(),
+            }),
+            track_draft: state.track_draft.clone(),
+            track_economy: state.track_economy.clone(),
+            cars: state.cars,
+        }
+    }
+
+    fn state_without_circuit(&self) -> crate::coasters::CoasterState {
+        crate::coasters::CoasterState {
+            ride: self.ride.clone(),
+            extra_trains: self.extra_trains.clone(),
+            train: self.train.clone(),
+            circuit: None,
+            track_draft: self.track_draft.clone(),
+            track_economy: self.track_economy.clone(),
+            cars: self.cars,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "bounded_objects::<_, _, 2>"
+    )]
+    extra_trains: Vec<Train>,
+    #[serde(
+        default,
+        deserialize_with = "bounded_objects::<_, _, { crate::MAX_COASTER_RECORDS }>"
+    )]
+    other_coasters: Vec<CoasterData>,
     #[serde(default, deserialize_with = "required_object_option")]
     scenario: Option<crate::scenario::ScenarioState>,
     #[serde(default)]
@@ -325,6 +394,8 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
@@ -499,6 +570,8 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
@@ -691,7 +764,7 @@ impl Park {
     pub fn to_save_bytes(&self) -> Result<Vec<u8>, SaveError> {
         validate_counts(self)?;
         let data = ParkData::from_park(self);
-        let rebuilt = data.clone().into_park()?;
+        let rebuilt = data.clone().into_park(false)?;
         if rebuilt != *self {
             return Err(invalid(
                 "derived circuit geometry disagrees with its saved specs",
@@ -762,6 +835,9 @@ impl Park {
                 | 41
                 | 42
                 | 43
+                | 44
+                | 45
+                | 46
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -785,6 +861,52 @@ impl Park {
         validate_land_rights_fields(bytes, header.schema_version)?;
         validate_decoration_field(bytes, header.schema_version)?;
         validate_path_economy_field(bytes, header.schema_version)?;
+        let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+        if header.schema_version < 47 {
+            fn contains_new_track(value: &serde_json::Value) -> bool {
+                match value {
+                    serde_json::Value::String(text) => matches!(
+                        text.as_str(),
+                        "TransitionUp" | "TransitionDown" | "HeartlineRoll"
+                    ),
+                    serde_json::Value::Array(values) => values.iter().any(contains_new_track),
+                    serde_json::Value::Object(map) => map
+                        .iter()
+                        .any(|(key, value)| key != "name" && contains_new_track(value)),
+                    _ => false,
+                }
+            }
+            if contains_new_track(&value["park"]) {
+                return Err(invalid("transition and inversion track require schema 47"));
+            }
+        }
+        if header.schema_version < 46 {
+            fn fleet_fields(value: &serde_json::Value) -> bool {
+                match value {
+                    serde_json::Value::Object(map) => map.iter().any(|(key, value)| {
+                        matches!(
+                            key.as_str(),
+                            "extra_trains" | "number" | "in_depot" | "blocked"
+                        ) || fleet_fields(value)
+                    }),
+                    serde_json::Value::Array(values) => values.iter().any(fleet_fields),
+                    _ => false,
+                }
+            }
+            if fleet_fields(&value["park"]) {
+                return Err(invalid("train fleets require schema 46"));
+            }
+        }
+        if header.schema_version >= 45 && value["park"].get("other_coasters").is_none() {
+            return Err(invalid("schema 45 requires independent coaster records"));
+        }
+        if header.schema_version < 45
+            && value["park"]
+                .get("other_coasters")
+                .is_some_and(|v| v.as_array().is_none_or(|a| !a.is_empty()))
+        {
+            return Err(invalid("independent coaster records require schema 45"));
+        }
         let mut data = if header.schema_version == 1 {
             let legacy: SaveEnvelope<LegacyParkData<LegacyObject, LegacyGuest>> =
                 parse_save(bytes)?;
@@ -991,7 +1113,7 @@ impl Park {
         if header.schema_version <= 9 {
             data.initialize_ride_history()?;
         }
-        let park = data.into_park()?;
+        let park = data.into_park(header.schema_version < 47)?;
         if header.schema_version <= 15 {
             validate_legacy_operation_counters(&park)?;
         }
@@ -2016,6 +2138,8 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
@@ -2057,6 +2181,8 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
@@ -2101,6 +2227,8 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
@@ -2273,6 +2401,8 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),
@@ -2376,6 +2506,12 @@ impl ParkData {
     }
     fn from_park(park: &Park) -> Self {
         Self {
+            extra_trains: park.extra_trains.clone(),
+            other_coasters: park
+                .other_coasters
+                .iter()
+                .map(CoasterData::from_state)
+                .collect(),
             scenario: park.scenario.clone(),
             grounds: park.grounds.clone(),
             decorations: park.decorations.clone(),
@@ -2426,7 +2562,7 @@ impl ParkData {
         }
     }
 
-    fn into_park(self) -> Result<Park, SaveError> {
+    fn into_park(self, legacy_banks: bool) -> Result<Park, SaveError> {
         if !(1..=MAX_MAP_SIZE).contains(&self.width) || !(1..=MAX_MAP_SIZE).contains(&self.height) {
             return Err(invalid("map dimensions are outside 1..=256"));
         }
@@ -2441,7 +2577,13 @@ impl ParkData {
             return Err(invalid("terrain height exceeds the supported range"));
         }
         let circuit_data = self.circuit;
+        let other_data = self.other_coasters;
         let mut park = Park {
+            extra_trains: self.extra_trains,
+            other_coasters: other_data
+                .iter()
+                .map(CoasterData::state_without_circuit)
+                .collect(),
             scenario: self.scenario,
             grounds: self.grounds,
             decorations: self.decorations,
@@ -2498,9 +2640,22 @@ impl ParkData {
         crate::path_economy::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;
         crate::scenario::validate(&park).map_err(invalid)?;
-        park.circuit = circuit_data
-            .map(|data| rebuild_circuit(&park, &objects, data))
+        let primary = circuit_data
+            .map(|data| rebuild_circuit(&park, &objects, data, legacy_banks))
             .transpose()?;
+        let circuits = other_data
+            .into_iter()
+            .map(|data| {
+                data.circuit
+                    .map(|c| rebuild_circuit(&park, &objects, c, legacy_banks))
+                    .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        park.circuit = primary;
+        for (coaster, circuit) in park.other_coasters.iter_mut().zip(circuits) {
+            coaster.circuit = circuit;
+        }
+        validate_other_coasters(&park)?;
         crate::ride_operations::validate_saved_settings(&park).map_err(invalid)?;
         crate::ride_dispatch::validate_saved_dispatch(&park).map_err(invalid)?;
         validate_train(&park)?;
@@ -2518,7 +2673,51 @@ impl ParkData {
         crate::experience::validate_experience(&park).map_err(invalid)?;
         crate::services::validate_services(&park).map_err(invalid)?;
         crate::finances::validate_finances(&park).map_err(invalid)?;
+        if legacy_banks {
+            upgrade_banked_geometry(&mut park);
+        }
         Ok(park)
+    }
+}
+
+fn upgrade_banked_geometry(park: &mut Park) {
+    for id in park.coaster_ids() {
+        park.with_coaster(id, |park| {
+            let Some(old) = park.circuit.clone() else {
+                return;
+            };
+            if !old.specs.iter().any(|s| s.kind == TrackKind::BankedCurve) {
+                return;
+            }
+            let circuit = park.circuit.as_mut().unwrap();
+            let mut offsets = Vec::new();
+            let mut total = 0;
+            for (piece, spec) in circuit.pieces.iter_mut().zip(&circuit.specs) {
+                offsets.push(total);
+                piece.samples = spec.samples();
+                piece.length = piece
+                    .samples
+                    .windows(2)
+                    .map(|p| crate::trains::point_distance(p[0], p[1]))
+                    .sum();
+                if spec.kind == TrackKind::Station {
+                    circuit.station_stop = total + 3 * TRACK_UNITS as u32 / 4;
+                }
+                total += piece.length;
+            }
+            circuit.total_length = total;
+            for train in park.train.iter_mut().chain(&mut park.extra_trains) {
+                let (index, local) = old.locate(train.distance);
+                train.distance = offsets[index]
+                    + (u64::from(local) * u64::from(circuit.pieces[index].length)
+                        / u64::from(old.pieces[index].length)) as u32;
+                train.lap_progress = if train.departed {
+                    (train.distance + total - circuit.station_stop) % total
+                } else {
+                    0
+                };
+            }
+        });
     }
 }
 
@@ -2736,13 +2935,23 @@ fn rebuild_circuit(
     park: &Park,
     objects: &BTreeMap<ObjectId, &SurfaceObject>,
     data: CircuitData,
+    legacy_banks: bool,
 ) -> Result<TrainCircuit, SaveError> {
     if data.pieces.len() > MAX_CIRCUIT_PIECES {
         return Err(invalid("circuit exceeds the piece limit"));
     }
     let specs: Vec<_> = data.pieces.iter().map(|piece| piece.spec).collect();
-    let geometry = crate::trains::validate_specs(park, &specs)
+    let mut geometry = crate::trains::validate_specs(park, &specs)
         .map_err(|error| invalid(format!("circuit: {error}")))?;
+    if legacy_banks {
+        for (spec, samples) in specs.iter().zip(&mut geometry) {
+            if spec.kind == TrackKind::BankedCurve {
+                let mut flat = *spec;
+                flat.kind = TrackKind::Curve;
+                *samples = flat.samples();
+            }
+        }
+    }
     let mut used = BTreeSet::new();
     let mut pieces = Vec::with_capacity(specs.len());
     let mut total_length = 0_u32;
@@ -2815,7 +3024,61 @@ fn validate_legacy_operation_counters(park: &Park) -> Result<(), SaveError> {
     Ok(())
 }
 
+fn validate_other_coasters(park: &Park) -> Result<(), SaveError> {
+    if park.other_coasters.len() >= crate::MAX_COASTER_RECORDS {
+        return Err(invalid("too many coaster workspaces"));
+    }
+    let mut empty = usize::from(park.ride.is_none());
+    let mut objects = BTreeSet::new();
+    let mut paid = BTreeSet::new();
+    let mut candidate = park.clone();
+    for index in 0..=park.other_coasters.len() {
+        if index > 0 {
+            candidate.swap_coaster(index - 1);
+            empty += usize::from(candidate.ride.is_none());
+        }
+        if candidate.ride.is_some() != candidate.train.is_some() {
+            return Err(invalid("coaster identity and train presence disagree"));
+        }
+        crate::train_configuration::validate_saved_configuration(&candidate).map_err(invalid)?;
+        crate::track_construction::validate_saved_draft(&candidate)
+            .map_err(|e| invalid(e.to_string()))?;
+        crate::track_construction::validate_track_economy(&candidate).map_err(invalid)?;
+        validate_train(&candidate)?;
+        if let Some(circuit) = &candidate.circuit {
+            for piece in &circuit.pieces {
+                if !objects.insert(piece.object) {
+                    return Err(invalid("coasters share a track object"));
+                }
+            }
+        }
+        for piece in &candidate.track_economy.paid_pieces {
+            if !paid.insert(piece.object) {
+                return Err(invalid("coasters share paid track basis"));
+            }
+        }
+        if index > 0 {
+            candidate.swap_coaster(index - 1);
+        }
+    }
+    if empty > 1 {
+        return Err(invalid("duplicate empty coaster workspaces"));
+    }
+    Ok(())
+}
+
 fn validate_train(park: &Park) -> Result<(), SaveError> {
+    park.validate_fleet().map_err(invalid)?;
+    validate_one_train(park)?;
+    for extra in &park.extra_trains {
+        let mut candidate = park.clone();
+        candidate.train = Some(extra.clone());
+        validate_one_train(&candidate)?;
+    }
+    Ok(())
+}
+
+fn validate_one_train(park: &Park) -> Result<(), SaveError> {
     let (circuit, train) = match (&park.circuit, &park.train) {
         (None, None) => return Ok(()),
         (None, Some(train)) => {
@@ -2858,16 +3121,16 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
             | TrackKind::BankedCurve
             | TrackKind::Launch
             | TrackKind::Camelback
+            | TrackKind::TransitionUp
+            | TrackKind::TransitionDown
+            | TrackKind::HeartlineRoll
             | TrackKind::Straight => TrainPhase::Cruising,
         };
         if train.phase != expected_phase
             || train.dwell_ticks != 0
-            || train.speed
-                < park
-                    .coaster_operating_settings()
-                    .lift_speed
-                    .min(park.coaster_operating_settings().brake_speed)
-                    .min(32)
+            || (!train.blocked && train.speed < 8)
+            || (train.blocked && train.speed != 0)
+            || train.in_depot
             || train.lap_progress == 0
             || train.distance != (circuit.station_stop + train.lap_progress) % circuit.total_length
         {
@@ -2876,7 +3139,7 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
             ));
         }
     } else {
-        let expected_phase = if train.open {
+        let expected_phase = if train.open && !train.in_depot {
             TrainPhase::Station
         } else {
             TrainPhase::Closed
@@ -2885,7 +3148,8 @@ fn validate_train(park: &Park) -> Result<(), SaveError> {
             || train.distance != circuit.station_stop
             || train.lap_progress != 0
             || train.speed != 0
-            || !train.open && train.dwell_ticks != 0
+            || (!train.open || train.in_depot) && train.dwell_ticks != 0
+            || train.blocked
         {
             return Err(invalid("parked train must occupy its station stop"));
         }

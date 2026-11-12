@@ -321,7 +321,7 @@ impl Park {
                     ));
                 }
             }
-        } else if let Some(circuit) = &self.circuit {
+        } else if let Some(circuit) = self.coaster_circuit(id) {
             stations.extend(
                 circuit
                     .specs

@@ -48,7 +48,7 @@ pub(crate) fn name(park: &Park, id: RideId) -> &str {
 pub(crate) fn construction_details(park: &Park, id: RideId) -> String {
     park.carousel(id).map_or_else(
         || {
-            let paid = park.track_economy().paid_pieces.iter().map(|piece| piece.paid_cents).sum();
+            let paid = park.coaster_economy(id).map_or(0, |economy| economy.paid_pieces.iter().map(|piece| piece.paid_cents).sum());
             format!(
                 "Live track paid {} / 50% back on removal\nZ: quote replacement / select rail + Delete: remove",
                 money(paid)
@@ -259,6 +259,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 .with_children(|p| operating_label(p, RideLabel::ToggleOpen, 13.0, INK));
                 p.spawn(Node { height: px(30), flex_shrink: 0.0, ..default() })
                     .with_children(|p| operating_label(p, RideLabel::OperatingStatus, 12.0, MUTED));
+                operating_row(p, OperatingField::Trains);
                 operating_row(p, OperatingField::Cars);
                 operating_row(p, OperatingField::StationWait);
                 operating_row(p, OperatingField::LiftSpeed);
@@ -444,11 +445,12 @@ pub(crate) fn refresh(
                 appeal_details(&sim.0, id),
                 construction_details(&sim.0, id),running_cost_details(&sim.0,id)
             ),
+            RideLabel::OperatingValue(OperatingField::Trains) => format!("Trains / {} / {} blocks\n1-3 trains; an extra free block required", sim.0.coaster_train_count(id).unwrap_or(1), sim.0.coaster_circuit(id).map_or(0, |c| c.block_boundaries().len())),
             RideLabel::OperatingValue(OperatingField::Cars) => {
                 let cars=sim.0.coaster_car_count(id).unwrap_or(3);
-                format!("Train / {cars} car{}, {} seats\n1 train; 1-3 cars; 2 seats per car", if cars==1 {""} else {"s"},journey.capacity)
+                format!("Cars / {cars} per train, {} seats each\nFleet capacity {} seats", cars*2,journey.capacity)
             },
-            RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, journey.capacity) }),
+            RideLabel::OperatingValue(OperatingField::MinimumPassengers) => format!("Minimum load / {}\n0 means no minimum", if policy.minimum_passengers == 0 { "No minimum".into() } else { format!("{} of {}", policy.minimum_passengers, sim.0.coaster_seats_per_train(id).map(usize::from).unwrap_or(journey.capacity)) }),
             RideLabel::OperatingValue(field) => operating_value(*field, settings, policy),
             RideLabel::OperatingStatus if sim.0.ride_maintenance_status(id).is_some_and(|s| s.shutdown) => "Maintenance shutdown / close and service this ride.\nTrips finish before service becomes available.".into(),
             RideLabel::OperatingStatus if sim.0.ride_maintenance_status(id).is_some_and(|s| s.inspection_due) => format!("Inspection due / {} guest trips since service.\nClose and empty the ride to service it.",sim.0.ride_maintenance_status(id).unwrap().visits_since_service),
@@ -582,6 +584,7 @@ fn operating_value(
         |value| f64::from(value) * TICKS_PER_SECOND as f64 / f64::from(park_sim::TRACK_UNITS);
     match field {
         OperatingField::Cars => "Train cars".into(),
+        OperatingField::Trains => "Trains".into(),
         OperatingField::StationWait => format!(
             "Station wait / {} s\n1-30 s; step 1 s",
             seconds(settings.station_wait_ticks)

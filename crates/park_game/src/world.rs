@@ -37,7 +37,7 @@ pub use service_render::service_preview_mesh;
 pub use static_chunks::{StaticChunkGeometry, build_static_chunks};
 pub use terrain_preview::terrain_preview_mesh;
 pub(crate) use track_preview::{pick_track_draft, pick_track_plane, track_preview_mesh};
-pub(crate) use train_render::leading_car_focus;
+pub(crate) use train_render::{leading_car_focus, leading_train_focus};
 
 pub const TILE_WIDTH: f32 = 64.0;
 pub const TILE_HEIGHT: f32 = 32.0;
@@ -607,6 +607,7 @@ pub fn train_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
 }
 
 /// Projected circuit bounds, including the height of its sampled hills.
+#[cfg(test)]
 pub fn train_focus(park: &Park, rotation: u8) -> Option<Vec2> {
     train_render::train_focus(park, rotation)
 }

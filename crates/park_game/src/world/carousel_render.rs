@@ -703,8 +703,8 @@ pub fn ride_focus(park: &Park, id: RideId, rotation: u8) -> Option<Vec2> {
     }
     if let Some(c) = park.carousel(id).filter(|c| !c.objects.is_empty()) {
         Some(center(c.origin, c.height, c.kind, park.width(), rotation) - Vec2::Y * HEIGHT_STEP)
-    } else if park.ride().is_some_and(|ride| ride.id == id) {
-        train_focus(park, rotation)
+    } else if park.ride_kind(id) == Some(park_sim::RideKind::Coaster) {
+        super::train_render::coaster_focus(park, id, rotation)
     } else {
         None
     }

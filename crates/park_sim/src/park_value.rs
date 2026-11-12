@@ -21,10 +21,9 @@ pub struct ParkValue {
 
 impl Park {
     pub fn park_value(&self) -> ParkValue {
-        let track_cents = self
-            .track_economy
-            .paid_pieces
-            .iter()
+        let track_cents = std::iter::once(&self.track_economy)
+            .chain(self.other_coasters.iter().map(|c| &c.track_economy))
+            .flat_map(|economy| &economy.paid_pieces)
             .map(|p| p.paid_cents)
             .sum();
         let (carousel_cents, installed_carousels) = self
@@ -74,7 +73,12 @@ impl Park {
             company_cents: gross_assets_cents
                 - i128::from(loan.principal_cents)
                 - i128::from(loan.interest_due_cents),
-            paid_track_pieces: self.track_economy.paid_pieces.len(),
+            paid_track_pieces: self.track_economy.paid_pieces.len()
+                + self
+                    .other_coasters
+                    .iter()
+                    .map(|c| c.track_economy.paid_pieces.len())
+                    .sum::<usize>(),
             installed_carousels,
             installed_services,
         }

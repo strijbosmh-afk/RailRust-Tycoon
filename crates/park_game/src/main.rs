@@ -1037,7 +1037,7 @@ fn keyboard_input(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     mut view: ResMut<ViewState>,
-    sim: Option<Res<Simulation>>,
+    mut sim: Option<ResMut<Simulation>>,
     shortcuts: Option<Res<history_shortcuts::HistoryShortcuts>>,
 ) {
     // UI transitions are gathered first; neither their closing click nor a
@@ -1179,8 +1179,8 @@ fn keyboard_input(
     }
     if view.rides_open {
         if keys.just_pressed(KeyCode::KeyZ) {
-            if let Some(sim) = sim.as_ref() {
-                track_tools::begin(&sim.0, &mut view);
+            if let Some(sim) = sim.as_mut() {
+                track_tools::begin(&mut sim.0, &mut view);
             }
             return;
         }
@@ -1256,8 +1256,8 @@ fn keyboard_input(
             view.track_editor.active = false;
             view.track_editor.preview = None;
             view.ui_pointer_consumed = true;
-        } else if let Some(sim) = sim.as_ref() {
-            track_tools::begin(&sim.0, &mut view);
+        } else if let Some(sim) = sim.as_mut() {
+            track_tools::begin(&mut sim.0, &mut view);
         }
         return;
     }

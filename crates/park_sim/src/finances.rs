@@ -508,6 +508,11 @@ impl Park {
             .map(|c| c.construction_cost_cents)
             .chain(self.services.iter().map(|s| s.construction_cost_cents))
             .chain(std::iter::once(self.track_economy.construction_cents))
+            .chain(
+                self.other_coasters
+                    .iter()
+                    .map(|c| c.track_economy.construction_cents),
+            )
             .sum::<u64>()
             + landscaping_cents;
         let demolition_refunds_cents = self
@@ -516,6 +521,11 @@ impl Park {
             .map(|c| c.demolition_refund_cents)
             .chain(self.services.iter().map(|s| s.demolition_refund_cents))
             .chain(std::iter::once(self.track_economy.refund_cents))
+            .chain(
+                self.other_coasters
+                    .iter()
+                    .map(|c| c.track_economy.refund_cents),
+            )
             .sum::<u64>()
             + self.decorations.refund_cents
             + self.path_economy.refund_cents;
@@ -761,12 +771,16 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
         let operating_entries = u128::from(entry.upkeep_cents / upkeep_cost);
         minimum_archived += operating_entries;
         maximum_archived += operating_entries;
-        let basis = carousel.map_or(park.track_economy.construction_cents, |c| {
-            c.construction_cost_cents
-        });
-        let refund = carousel.map_or(park.track_economy.refund_cents, |c| {
-            c.demolition_refund_cents
-        });
+        let basis = carousel.map_or(
+            park.coaster_economy(entry.ride)
+                .map_or(0, |e| e.construction_cents),
+            |c| c.construction_cost_cents,
+        );
+        let refund = carousel.map_or(
+            park.coaster_economy(entry.ride)
+                .map_or(0, |e| e.refund_cents),
+            |c| c.demolition_refund_cents,
+        );
         if carousel.is_some()
             && ((entry.construction_cents != 0 && entry.construction_cents != basis)
                 || (entry.demolition_refunds_cents != 0
@@ -1235,7 +1249,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                     }
                 }
                 FinanceKind::TrackConstruction | FinanceKind::TrackRefund => {
-                    if park.ride.as_ref().is_none_or(|ride| ride.id != id) {
+                    if park.ride_kind(id) != Some(crate::RideKind::Coaster) {
                         return Err("track transaction owner is not the coaster".into());
                     }
                     if entry.kind == FinanceKind::TrackConstruction {
@@ -1393,13 +1407,16 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             .checked_add(source.revenue_cents)
             != Some(ride.revenue_cents)
             || source.construction_cents
-                != carousel.map_or(park.track_economy.construction_cents, |c| {
-                    c.construction_cost_cents
-                })
+                != carousel.map_or(
+                    park.coaster_economy(ride.id)
+                        .map_or(0, |e| e.construction_cents),
+                    |c| c.construction_cost_cents,
+                )
             || source.demolition_refunds_cents
-                != carousel.map_or(park.track_economy.refund_cents, |c| {
-                    c.demolition_refund_cents
-                })
+                != carousel.map_or(
+                    park.coaster_economy(ride.id).map_or(0, |e| e.refund_cents),
+                    |c| c.demolition_refund_cents,
+                )
             || source.upkeep_cents != park.ride_running_costs(ride.id).unwrap().upkeep_cents
         {
             return Err("ride income disagrees with attributed cash history".into());

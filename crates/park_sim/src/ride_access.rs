@@ -301,8 +301,7 @@ impl Park {
         }
         self.require_ride(owner)?;
         let circuit = self
-            .circuit
-            .as_ref()
+            .coaster_circuit(owner)
             .ok_or(RideAccessError::CircuitUnavailable)?;
         let station_pos = facing
             .neighbor(pos)

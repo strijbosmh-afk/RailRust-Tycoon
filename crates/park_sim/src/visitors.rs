@@ -324,11 +324,8 @@ impl Park {
             ChargingRule::Flexible => {}
             ChargingRule::FreeEntry => self.visitors.entry_price_cents = 0,
             ChargingRule::FreeRides => {
-                if let Some(ride) = self.ride.as_mut() {
+                for ride in self.all_rides_mut() {
                     ride.ticket_price_cents = 0;
-                }
-                for carousel in &mut self.carousels {
-                    carousel.ride.ticket_price_cents = 0;
                 }
             }
         }

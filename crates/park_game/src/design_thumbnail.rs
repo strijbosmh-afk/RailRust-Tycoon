@@ -378,7 +378,10 @@ fn feature(kind: TrackKind) -> Ink {
         TrackKind::Brake => BRAKE,
         TrackKind::BankedCurve => LIFT,
         TrackKind::Launch => GOLD,
-        TrackKind::Camelback => DROP,
+        TrackKind::Camelback
+        | TrackKind::TransitionUp
+        | TrackKind::TransitionDown
+        | TrackKind::HeartlineRoll => DROP,
         TrackKind::Straight | TrackKind::Curve => RAIL,
     }
 }
@@ -451,7 +454,10 @@ fn draw_piece(canvas: &mut Canvas, piece: &Piece, fit: Fit) {
             | TrackKind::Curve
             | TrackKind::BankedCurve
             | TrackKind::Launch
-            | TrackKind::Camelback => {}
+            | TrackKind::Camelback
+            | TrackKind::TransitionUp
+            | TrackKind::TransitionDown
+            | TrackKind::HeartlineRoll => {}
         }
     }
 }

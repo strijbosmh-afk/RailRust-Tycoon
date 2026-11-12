@@ -255,9 +255,9 @@ impl Park {
             .iter()
             .map(|object| object.height + u8::from(object.path_slope != PathSlope::Flat))
             .fold(self.max_terrain_height(), u8::max);
-        self.circuit
-            .as_ref()
+        self.coaster_ids()
             .into_iter()
+            .filter_map(|id| self.coaster_circuit(id))
             .flat_map(|circuit| &circuit.pieces)
             .flat_map(|piece| &piece.samples)
             .map(|point| (point.height / crate::TRACK_UNITS) as u8)

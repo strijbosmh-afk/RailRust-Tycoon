@@ -4,7 +4,7 @@ use crate::{
     MAX_MAP_SIZE, MAX_TRACK_DRAFT_PIECES, TilePos, TrackDirection, TrackKind, TrackPieceSpec,
 };
 
-pub const TRACK_DESIGN_VERSION: u32 = 1;
+pub const TRACK_DESIGN_VERSION: u32 = 2;
 pub const MAX_TRACK_DESIGN_NAME_CHARS: usize = 32;
 pub const MAX_TRACK_DESIGN_BYTES: usize = 128 * 1024;
 const FORMAT: &str = "parkbound-track-design";
@@ -130,7 +130,16 @@ impl TrackDesign {
     pub fn to_json(&self) -> Result<String, TrackDesignError> {
         let json = serde_json::to_string_pretty(&DesignEnvelope {
             format: FORMAT.to_owned(),
-            version: TRACK_DESIGN_VERSION,
+            version: if self.pieces.iter().any(|p| {
+                matches!(
+                    p.kind,
+                    TrackKind::TransitionUp | TrackKind::TransitionDown | TrackKind::HeartlineRoll
+                )
+            }) {
+                TRACK_DESIGN_VERSION
+            } else {
+                1
+            },
             name: self.name.clone(),
             pieces: self.pieces.clone(),
         })
@@ -148,7 +157,17 @@ impl TrackDesign {
         if envelope.format != FORMAT {
             return Err(TrackDesignError::InvalidFormat);
         }
-        if envelope.version != TRACK_DESIGN_VERSION {
+        if !(1..=TRACK_DESIGN_VERSION).contains(&envelope.version) {
+            return Err(TrackDesignError::UnsupportedVersion(envelope.version));
+        }
+        if envelope.version == 1
+            && envelope.pieces.iter().any(|p| {
+                matches!(
+                    p.kind,
+                    TrackKind::TransitionUp | TrackKind::TransitionDown | TrackKind::HeartlineRoll
+                )
+            })
+        {
             return Err(TrackDesignError::UnsupportedVersion(envelope.version));
         }
         Self::from_draft(&envelope.name, &envelope.pieces)

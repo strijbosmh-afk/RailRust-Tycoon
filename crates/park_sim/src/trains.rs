@@ -28,6 +28,9 @@ pub enum TrackKind {
     BankedCurve,
     Launch,
     Camelback,
+    TransitionUp,
+    TransitionDown,
+    HeartlineRoll,
     Straight,
 }
 
@@ -90,6 +93,21 @@ impl TrackPieceSpec {
     pub fn samples(self) -> Vec<TrackPoint> {
         piece_samples(self)
     }
+
+    /// Visual bank around the centerline, with upright endpoints at every join.
+    pub fn roll_millidegrees(self, progress_permille: u32) -> i32 {
+        let t = i64::from(progress_permille.min(1000));
+        match self.kind {
+            TrackKind::HeartlineRoll => (360 * t) as i32,
+            TrackKind::BankedCurve => {
+                let (ex, ey) = self.entry.edge.offset();
+                let (ox, oy) = self.exit.edge.offset();
+                let sign = (-ex * oy + ey * ox).signum();
+                (i64::from(sign) * 120_000 * t * (1000 - t) / 1_000_000) as i32
+            }
+            _ => 0,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -97,6 +115,13 @@ pub struct TrackPoint {
     pub x: i32,
     pub y: i32,
     pub height: i32,
+}
+
+impl TrackPoint {
+    /// Integer arc distance with the simulation's quarter-tile height scale.
+    pub fn distance_to(self, other: Self) -> u32 {
+        point_distance(self, other)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -119,6 +144,10 @@ pub struct TrainCircuit {
 }
 
 impl TrainCircuit {
+    pub fn roll_at(&self, distance: u32) -> i32 {
+        let (index, local) = self.locate(distance);
+        self.specs[index].roll_millidegrees(local * 1000 / self.pieces[index].length)
+    }
     /// Installed world specifications in traversal order, paired with `pieces`.
     pub fn specs(&self) -> &[TrackPieceSpec] {
         &self.specs
@@ -167,6 +196,12 @@ pub enum TrainPhase {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Train {
+    #[serde(default, skip_serializing_if = "train_number_zero")]
+    pub number: u8,
+    #[serde(default, skip_serializing_if = "train_flag_false")]
+    pub in_depot: bool,
+    #[serde(default, skip_serializing_if = "train_flag_false")]
+    pub blocked: bool,
     /// A close request finishes the current lap; it does not pause the park.
     pub open: bool,
     #[serde(deserialize_with = "crate::saves::string_enum")]
@@ -182,11 +217,56 @@ pub struct Train {
     pub(crate) departed: bool,
 }
 
+fn train_number_zero(value: &u8) -> bool {
+    *value == 0
+}
+fn train_flag_false(value: &bool) -> bool {
+    !value
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TrainPose {
     pub center: TrackPoint,
     pub front: TrackPoint,
     pub rear: TrackPoint,
+    pub roll_millidegrees: i32,
+}
+
+impl TrainPose {
+    /// Derived presentation point. This never advances authoritative train state.
+    pub fn bank_point(self, point: TrackPoint) -> TrackPoint {
+        if self.roll_millidegrees == 0 {
+            return point;
+        }
+        let axis = [
+            f64::from(self.front.x - self.rear.x),
+            f64::from(self.front.y - self.rear.y),
+            f64::from(self.front.height - self.rear.height) * 0.25,
+        ];
+        let length = (axis.iter().map(|v| v * v).sum::<f64>()).sqrt().max(1.0);
+        let axis = axis.map(|v| v / length);
+        let offset = [
+            f64::from(point.x - self.center.x),
+            f64::from(point.y - self.center.y),
+            f64::from(point.height - self.center.height) * 0.25,
+        ];
+        let (sin, cos) = (f64::from(self.roll_millidegrees) / 1000.0)
+            .to_radians()
+            .sin_cos();
+        let dot = axis.iter().zip(offset).map(|(a, b)| a * b).sum::<f64>();
+        let cross = [
+            axis[1] * offset[2] - axis[2] * offset[1],
+            axis[2] * offset[0] - axis[0] * offset[2],
+            axis[0] * offset[1] - axis[1] * offset[0],
+        ];
+        let rotated: [f64; 3] =
+            std::array::from_fn(|i| offset[i] * cos + cross[i] * sin + axis[i] * dot * (1.0 - cos));
+        TrackPoint {
+            x: self.center.x + rotated[0].round() as i32,
+            y: self.center.y + rotated[1].round() as i32,
+            height: self.center.height + (rotated[2] * 4.0).round() as i32,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -201,6 +281,7 @@ pub enum TrainError {
     MissingObject { object: ObjectId },
     ObjectMismatch { object: ObjectId },
     CircuitAlreadyInstalled,
+    UnsafeBlocks,
 }
 
 impl std::fmt::Display for TrainError {
@@ -240,6 +321,10 @@ impl std::fmt::Display for TrainError {
             Self::CircuitAlreadyInstalled => {
                 write!(formatter, "a different train circuit is already installed")
             }
+            Self::UnsafeBlocks => write!(
+                formatter,
+                "Add separated brakes so each train has a full-length block and one block remains free"
+            ),
         }
     }
 }
@@ -265,17 +350,35 @@ impl Park {
     /// their outermost ends are 8 and 888 units along its 1024-unit centerline.
     /// Faulted or absent circuits produce no poses.
     pub fn train_cars(&self) -> Vec<TrainPose> {
-        let (Some(circuit), Some(train)) = (&self.circuit, &self.train) else {
+        let Some(id) = self.ride.as_ref().map(|ride| ride.id) else {
             return Vec::new();
         };
-        if train.phase == TrainPhase::Fault {
+        self.coaster_train_cars(id)
+    }
+
+    pub fn coaster_train_cars(&self, id: crate::RideId) -> Vec<TrainPose> {
+        let Some(train) = self.coaster_train(id) else {
+            return Vec::new();
+        };
+        self.coaster_train_cars_for(id, train.number)
+    }
+
+    pub fn coaster_train_cars_for(&self, id: crate::RideId, number: u8) -> Vec<TrainPose> {
+        let (Some(circuit), Some(train)) = (
+            self.coaster_circuit(id),
+            self.coaster_train_by_number(id, number),
+        ) else {
+            return Vec::new();
+        };
+        if train.phase == TrainPhase::Fault || train.in_depot {
             return Vec::new();
         }
-        (0..u32::from(self.coaster_cars))
+        (0..u32::from(self.coaster_car_count(id).unwrap_or(0)))
             .map(|index| {
                 let center = wrap_sub(train.distance, index * CAR_SPACING, circuit.total_length);
                 TrainPose {
                     center: circuit.sample(center),
+                    roll_millidegrees: circuit.roll_at(center),
                     front: circuit.sample((center + CAR_HALF_LENGTH) % circuit.total_length),
                     rear: circuit.sample(wrap_sub(center, CAR_HALF_LENGTH, circuit.total_length)),
                 }
@@ -306,6 +409,22 @@ impl Park {
             } else {
                 TrainPhase::Closed
             };
+        }
+        for train in &mut self.extra_trains {
+            train.open = open;
+            if !train.departed {
+                train.speed = 0;
+                train.dwell_ticks = if open && !train.in_depot {
+                    wait_ticks
+                } else {
+                    0
+                };
+                train.phase = if open && !train.in_depot {
+                    TrainPhase::Station
+                } else {
+                    TrainPhase::Closed
+                };
+            }
         }
         if !open && let Some(id) = self.ride.as_ref().map(|ride| ride.id) {
             self.reset_ride_dispatch_wait(id);
@@ -358,6 +477,7 @@ impl Park {
             return Err(TrainError::CircuitAlreadyInstalled);
         }
         let mut candidate = self.clone();
+        candidate.select_first_train();
         let mut pieces: Vec<TrackPiece> = Vec::with_capacity(specs.len());
         let mut total_length = 0_u32;
         let mut station_stop = 0;
@@ -369,6 +489,9 @@ impl Park {
                     && object.axis == axis
                     && object.height == height
                     && object.clearance == clearance
+                    && candidate.object_ride(object.id).is_none_or(|owner| {
+                        candidate.ride.as_ref().is_some_and(|ride| ride.id == owner)
+                    })
             });
             let object = match matching {
                 Some(object) => object.id,
@@ -427,6 +550,9 @@ impl Park {
         }
         let laps = candidate.train.as_ref().map_or(0, |train| train.laps);
         candidate.train = Some(Train {
+            number: 0,
+            in_depot: false,
+            blocked: false,
             open: !restoring,
             phase: if restoring {
                 TrainPhase::Closed
@@ -446,6 +572,7 @@ impl Park {
             departed: false,
         });
         candidate.circuit = Some(circuit);
+        candidate.rebuild_extra_trains()?;
         if let Some(id) = candidate.ride.as_ref().map(|ride| ride.id) {
             candidate.reset_ride_dispatch_wait(id);
         }
@@ -459,6 +586,14 @@ impl Park {
         let Some(circuit) = &self.circuit else {
             return Err(TrainError::EmptyCircuit);
         };
+        self.validate_circuit_objects(circuit)
+    }
+
+    pub fn validate_coaster_circuit(&self, id: crate::RideId) -> Result<(), TrainError> {
+        self.validate_circuit_objects(self.coaster_circuit(id).ok_or(TrainError::EmptyCircuit)?)
+    }
+
+    fn validate_circuit_objects(&self, circuit: &TrainCircuit) -> Result<(), TrainError> {
         for (piece, spec) in circuit.pieces.iter().zip(&circuit.specs) {
             let object = self.object(piece.object).ok_or(TrainError::MissingObject {
                 object: piece.object,
@@ -479,6 +614,20 @@ impl Park {
     }
 
     pub(crate) fn reconcile_train_after_removal(&mut self, removed: ObjectId) {
+        let owner = self.object_ride(removed).or_else(|| {
+            self.coaster_ids().into_iter().find(|id| {
+                self.coaster_circuit(*id)
+                    .is_some_and(|c| c.pieces.iter().any(|p| p.object == removed))
+            })
+        });
+        if let Some(owner) = owner {
+            self.with_coaster(owner, |park| {
+                park.reconcile_selected_train_after_removal(removed)
+            });
+        }
+    }
+
+    fn reconcile_selected_train_after_removal(&mut self, removed: ObjectId) {
         if self
             .circuit
             .as_ref()
@@ -495,6 +644,20 @@ impl Park {
                 train.dwell_ticks = 0;
                 train.departed = false;
                 train.lap_progress = 0;
+                train.blocked = false;
+                train.in_depot = false;
+            }
+            for train in &mut self.extra_trains {
+                train.open = false;
+                train.phase = TrainPhase::Fault;
+                train.speed = 0;
+                train.distance = 0;
+                train.piece_index = 0;
+                train.dwell_ticks = 0;
+                train.departed = false;
+                train.lap_progress = 0;
+                train.blocked = false;
+                train.in_depot = true;
             }
             if let Some(id) = self.ride.as_ref().map(|ride| ride.id) {
                 self.reset_ride_dispatch_wait(id);
@@ -540,9 +703,10 @@ impl Park {
         let kind = circuit.pieces[current_piece].kind;
         train.speed = match kind {
             TrackKind::Lift => settings.lift_speed,
-            TrackKind::Drop => (train.speed + 3).min(MAX_SPEED),
+            TrackKind::Drop | TrackKind::TransitionDown => (train.speed + 3).min(MAX_SPEED),
+            TrackKind::TransitionUp => train.speed.saturating_sub(1).max(8),
             TrackKind::Launch => (train.speed + 6).min(64),
-            TrackKind::Camelback => {
+            TrackKind::Camelback | TrackKind::HeartlineRoll => {
                 if local_distance < circuit.pieces[current_piece].length / 2 {
                     train.speed.saturating_sub(1).max(8)
                 } else {
@@ -602,6 +766,9 @@ impl Park {
             | TrackKind::BankedCurve
             | TrackKind::Launch
             | TrackKind::Camelback
+            | TrackKind::TransitionUp
+            | TrackKind::TransitionDown
+            | TrackKind::HeartlineRoll
             | TrackKind::Straight => TrainPhase::Cruising,
         };
     }
@@ -652,12 +819,14 @@ pub(crate) fn valid_piece_ports(spec: TrackPieceSpec) -> bool {
         TrackKind::Curve | TrackKind::BankedCurve => {
             !straight && spec.entry.edge != spec.exit.edge && grade == 0
         }
-        TrackKind::Lift => straight && grade == 1,
+        TrackKind::Lift | TrackKind::TransitionUp => straight && grade == 1,
+        TrackKind::TransitionDown => straight && grade == -1,
         TrackKind::Drop => straight && (-2..=-1).contains(&grade),
         TrackKind::Station
         | TrackKind::Brake
         | TrackKind::Launch
         | TrackKind::Camelback
+        | TrackKind::HeartlineRoll
         | TrackKind::Straight => straight && grade == 0,
     }
 }
@@ -665,7 +834,9 @@ pub(crate) fn valid_piece_ports(spec: TrackPieceSpec) -> bool {
 pub(crate) fn envelope(spec: TrackPieceSpec) -> (Axis, u8, u8) {
     let height = spec.entry.height.min(spec.exit.height);
     let clearance = spec.entry.height.abs_diff(spec.exit.height)
-        + if spec.kind == TrackKind::Camelback {
+        + if spec.kind == TrackKind::HeartlineRoll {
+            5
+        } else if spec.kind == TrackKind::Camelback {
             3
         } else {
             2
@@ -693,28 +864,53 @@ fn piece_samples(spec: TrackPieceSpec) -> Vec<TrackPoint> {
     };
     let from = endpoint(spec.entry);
     let to = endpoint(spec.exit);
-    (0..=SAMPLES_PER_PIECE)
+    let steps = if spec.kind == TrackKind::HeartlineRoll {
+        32
+    } else {
+        SAMPLES_PER_PIECE
+    };
+    (0..=steps)
         .map(|step| {
             if matches!(spec.kind, TrackKind::Curve | TrackKind::BankedCurve) {
-                let before = SAMPLES_PER_PIECE - step;
+                let before = steps - step;
                 let curve = |a: i32, middle: i32, b: i32| {
                     ((i64::from(a) * before * before
                         + 2 * i64::from(middle) * before * step
                         + i64::from(b) * step * step)
-                        / (SAMPLES_PER_PIECE * SAMPLES_PER_PIECE)) as i32
+                        / (steps * steps)) as i32
                 };
                 TrackPoint {
                     x: curve(from.x, center.x, to.x),
                     y: curve(from.y, center.y, to.y),
-                    height: from.height,
+                    height: from.height
+                        + if spec.kind == TrackKind::BankedCurve {
+                            (12 * i64::from(TRACK_UNITS) * step * (steps - step)
+                                / (5 * steps * steps)) as i32
+                        } else {
+                            0
+                        },
                 }
             } else {
-                let mut point = interpolate(from, to, step as u32, SAMPLES_PER_PIECE as u32);
-                if spec.kind == TrackKind::Camelback {
+                let mut point = interpolate(from, to, step as u32, steps as u32);
+                if matches!(spec.kind, TrackKind::Camelback | TrackKind::HeartlineRoll) {
                     // One internal height step, with exactly matching level ports.
-                    point.height += (4 * TRACK_UNITS as i64 * step * (SAMPLES_PER_PIECE - step)
-                        / (SAMPLES_PER_PIECE * SAMPLES_PER_PIECE))
-                        as i32;
+                    point.height += ((if spec.kind == TrackKind::HeartlineRoll {
+                        8
+                    } else {
+                        4
+                    }) * TRACK_UNITS as i64
+                        * step
+                        * (steps - step)
+                        / (steps * steps)) as i32;
+                }
+                if matches!(
+                    spec.kind,
+                    TrackKind::TransitionUp | TrackKind::TransitionDown
+                ) {
+                    let grade = i64::from(to.height - from.height);
+                    point.height = from.height
+                        + (grade * step * step * (3 * steps - 2 * step) / (steps * steps * steps))
+                            as i32;
                 }
                 point
             }

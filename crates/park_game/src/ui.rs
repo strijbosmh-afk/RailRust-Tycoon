@@ -838,7 +838,7 @@ type ChangedButtons<'w, 's> =
 pub(super) fn button_actions(
     interactions: ChangedButtons<'_, '_>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
-    sim: Option<Res<Simulation>>,
+    mut sim: Option<ResMut<Simulation>>,
     mut view: ResMut<ViewState>,
 ) {
     // A button may close an overlay before pointer_input runs this frame.
@@ -870,7 +870,7 @@ pub(super) fn button_actions(
                     return;
                 }
                 Action::NavTarget(target) => {
-                    navigation::select(&mut view, sim.as_deref(), *target);
+                    navigation::select(&mut view, sim.as_deref_mut(), *target);
                     return;
                 }
                 _ => continue,
@@ -979,8 +979,8 @@ pub(super) fn button_actions(
         .min();
     if let Some(transition) = ride_transition {
         if transition == 3 {
-            if let Some(sim) = sim.as_ref() {
-                crate::track_tools::begin(&sim.0, &mut view);
+            if let Some(sim) = sim.as_mut() {
+                crate::track_tools::begin(&mut sim.0, &mut view);
             }
         } else if transition == 1 {
             view.choose_carousel();
@@ -1602,7 +1602,7 @@ pub(super) fn refresh(
                             let refund=sim.0.carousel_demolition_quote(owner).map_or_else(|_|"Removal blocked: passengers aboard".into(),|amount|format!("Demolition refund {}",money(amount)));
                             return format!("Ride #{} / height {} / six seats\n{refund}\nX / Delete: remove body and gates.\nOwned queue stays in place.",owner.0,object.height);
                         }
-                        if let Some(piece) = sim.0.circuit().and_then(|circuit| {
+                        if let Some(piece) = sim.0.object_ride(id).and_then(|ride| sim.0.coaster_circuit(ride)).and_then(|circuit| {
                             circuit.pieces.iter().find(|piece| piece.object == id)
                         }) {
                             let low = piece.samples.iter().map(|p| p.height).min().unwrap_or(0);
@@ -1770,11 +1770,9 @@ pub(super) fn refresh(
                     sim.0.crowd_stats().lost
                 )
             }
-            Label::Train => sim
-                .0
-                .train()
+            Label::Train => ride_id.and_then(|id| sim.0.coaster_train(id))
                 .map_or("No circuit installed".into(), |train| {
-                    let phase = match train.phase {
+                    let phase = if train.blocked { "Waiting for free block" } else { match train.phase {
                         TrainPhase::Station if train.speed > 0 => "Station track",
                         TrainPhase::Station => "Station wait",
                         TrainPhase::Lift => "Chain lift",
@@ -1783,7 +1781,7 @@ pub(super) fn refresh(
                         TrainPhase::Cruising => "Running",
                         TrainPhase::Closed => "Parked at station",
                         TrainPhase::Fault => "Track incomplete",
-                    };
+                    }};
                     let operation = if train.phase == TrainPhase::Fault {
                         "Unavailable"
                     } else if ride_id.and_then(|id|sim.0.ride_running_costs(id)).is_some_and(|c|c.closed_for_funds) {
@@ -2025,6 +2023,9 @@ fn track_name(kind: TrackKind) -> &'static str {
         TrackKind::BankedCurve => "Banked curve",
         TrackKind::Launch => "Launch",
         TrackKind::Camelback => "Camelback",
+        TrackKind::TransitionUp => "Smooth rise",
+        TrackKind::TransitionDown => "Smooth descent",
+        TrackKind::HeartlineRoll => "Heartline roll",
         TrackKind::Straight => "Straight",
     }
 }

@@ -108,7 +108,13 @@ impl Park {
             .ride_dispatch_policy(id)
             .ok_or(RideOperatingError::UnknownRide(id))?;
         policy.validate()?;
-        if usize::from(policy.minimum_passengers) > self.ride_capacity(id).unwrap_or(0) {
+        if usize::from(policy.minimum_passengers)
+            > self
+                .coaster_seats_per_train(id)
+                .map(usize::from)
+                .or_else(|| self.ride_capacity(id))
+                .unwrap_or(0)
+        {
             return Err(RideDispatchError::InvalidMinimumPassengers);
         }
         if current == policy {
@@ -136,8 +142,8 @@ impl Park {
             .find(|r| r.ride == id)
             .map_or(0, |r| r.extra_waited_ticks);
         let seated_passengers = self.dispatch_seated_passengers(id);
-        let dwell = if self.ride.as_ref().is_some_and(|r| r.id == id) {
-            self.train.as_ref().map_or(0, |train| train.dwell_ticks)
+        let dwell = if self.ride_kind(id) == Some(crate::RideKind::Coaster) {
+            self.coaster_train(id).map_or(0, |train| train.dwell_ticks)
         } else {
             self.carousel(id).map_or(0, |carousel| carousel.dwell_ticks)
         };
@@ -148,7 +154,7 @@ impl Park {
             extra_waited_ticks,
             waiting_for_load: self.ride_available(id)
                 && self.ride_is_open(id)
-                && self.ride_stationary(id)
+                && self.loading_stationary(id)
                 && !ride.draining
                 && dwell == 0
                 && !self.ride_holds(id)
@@ -163,6 +169,10 @@ impl Park {
             .filter(|guest| {
                 guest.ride_visit.as_ref().is_some_and(|visit| {
                     visit.ride == id
+                        && visit
+                            .passenger
+                            .as_ref()
+                            .is_some_and(|p| self.station_seat(id, p.seat))
                         && visit.phase == RideVisitPhase::Riding
                         && visit.passenger.as_ref().is_some_and(|passenger| {
                             passenger.transfer.is_none()
@@ -232,7 +242,11 @@ pub(crate) fn validate_saved_dispatch(park: &Park) -> Result<(), String> {
             .validate()
             .map_err(|error| error.to_string())?;
         if usize::from(record.policy.minimum_passengers)
-            > park.ride_capacity(record.ride).unwrap_or(0)
+            > park
+                .coaster_seats_per_train(record.ride)
+                .map(usize::from)
+                .or_else(|| park.ride_capacity(record.ride))
+                .unwrap_or(0)
         {
             return Err("minimum load exceeds the configured ride capacity".into());
         }
@@ -245,7 +259,7 @@ pub(crate) fn validate_saved_dispatch(park: &Park) -> Result<(), String> {
                 && (record.policy.minimum_passengers == 0
                     || !park.ride_available(record.ride)
                     || !park.ride_is_open(record.ride)
-                    || park.ride_is_running(record.ride)))
+                    || !park.loading_stationary(record.ride)))
         {
             return Err("ride extra loading wait is inconsistent with its policy or state".into());
         }

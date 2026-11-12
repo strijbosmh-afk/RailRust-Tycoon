@@ -6,7 +6,7 @@ use crate::{
 use std::collections::BTreeSet;
 
 pub const MAX_CAROUSEL_RECORDS: usize = 8;
-pub const MAX_RIDE_RECORDS: usize = MAX_CAROUSEL_RECORDS + 1;
+pub const MAX_RIDE_RECORDS: usize = MAX_CAROUSEL_RECORDS + crate::MAX_COASTER_RECORDS;
 pub const CAROUSEL_SEATS: usize = 6;
 pub const CAROUSEL_RUN_TICKS: u16 = 720;
 pub const CAROUSEL_BUILD_COST_CENTS: u64 = 30_000;
@@ -128,13 +128,29 @@ impl Park {
         self.carousels.iter().find(|c| c.ride.id == id)
     }
     pub fn all_rides(&self) -> impl Iterator<Item = &Ride> {
-        self.ride
+        let mut rides: Vec<_> = self
+            .ride
             .iter()
+            .chain(self.other_coasters.iter().filter_map(|c| c.ride.as_ref()))
+            .collect();
+        rides.sort_by_key(|ride| ride.id);
+        rides
+            .into_iter()
             .chain(self.carousels.iter().map(|c| &c.ride))
     }
     pub(crate) fn all_rides_mut(&mut self) -> impl Iterator<Item = &mut Ride> {
-        self.ride
+        let mut rides: Vec<_> = self
+            .ride
             .iter_mut()
+            .chain(
+                self.other_coasters
+                    .iter_mut()
+                    .filter_map(|c| c.ride.as_mut()),
+            )
+            .collect();
+        rides.sort_by_key(|ride| ride.id);
+        rides
+            .into_iter()
             .chain(self.carousels.iter_mut().map(|c| &mut c.ride))
     }
     pub fn ride_by_id(&self, id: RideId) -> Option<&Ride> {
@@ -147,12 +163,17 @@ impl Park {
         let ride = self
             .ride
             .iter_mut()
+            .chain(
+                self.other_coasters
+                    .iter_mut()
+                    .filter_map(|c| c.ride.as_mut()),
+            )
             .chain(self.carousels.iter_mut().map(|c| &mut c.ride))
             .find(|r| r.id == id)?;
         Some((ride, &mut self.guests))
     }
     pub fn ride_kind(&self, id: RideId) -> Option<RideKind> {
-        if self.ride.as_ref().is_some_and(|r| r.id == id) {
+        if self.coaster_ids().contains(&id) {
             Some(RideKind::Coaster)
         } else {
             self.carousel(id).map(|ride| ride.kind)
@@ -172,18 +193,23 @@ impl Park {
         if let Some(c) = self.carousels.iter().find(|c| c.objects.contains(&id)) {
             return Some(c.ride.id);
         }
-        if self
-            .circuit
-            .as_ref()
-            .is_some_and(|c| c.pieces.iter().any(|p| p.object == id))
-        {
-            return self.ride.as_ref().map(|r| r.id);
-        }
-        None
+        self.coaster_ids()
+            .into_iter()
+            .find(|ride| {
+                self.coaster_circuit(*ride)
+                    .is_some_and(|c| c.pieces.iter().any(|p| p.object == id))
+            })
+            .or_else(|| {
+                self.coaster_ids().into_iter().find(|ride| {
+                    self.coaster_economy(*ride).is_some_and(|economy| {
+                        economy.paid_pieces.iter().any(|piece| piece.object == id)
+                    })
+                })
+            })
     }
     pub(crate) fn ride_available(&self, id: RideId) -> bool {
         match self.ride_kind(id) {
-            Some(RideKind::Coaster) => self.circuit.is_some(),
+            Some(RideKind::Coaster) => self.coaster_circuit(id).is_some(),
             Some(RideKind::Carousel | RideKind::Swing | RideKind::DropTower) => {
                 self.carousel(id).is_some_and(|c| !c.objects.is_empty())
             }
@@ -192,7 +218,7 @@ impl Park {
     }
     pub fn ride_is_open(&self, id: RideId) -> bool {
         match self.ride_kind(id) {
-            Some(RideKind::Coaster) => self.train.as_ref().is_some_and(|t| t.open),
+            Some(RideKind::Coaster) => self.coaster_train(id).is_some_and(|t| t.open),
             Some(RideKind::Carousel | RideKind::Swing | RideKind::DropTower) => self
                 .carousel(id)
                 .is_some_and(|c| c.open && !c.objects.is_empty()),
@@ -201,7 +227,7 @@ impl Park {
     }
     pub fn ride_is_running(&self, id: RideId) -> bool {
         match self.ride_kind(id) {
-            Some(RideKind::Coaster) => self.train.as_ref().is_some_and(|t| t.departed),
+            Some(RideKind::Coaster) => self.coaster_trains(id).into_iter().any(|t| t.departed),
             Some(RideKind::Carousel | RideKind::Swing | RideKind::DropTower) => self
                 .carousel(id)
                 .is_some_and(|c| c.phase == CarouselPhase::Running),
@@ -212,14 +238,14 @@ impl Park {
         self.ride_available(id)
             && !self.ride_is_running(id)
             && (self.ride_kind(id) != Some(RideKind::Coaster)
-                || self.train.as_ref().is_some_and(|t| t.speed == 0))
+                || self.coaster_train(id).is_some_and(|t| t.speed == 0))
     }
     /// Low-level operating switch retained for fixtures and legacy continuation.
     /// Player commands must use `set_ride_open_checked` to require current access.
     pub fn set_ride_open(&mut self, id: RideId, open: bool) -> Result<(), RideAccessError> {
         let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id).ok_or(RideAccessError::UnknownRide(id))? {
-            RideKind::Coaster => self.set_train_open(open),
+            RideKind::Coaster => self.with_coaster(id, |park| park.set_train_open(open)),
             RideKind::Carousel | RideKind::Swing | RideKind::DropTower => {
                 let c = self.carousels.iter_mut().find(|c| c.ride.id == id).unwrap();
                 if c.objects.is_empty() {
@@ -252,7 +278,7 @@ impl Park {
         let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id) {
             Some(RideKind::Coaster) => {
-                if let Some(t) = &mut self.train
+                if let Some(t) = self.coaster_train_mut(id)
                     && t.open
                 {
                     t.dwell_ticks = settings.station_wait_ticks;

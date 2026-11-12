@@ -313,10 +313,12 @@ fn codec_rejects_wrong_format_versions_and_bounded_collections_before_use() {
         Err(TrackDesignError::InvalidFormat)
     );
     wrong = base.clone();
-    wrong["version"] = json!(2);
+    wrong["version"] = json!(TRACK_DESIGN_VERSION + 1);
     assert_eq!(
         TrackDesign::from_json(&wrong.to_string()),
-        Err(TrackDesignError::UnsupportedVersion(2))
+        Err(TrackDesignError::UnsupportedVersion(
+            TRACK_DESIGN_VERSION + 1
+        ))
     );
     wrong = base.clone();
     wrong["pieces"] = json!(vec![base["pieces"][0].clone(); MAX_TRACK_DRAFT_PIECES + 1]);

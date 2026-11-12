@@ -604,7 +604,7 @@ fn report(run: &FrameRun, probe: &Probe, runtime: &Runtime, now: Instant, status
             "height": runtime.sim.0.height(),
             "objects": runtime.sim.0.objects().len(),
             "guests": runtime.sim.0.guests().len(),
-            "track_pieces": runtime.sim.0.circuit().map(|circuit| circuit.pieces.len()).unwrap_or(0),
+            "track_pieces": runtime.sim.0.coaster_ids().into_iter().filter_map(|id| runtime.sim.0.coaster_circuit(id)).map(|c| c.pieces.len()).sum::<usize>(),
         },
     })
 }

@@ -32,6 +32,7 @@ mod access_scenes;
 mod admission_scenes;
 mod appeal_scenes;
 mod cashflow_scenes;
+pub(crate) mod coaster_scenes;
 mod color_scenes;
 mod construction_scenes;
 mod design_scenes;
@@ -295,6 +296,10 @@ enum Scene {
     TrackReady,
     TrackBuilt,
     TrackCamelback,
+    MultipleCoasters,
+    CoasterCompletion,
+    CoasterInversion,
+    CoasterFleetControls,
     TrackOccupied,
     TrackReplacement,
     TrackUnaffordable,
@@ -975,6 +980,10 @@ pub(super) fn configure(app: &mut App) {
                 Some("track-ready") => Scene::TrackReady,
                 Some("track-built") => Scene::TrackBuilt,
                 Some("track-camelback") => Scene::TrackCamelback,
+                Some("multiple-coasters") => Scene::MultipleCoasters,
+                Some("coaster-completion") => Scene::CoasterCompletion,
+                Some("coaster-inversion") => Scene::CoasterInversion,
+                Some("coaster-fleet-controls") => Scene::CoasterFleetControls,
                 Some("track-occupied") => Scene::TrackOccupied,
                 Some("track-replacement") => Scene::TrackReplacement,
                 Some("track-unaffordable") => Scene::TrackUnaffordable,
@@ -1534,6 +1543,20 @@ fn apply_preset(
     if capture.scene.is_facility_construction() {
         facility_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
+    if matches!(capture.scene, Scene::MultipleCoasters) {
+        coaster_scenes::prepare(&mut sim.0, &mut view);
+    }
+    if matches!(
+        capture.scene,
+        Scene::CoasterCompletion | Scene::CoasterInversion | Scene::CoasterFleetControls
+    ) {
+        coaster_scenes::prepare_completion(
+            &mut sim.0,
+            &mut view,
+            matches!(capture.scene, Scene::CoasterInversion),
+            matches!(capture.scene, Scene::CoasterFleetControls),
+        );
+    }
     if capture.scene.is_track_construction() {
         track_construction_scenes::prepare(&mut sim.0, &mut view, capture.scene);
     }
@@ -1597,8 +1620,12 @@ fn apply_preset(
         view.zoom = 3.5 * view.camera_span;
         match capture.scene {
             scene if scene.is_train() => {
-                view.pan = world::leading_car_focus(&sim.0, view.rotation)
-                    .expect("detail capture train")
+                view.pan = world::leading_car_focus(
+                    &sim.0,
+                    sim.0.ride().expect("detail coaster").id,
+                    view.rotation,
+                )
+                .expect("detail capture train")
                     - elevation;
             }
             Scene::CarouselBuilt | Scene::DualRiding | Scene::SwingMap | Scene::DropTowerMap => {

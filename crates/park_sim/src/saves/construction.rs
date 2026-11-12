@@ -197,6 +197,8 @@ pub(super) struct VersionTenParkData {
 impl VersionTenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            other_coasters: Vec::new(),
+            extra_trains: Vec::new(),
             scenario: None,
             maintenance: Vec::new(),
             mechanic_route: crate::staff::MechanicRoute::default(),

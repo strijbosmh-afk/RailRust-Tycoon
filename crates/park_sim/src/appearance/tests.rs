@@ -249,6 +249,13 @@ fn authentic_v22_migration_preserves_every_original_field_and_classic_defaults()
         assert_eq!(tile["owned"], serde_json::json!(true));
         tile.as_object_mut().unwrap().remove("owned");
     }
+    assert_eq!(
+        current["park"]
+            .as_object_mut()
+            .unwrap()
+            .remove("other_coasters"),
+        Some(serde_json::json!([]))
+    );
     assert_eq!(current["park"], original["park"]);
     let mut uninterrupted = p.clone();
     let mut resumed = p;

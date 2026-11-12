@@ -1,4 +1,8 @@
-# Parkbound graphics, large sandbox and coaster test guide (0.82.0)
+# Parkbound graphics, large sandbox and coaster test guide (0.84.0)
+
+In the track editor, **New coaster** starts a separate ground-level construction workspace. **Next coaster** switches between installed coasters. Each coaster retains its draft, track, train, car count, name, colors, admission price, operating settings, guests and financial history. Selecting a ride in **Rides [Y]** before **Edit coaster track [Z]** opens that ride's workspace. An unfinished new draft stays available through **New coaster** after switching to an existing ride. A park supports eight coaster records, alongside its flat rides.
+
+Apply a closed loop, place that ride's entrance and exit, connect its queue and public return paths, and use the existing Test and Open controls. Other coasters continue operating while one is edited or tested. Demolition refunds the removed coaster's own paid pieces. Strict schema/content **47/47** saves contain the independent workspaces and fleets. Older parks load with their existing single coaster and can add more.
 
 In **Menu → Settings**, choose **Lighting** to cycle Day, Sunset and Night, and **Weather** to switch Clear/Rain presentation. Lamps illuminate public walkways at night. Pausing freezes decorative motion. These choices are saved with display preferences and can be changed while a park is open.
 
@@ -28,4 +32,19 @@ For coaster engineering, close and empty the installed coaster, open **Rides [Y]
 
 Guest clothing now has 48 deterministic appearances, including occasional caps. This art is generated from guest IDs and adds no save fields. The [visual bible](VISUAL_BIBLE.md) and bundled `assets/manifest.json` record the original art rules and shipped asset families.
 
-The full Phase 3–5 roadmap gates remain open. The remaining work includes consistent construction refunds and undo for every build action, a complete large-park construction playthrough, native display and rotation checks, more original ride art and night/weather, inversions and special track, multiple independent coasters and trains, block dispatch, breakdown/repair and the complete custom-build-to-export acceptance flow. The 256-tile choice is supported by save and edit tests, but this development PC is not a performance benchmark.
+The remaining coaster work includes multiple trains on one circuit, block dispatch, inversions and transition pieces, force telemetry and the complete custom-build-to-export acceptance flow. Graphics and construction checks now include saved lighting/weather, tunnel portals, native path/terrain undo and a 128×128 guest/gate construction, reload and demolition playthrough. The development PC remains excluded from performance references.
+
+
+## Coaster fleets, transitions and inversions
+
+Open **Rides**, select a coaster and choose **Edit coaster track**. The editor selects that ride immediately. **New coaster** keeps the existing rides and restores any unfinished new draft. **Next coaster** cycles through installed coasters. A new draft starts at ground level.
+
+The editor includes Station, Straight, left/right Curve, left/right Bank, Lift, one/two-step Drop, Brakes, Launch, Camelback, Smooth rise, Smooth drop and Heartline roll. Smooth pieces change height by one step. The roll returns to its entry height and rotates vehicles through 360 degrees. Its internal crest rises two steps and reserves five steps of clearance. Hover and Apply share geometry, ownership and price validation. Close the ride and let passengers leave before changing installed track.
+
+In **Rides → Operations**, **Trains** chooses one to three trains. Each train has one to three two-seat cars. Multi-train circuits require more blocks than trains, with every block long enough for a complete train. The station and each brake begin a block. Add spaced brakes if the configuration is refused. An empty train waits in the station depot until the station block is clear. Red and green signal lamps show block occupancy. A held train resumes when its next block clears. Closing allows every dispatched train to return and unload.
+
+Minimum load applies to the train at the station. The displayed fleet capacity includes all configured trains. Fares are charged once on actual departure and remain attached to each guest's train. Changing train count, car count or equipment settings requires a closed, stopped and empty ride.
+
+**Rides → Test** runs an isolated mechanics lap and shows speed, height, feature counts, layout ratings, and estimated vertical/lateral forces. Force estimates use four metres per tile and one metre per height step. Passenger loading and block waiting are excluded from the isolated lap. Operational wear, maintenance shutdown and the **Service ride** action continue to use the live simulation.
+
+**Designs** saves the current draft as an original named design. Export and import preserve all supported pieces, rotations and heights. Designs using transitions or inversions use format 2. Older-piece designs retain format 1. The current reader accepts both formats. Park save schema/content is 47/47. Existing single-train parks retain one train. Earlier banked circuits preserve ride identity, paid track, passengers and lap progress while adopting the raised bank geometry.

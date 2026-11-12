@@ -35,13 +35,22 @@ struct DraftGeometry {
 
 impl DraftGeometry {
     fn new(spec: TrackPieceSpec) -> Self {
-        let points: Vec<_> = spec.samples().into_iter().map(world_point).collect();
+        let samples = spec.samples();
+        let lengths: Vec<u32> = samples.windows(2).map(|p| p[0].distance_to(p[1])).collect();
+        let points: Vec<_> = samples.into_iter().map(world_point).collect();
+        let total = lengths.iter().sum::<u32>().max(1);
         let normals = (0..points.len())
             .map(|index| {
                 let a = points[index.saturating_sub(1)];
                 let b = points[(index + 1).min(points.len() - 1)];
                 let delta = (b - a).truncate().normalize_or_zero();
-                Vec3::new(-delta.y, delta.x, 0.0)
+                let progress = lengths.iter().take(index).sum::<u32>() * 1000 / total;
+                let roll = spec.roll_millidegrees(progress);
+                if roll == 0 {
+                    Vec3::new(-delta.y, delta.x, 0.0)
+                } else {
+                    train_render::banked_axes(b - a, roll).0
+                }
             })
             .collect();
         Self {
@@ -151,7 +160,13 @@ fn ghost(painter: &mut Painter, park: &Park, spec: TrackPieceSpec, rotation: u8,
                 painter.surface(strip(-0.33, -0.29), ink);
                 painter.surface(strip(0.29, 0.33), ink);
             }
-            TrackKind::Drop | TrackKind::Curve | TrackKind::Camelback | TrackKind::Straight => {}
+            TrackKind::Drop
+            | TrackKind::Curve
+            | TrackKind::Camelback
+            | TrackKind::Straight
+            | TrackKind::TransitionUp
+            | TrackKind::TransitionDown
+            | TrackKind::HeartlineRoll => {}
         }
     }
     // An explicit travel arrow removes left/right ambiguity after camera turns.

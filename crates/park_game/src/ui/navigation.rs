@@ -240,7 +240,7 @@ pub(crate) fn close(view: &mut ViewState) {
     view.ui_pointer_consumed = true;
 }
 
-pub(crate) fn select(view: &mut ViewState, sim: Option<&Simulation>, target: Destination) {
+pub(crate) fn select(view: &mut ViewState, sim: Option<&mut Simulation>, target: Destination) {
     close(view);
     match target {
         Destination::Path => view.set_path_tool(PathTool::Build),
@@ -253,7 +253,7 @@ pub(crate) fn select(view: &mut ViewState, sim: Option<&Simulation>, target: Des
         }
         Destination::Track | Destination::Designs => {
             if let Some(sim) = sim {
-                crate::track_tools::begin(&sim.0, view);
+                crate::track_tools::begin(&mut sim.0, view);
                 if target == Destination::Designs {
                     // begin closes the previous modal in this same frame.
                     view.modal_input_blocked = false;
@@ -334,10 +334,10 @@ mod tests {
 
     #[test]
     fn navigation_opens_the_existing_track_design_library() {
-        let sim = Simulation(crate::new_game_park());
+        let mut sim = Simulation(crate::new_game_park());
         let mut view = ViewState::default();
         open(&mut view);
-        select(&mut view, Some(&sim), Destination::Designs);
+        select(&mut view, Some(&mut sim), Destination::Designs);
         assert!(view.track_editor.active);
         assert!(view.designs_open);
         assert!(!view.navigation_open);

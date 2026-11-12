@@ -8,6 +8,11 @@ mod admission;
 mod appearance;
 mod carousel;
 #[cfg(test)]
+mod coaster_acceptance;
+mod coaster_fleet;
+mod coasters;
+pub use coasters::{CoasterSelectionError, MAX_COASTER_RECORDS};
+#[cfg(test)]
 mod construction_playthrough_tests;
 mod crowds;
 mod decorations;
@@ -147,8 +152,8 @@ pub use ride_operations::{
     RideOperatingError, RideOperatingSettings, STATION_WAIT_STEP_TICKS,
 };
 pub use ride_testing::{
-    COASTER_TEST_LIMITATIONS, CoasterLayoutMetrics, CoasterLayoutRatings, CoasterTestError,
-    CoasterTestInput, CoasterTestReport, MAX_COASTER_TEST_TICKS,
+    COASTER_TEST_LIMITATIONS, CoasterForceEstimates, CoasterLayoutMetrics, CoasterLayoutRatings,
+    CoasterTestError, CoasterTestInput, CoasterTestReport, MAX_COASTER_TEST_TICKS,
 };
 pub use saves::{
     CONTENT_VERSION as SAVE_CONTENT_VERSION, MAX_SAVE_BYTES, SCHEMA_VERSION as SAVE_SCHEMA_VERSION,
@@ -293,7 +298,9 @@ pub struct Park {
     track_draft: Vec<TrackPieceSpec>,
     track_economy: TrackEconomy,
     train: Option<Train>,
+    extra_trains: Vec<Train>,
     ride: Option<Ride>,
+    other_coasters: Vec<coasters::CoasterState>,
     carousels: Vec<CarouselRide>,
     ride_operating_settings: Vec<ride_operations::RideOperatingSettingsRecord>,
     ride_dispatch: Vec<ride_dispatch::RideDispatchRecord>,
@@ -338,7 +345,9 @@ impl PartialEq for Park {
             && self.track_draft == other.track_draft
             && self.track_economy == other.track_economy
             && self.train == other.train
+            && self.extra_trains == other.extra_trains
             && self.ride == other.ride
+            && self.other_coasters == other.other_coasters
             && self.carousels == other.carousels
             && self.ride_operating_settings == other.ride_operating_settings
             && self.ride_dispatch == other.ride_dispatch
@@ -405,7 +414,9 @@ impl Park {
             track_draft: Vec::new(),
             track_economy: TrackEconomy::default(),
             train: None,
+            extra_trains: Vec::new(),
             ride: None,
+            other_coasters: Vec::new(),
             carousels: Vec::new(),
             ride_operating_settings: Vec::new(),
             ride_dispatch: Vec::new(),
@@ -567,7 +578,7 @@ impl Park {
             self.step_visitor_arrivals();
             self.step_crowd();
             self.step_ride_journeys();
-            self.step_train();
+            self.step_coasters();
             self.step_carousels();
             self.reconcile_passenger_laps();
             self.step_maintenance();
