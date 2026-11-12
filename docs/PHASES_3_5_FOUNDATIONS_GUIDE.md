@@ -37,6 +37,10 @@ The remaining coaster work includes multiple trains on one circuit, block dispat
 
 ## Coaster fleets, transitions and inversions
 
+Version 0.85.1 adds **Follow heights**, enabled by default. Place a station, choose a piece and press **Enter** or **Add next piece**. Each new piece starts at the previous exit height and heading. Repeated chain lifts climb automatically, repeated drops descend, and curves turn the next piece. A station is followed by a straight piece by default. The panel shows **Start → End** levels and a green continuation preview. Invalid continuations appear red and cannot be added.
+
+**Raise [PgUp]** and **Lower [PgDn]** change the entry level. Changing height or heading after placing a piece switches Follow off for manual positioning. Toggle **Follow heights on** to return to the last placed piece's exit. Undo and redo restore that continuation point. Reopening an incomplete saved draft finds its last open end. At the terrain floor or construction ceiling, the builder selects a straight piece when the previous slope can no longer continue. A new slope that exceeds the supported levels is refused.
+
 Open **Rides**, select a coaster and choose **Edit coaster track**. The editor selects that ride immediately. **New coaster** keeps the existing rides and restores any unfinished new draft. **Next coaster** cycles through installed coasters. A new draft starts at ground level.
 
 The editor includes Station, Straight, left/right Curve, left/right Bank, Lift, one/two-step Drop, Brakes, Launch, Camelback, Smooth rise, Smooth drop and Heartline roll. Smooth pieces change height by one step. The roll returns to its entry height and rotates vehicles through 360 degrees. Its internal crest rises two steps and reserves five steps of clearance. Hover and Apply share geometry, ownership and price validation. Close the ride and let passengers leave before changing installed track.

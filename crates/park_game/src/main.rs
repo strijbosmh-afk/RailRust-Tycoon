@@ -1319,6 +1319,7 @@ fn keyboard_input(
     if view.track_editor.active {
         for (key, command) in [
             (KeyCode::KeyC, track_tools::TrackCommand::Turn),
+            (KeyCode::Enter, track_tools::TrackCommand::AddNext),
             (KeyCode::PageUp, track_tools::TrackCommand::Height(1)),
             (KeyCode::PageDown, track_tools::TrackCommand::Height(-1)),
             (KeyCode::KeyX, track_tools::TrackCommand::Erase),

@@ -194,7 +194,21 @@ pub fn track_preview_mesh(editor: &TrackEditor, park: &Park, rotation: u8) -> Me
             ghost(&mut painter, park, spec, rotation, [0.12, 0.70, 0.88, 0.9]);
         }
     }
-    if let Some(preview) = editor.preview {
+    let preview = editor.preview.or_else(|| {
+        (!editor.erase)
+            .then(|| editor.next_piece())
+            .flatten()
+            .filter(|spec| {
+                park.tile(spec.pos).is_some()
+                    && !park.track_draft().iter().any(|piece| piece.pos == spec.pos)
+            })
+            .map(|spec| crate::track_tools::TrackPreview {
+                spec,
+                valid: park.validate_track_draft_piece(spec).is_ok(),
+                erase: false,
+            })
+    });
+    if let Some(preview) = preview {
         let ink = if preview.erase {
             [0.98, 0.47, 0.12, 0.95]
         } else if preview.valid {

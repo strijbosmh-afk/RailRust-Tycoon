@@ -71,6 +71,7 @@ enum Scene {
     CatalogueWater,
     CatalogueTransport,
     CatalogueFacilities,
+    TrackFollow,
     Overview,
     TunnelEntrances,
     FlatStart,
@@ -760,6 +761,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("catalogue-water") => Scene::CatalogueWater,
                 Some("catalogue-transport") => Scene::CatalogueTransport,
                 Some("catalogue-facilities") => Scene::CatalogueFacilities,
+                Some("track-follow") => Scene::TrackFollow,
                 Some("overview") => Scene::Overview,
                 Some("flat-start") => Scene::FlatStart,
                 Some("help") => Scene::Help,
@@ -1658,6 +1660,9 @@ fn apply_preset(
         view.catalogue_open = matches!(capture.scene, Scene::CatalogueMenu);
         view.catalogue_category = 0;
         view.scene_dirty = true;
+    }
+    if matches!(capture.scene, Scene::TrackFollow) {
+        track_construction_scenes::prepare_follow(&mut sim.0, &mut view);
     }
     if capture.detail {
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;

@@ -11,6 +11,7 @@ pub(crate) struct TrackPanel;
 pub(crate) enum TrackLabel {
     Direction,
     Height,
+    Follow,
     Status,
     Quote,
     Notice,
@@ -35,7 +36,7 @@ fn small_button(parent: &mut ChildSpawnerCommands, text: &str, command: TrackCom
             BorderRadius::all(px(5)),
         ))
         .with_children(|p| match command {
-            TrackCommand::Turn => {
+            TrackCommand::Follow | TrackCommand::Turn => {
                 p.spawn((
                     Text::new(text),
                     TextFont {
@@ -43,7 +44,11 @@ fn small_button(parent: &mut ChildSpawnerCommands, text: &str, command: TrackCom
                         ..default()
                     },
                     TextColor(INK),
-                    TrackLabel::Direction,
+                    if command == TrackCommand::Follow {
+                        TrackLabel::Follow
+                    } else {
+                        TrackLabel::Direction
+                    },
                 ));
             }
             _ => label(p, text, if width < 90.0 { 11.0 } else { 12.0 }, INK),
@@ -108,6 +113,23 @@ pub(super) fn setup(commands: &mut Commands) {
                 small_button(p, "New coaster", TrackCommand::NewCoaster, 100.0);
                 small_button(p, "Next coaster", TrackCommand::NextCoaster, 100.0);
             });
+            small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
+            small_button(p, "Follow heights on", TrackCommand::Follow, 207.0);
+            small_button(p, "Add next piece [Enter]", TrackCommand::AddNext, 207.0);
+            p.spawn((
+                Text::new("Start 8 → End 8"),
+                TextFont {
+                    font_size: 13.0,
+                    ..default()
+                },
+                TextColor(INK),
+                TrackLabel::Height,
+            ));
+            p.spawn(row()).with_children(|p| {
+                small_button(p, "Lower [PgDn]", TrackCommand::Height(-1), 100.0);
+                small_button(p, "Raise [PgUp]", TrackCommand::Height(1), 100.0);
+            });
+
             p.spawn(row()).with_children(|p| {
                 small_button(
                     p,
@@ -210,27 +232,6 @@ pub(super) fn setup(commands: &mut Commands) {
                 TrackCommand::Piece(TrackBuildKind::HeartlineRoll),
                 207.0,
             );
-            small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
-            p.spawn(row()).with_children(|p| {
-                small_button(p, "-", TrackCommand::Height(-1), 32.0);
-                p.spawn(Node {
-                    width: px(129),
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                })
-                .with_children(|p| {
-                    p.spawn((
-                        Text::new("In 8 / Out 8"),
-                        TextFont {
-                            font_size: 11.0,
-                            ..default()
-                        },
-                        TextColor(INK),
-                        TrackLabel::Height,
-                    ));
-                });
-                small_button(p, "+", TrackCommand::Height(1), 32.0);
-            });
             p.spawn(row()).with_children(|p| {
                 small_button(p, "Erase [X]", TrackCommand::Erase, 64.0);
                 small_button(p, "Copy live", TrackCommand::CopyInstalled, 64.0);
@@ -314,6 +315,14 @@ pub(crate) fn refresh(
                 "Heading {} [C]",
                 track_tools::direction_name(view.track_editor.direction)
             ),
+            TrackLabel::Follow => format!(
+                "Follow heights {}",
+                if view.track_editor.auto_follow {
+                    "on"
+                } else {
+                    "off"
+                }
+            ),
             TrackLabel::Height => {
                 let editor = &view.track_editor;
                 let spec = editor.kind.spec(
@@ -321,7 +330,7 @@ pub(crate) fn refresh(
                     editor.height,
                     editor.direction,
                 );
-                format!("In {} / Out {}", spec.entry.height, spec.exit.height)
+                format!("Start {} → End {}", spec.entry.height, spec.exit.height)
             }
             TrackLabel::Status => cached_status
                 .as_ref()

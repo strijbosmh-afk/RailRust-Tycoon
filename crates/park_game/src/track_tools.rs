@@ -10,6 +10,8 @@ pub(crate) enum TrackCommand {
     Piece(TrackBuildKind),
     Turn,
     Height(i8),
+    Follow,
+    AddNext,
     Erase,
     Clear,
     CopyInstalled,
@@ -34,6 +36,8 @@ pub(crate) struct TrackEditor {
     pub kind: TrackBuildKind,
     pub direction: TrackDirection,
     pub height: u8,
+    pub auto_follow: bool,
+    pub last_piece: Option<TrackPieceSpec>,
     pub erase: bool,
     pub preview: Option<TrackPreview>,
     pub revision: u64,
@@ -47,9 +51,35 @@ const HISTORY_LIMIT: usize = 64;
 /// Session-only draft snapshots. Never store the live park or its finances here.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DraftHistory {
-    undo: Vec<Vec<TrackPieceSpec>>,
-    redo: Vec<Vec<TrackPieceSpec>>,
+    undo: Vec<DraftSnapshot>,
+    redo: Vec<DraftSnapshot>,
     current: Option<Vec<TrackPieceSpec>>,
+}
+
+#[derive(Clone, Debug)]
+struct DraftSnapshot {
+    pieces: Vec<TrackPieceSpec>,
+    last_piece: Option<TrackPieceSpec>,
+}
+
+fn exit_neighbor(spec: TrackPieceSpec) -> Option<park_sim::TilePos> {
+    let direction = match spec.exit.edge {
+        TrackDirection::North => park_sim::PathDirection::North,
+        TrackDirection::East => park_sim::PathDirection::East,
+        TrackDirection::South => park_sim::PathDirection::South,
+        TrackDirection::West => park_sim::PathDirection::West,
+    };
+    direction.neighbor(spec.pos)
+}
+
+fn open_endpoint(draft: &[TrackPieceSpec]) -> Option<TrackPieceSpec> {
+    draft.iter().rev().copied().find(|piece| {
+        !draft.iter().any(|next| {
+            Some(next.pos) == exit_neighbor(*piece)
+                && next.entry.height == piece.exit.height
+                && next.entry.edge == piece.exit.edge
+        })
+    })
 }
 
 impl Default for TrackEditor {
@@ -59,6 +89,8 @@ impl Default for TrackEditor {
             kind: TrackBuildKind::Station,
             direction: TrackDirection::East,
             height: 8,
+            auto_follow: true,
+            last_piece: None,
             erase: false,
             preview: None,
             revision: 0,
@@ -70,6 +102,52 @@ impl Default for TrackEditor {
 }
 
 impl TrackEditor {
+    pub(crate) fn next_piece(&self) -> Option<TrackPieceSpec> {
+        let previous = self.last_piece?;
+        let pos = exit_neighbor(previous)?;
+        self.auto_follow.then(|| {
+            self.kind
+                .spec(pos, previous.exit.height, previous.exit.edge)
+        })
+    }
+
+    fn follow_exit(&mut self, spec: TrackPieceSpec) {
+        self.last_piece = Some(spec);
+        if self.auto_follow {
+            self.height = spec.exit.height;
+            self.direction = spec.exit.edge;
+            if self.kind == TrackBuildKind::Station
+                || !(self.kind.min_height()..=self.kind.max_height()).contains(&self.height)
+            {
+                self.kind = TrackBuildKind::Straight;
+            }
+        }
+    }
+
+    fn place_piece(&mut self, park: &mut Park, spec: TrackPieceSpec) {
+        let before = park.track_draft().to_vec();
+        let name = kind_name(self.kind);
+        match park.set_track_draft_piece(spec) {
+            Ok(()) => {
+                self.erase = false;
+                self.record_change(before, park.track_draft());
+                self.follow_exit(spec);
+                self.notice = if self.auto_follow {
+                    format!(
+                        "{name} {} → {}.\nNext starts at {} / Enter adds it.",
+                        spec.entry.height, spec.exit.height, self.height
+                    )
+                } else {
+                    format!(
+                        "{name} {} → {}.\nManual height / Follow resumes joins.",
+                        spec.entry.height, spec.exit.height
+                    )
+                };
+            }
+            Err(error) => self.notice = error_message(park, error),
+        }
+    }
+
     pub(crate) fn can_undo(&self) -> bool {
         self.undo_len() != 0
     }
@@ -90,6 +168,10 @@ impl TrackEditor {
         self.history.undo.clear();
         self.history.redo.clear();
         self.history.current = Some(draft.to_vec());
+        self.last_piece = open_endpoint(draft);
+        if let Some(last) = self.last_piece {
+            self.follow_exit(last);
+        }
     }
 
     /// Fixtures and other callers can replace the draft outside this editor.
@@ -112,7 +194,10 @@ impl TrackEditor {
         if self.history.undo.len() == HISTORY_LIMIT {
             self.history.undo.remove(0);
         }
-        self.history.undo.push(before);
+        self.history.undo.push(DraftSnapshot {
+            pieces: before,
+            last_piece: self.last_piece,
+        });
         self.history.redo.clear();
         self.history.current = Some(after.to_vec());
         self.draft_changed();
@@ -138,9 +223,12 @@ impl TrackEditor {
         let Some(next) = next.cloned() else {
             return Ok(false);
         };
-        let before = park.track_draft().to_vec();
+        let before = DraftSnapshot {
+            pieces: park.track_draft().to_vec(),
+            last_piece: self.last_piece,
+        };
         // Leave both stacks intact if restoration is refused.
-        if !park.replace_track_draft(&next)? {
+        if !park.replace_track_draft(&next.pieces)? {
             return Ok(false);
         }
         if undo {
@@ -150,7 +238,11 @@ impl TrackEditor {
             self.history.redo.pop();
             self.history.undo.push(before);
         }
-        self.history.current = Some(next);
+        self.last_piece = next.last_piece;
+        if let Some(last) = self.last_piece {
+            self.follow_exit(last);
+        }
+        self.history.current = Some(next.pieces);
         self.draft_changed();
         Ok(true)
     }
@@ -217,8 +309,10 @@ pub(crate) fn queue(view: &mut ViewState, command: TrackCommand) {
     if view.track_editor.active && !view.edits_blocked() {
         // A shortcut and its button can arrive in one frame. Treat that as
         // one history step while preserving the order of different commands.
-        if matches!(command, TrackCommand::Undo | TrackCommand::Redo)
-            && view.track_editor.pending.contains(&command)
+        if matches!(
+            command,
+            TrackCommand::Undo | TrackCommand::Redo | TrackCommand::AddNext
+        ) && view.track_editor.pending.contains(&command)
         {
             view.ui_pointer_consumed = true;
             return;
@@ -267,6 +361,8 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
                 Ok(changed) => {
                     if command == TrackCommand::NewCoaster && park.ride().is_none() {
                         view.track_editor.kind = TrackBuildKind::Station;
+                        view.track_editor.auto_follow = true;
+                        view.track_editor.last_piece = None;
                         view.track_editor.height = 0;
                         view.track_editor.erase = false;
                     }
@@ -289,20 +385,59 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
                 Err(error) => view.track_editor.notice = error.to_string(),
             }
         }
+        TrackCommand::Follow => {
+            let editor = &mut view.track_editor;
+            editor.auto_follow = !editor.auto_follow;
+            if let Some(last) = editor.last_piece {
+                editor.follow_exit(last);
+            }
+            editor.revision = editor.revision.wrapping_add(1);
+            editor.notice = if editor.auto_follow {
+                "Follow on. Slopes carry their exit height forward."
+            } else {
+                "Manual height. Raise or lower each piece as needed."
+            }
+            .into();
+        }
+        TrackCommand::AddNext => {
+            let Some(spec) = view.track_editor.next_piece() else {
+                view.track_editor.notice = "Place a starting piece with Follow on first.".into();
+                return;
+            };
+            if let Some(existing) = park.track_draft().iter().find(|p| p.pos == spec.pos) {
+                let joins = existing.entry.height == spec.entry.height
+                    && existing.entry.edge == spec.entry.edge;
+                view.track_editor.notice = if joins {
+                    "The next tile already joins this exit. Apply a complete loop."
+                } else {
+                    "The next tile already has track. Edit it on the map to repair the join."
+                }
+                .into();
+                return;
+            }
+            view.track_editor.place_piece(park, spec);
+        }
         TrackCommand::Piece(kind) => {
             view.track_editor.kind = kind;
             view.track_editor.erase = false;
-            view.track_editor.height = view
-                .track_editor
-                .height
-                .clamp(kind.min_height(), kind.max_height());
+            if !(view.track_editor.auto_follow && view.track_editor.last_piece.is_some()) {
+                view.track_editor.height = view
+                    .track_editor
+                    .height
+                    .clamp(kind.min_height(), kind.max_height());
+            }
+            view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
             view.track_editor.notice = format!(
-                "{} / new {}\nPgUp/Dn sets entry height.",
+                "{} / new {}\nFollow matches the next entry height.",
                 kind_name(kind),
                 crate::ui::money(kind.cost_cents())
             );
         }
         TrackCommand::Turn => {
+            if view.track_editor.last_piece.is_some() {
+                view.track_editor.auto_follow = false;
+            }
+            view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
             view.track_editor.direction = match view.track_editor.direction {
                 TrackDirection::North => TrackDirection::East,
                 TrackDirection::East => TrackDirection::South,
@@ -311,6 +446,10 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
             };
         }
         TrackCommand::Height(delta) => {
+            if view.track_editor.last_piece.is_some() {
+                view.track_editor.auto_follow = false;
+            }
+            view.track_editor.revision = view.track_editor.revision.wrapping_add(1);
             view.track_editor.height = (i16::from(view.track_editor.height) + i16::from(delta))
                 .clamp(
                     i16::from(view.track_editor.kind.min_height()),
@@ -322,6 +461,7 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
             let before = park.track_draft().to_vec();
             park.clear_track_draft();
             view.track_editor.record_change(before, park.track_draft());
+            view.track_editor.last_piece = None;
             view.track_editor.notice =
                 "Draft cleared / no charge.\nLive coaster stays unchanged.".into();
         }
@@ -330,6 +470,12 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
             match park.copy_installed_track_to_draft() {
                 Ok(changed) => {
                     view.track_editor.record_change(before, park.track_draft());
+                    if changed {
+                        view.track_editor.last_piece = open_endpoint(park.track_draft());
+                        if let Some(last) = view.track_editor.last_piece {
+                            view.track_editor.follow_exit(last);
+                        }
+                    }
                     view.track_editor.notice = if changed {
                         format!(
                             "{} installed pieces copied.\nApply buys your changes.",
@@ -407,6 +553,12 @@ pub(crate) fn load_design_draft(
     let before = park.track_draft().to_vec();
     let changed = park.replace_track_draft(specs)?;
     view.track_editor.record_change(before, park.track_draft());
+    if changed {
+        view.track_editor.last_piece = open_endpoint(park.track_draft());
+        if let Some(last) = view.track_editor.last_piece {
+            view.track_editor.follow_exit(last);
+        }
+    }
     view.track_editor.preview = None;
     Ok(changed)
 }
@@ -427,6 +579,12 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         let before = click.then(|| park.track_draft().to_vec());
         if click && park.remove_track_draft_piece(spec.pos) {
             editor.record_change(before.unwrap(), park.track_draft());
+            if editor.last_piece == Some(spec) {
+                editor.last_piece = park.track_draft().last().copied();
+                if let Some(last) = editor.last_piece {
+                    editor.follow_exit(last);
+                }
+            }
             editor.preview = None;
             editor.notice = format!(
                 "Removed draft tile {}, {}.\nLive track is unchanged.",
@@ -461,21 +619,7 @@ pub(crate) fn point_at(park: &mut Park, view: &mut ViewState, point: Vec2, click
         erase: false,
     });
     if click {
-        let before = park.track_draft().to_vec();
-        match park.set_track_draft_piece(spec) {
-            Ok(()) => {
-                editor.record_change(before, park.track_draft());
-                editor.notice = format!(
-                    "{} / {}, {} / {}-{}\nMatch next entry to this exit.",
-                    kind_name(editor.kind),
-                    pos.x + 1,
-                    pos.y + 1,
-                    spec.entry.height,
-                    spec.exit.height
-                );
-            }
-            Err(error) => editor.notice = error_message(park, error),
-        }
+        editor.place_piece(park, spec);
     }
 }
 
@@ -896,5 +1040,172 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod continuation_tests {
+    use super::*;
+    use park_sim::TilePos;
+
+    #[test]
+    fn automatic_continuation_follows_grades_turns_and_floor_without_spending() {
+        for rotation in 0..4 {
+            let mut park = Park::new(32, 32);
+            let cash = park.cash_cents();
+            let mut view = ViewState {
+                rotation,
+                track_editor: TrackEditor {
+                    active: true,
+                    height: 0,
+                    ..default()
+                },
+                ..default()
+            };
+            let point = build_center(&park, TilePos { x: 5, y: 5 }, 0, rotation);
+            point_at(&mut park, &mut view, point, true);
+            assert_eq!(view.track_editor.kind, TrackBuildKind::Straight);
+            for kind in [
+                TrackBuildKind::Lift,
+                TrackBuildKind::Lift,
+                TrackBuildKind::CurveRight,
+                TrackBuildKind::TransitionDown,
+                TrackBuildKind::Drop,
+                TrackBuildKind::Straight,
+            ] {
+                apply_command(&mut park, &mut view, TrackCommand::Piece(kind));
+                apply_command(&mut park, &mut view, TrackCommand::AddNext);
+            }
+            assert_eq!(park.track_draft().len(), 7);
+            assert_eq!(
+                park.track_draft()
+                    .iter()
+                    .map(|p| (p.entry.height, p.exit.height))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0), (0, 1), (1, 2), (2, 2), (2, 1), (1, 0), (0, 0)]
+            );
+            for pair in park.track_draft().windows(2) {
+                assert_eq!(pair[0].samples().last(), pair[1].samples().first());
+            }
+            assert_eq!(view.track_editor.direction, TrackDirection::South);
+            assert_eq!(view.track_editor.height, 0);
+            assert_eq!(park.cash_cents(), cash);
+        }
+    }
+
+    #[test]
+    fn explicit_height_override_and_follow_toggle_keep_the_last_connection() {
+        let mut park = Park::new(32, 32);
+        let mut view = ViewState {
+            track_editor: TrackEditor {
+                active: true,
+                height: 0,
+                ..default()
+            },
+            ..default()
+        };
+        let point = build_center(&park, TilePos { x: 5, y: 5 }, 0, 0);
+        point_at(&mut park, &mut view, point, true);
+        apply_command(
+            &mut park,
+            &mut view,
+            TrackCommand::Piece(TrackBuildKind::Lift),
+        );
+        apply_command(&mut park, &mut view, TrackCommand::AddNext);
+        apply_command(&mut park, &mut view, TrackCommand::Height(1));
+        assert!(!view.track_editor.auto_follow);
+        let before = park.clone();
+        apply_command(&mut park, &mut view, TrackCommand::AddNext);
+        assert_eq!(park, before);
+        apply_command(&mut park, &mut view, TrackCommand::Follow);
+        assert_eq!(view.track_editor.height, 1);
+        apply_command(&mut park, &mut view, TrackCommand::AddNext);
+        assert_eq!(park.track_draft().last().unwrap().entry.height, 1);
+        apply_command(&mut park, &mut view, TrackCommand::Undo);
+        assert_eq!(view.track_editor.height, 1);
+        assert_eq!(
+            view.track_editor.next_piece().unwrap().pos,
+            TilePos { x: 7, y: 5 }
+        );
+    }
+
+    #[test]
+    fn next_piece_never_replaces_existing_track_or_changes_state_after_refusal() {
+        let mut park = Park::new(32, 32);
+        let mut view = ViewState {
+            track_editor: TrackEditor {
+                active: true,
+                height: 0,
+                ..default()
+            },
+            ..default()
+        };
+        point_at(
+            &mut park,
+            &mut view,
+            build_center(&Park::new(32, 32), TilePos { x: 30, y: 5 }, 0, 0),
+            true,
+        );
+        apply_command(&mut park, &mut view, TrackCommand::AddNext);
+        let before = park.clone();
+        let anchor = view.track_editor.last_piece;
+        apply_command(&mut park, &mut view, TrackCommand::AddNext);
+        assert_eq!(park, before);
+        assert_eq!(view.track_editor.last_piece, anchor);
+        let mut other = Park::new(32, 32);
+        other
+            .set_track_draft_piece(TrackBuildKind::Station.spec(
+                TilePos { x: 6, y: 5 },
+                0,
+                TrackDirection::East,
+            ))
+            .unwrap();
+        view.track_editor = TrackEditor {
+            active: true,
+            height: 0,
+            ..default()
+        };
+        let start = build_center(&other, TilePos { x: 5, y: 5 }, 0, 0);
+        point_at(&mut other, &mut view, start, true);
+        let before = other.clone();
+        apply_command(&mut other, &mut view, TrackCommand::AddNext);
+        assert_eq!(other, before);
+        assert!(view.track_editor.notice.contains("already joins"));
+    }
+
+    #[test]
+    fn reopening_saved_draft_and_undoing_a_replacement_restore_the_correct_endpoint() {
+        let mut park = Park::new(32, 32);
+        let specs = [
+            TrackBuildKind::Station.spec(TilePos { x: 5, y: 5 }, 0, TrackDirection::East),
+            TrackBuildKind::Lift.spec(TilePos { x: 6, y: 5 }, 0, TrackDirection::East),
+        ];
+        park.replace_track_draft(&specs).unwrap();
+        let mut view = ViewState::default();
+        begin(&mut park, &mut view);
+        assert_eq!(view.track_editor.height, 1);
+        assert_eq!(
+            view.track_editor.next_piece().unwrap().pos,
+            TilePos { x: 7, y: 5 }
+        );
+        apply_command(&mut park, &mut view, TrackCommand::AddNext);
+        let tail = view.track_editor.last_piece;
+        view.track_editor.kind = TrackBuildKind::Brake;
+        view.track_editor.height = 0;
+        let point = build_center(&park, TilePos { x: 5, y: 5 }, 0, 0);
+        point_at(&mut park, &mut view, point, true);
+        assert_eq!(
+            view.track_editor.last_piece.unwrap().pos,
+            TilePos { x: 5, y: 5 }
+        );
+        apply_command(&mut park, &mut view, TrackCommand::Undo);
+        assert_eq!(view.track_editor.last_piece, tail);
+        assert_eq!(
+            view.track_editor.next_piece().unwrap().pos,
+            TilePos { x: 8, y: 5 }
+        );
+        apply_command(&mut park, &mut view, TrackCommand::Clear);
+        apply_command(&mut park, &mut view, TrackCommand::Undo);
+        assert_eq!(view.track_editor.last_piece, tail);
     }
 }

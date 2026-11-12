@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phase 6 is complete in version 0.85.0 on `codex/phase-6-catalogue`, in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77).** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
+**Current development is 0.85.1 with automatic coaster continuation, following the completed Phase 6 catalogue in 0.85.0 on `codex/phase-6-catalogue`, in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77).** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 54](#54-automatic-coaster-continuation--0851), [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1417,3 +1417,23 @@ The finite catalogue is complete. Transport currently carries passengers from it
 6. Continue with Phase 7 from `docs/FULL_GAME_ROADMAP.md` after verifying this checkpoint.
 
 Graphics and functional tests on this PC establish correctness. Use an agreed representative Windows machine for performance targets and frame-time comparisons.
+
+## 54. Automatic coaster continuation — 0.85.1
+
+The user found climbs and descents difficult because each piece required a separately selected height. The track editor now starts with **Follow heights on**. After placing a piece, its exit sets the next piece's start level and direction. **Add next piece**, also available with **Enter**, places the selected piece in the adjoining tile. A station selects Straight for its successor. Curves turn the next piece automatically. A slope that reaches the floor or height limit selects Straight for the successor.
+
+The top of the Track Draft panel now shows the follow toggle, Add next piece, **Start → End** levels and explicit **Raise [PgUp] / Lower [PgDn]** buttons. Raising, lowering or manually turning after a placement switches Follow off. Turning Follow on returns to the last placed piece's exit. A green ghost previews the continuation and a red ghost shows an invalid placement. Occupied continuation tiles are preserved and a completed join is reported.
+
+Undo and redo restore the correct continuation anchor, including edits made to an earlier draft tile. Reopening an incomplete saved draft finds the last open endpoint. The follow setting and undo anchors are session state. Saved geometry uses the existing schema/content **48/48**. Importing or copying a draft recalculates its endpoint.
+
+### Changed files and verification
+
+`crates/park_game/src/track_tools.rs` owns continuation and draft history. `ui/track.rs` owns the controls and level display. `main.rs` routes Enter through the existing input barrier. `world/track_preview.rs` draws the next-piece ghost. `track_input_tests.rs` covers pointer placement, simultaneous keyboard/button input, slope joins, manual override and saving through production input systems. `capture/track_construction_scenes.rs` and the `track-follow` capture scene exercise the same commands for visual inspection.
+
+Verification for this update is in progress. This section will be finalized with test, executable and package identities before delivery. The latest completed catalogue package remains the 0.85.0 archive recorded in section 53 until that verification completes.
+
+### Cross-PC continuation
+
+The working branch remains `codex/phase-6-catalogue` in PR #77. The shared local path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing, inspect `git status`, and check out that branch before continuing. Read the current controls in `docs/PHASES_3_5_FOUNDATIONS_GUIDE.md`. The next planned content stage remains Phase 7 in `docs/FULL_GAME_ROADMAP.md`.
+
+This development PC is excluded from performance targets. Its timing measurements establish neither release hardware requirements nor frame-rate acceptance.
