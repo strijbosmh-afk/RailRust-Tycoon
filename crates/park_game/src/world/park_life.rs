@@ -6,7 +6,7 @@ pub(super) fn paint(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMod
             continue;
         };
         let mut roof = object_surfaces(park, path, rotation)[0];
-        let shift = Vec3::Y * 22.0 + Vec3::Z * 0.02;
+        let shift = Vec3::Y * 28.0 + Vec3::Z * 0.02;
         for vertex in &mut roof.vertices {
             let base = *vertex;
             *vertex += shift;

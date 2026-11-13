@@ -1678,6 +1678,19 @@ fn apply_preset(
         if matches!(capture.scene, Scene::ParkLifeRain) {
             sim.0.set_weather_policy(park_sim::WeatherPolicy::Rain);
         }
+        let staff_ids: Vec<_> = sim.0.park_staff().iter().map(|worker| worker.id).collect();
+        let nearby_paths: Vec<_> = sim
+            .0
+            .objects()
+            .iter()
+            .filter(|p| p.is_public_path() && p.pos.y == 1 && (2..=6).contains(&p.pos.x))
+            .map(|p| p.id)
+            .collect();
+        for (staff, path) in staff_ids.into_iter().zip(nearby_paths) {
+            sim.0
+                .toggle_staff_patrol(staff, path)
+                .expect("capture patrol");
+        }
         for _ in 0..capture.ticks.max(1200) {
             sim.0.advance(Speed::Normal);
         }
