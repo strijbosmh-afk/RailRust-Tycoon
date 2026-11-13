@@ -78,7 +78,9 @@ impl Park {
             let mut worker = self.park_staff()[index].clone();
             worker.wage_ticks += 1;
             if worker.wage_ticks == PARK_STAFF_WAGE_TICKS {
-                if self.cash_cents < PARK_STAFF_WAGE_CENTS {
+                if self.cash_cents < PARK_STAFF_WAGE_CENTS
+                    || !self.management_payroll(PARK_STAFF_WAGE_CENTS)
+                {
                     worker.working = false;
                     worker.wage_ticks -= 1;
                 } else {

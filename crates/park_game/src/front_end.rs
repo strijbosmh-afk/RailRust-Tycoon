@@ -356,6 +356,7 @@ impl FrontEnd {
             return;
         }
         park.enable_park_life();
+        park.enable_management();
         let (terrain_profile, terrain_custom) = crate::persistence::terrain_style(&park);
         sim.0 = park;
         let generation = view.park_generation.wrapping_add(1);

@@ -55,6 +55,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
     let mut wages = ledger.archived.wages_cents;
     let mut admission = ledger.archived.admission_revenue_cents;
     let mut advertising = ledger.archived.advertising_cents;
+    let mut research = ledger.archived.research_cents;
+    let mut promotion = ledger.archived.promotion_cents;
     for entry in &ledger.entries {
         let amount = entry.amount_cents;
         match entry.kind {
@@ -67,6 +69,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             FinanceKind::RideRevenue => ride_revenue += amount,
             FinanceKind::ParkAdmission => admission += amount,
             FinanceKind::Advertising | FinanceKind::RadioAdvertising => advertising += amount,
+            FinanceKind::Research => research += amount,
+            FinanceKind::Promotion => promotion += amount,
             FinanceKind::ServiceRevenue => service_revenue += amount,
             FinanceKind::RideUpkeep => ride_cost += amount,
             FinanceKind::ServiceUpkeep => service_cost += amount,
@@ -94,6 +98,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         || report.loan_interest_cents != interest
         || report.staff_wages_cents != wages
         || report.admission_revenue_cents != admission
+        || report.research_cents != research
+        || report.promotion_cents != promotion
         || report.advertising_cents != advertising
         || report.rides.revenue_cents != ride_revenue
         || report.rides.upkeep_cents != ride_cost
@@ -107,12 +113,16 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             != ride_profit + service_profit + i128::from(admission)
                 - i128::from(wages)
                 - i128::from(advertising)
+                - i128::from(research)
+                - i128::from(promotion)
         || report.construction_cents != construction
         || report.refunds_cents != refunds
         || report.net_cash_cents
             != ride_profit + service_profit + i128::from(admission)
                 - i128::from(wages)
                 - i128::from(advertising)
+                - i128::from(research)
+                - i128::from(promotion)
                 + i128::from(refunds)
                 - i128::from(construction)
                 + i128::from(borrowed)

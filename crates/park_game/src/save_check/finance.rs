@@ -112,6 +112,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                 + loan.interest_paid_cents
                 + stats.wages_cents
                 + advertising
+                + stats.research_cents
+                + stats.promotion_cents
         || i128::from(stats.net_profit_cents)
             != i128::from(ride) + i128::from(admission) + i128::from(revenue) + i128::from(refunds)
                 - i128::from(upkeep)
@@ -120,6 +122,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                 - i128::from(loan.interest_paid_cents)
                 - i128::from(stats.wages_cents)
                 - i128::from(advertising)
+                - i128::from(stats.research_cents)
+                - i128::from(stats.promotion_cents)
         || stats.retained_entries != ledger.entries.len()
         || stats.archived_entries != ledger.archived_entries
         || ledger.entries.len() > FINANCE_LEDGER_CAPACITY

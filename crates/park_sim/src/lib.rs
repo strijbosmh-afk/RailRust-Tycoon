@@ -51,7 +51,13 @@ pub use grounds::{
 mod park_value;
 pub use park_value::ParkValue;
 mod loans;
+mod management;
 mod park_life;
+pub use management::{
+    FacilityStock, MANAGEMENT_PERIOD_TICKS, ManagementReport, ManagementStatus,
+    PROMOTION_COST_CENTS, PROMOTION_TICKS, Promotion, RESEARCH_PROJECT_CENTS, ResearchFunding,
+    ResearchPriority, STOCK_CAPACITY,
+};
 mod staff;
 pub use park_life::{
     IncidentKind, PARK_STAFF_LIMIT, PARK_STAFF_WAGE_CENTS, PARK_STAFF_WAGE_TICKS, ParkIncident,
@@ -293,6 +299,7 @@ impl Speed {
 #[derive(Clone, Debug)]
 pub struct Park {
     park_life: Option<park_life::ParkLife>,
+    management: Option<management::Management>,
     width: u32,
     height: u32,
     tiles: Vec<Tile>,
@@ -340,7 +347,8 @@ pub struct Park {
 /// their previous equality semantics across cloning and save/load.
 impl PartialEq for Park {
     fn eq(&self, other: &Self) -> bool {
-        self.park_life == other.park_life
+        self.management == other.management
+            && self.park_life == other.park_life
             && self.width == other.width
             && self.height == other.height
             && self.tiles == other.tiles
@@ -414,6 +422,7 @@ impl Park {
             height,
             tiles,
             park_life: None,
+            management: None,
             ticks: 0,
             objects: Vec::new(),
             next_object_id: 1,
@@ -581,6 +590,7 @@ impl Park {
             }
             self.ticks += 1;
             self.step_loan_interest();
+            self.step_management();
             self.step_mechanic_wages();
             self.step_handyman_wages();
             self.step_ride_upkeep();
@@ -598,6 +608,7 @@ impl Park {
             self.step_grounds();
             self.finish_visitor_departures();
             self.step_scenario();
+            self.finish_management_tick();
         }
     }
 }

@@ -1,8 +1,8 @@
 # Parkbound
 
-The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.86.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 meet their audited player-visible acceptance gates in 0.84.0. Phase 6 completes the approved 14-ride, eight-facility catalogue. Phase 7 adds visitors, staff teams, weather and park life. Later phases expand management, scenarios and release readiness.
+The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining phases from the current 0.87.0 build through a distributable Windows 1.0 release. Phase 1 adds a skippable intro, title and pause menus, New/Continue, scenario choice, and a multi-park library. Phase 2 improves display choices, grouped navigation, and responsive panels. Phases 3–5 meet their audited player-visible acceptance gates in 0.84.0. Phase 6 completes the approved 14-ride, eight-facility catalogue. Phase 7 adds visitors, staff teams, weather and park life. Phase 8 adds research, stock, promotions and management reports. Later phases expand scenarios and release readiness.
 
-Current development stage **0.86.0** adds **Phase 7 park life**. Visitors arrive in groups, choose rides according to shared interests, seek shelter and can return after a satisfying visit. Hire teams of mechanics, handymen, security, entertainers and service attendants. Staff patrols, wages, weather, covered benches and local incidents share the existing guest, construction and finance systems. The completed 14-ride, eight-facility catalogue and automatic coaster continuation are included. Saves use **49/49**. Read the [park-life guide](docs/PHASE_7_PARK_LIFE.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md).
+Current development stage **0.87.0** adds **Phase 8 management and economy**. Fund research and unlock the catalogue, order facility stock, compare operating results, run themed promotions and control team payroll. A six-tab management screen connects these systems to prices, admission rules, loans and the finance ledger. Saves use **50/50** and preserve earlier parks. Read the [management guide](docs/PHASE_8_MANAGEMENT_ECONOMY.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md).
 
 Previous development stage **0.82.0** adds masonry tunnel entrances, Day/Sunset/Night lighting, a Rain view, and path lamps. Display preferences persist across launches. A 128×128 construction flow exercises owned land, slopes, paid paths, queue access, visitors, save continuation and demolition together. Phase 3–5 progress and remaining gates are recorded in the [phase audit](docs/PHASES_3_5_COMPLETION_STATUS.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md).
 
@@ -130,7 +130,7 @@ Final runtime `d19346c` in [draft PR #23](https://github.com/strijbosmh-afk/Rail
 
 ## Play the Windows build
 
-The current local build target is `dist/Parkbound-0.86.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. The adjacent `.zip.sha256` identifies the finished archive. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md) for current controls, verification and the shared OneDrive path.
+The current local build target is `dist/Parkbound-0.87.0-windows-x64.zip`. Extract the complete ZIP and open `Parkbound.exe`. The adjacent `.zip.sha256` identifies the finished archive. See the [player guide](docs/PHASES_3_5_FOUNDATIONS_GUIDE.md) and [cross-PC handoff](RESUME_DEVELOPMENT.md) for current controls, verification and the shared OneDrive path.
 
 The build is unsigned. Minimum hardware and additional supported Windows versions will be established through further testing. Each milestone report records its own named-build evidence.
 

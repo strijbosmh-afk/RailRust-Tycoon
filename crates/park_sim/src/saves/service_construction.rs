@@ -187,6 +187,7 @@ impl VersionElevenParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
             park_life: None,
+            management: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,

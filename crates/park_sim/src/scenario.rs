@@ -88,7 +88,7 @@ impl std::fmt::Display for ScenarioError {
         f.write_str(match self {
             Self::AlreadyStarted => "A challenge is already active",
             Self::RadioActive => {
-                "Wait for the current radio campaign to finish before starting Meadow Challenge"
+                "Wait for radio and themed promotions to finish before starting Meadow Challenge"
             }
         })
     }
@@ -129,8 +129,16 @@ impl Park {
         if self.scenario.is_some() {
             return Err(ScenarioError::AlreadyStarted);
         }
-        if kind == ScenarioKind::MeadowChallenge && self.visitors.radio_ticks_remaining != 0 {
+        if kind == ScenarioKind::MeadowChallenge
+            && (self.visitors.radio_ticks_remaining != 0 || self.promotion_active())
+        {
             return Err(ScenarioError::RadioActive);
+        }
+        if kind == ScenarioKind::MeadowChallenge
+            && let Some(m) = self.management.as_mut()
+            && m.funding == crate::ResearchFunding::High
+        {
+            m.funding = crate::ResearchFunding::Medium;
         }
         let baseline_arrivals = self.visitors.spawned;
         let baseline_rides = self.completed_visitor_rides();

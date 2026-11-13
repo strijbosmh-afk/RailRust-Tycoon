@@ -26,6 +26,8 @@ impl OperatingProfit {
 /// These are neither asset values nor a forecast or a monthly income statement.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ParkFinanceSummary {
+    pub research_cents: u64,
+    pub promotion_cents: u64,
     pub rides: OperatingProfit,
     pub services: OperatingProfit,
     pub admission_revenue_cents: u64,
@@ -54,8 +56,12 @@ impl Park {
         let operating_profit_cents =
             rides.profit_cents + services.profit_cents + i128::from(stats.admission_revenue_cents)
                 - i128::from(stats.wages_cents)
-                - i128::from(stats.advertising_cents);
+                - i128::from(stats.advertising_cents)
+                - i128::from(stats.research_cents)
+                - i128::from(stats.promotion_cents);
         ParkFinanceSummary {
+            research_cents: stats.research_cents,
+            promotion_cents: stats.promotion_cents,
             rides,
             services,
             admission_revenue_cents: stats.admission_revenue_cents,
