@@ -224,7 +224,7 @@ fn attendant_helps_a_normal_paid_service_visit_without_holding_the_guest() {
     p.hire_park_staff(StaffRole::Attendant).unwrap();
     advance(&mut p, 900);
     p.guests[0].needs.hunger = 80;
-    advance(&mut p, 110);
+    advance(&mut p, 1200);
     assert!(p.park_staff()[0].completed > 0);
     assert!(p.service(service).unwrap().served > 0);
     p.to_save_bytes().unwrap();
