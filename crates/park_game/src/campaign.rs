@@ -64,6 +64,9 @@ impl CampaignProgress {
         if progress.version == 2 && header.get("later_awards").is_none() {
             return Err("campaign awards field is missing".into());
         }
+        if progress.version == 1 && header.get("later_awards").is_some() {
+            return Err("version 1 cannot contain later campaign awards".into());
+        }
         progress.version = 2;
         Ok(progress)
     }
@@ -379,6 +382,23 @@ mod tests {
         assert!(!recovered.progress.boardwalk_awarded);
         assert!(recovered.notice.unwrap().contains("backup"));
         fs::remove_dir_all(store.directory()).unwrap();
+    }
+
+    #[test]
+    fn version_one_awards_migrate_without_unlocking_later_scenarios() {
+        let bytes = br#"{"format":"parkbound-campaign","version":1,"meadow_awarded":true,"boardwalk_awarded":true}"#;
+        let progress = CampaignProgress::from_bytes(bytes).unwrap();
+        assert_eq!(progress.version, 2);
+        assert!(progress.earned(CampaignScenario::Meadow));
+        assert!(progress.earned(CampaignScenario::Boardwalk));
+        assert!(progress.unlocked_scenario(CampaignScenario::CedarValley));
+        assert!(!progress.unlocked_scenario(CampaignScenario::ResearchRidge));
+        assert_eq!(
+            CampaignProgress::from_bytes(&progress.bytes()).unwrap(),
+            progress
+        );
+        let forged = br#"{"format":"parkbound-campaign","version":1,"meadow_awarded":true,"boardwalk_awarded":true,"later_awards":[true,true,true,true]}"#;
+        assert!(CampaignProgress::from_bytes(forged).is_err());
     }
 
     #[test]
