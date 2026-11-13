@@ -149,6 +149,7 @@ impl Workshop {
         view.scenario_from_title = false;
         view.pause();
         view.scene_dirty = true;
+        crate::configure_playable_camera(view, park);
         self.notice="Editor active. Use Build park to edit terrain, land, paths, rides and facilities. Reopen Scenarios to save or test.".into();
     }
 }
@@ -309,6 +310,7 @@ pub(crate) fn command(
                     view.park_generation = view.park_generation.wrapping_add(1);
                     w.generation = view.park_generation;
                     view.scene_dirty = true;
+                    crate::configure_playable_camera(view, park);
                     view.pause();
                     view.set_modal(false, false, false, false);
                 }
@@ -316,6 +318,7 @@ pub(crate) fn command(
                     if let Some(original) = w.original.take() {
                         *park = original;
                         view.scene_dirty = true;
+                        crate::configure_playable_camera(view, park);
                     }
                     w.test_draft = None;
                     w.editing = false;
@@ -440,6 +443,7 @@ pub(crate) fn command(
                 view.scenario_from_title = false;
                 w.editing = false;
                 view.scene_dirty = true;
+                crate::configure_playable_camera(view, park);
                 view.set_modal(false, false, false, false);
                 view.speed = park_sim::Speed::Normal;
             }
@@ -450,6 +454,7 @@ pub(crate) fn command(
                     w.tab = 1;
                     view.pause();
                     view.scene_dirty = true;
+                    crate::configure_playable_camera(view, park);
                 }
             }
             Command::Designs => {
@@ -499,26 +504,17 @@ pub(crate) fn buttons(
         if *i == Interaction::Pressed
             && let Action::Workshop(command) = a
         {
-            command_action(&mut sim.0, &mut view, &mut w, &store, *command);
+            self::command(&mut sim.0, &mut view, &mut w, &store, *command);
             break;
         }
     }
-}
-fn command_action(
-    park: &mut park_sim::Park,
-    view: &mut ViewState,
-    w: &mut Workshop,
-    store: &ScenarioStore,
-    c: Command,
-) {
-    command(park, view, w, store, c)
 }
 pub(crate) fn keyboard_text(
     mut w: ResMut<Workshop>,
     view: Res<ViewState>,
     mut events: MessageReader<KeyboardInput>,
 ) {
-    if !view.workshop_open {
+    if !view.workshop_open || view.front_modal || view.capture_active {
         return;
     }
     let field = w.field;
@@ -584,7 +580,9 @@ pub(crate) fn transfer(
             Ok("Scenario exported.".into())
         } else {
             let doc = crate::scenario_store::read_document(&path)?;
-            w.definition = doc.definition.clone();
+            if !w.editing {
+                w.definition = doc.definition.clone();
+            }
             w.selected = Some(store.save(None, &doc)?);
             w.refresh(&store);
             Ok("Scenario imported. Select Play or Edit copy.".into())

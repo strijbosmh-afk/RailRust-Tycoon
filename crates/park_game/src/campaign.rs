@@ -220,7 +220,12 @@ pub(crate) fn observe(
         && status.completed_tick.is_some()
         && let Some(kind) = status.definition.campaign
     {
+        let before = campaign.progress;
+        let previous_notice = campaign.notice.clone();
         campaign.record_scenario_completed(kind, sim.0.ticks());
+        if campaign.progress != before || campaign.notice != previous_notice {
+            view.scenario_notice = campaign.notice.clone();
+        }
     }
     if let Some(status) = sim.0.scenario_status()
         && let Some(tick) = status.completed_tick

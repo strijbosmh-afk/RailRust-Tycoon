@@ -152,6 +152,7 @@ pub(super) fn write(session: &SaveSession) -> Result<(), String> {
             ));
         }
         park.to_save_bytes().map_err(|e| e.to_string())?;
+        println!("{} won at tick {}", kind.label(), park.ticks());
         campaign.record_scenario_completed(kind, park.ticks());
         if !campaign.progress.earned(kind) {
             return Err("Campaign award was not stored".into());
@@ -230,9 +231,29 @@ pub(super) fn verify(session: &SaveSession) -> Result<(), String> {
         .play()?
         .to_save_bytes()
         .map_err(|e| e.to_string())?;
+    let mut failure_definition = doc.definition.clone();
+    failure_definition.name = "Deadline demonstration".into();
+    failure_definition.goals[0].target = 1_000_000;
+    failure_definition.deadline_ticks = Some(900);
+    let failure_doc = park_sim::ScenarioDocument::from_park(&doc.template()?, failure_definition)?;
+    let mut failed = failure_doc.play()?;
+    for _ in 0..900 {
+        failed.advance(Speed::Normal);
+    }
+    if failed
+        .challenge_status()
+        .is_none_or(|s| s.failed_tick.is_none())
+    {
+        return Err("Custom deadline did not produce failure".into());
+    }
+    let bytes = failed.to_save_bytes().map_err(|e| e.to_string())?;
+    let restored = Park::from_save_bytes(&bytes).map_err(|e| e.to_string())?;
+    if restored != failed {
+        return Err("Custom failure did not survive save/load".into());
+    }
     if original != fs::read(store.save_path()).map_err(|e| e.to_string())? {
         return Err("Source save changed".into());
     }
-    write_new(&store.directory().join("verification-scenario-tools.txt"),b"PASS\nAll six campaign scenarios won through the New Park factory.\nAwards survived restarts; custom scenario export/import to a clean profile passed.\nExact 3600-tick save continuation; source save preserved.\n")?;
+    write_new(&store.directory().join("verification-scenario-tools.txt"),b"PASS\nAll six campaign scenarios won through the New Park factory.\nAwards survived restarts; custom scenario export/import to a clean profile passed.\nExact 3600-tick save continuation and saved deadline failure; source save preserved.\n")?;
     Ok(())
 }

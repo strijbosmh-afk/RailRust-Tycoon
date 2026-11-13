@@ -437,6 +437,12 @@ impl Park {
             return Err("This park already has a challenge.".into());
         }
         definition.validate()?;
+        if definition
+            .deadline_ticks
+            .is_some_and(|duration| self.ticks.checked_add(duration).is_none())
+        {
+            return Err("Scenario deadline exceeds the supported timeline.".into());
+        }
         self.set_charging_rule(definition.charging_rule)
             .map_err(|e| e.to_string())?;
         let baselines = definition
@@ -592,12 +598,17 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
             .definition
             .deadline_ticks
             .and_then(|d| s.started_tick.checked_add(d));
+        if s.definition.deadline_ticks.is_some() && deadline.is_none() {
+            return Err("Invalid challenge deadline.".into());
+        }
         for tick in [s.completed_tick, s.failed_tick].into_iter().flatten() {
             if tick < s.started_tick || tick > park.ticks {
                 return Err("Invalid challenge outcome time.".into());
             }
         }
         if s.failed_tick.is_some_and(|t| Some(t) != deadline)
+            || s.completed_tick
+                .is_some_and(|t| deadline.is_some_and(|d| t > d))
             || (deadline.is_some_and(|d| park.ticks >= d)
                 && s.completed_tick.is_none()
                 && s.failed_tick.is_none())

@@ -513,6 +513,7 @@ pub(super) fn input(
                 && !view.finance_open
                 && !view.rides_open
                 && !view.designs_open
+                && !view.workshop_open
                 && !view.navigation_open
                 && !view.track_editor.active
                 && view.selected.is_none()
@@ -532,6 +533,7 @@ pub(super) fn input(
                 || view.finance_open
                 || view.rides_open
                 || view.designs_open
+                || view.workshop_open
                 || view.modal_input_blocked
                 || view.capture_active
             {
