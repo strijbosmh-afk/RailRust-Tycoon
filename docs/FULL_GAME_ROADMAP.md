@@ -1,6 +1,6 @@
 # Parkbound: stepwise roadmap to a complete Windows game
 
-Planning checkpoint updated through Phase 7 in 0.86.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0; later stages advanced Phase 2 and completed the Phase 3–5 exit gates in 0.84.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
+Planning checkpoint updated through Phase 8 in 0.87.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0; later stages advanced Phase 2 and completed the Phase 3–5 exit gates in 0.84.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
 
 ## Starting point and release target
 
@@ -132,13 +132,15 @@ The common acceptance gate covers paid placement, demolition, operation, guest u
 
 The 0.86.0 implementation provides three-person parties, return visits, all five staff roles with wages and patrols, four weather states, covered benches and incident response. The mixed-park continuation and player controls pass the gate above. Scope, controls and evidence are in the [park-life guide](PHASE_7_PARK_LIFE.md) and [resume section 55](../RESUME_DEVELOPMENT.md#55-phase-7-visitors-staff-weather-and-park-life--0860).
 
-## 8. Management and economy
+## 8. Management and economy — complete in 0.87.0
 
 1. Add research funding/priorities and content unlocks, merchandise and stock/supply economics, broader park admission and ride pricing, and scenario-specific limits.
 2. Complete park rating, value, popularity, reliability, loan/interest, operating statements, ride/facility profit and historic reports. Explain each number with the receipts or events that produced it.
 3. Expand marketing choices and attribution, staff budget controls, policy settings and actionable notifications. Balance them against the guest model and original scenarios.
 
 **Gate:** a player can fund, build, operate, diagnose a loss, adjust policy, and recover over a sustained in-game period. Cash, ledger, reports and guest wallets reconcile after saves and demolitions.
+
+Version 0.87.0 meets this gate with twelve funded research projects, the fourteen-ride/eight-facility catalogue, prepaid facility stock, two themed promotions, payroll caps, atomic price presets and historic operating reports. Normal control, loss/recovery, save, demolition and old-park tests pass. The exact Windows package also passes fresh-process continuation. See the [management guide](PHASE_8_MANAGEMENT_ECONOMY.md) and [resume section 56](../RESUME_DEVELOPMENT.md#56-phase-8-management-and-economy--0870).
 
 ## 9. Campaign, sandbox, and editors
 
@@ -179,7 +181,7 @@ The 0.86.0 implementation provides three-person parties, return visits, all five
 
 Use one branch/PR per bounded slice. Record the precise user flow, affected saves/content IDs, visual captures, and acceptance result in its report and in `RESUME_DEVELOPMENT.md`. Keep a playable package at each checkpoint. For simulation changes, verify deterministic continuation and old-save migration. For interface/art changes, inspect native input and captures at more than one display size. The Windows CI and a clean-PC playthrough remain independent of this development PC's speed.
 
-1. Begin Phase 8 with research priorities, funding and catalogue unlocks.
-2. Extend facility stock and supply economics through the existing ledger.
-3. Add management reports and policies with explainable guest, staff and finance effects.
-4. Retain the Phase 7 mixed-park, old-save and input checks while extending these systems.
+1. Begin Phase 9 by defining the original campaign sequence and objective types within the Phase 0 contract.
+2. Extend New Park with sandbox funds, research availability, terrain and guest-flow options.
+3. Add original scenario editing, versioned export/import and the scenario browser.
+4. Retain Phase 8 finance, stock, research, old-save and input checks while extending these systems.

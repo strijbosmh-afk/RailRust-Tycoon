@@ -66,6 +66,10 @@ mod visitor_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
+    Management,
+    Research,
+    Supplies,
+    ManagementHistory,
     ParkLife,
     ParkLifeRain,
     ParkLifeStaff,
@@ -759,6 +763,10 @@ pub(super) fn configure(app: &mut App) {
         .position(|value| value == "--capture-scene")
         .map(
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("management") => Scene::Management,
+                Some("research") => Scene::Research,
+                Some("supplies") => Scene::Supplies,
+                Some("management-history") => Scene::ManagementHistory,
                 Some("park-life") => Scene::ParkLife,
                 Some("park-life-rain") => Scene::ParkLifeRain,
                 Some("park-life-staff") => Scene::ParkLifeStaff,
@@ -1665,6 +1673,24 @@ fn apply_preset(
         view.pan = world::tile_center(anchor, 64, view.rotation);
         view.catalogue_open = matches!(capture.scene, Scene::CatalogueMenu);
         view.catalogue_category = 0;
+        view.scene_dirty = true;
+    }
+    if matches!(
+        capture.scene,
+        Scene::Management | Scene::Research | Scene::Supplies | Scene::ManagementHistory
+    ) {
+        sim.0 = crate::save_check::management::fixture().expect("management capture fixture");
+        for _ in 0..capture.ticks.max(3600) {
+            sim.0.advance(Speed::Normal);
+        }
+        crate::ui::management::open(&mut view);
+        view.management_tab = match capture.scene {
+            Scene::Research => 1,
+            Scene::Supplies => 2,
+            Scene::ManagementHistory => 5,
+            _ => 0,
+        };
+        view.terrain_custom = true;
         view.scene_dirty = true;
     }
     if matches!(capture.scene, Scene::TrackFollow) {

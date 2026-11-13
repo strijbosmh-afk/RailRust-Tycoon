@@ -19,6 +19,8 @@ pub enum FinanceKind {
     ParkAdmission,
     Advertising,
     RadioAdvertising,
+    Research,
+    Promotion,
     ServiceRevenue,
     ServiceUpkeep,
     ServiceSupplies,
@@ -82,6 +84,8 @@ impl std::fmt::Display for FinanceKind {
             Self::ParkAdmission => "Park entry",
             Self::Advertising => "Local flyers",
             Self::RadioAdvertising => "Radio ads",
+            Self::Research => "Research funding",
+            Self::Promotion => "Park promotion",
             Self::ServiceRevenue => "Service sale",
             Self::ServiceUpkeep => "Service upkeep",
             Self::ServiceSupplies => "Service supplies",
@@ -133,6 +137,10 @@ pub struct FinanceTotals {
     pub admission_revenue_cents: u64,
     #[serde(default)]
     pub advertising_cents: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub research_cents: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub promotion_cents: u64,
     pub service_revenue_cents: u64,
     pub upkeep_cents: u64,
     pub supplies_cents: u64,
@@ -169,6 +177,8 @@ impl FinanceTotals {
             return Ok(());
         }
         let target = match kind {
+            FinanceKind::Research => &mut self.research_cents,
+            FinanceKind::Promotion => &mut self.promotion_cents,
             FinanceKind::MechanicWage => &mut self.wages_cents,
             FinanceKind::HandymanWage | FinanceKind::StaffWage => unreachable!(),
             FinanceKind::LoanBorrow => &mut self.loan_borrowed_cents,
@@ -210,6 +220,8 @@ impl FinanceTotals {
             - i128::from(self.wages_cents)
             - i128::from(self.upkeep_cents)
             - i128::from(self.supplies_cents)
+            - i128::from(self.research_cents)
+            - i128::from(self.promotion_cents)
             - i128::from(self.advertising_cents)
             - i128::from(self.construction_cents))
         .try_into()
@@ -443,6 +455,8 @@ impl FinanceLedger {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct FinanceStats {
+    pub research_cents: u64,
+    pub promotion_cents: u64,
     pub wages_cents: u64,
     pub loan_borrowed_cents: u64,
     pub loan_repaid_cents: u64,
@@ -562,7 +576,25 @@ impl Park {
                 })
                 .map(|entry| entry.amount_cents)
                 .sum::<u64>();
-        let total_costs_cents = upkeep_cents
+        let research_cents = self.finances.archived.research_cents
+            + self
+                .finances
+                .entries
+                .iter()
+                .filter(|e| e.kind == FinanceKind::Research)
+                .map(|e| e.amount_cents)
+                .sum::<u64>();
+        let promotion_cents = self.finances.archived.promotion_cents
+            + self
+                .finances
+                .entries
+                .iter()
+                .filter(|e| e.kind == FinanceKind::Promotion)
+                .map(|e| e.amount_cents)
+                .sum::<u64>();
+        let total_costs_cents = research_cents
+            + promotion_cents
+            + upkeep_cents
             + supplies_cents
             + construction_cents
             + self.loans.interest_paid_cents
@@ -570,6 +602,8 @@ impl Park {
             + self.visitors.flyer_campaigns * crate::FLYER_CAMPAIGN_COST_CENTS
             + self.visitors.radio_campaigns * crate::RADIO_CAMPAIGN_COST_CENTS;
         FinanceStats {
+            research_cents,
+            promotion_cents,
             wages_cents,
             loan_borrowed_cents: self.loans.borrowed_cents,
             loan_repaid_cents: self.loans.repaid_cents,
@@ -967,6 +1001,22 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     archived_check.wages_cents = archived_loans.wages_cents;
     archived_check.handyman_wages_cents = archived_loans.handyman_wages_cents;
     archived_check.staff_wages_cents = archived_loans.staff_wages_cents;
+    for (amount, unit, maximum) in [
+        (ledger.archived.research_cents, 50, 500),
+        (
+            ledger.archived.promotion_cents,
+            crate::PROMOTION_COST_CENTS,
+            crate::PROMOTION_COST_CENTS,
+        ),
+    ] {
+        if !amount.is_multiple_of(unit) {
+            return Err("archived management expense has invalid denomination".into());
+        }
+        minimum_archived += u128::from(amount.div_ceil(maximum));
+        maximum_archived += u128::from(amount / unit);
+    }
+    archived_check.research_cents = ledger.archived.research_cents;
+    archived_check.promotion_cents = ledger.archived.promotion_cents;
     let archived_admission = ledger.archived.admission_revenue_cents;
     minimum_archived +=
         u128::from(archived_admission).div_ceil(u128::from(crate::MAX_PARK_ENTRY_PRICE_CENTS));
@@ -1096,6 +1146,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 && !matches!(
                     entry.kind,
                     FinanceKind::ParkAdmission
+                        | FinanceKind::Promotion
                         | FinanceKind::Advertising
                         | FinanceKind::RadioAdvertising
                         | FinanceKind::RideConstruction
@@ -1113,7 +1164,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::LoanBorrow
                         | FinanceKind::LoanRepayment
                         | FinanceKind::LoanInterest
-                ))
+                )
+                && !(entry.kind == FinanceKind::ServiceSupplies && park.management.is_some()))
             || entry.tick > park.ticks
             || entry.amount_cents == 0
         {
@@ -1186,6 +1238,19 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         / u64::from(crate::PARK_STAFF_WAGE_TICKS)
             {
                 return Err("park staff wage receipt is invalid".into());
+            }
+        } else if matches!(entry.kind, FinanceKind::Research | FinanceKind::Promotion) {
+            let valid = if entry.kind == FinanceKind::Research {
+                entry.amount_cents <= 500 && entry.amount_cents.is_multiple_of(50)
+            } else {
+                entry.amount_cents == crate::PROMOTION_COST_CENTS
+            };
+            if !valid
+                || entry.ride.is_some()
+                || entry.service.is_some()
+                || park.management.is_none()
+            {
+                return Err("management receipt is invalid".into());
             }
         } else if entry.kind == FinanceKind::ParkAdmission {
             if entry.ride.is_some()
@@ -1498,9 +1563,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 * u128::from(SERVICE_UPKEEP_TICKS)
                 + u128::from(service.upkeep_progress)
                 > u128::from(park.ticks - ledger.opening_tick)
-            || u128::from(service.supplies_cents)
-                != u128::from(service.served - initial_served)
-                    * u128::from(service.kind.supply_cost_cents())
+            || !park.stock_cost_valid(service.id, initial_served)
             || (service.open && service.closed_for_funds)
         {
             return Err("service costs, opening history or operating state disagree".into());

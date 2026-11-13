@@ -293,6 +293,19 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
         .iter()
         .try_fold(0_u64, |sum, service| sum.checked_add(service.revenue_cents))
         .ok_or("service revenue overflows")?;
+    let management_costs = match &park.management {
+        Some(m) => m
+            .research_spent
+            .iter()
+            .copied()
+            .try_fold(0_u64, u64::checked_add)
+            .and_then(|research| {
+                m.promotions_bought
+                    .checked_mul(crate::PROMOTION_COST_CENTS)
+                    .and_then(|promotion| research.checked_add(promotion))
+            }),
+        None => Some(0),
+    };
     if service_spent != service_revenue
         || admission_spent != park.visitors.admission_revenue_cents
         || revenue
@@ -345,6 +358,7 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             .and_then(|funds| funds.checked_sub(park.loans.interest_paid_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().wages_cents))
             .and_then(|funds| funds.checked_sub(park.finance_stats().advertising_cents))
+            .and_then(|funds| funds.checked_sub(management_costs?))
             .and_then(|funds| {
                 // Ride, service and track paid bases are already subtracted
                 // above. The remainder of construction is paid landscaping.

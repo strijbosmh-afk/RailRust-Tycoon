@@ -283,6 +283,15 @@ pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
 
 pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
     let report = park.finance_summary();
+    let management_costs = if report.research_cents == 0 && report.promotion_cents == 0 {
+        String::new()
+    } else {
+        format!(
+            "Research -{} / Promotions -{} / ",
+            money(report.research_cents),
+            money(report.promotion_cents)
+        )
+    };
     [
         format!(
             "Rides / Operating profit {}\nTickets +{} / Upkeep -{}",
@@ -298,11 +307,12 @@ pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
             money(report.services.supplies_cents)
         ),
         format!(
-            "Combined operating profit {} / Entry +{} / Ads -{} / Staff wages -{}\nConstruction -{} / Refunds +{} / excluded from operating profit",
+            "Combined operating profit {} / Entry +{} / Ads -{} / Staff wages -{}\n{}Construction -{} / Refunds +{} / excluded from operating profit",
             signed_cash(report.operating_profit_cents),
             money(report.admission_revenue_cents),
             money(report.advertising_cents),
             money(report.staff_wages_cents),
+            management_costs,
             money(report.construction_cents),
             money(report.refunds_cents)
         ),
@@ -372,6 +382,8 @@ fn row_text(entry: &FinanceEntry) -> String {
         FinanceKind::ParkAdmission => ("Park entry", "+"),
         FinanceKind::Advertising => ("Local flyers", "-"),
         FinanceKind::RadioAdvertising => ("Radio ads", "-"),
+        FinanceKind::Research => ("Research funding", "-"),
+        FinanceKind::Promotion => ("Park promotion", "-"),
         FinanceKind::ServiceRevenue => ("Service sales", "+"),
         FinanceKind::ServiceUpkeep => ("Service upkeep", "-"),
         FinanceKind::ServiceSupplies => ("Service supplies", "-"),
@@ -556,13 +568,15 @@ pub(crate) fn refresh(
                 money(stats.open_upkeep_per_minute_cents)
             ),
             FinanceLabel::Categories => format!(
-                "Entry +{} / Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nAds -{} / Construction -{} / Demolition refunds +{} / Interest -{}",
+                "Entry +{} / Ride tickets +{} / Service sales +{}\nRide upkeep -{} / Facility upkeep -{} / Supplies -{}\nAds -{} / Research -{} / Promotions -{}\nConstruction -{} / Demolition refunds +{} / Interest -{}",
                 money(stats.admission_revenue_cents),
                 money(stats.ride_revenue_cents),
                 money(stats.service_revenue_cents),
                 money(stats.ride_upkeep_cents),money(stats.service_upkeep_cents),
                 money(stats.supplies_cents),
                 money(stats.advertising_cents),
+                money(stats.research_cents),
+                money(stats.promotion_cents),
                 money(stats.construction_cents),
                 money(stats.demolition_refunds_cents),
                 money(stats.loan_interest_cents)
@@ -587,6 +601,8 @@ pub(crate) fn refresh(
                         .saturating_add(ledger.archived.supplies_cents)
                         .saturating_add(ledger.archived.construction_cents)
                         .saturating_add(ledger.archived.advertising_cents)
+                        .saturating_add(ledger.archived.research_cents)
+                        .saturating_add(ledger.archived.promotion_cents)
                 ),
                 money(ledger.archived.demolition_refunds_cents),
                 ledger.entries.len()

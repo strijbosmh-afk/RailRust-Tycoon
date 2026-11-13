@@ -72,30 +72,40 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             .map(|r| park.ride_running_costs(r.id).unwrap().upkeep_cents)
             .sum::<u64>();
     let supplies: u64 = park.services().iter().map(|s| s.supplies_cents).sum();
-    let construction: u64 = park
-        .carousels()
-        .iter()
-        .map(|r| r.construction_cost_cents)
-        .sum::<u64>()
-        + park
-            .services()
+    let construction = ledger.archived.construction_cents
+        + ledger
+            .entries
             .iter()
-            .map(|s| s.construction_cost_cents)
-            .sum::<u64>()
-        + park.track_economy().construction_cents
-        + park.path_construction_total_cents();
-    let refunds: u64 = park
-        .carousels()
-        .iter()
-        .map(|r| r.demolition_refund_cents)
-        .sum::<u64>()
-        + park
-            .services()
+            .filter(|e| {
+                matches!(
+                    e.kind,
+                    FinanceKind::RideConstruction
+                        | FinanceKind::ServiceConstruction
+                        | FinanceKind::TrackConstruction
+                        | FinanceKind::PathConstruction
+                        | FinanceKind::Landscaping
+                        | FinanceKind::LandPurchase
+                        | FinanceKind::DecorationConstruction
+                )
+            })
+            .map(|e| e.amount_cents)
+            .sum::<u64>();
+    let refunds = ledger.archived.demolition_refunds_cents
+        + ledger
+            .entries
             .iter()
-            .map(|s| s.demolition_refund_cents)
-            .sum::<u64>()
-        + park.track_economy().refund_cents
-        + park.path_refund_total_cents();
+            .filter(|e| {
+                matches!(
+                    e.kind,
+                    FinanceKind::RideDemolitionRefund
+                        | FinanceKind::ServiceDemolitionRefund
+                        | FinanceKind::TrackRefund
+                        | FinanceKind::PathRefund
+                        | FinanceKind::DecorationRefund
+                )
+            })
+            .map(|e| e.amount_cents)
+            .sum::<u64>();
     if stats.cash_cents != park.cash_cents()
         || stats.ride_revenue_cents != ride
         || stats.admission_revenue_cents != admission
@@ -112,6 +122,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                 + loan.interest_paid_cents
                 + stats.wages_cents
                 + advertising
+                + stats.research_cents
+                + stats.promotion_cents
         || i128::from(stats.net_profit_cents)
             != i128::from(ride) + i128::from(admission) + i128::from(revenue) + i128::from(refunds)
                 - i128::from(upkeep)
@@ -120,6 +132,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                 - i128::from(loan.interest_paid_cents)
                 - i128::from(stats.wages_cents)
                 - i128::from(advertising)
+                - i128::from(stats.research_cents)
+                - i128::from(stats.promotion_cents)
         || stats.retained_entries != ledger.entries.len()
         || stats.archived_entries != ledger.archived_entries
         || ledger.entries.len() > FINANCE_LEDGER_CAPACITY
@@ -158,6 +172,8 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
         - i128::from(archived.supplies_cents)
         - i128::from(archived.wages_cents)
         - i128::from(archived.advertising_cents)
+        - i128::from(archived.research_cents)
+        - i128::from(archived.promotion_cents)
         + i128::from(archived.loan_borrowed_cents)
         - i128::from(archived.loan_repaid_cents)
         - i128::from(archived.loan_interest_cents);
@@ -175,6 +191,11 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::ParkAdmission
                     | FinanceKind::Advertising
                     | FinanceKind::RadioAdvertising
+                    | FinanceKind::Research
+                    | FinanceKind::Promotion
+                    | FinanceKind::MechanicWage
+                    | FinanceKind::HandymanWage
+                    | FinanceKind::StaffWage
                     | FinanceKind::Landscaping
                     | FinanceKind::LandPurchase
                     | FinanceKind::DecorationConstruction
@@ -190,6 +211,11 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
                     | FinanceKind::ParkAdmission
                     | FinanceKind::Advertising
                     | FinanceKind::RadioAdvertising
+                    | FinanceKind::Research
+                    | FinanceKind::Promotion
+                    | FinanceKind::MechanicWage
+                    | FinanceKind::HandymanWage
+                    | FinanceKind::StaffWage
                     | FinanceKind::Landscaping
                     | FinanceKind::LandPurchase
                     | FinanceKind::DecorationConstruction
@@ -254,12 +280,16 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             + total(&ledger.entries, FinanceKind::ServiceConstruction, None)
             + total(&ledger.entries, FinanceKind::TrackConstruction, None)
             + total(&ledger.entries, FinanceKind::PathConstruction, None)
+            + total(&ledger.entries, FinanceKind::Landscaping, None)
+            + total(&ledger.entries, FinanceKind::LandPurchase, None)
+            + total(&ledger.entries, FinanceKind::DecorationConstruction, None)
             != construction
         || archived.demolition_refunds_cents
             + total(&ledger.entries, FinanceKind::RideDemolitionRefund, None)
             + total(&ledger.entries, FinanceKind::ServiceDemolitionRefund, None)
             + total(&ledger.entries, FinanceKind::TrackRefund, None)
             + total(&ledger.entries, FinanceKind::PathRefund, None)
+            + total(&ledger.entries, FinanceKind::DecorationRefund, None)
             != refunds
     {
         return Err(

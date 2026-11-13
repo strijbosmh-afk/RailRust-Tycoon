@@ -91,6 +91,10 @@ struct ViewState {
     rides_open: bool,
     designs_open: bool,
     catalogue_open: bool,
+    management_open: bool,
+    management_tab: u8,
+    management_page: usize,
+    management_notice: String,
     park_life_open: bool,
     park_life_pick: Option<ui::park_life::Pick>,
     selected_park_staff: Option<u64>,
@@ -201,6 +205,10 @@ impl Default for ViewState {
             rides_open: false,
             designs_open: false,
             catalogue_open: false,
+            management_open: false,
+            management_tab: 0,
+            management_page: 0,
+            management_notice: String::new(),
             park_life_open: false,
             park_life_pick: None,
             selected_park_staff: None,
@@ -365,6 +373,7 @@ impl ViewState {
             || self.rides_open
             || self.designs_open
             || self.catalogue_open
+            || self.management_open
             || self.park_life_open
             || self.modal_input_blocked
             || self.capture_active
@@ -383,6 +392,7 @@ impl ViewState {
         self.rides_open = false;
         self.designs_open = false;
         self.catalogue_open = false;
+        self.management_open = false;
         self.park_life_open = false;
         self.park_life_pick = None;
         self.design_commands.clear();
@@ -766,6 +776,7 @@ fn main() -> AppExit {
                             ui::services::refresh,
                             ui::catalogue::refresh,
                             ui::park_life::refresh,
+                            ui::management::refresh,
                             ui::park_life::refresh_banner,
                         )
                             .chain(),
@@ -1123,6 +1134,7 @@ fn keyboard_input(
     }
     if keys.just_pressed(KeyCode::Escape)
         && (view.help
+            || view.management_open
             || view.park_life_open
             || view.guests_open
             || view.services_open
@@ -1203,7 +1215,7 @@ fn keyboard_input(
         view.ui_pointer_consumed = true;
         return;
     }
-    if view.park_life_open || view.park_life_pick.is_some() {
+    if view.management_open || view.park_life_open || view.park_life_pick.is_some() {
         if keys.just_pressed(KeyCode::Escape) {
             view.set_modal(false, false, false, false);
         }
@@ -1782,6 +1794,7 @@ fn pointer_input(
         cursor,
         window,
         view.help
+            || view.management_open
             || view.park_life_open
             || view.guests_open
             || view.services_open

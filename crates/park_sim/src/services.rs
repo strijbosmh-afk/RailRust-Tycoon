@@ -402,6 +402,9 @@ impl Park {
         _facing: PathDirection,
         kind: ServiceKind,
     ) -> Result<u64, PlacementError> {
+        if !self.service_researched(kind) {
+            return Err(PlacementError::ResearchRequired);
+        }
         if self.services.len() >= MAX_SERVICES {
             return Err(PlacementError::CapacityExceeded {
                 resource: "service records",
@@ -477,6 +480,7 @@ impl Park {
             demolition_refund_cents: 0,
         });
         self.record_cash(crate::FinanceKind::ServiceConstruction, Some(id), cost);
+        self.sync_facility_stocks();
         Ok(id)
     }
     pub fn service_access(&self, id: ServiceId) -> ServiceAccess {
@@ -727,7 +731,18 @@ impl Park {
                 }
                 let id = visit.service;
                 let price = visit.price_cents;
-                let supply = u64::from(self.service(id).unwrap().kind.supply_cost_cents());
+                if !self.stock_available(id) {
+                    self.guests[index].service_visit = None;
+                    self.guests[index].service_cooldown = SERVICE_COOLDOWN_TICKS;
+                    self.guests[index].think(GuestThought::ServiceUnavailable, self.ticks);
+                    continue;
+                }
+                let prepaid = self.consume_stock(id);
+                let supply = if prepaid {
+                    0
+                } else {
+                    u64::from(self.service(id).unwrap().kind.supply_cost_cents())
+                };
                 if self.cash_cents + u64::from(price) < supply {
                     let service = self
                         .services
@@ -786,6 +801,12 @@ impl Park {
             .iter()
             .map(|service| (service.id, self.service_access(service.id)))
             .collect();
+        let stocked: BTreeSet<_> = self
+            .services
+            .iter()
+            .filter(|s| self.stock_available(s.id))
+            .map(|s| s.id)
+            .collect();
         // A failed search is bounded by cooldown, with no navigation RNG draw.
         for guest in &mut self.guests {
             if self.visitors.leaving(guest.id)
@@ -811,6 +832,7 @@ impl Park {
                 let need = guest.needs.value(service.kind);
                 let serving = &access[&service.id];
                 if need < NEED_SEEK_THRESHOLD
+                    || !stocked.contains(&service.id)
                     || serving.status != ServiceAccessStatus::Ready
                     || service.served >= MAX_SERVICE_USES
                     || guest.services_used >= MAX_SERVICE_USES

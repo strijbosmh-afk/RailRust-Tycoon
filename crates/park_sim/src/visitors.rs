@@ -426,7 +426,9 @@ impl Park {
         if !self.visitors.park_open || !self.visitors.enabled || !self.visitor_entry_ready() {
             return;
         }
-        let arrival_ticks = if flyers_active {
+        let arrival_ticks = if self.promotion_active() {
+            300
+        } else if flyers_active {
             FLYER_ARRIVAL_TICKS
         } else {
             VISITOR_ARRIVAL_TICKS
@@ -474,6 +476,7 @@ impl Park {
                 0
             })
         {
+            self.attribute_promotion(false, price);
             self.visitors.turned_away += 1;
             return;
         }
@@ -481,6 +484,7 @@ impl Park {
             self.visitors.radio_admissions += 1;
         }
         let path = *self.object(self.visitors.entry.unwrap()).unwrap();
+        self.attribute_promotion(true, price);
         let mut guest = new_guest(id, path, seed);
         guest.wallet_cents -= u32::from(price);
         guest.spent_cents += u64::from(price);

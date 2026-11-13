@@ -401,6 +401,12 @@ impl Park {
         height: u8,
         rotation: u8,
     ) -> Result<CatalogueQuote, CatalogueError> {
+        if !self.ride_researched(model) {
+            return Err(CatalogueError::Construction(format!(
+                "Research {} before construction",
+                model.name()
+            )));
+        }
         let err = |e: crate::PlacementError| CatalogueError::Construction(e.to_string());
         let (mut width, mut depth) = model.dimensions();
         if rotation % 2 == 1 {

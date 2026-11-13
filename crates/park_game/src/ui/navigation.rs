@@ -49,6 +49,7 @@ pub(crate) enum Destination {
     Finances,
     Staff,
     ParkLife,
+    Management,
     Marketing,
     Guests,
     Scenarios,
@@ -164,6 +165,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                         }
                         Group::Manage => {
                             destination(p, "Finances [N]", Destination::Finances);
+                            destination(p, "Management and economy", Destination::Management);
                             destination(p, "Staff and park life", Destination::ParkLife);
                             destination(p, "Grounds controls", Destination::Staff);
                             destination(p, "Visitor flow and ads", Destination::Marketing);
@@ -275,6 +277,7 @@ pub(crate) fn select(view: &mut ViewState, sim: Option<&mut Simulation>, target:
             view.finance_page_pending = 0;
             view.set_modal(false, false, false, true);
         }
+        Destination::Management => super::management::open(view),
         Destination::ParkLife => super::park_life::open(view),
         Destination::Guests
         | Destination::Staff

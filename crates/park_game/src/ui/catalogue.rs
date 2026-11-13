@@ -14,6 +14,8 @@ pub(crate) enum Command {
 pub(crate) struct CataloguePanel;
 #[derive(Component)]
 pub(crate) struct CatalogueEntry(u8);
+#[derive(Component)]
+pub(crate) struct ResearchLabel(Option<RideModel>, Option<ServiceKind>);
 
 pub(crate) fn command(view: &mut ViewState, command: Command) {
     if view.capture_active || view.front_modal || view.diagnostic_case.is_some() {
@@ -78,6 +80,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     let (width,depth)=model.dimensions();
                     let capacity=if model.tracked(){usize::from(model.seats_per_car()*model.max_cars())}else{model.flat_capacity()};
                     button(p,model.name(),Action::Catalogue(Command::Ride(model)),250.0);
+                    p.spawn((Text::new(""), TextFont { font_size: 12.0, ..default() }, TextColor(MUTED), ResearchLabel(Some(model), None)));
                     label(p,model.description(),12.0,INK);
                     let cost=if model.tracked(){ model.layout(park_sim::TilePos{x:0,y:0},0,0).unwrap().into_iter().map(park_sim::track_piece_cost_cents).sum() }else{model.flat_cost()};
                     label(p,&format!("{}  /  {width} x {depth} tiles  /  {capacity} seats per train or cycle",money(cost)),12.0,MUTED);
@@ -86,6 +89,7 @@ pub(super) fn setup(commands: &mut Commands) {
             for kind in ServiceKind::ALL {
                 p.spawn((CatalogueEntry(5),Node{ flex_direction: FlexDirection::Column, padding: UiRect::all(px(9)), row_gap: px(4), border: UiRect::all(px(1)), flex_shrink:0.0,..default()},BorderColor::all(BORDER))).with_children(|p|{
                     button(p,&format!("Build {kind}"),Action::Catalogue(Command::Facility(kind)),250.0);
+                    p.spawn((Text::new(""), TextFont { font_size: 12.0, ..default() }, TextColor(MUTED), ResearchLabel(None, Some(kind))));
                     let effect=match kind {
                         ServiceKind::Food=>"Meals relieve hunger.",ServiceKind::Drink=>"Drinks relieve thirst.",ServiceKind::Toilet=>"Toilets meet bathroom needs.",ServiceKind::Rest=>"Rest restores energy and eases nausea.",
                         ServiceKind::IceCream=>"Ice cream relieves hunger and thirst together.",ServiceKind::Souvenir=>"Gifts satisfy the desire to take a souvenir home.",ServiceKind::Information=>"Park maps satisfy the need for information.",ServiceKind::FirstAid=>"First aid treats nausea and restores energy."
@@ -99,9 +103,21 @@ pub(super) fn setup(commands: &mut Commands) {
 }
 pub(crate) fn refresh(
     view: Res<ViewState>,
+    park: Res<Simulation>,
+    mut research: Query<(&ResearchLabel, &mut Text)>,
     mut panels: Query<&mut Node, With<CataloguePanel>>,
     mut entries: Query<(&CatalogueEntry, &mut Node), Without<CataloguePanel>>,
 ) {
+    for (label, mut text) in &mut research {
+        let available = label.0.is_none_or(|m| park.0.ride_researched(m))
+            && label.1.is_none_or(|k| park.0.service_researched(k));
+        text.0 = if available {
+            "Available to build"
+        } else {
+            "Research required in Manage > Management and economy"
+        }
+        .into();
+    }
     for mut node in &mut panels {
         node.display = if view.catalogue_open && !view.front_modal {
             Display::Flex

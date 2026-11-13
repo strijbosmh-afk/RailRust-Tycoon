@@ -120,6 +120,7 @@ pub enum PlacementError {
     },
     EntranceRequiresRide,
     ServiceRequiresDefinition,
+    ResearchRequired,
     CarouselRequiresDefinition,
     SceneryRequiresTool,
     SceneryRequiresLand,
@@ -165,6 +166,10 @@ impl std::fmt::Display for PlacementError {
             ),
             Self::SceneryRequiresTool => write!(formatter, "use the scenery construction tool"),
             Self::SceneryRequiresLand => write!(formatter, "scenery needs grass or sand"),
+            Self::ResearchRequired => write!(
+                formatter,
+                "Research this facility in Management before construction"
+            ),
             Self::ServiceRequiresDefinition => write!(
                 formatter,
                 "a service needs a kind and an outward-facing counter"

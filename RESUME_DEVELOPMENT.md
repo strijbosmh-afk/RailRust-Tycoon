@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phase 7 is complete in version 0.86.0 on `codex/phase-7-park-life`, in [PR #78](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/78).** It adds visitor groups, return visits, five staff roles, payroll and patrols, changing weather, covered benches and local incidents. Save schema/content is **49/49**. Read [section 55](#55-phase-7-visitors-staff-weather-and-park-life--0860) and the [park-life guide](docs/PHASE_7_PARK_LIFE.md). The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier sections are historical handoffs.
+**Phase 8 is complete in 0.87.0 on `codex/phase-8-management-economy`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79).** Funded research, catalogue unlocks, prepaid facility stock, themed promotions, payroll policies and historic management reports are implemented and verified. Saves use **50/50**. Read [section 56](#56-phase-8-management-and-economy--0870) and the [management guide](docs/PHASE_8_MANAGEMENT_ECONOMY.md). The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier sections are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1483,3 +1483,52 @@ Capture scenes are `park-life`, `park-life-rain` and `park-life-staff`. The writ
 The shared local path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing before opening it on another PC. Alternatively clone `https://github.com/strijbosmh-afk/RailRust-Tycoon` and check out `codex/phase-7-park-life`. Read this section and `docs/PHASE_7_PARK_LIFE.md`, inspect `git status`, and use the pinned Rust toolchain. Run the release tests and strict Clippy before packaging with `scripts/package-windows.ps1`. Keep personal saves separate from proof profiles.
 
 The next roadmap stage is Phase 8 management and economy. Performance acceptance requires a representative Windows computer selected separately from this development PC.
+
+
+## 56. Phase 8 management and economy — 0.87.0
+
+Work is on `codex/phase-8-management-economy`, stacked on `codex/phase-7-park-life`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79). Phase 8 is complete. Runtime source is `94cb826b52a8c77268b248db692459be2bc24683`; later commits finalize documentation.
+
+### Shared checkout and resuming elsewhere
+
+The shared OneDrive path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Allow OneDrive to finish syncing and avoid concurrent editing from two PCs. The GitHub repository is `https://github.com/strijbosmh-afk/RailRust-Tycoon`. An independent clone should check out `codex/phase-8-management-economy` and use its pinned Rust 1.93.1 toolchain. Run `git status` before editing. Windows remains the distribution target. This PC is excluded from performance baselines.
+
+### Player controls and saved behavior
+
+Open **Explore → Manage → Management and economy**. Overview, Research, Supplies, Marketing, Policies and History share a responsive scrolling dialog. Finance accounts, Visitor flow, Staff and the Catalogue remain reachable from it.
+
+New parks enable management with research paused, automatic supply ordering on and a $20 team payroll cap per 30-second window. Older saves retain their previous behavior until management is enabled. Five basic ride models and five basic facilities are available immediately. Twelve $40 research projects unlock the remaining catalogue. Each research category retains its paid progress. Meadow limits research to $2.50 per 30 seconds and excludes themed promotions. Boardwalk preserves free rides and its deadline.
+
+All eight facilities have prepaid stock when management is active. Automatic ordering buys 20 units below five, subject to funds and a capacity of 100. Every delivered unit is an attributed supply receipt. Completed service consumes one unit and transfers the locked customer price. Empty stock prevents a sale. Demolition retains the purchase expense and retired inventory history.
+
+Themed promotions cost $50 and last five simulation minutes. Family week requires an open gentle ride and the enthusiast promotion requires an open coaster. Both use a ten-second party arrival cadence and retain aggregate candidate, admission and entry-receipt attribution. Flyers and radio retain their earlier separate records. Ride price presets apply atomically to installed rides and preserve reserved fares. Existing admission rules and loan controls remain authoritative.
+
+Payroll caps suspend unpaid team members and permit them to resume when funds and the cap allow. The legacy single mechanic/handyman controls retain their wages. History holds 60 account snapshots at one-minute intervals. Indicators show active-guest satisfaction, admission conversion and installed-ride maintenance reliability. Each operating statement explains revenue and expenses separately from construction, refunds and financing. Low cash, operating losses, empty stock, unpaid staff and entry connectivity produce actionable notices.
+
+### Code and compatibility
+
+- `crates/park_sim/src/management.rs` owns research, stock, promotions, payroll policy and report history. Its tests exercise normal paid APIs, accounting, malformed saves and continued simulation.
+- `finances.rs`, `finance_summary.rs`, `services.rs`, `visitors.rs` and `park_life/staff.rs` integrate actual transactions and behavior. `catalogue.rs` and the service construction quote enforce unlocks.
+- `crates/park_game/src/ui/management.rs` owns the six-tab screen and tests. Catalogue rows display availability. Normal placement errors explain research requirements. Existing Finance summaries include research and promotion expenses.
+- `saves.rs` writes schema/content **50/50** and explicitly reads supported versions 1–49. The optional management object is absent from legacy-mode saves. Old headers cannot carry new management fields or receipt types.
+- `crates/park_game/src/save_check/management.rs` provides `write-management` and `verify-management`. Capture scenes are `management`, `research`, `supplies` and `management-history`.
+
+### Verification and delivery
+
+All **999 release tests pass**, comprising **547 application tests and 452 simulation tests**. Formatting, strict release Clippy and the 13-family original-asset audit pass. Local evidence is in `artifacts/phase8-all-tests-corrected.log`, `phase8-clippy-final.log`, `phase8-format-final.log` and `phase8-assets.log`. Earlier failed/interrupted logs are retained as development history.
+
+[Windows CI run 43433199022](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/43433199022), job `131911593953`, passes all 66 steps, including the full test suite, Windows packaging and every native continuation proof. The delivered executable comes from this verified Windows build. Its downloaded artifact is `14043371813`, with wrapper SHA256 `34682481aea60959ea2b16197efaa6e79e67d20e93698068fc0cc33db352061a`. Local tests and strict Clippy also passed. The redundant local executable compilation was stopped to reuse the verified CI executable. The working `target/release/parkbound.exe` and distribution contain that same verified runtime.
+
+Executable SHA256 is `94afd5a483a2fab3c1309e68105046d45862908ef36f389ff7e73116dcc0d23d`. The ZIP's adjacent `.zip.sha256` identifies the final archive. Extract the complete `dist/Parkbound-0.87.0-windows-x64.zip` and open `Parkbound.exe`.
+
+The local extracted package passes **140 payload hashes and 127 current guides**. Its management writer/verifier passes **36,000 simulation ticks**, including exact **9,000-tick fresh-process continuation**, independently reconstructed cash accounts and an unchanged source save. Evidence is under `artifacts/phase8-0.87.0/runtime-verification/` and in `artifacts/phase8-runtime-verification.log`.
+
+An authentic schema-49 save written by packaged 0.86.0 loads and matches its original 9,000-tick future in the new executable. The original slot remains unchanged. Evidence is in `artifacts/phase8-0.87.0/legacy-v49/`, `migration-verify.log` and `migration-verify.err`. Earlier schema migrations remain covered by the release tests.
+
+The Overview, Research, Supplies and History screens were captured and inspected at **1024×680**. Overview was also inspected at **2560×1440** in `artifacts/phase8-0.87.0/management-qhd.png`. All controls and text fit their intended scrolling dialogs. Automated UI checks cover normal commands, inactive/capture guards and live refresh across all six tabs. Physical mouse/keyboard acceptance remains part of the later release checks. This PC supplied correctness evidence only.
+
+The local ZIP is repackaged with the current OneDrive guide files after verification. A final integrity pass checks every refreshed document and confirms the runtime executable remains byte-identical to the tested build. Native evidence and screenshots remain valid for those unchanged runtime bytes.
+
+Build and check with `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings`, and `cargo test --release --workspace --locked`. Package with `scripts/package-windows.ps1`. Run native proofs only with fresh absolute `--save-dir` paths. The intended Windows delivery is `dist/Parkbound-0.87.0-windows-x64.zip` plus its adjacent checksum.
+
+The next roadmap stage is Phase 9 campaign, configurable sandbox, scenario authoring/import/export and content libraries. Phase 11 owns representative-hardware performance targets and wider play-balance acceptance.
