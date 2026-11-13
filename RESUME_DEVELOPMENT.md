@@ -1483,3 +1483,40 @@ Capture scenes are `park-life`, `park-life-rain` and `park-life-staff`. The writ
 The shared local path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing before opening it on another PC. Alternatively clone `https://github.com/strijbosmh-afk/RailRust-Tycoon` and check out `codex/phase-7-park-life`. Read this section and `docs/PHASE_7_PARK_LIFE.md`, inspect `git status`, and use the pinned Rust toolchain. Run the release tests and strict Clippy before packaging with `scripts/package-windows.ps1`. Keep personal saves separate from proof profiles.
 
 The next roadmap stage is Phase 8 management and economy. Performance acceptance requires a representative Windows computer selected separately from this development PC.
+
+
+## 56. Phase 8 management and economy — 0.87.0
+
+Work is on `codex/phase-8-management-economy`, stacked on `codex/phase-7-park-life`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79). Final verification is in progress at this checkpoint.
+
+### Shared checkout and resuming elsewhere
+
+The shared OneDrive path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Allow OneDrive to finish syncing and avoid concurrent editing from two PCs. The GitHub repository is `https://github.com/strijbosmh-afk/RailRust-Tycoon`. An independent clone should check out `codex/phase-8-management-economy` and use its pinned Rust 1.93.1 toolchain. Run `git status` before editing. Windows remains the distribution target. This PC is excluded from performance baselines.
+
+### Player controls and saved behavior
+
+Open **Explore → Manage → Management and economy**. Overview, Research, Supplies, Marketing, Policies and History share a responsive scrolling dialog. Finance accounts, Visitor flow, Staff and the Catalogue remain reachable from it.
+
+New parks enable management with research paused, automatic supply ordering on and a $20 team payroll cap per 30-second window. Older saves retain their previous behavior until management is enabled. Five basic ride models and five basic facilities are available immediately. Twelve $40 research projects unlock the remaining catalogue. Each research category retains its paid progress. Meadow limits research to $2.50 per 30 seconds and excludes themed promotions. Boardwalk preserves free rides and its deadline.
+
+All eight facilities have prepaid stock when management is active. Automatic ordering buys 20 units below five, subject to funds and a capacity of 100. Every delivered unit is an attributed supply receipt. Completed service consumes one unit and transfers the locked customer price. Empty stock prevents a sale. Demolition retains the purchase expense and retired inventory history.
+
+Themed promotions cost $50 and last five simulation minutes. Family week requires an open gentle ride and the enthusiast promotion requires an open coaster. Both use a ten-second party arrival cadence and retain aggregate candidate, admission and entry-receipt attribution. Flyers and radio retain their earlier separate records. Ride price presets apply atomically to installed rides and preserve reserved fares. Existing admission rules and loan controls remain authoritative.
+
+Payroll caps suspend unpaid team members and permit them to resume when funds and the cap allow. The legacy single mechanic/handyman controls retain their wages. History holds 60 account snapshots at one-minute intervals. Indicators show active-guest satisfaction, admission conversion and installed-ride maintenance reliability. Each operating statement explains revenue and expenses separately from construction, refunds and financing. Low cash, operating losses, empty stock, unpaid staff and entry connectivity produce actionable notices.
+
+### Code and compatibility
+
+- `crates/park_sim/src/management.rs` owns research, stock, promotions, payroll policy and report history. Its tests exercise normal paid APIs, accounting, malformed saves and continued simulation.
+- `finances.rs`, `finance_summary.rs`, `services.rs`, `visitors.rs` and `park_life/staff.rs` integrate actual transactions and behavior. `catalogue.rs` and the service construction quote enforce unlocks.
+- `crates/park_game/src/ui/management.rs` owns the six-tab screen and tests. Catalogue rows display availability. Normal placement errors explain research requirements. Existing Finance summaries include research and promotion expenses.
+- `saves.rs` writes schema/content **50/50** and explicitly reads supported versions 1–49. The optional management object is absent from legacy-mode saves. Old headers cannot carry new management fields or receipt types.
+- `crates/park_game/src/save_check/management.rs` provides `write-management` and `verify-management`. Capture scenes are `management`, `research`, `supplies` and `management-history`.
+
+### Verification and delivery
+
+Final test counts, executable/archive hashes, native continuation and display captures will be recorded here after verification. Evidence is being retained under `artifacts/phase8-0.87.0/` and `artifacts/phase8-*.log`. An authentic 0.86.0 writer has produced the schema-49 park-life migration fixture under `artifacts/phase8-0.87.0/legacy-v49/`.
+
+Build and check with `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings`, and `cargo test --release --workspace --locked`. Package with `scripts/package-windows.ps1`. Run native proofs only with fresh absolute `--save-dir` paths. The intended Windows delivery is `dist/Parkbound-0.87.0-windows-x64.zip` plus its adjacent checksum.
+
+The next roadmap stage is Phase 9 campaign, configurable sandbox, scenario authoring/import/export and content libraries. Phase 11 owns representative-hardware performance targets and wider play-balance acceptance.

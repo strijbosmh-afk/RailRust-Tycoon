@@ -283,6 +283,15 @@ pub(crate) fn cashflow_text(row: &RideCashflow) -> String {
 
 pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
     let report = park.finance_summary();
+    let management_costs = if report.research_cents == 0 && report.promotion_cents == 0 {
+        String::new()
+    } else {
+        format!(
+            "Research -{} / Promotions -{} / ",
+            money(report.research_cents),
+            money(report.promotion_cents)
+        )
+    };
     [
         format!(
             "Rides / Operating profit {}\nTickets +{} / Upkeep -{}",
@@ -298,13 +307,12 @@ pub(crate) fn summary_rows(park: &Park) -> [String; 5] {
             money(report.services.supplies_cents)
         ),
         format!(
-            "Combined operating profit {} / Entry +{} / Ads -{} / Staff wages -{}\nResearch -{} / Promotions -{} / Construction -{} / Refunds +{} / excluded from operating profit",
+            "Combined operating profit {} / Entry +{} / Ads -{} / Staff wages -{}\n{}Construction -{} / Refunds +{} / excluded from operating profit",
             signed_cash(report.operating_profit_cents),
             money(report.admission_revenue_cents),
             money(report.advertising_cents),
             money(report.staff_wages_cents),
-            money(report.research_cents),
-            money(report.promotion_cents),
+            management_costs,
             money(report.construction_cents),
             money(report.refunds_cents)
         ),

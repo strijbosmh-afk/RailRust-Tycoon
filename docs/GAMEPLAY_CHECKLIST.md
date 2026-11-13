@@ -1,5 +1,7 @@
 # Gameplay checklist
 
+Phase 8 adds funded research and catalogue availability, prepaid facility stock, themed campaign attribution, staff payroll caps and historic operating reports in 0.87.0. The [management guide](PHASE_8_MANAGEMENT_ECONOMY.md) records the player controls and accounting rules. Older version-specific entries below are historical development checkpoints.
+
 Phase 7 adds visitor parties and return visits, a five-role staff roster, payroll, patrols, changing weather, covered benches and local incident response. The current controls and finite scope are recorded in [the park-life guide](PHASE_7_PARK_LIFE.md).
 
 The 0.85.1 build adds automatic slope-height and heading continuation, an Add next piece button and Enter shortcut, and explicit entry/exit levels. Completed 0.85.0 catalogue work contains the agreed 14 rides and eight facilities, including destination-station transport, water rides, new fixed rides and expanded services. See [Phase 6](PHASE_6_CATALOGUE.md) and [section 53 of the handoff](../RESUME_DEVELOPMENT.md#53-phase-6-ride-and-facility-catalogue--0850) for scope and final verification.
