@@ -1,0 +1,23 @@
+{
+  "projectId": "railrust-tycoon",
+  "name": "RailRust Tycoon",
+  "repository": {
+    "url": "https://github.com/strijbosmh-afk/RailRust-Tycoon.git",
+    "remoteName": "origin",
+    "defaultBranch": "main"
+  },
+  "drive": {
+    "expectedOwnerEmail": "strijbosmh@gmail.com",
+    "projectFolderId": "1aCNiB35zBgkGddOsnwbHg6frvwxfPK9l",
+    "folders": {
+      "Context": "1S3RI93X1jB9HZ4SZmCeVuU_tsKeRjy5D",
+      "Chatexports": "1TFqJlENShspZM_nNDljaG4gM97-jtGXL",
+      "Sessies": "1UFzlCrD0xoFmaLN8liiMUJ7EBFoD1rhH",
+      "Momentopnamen": "1mzdo0Sl61IV7Z3VRigoYwulSDMGgk72U",
+      "Archief": "16BygjW25TxfKbgnklnbaZ3AnnTiL09cb"
+    },
+    "rootFolderId": "11htmN9UTcAIqY0NL5H4WKvqqukKMpoJo",
+    "projectsFolderId": "16p--jP821tgRyEHLYegsyFFW-EMTr4IR",
+    "standardPromptFileId": "1iLPQAgxNR8PpOVMB7S1CWRa3v2v6BlMe"
+  }
+}

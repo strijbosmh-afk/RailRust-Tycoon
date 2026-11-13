@@ -332,17 +332,16 @@ pub(crate) fn command(
                 w.transfer = Some(true);
             }
             Command::AddGoal => {
-                if w.definition.goals.len() < 4 {
-                    if let Some(metric) = ObjectiveMetric::ALL
+                if w.definition.goals.len() < 4
+                    && let Some(metric) = ObjectiveMetric::ALL
                         .into_iter()
                         .find(|m| w.definition.goals.iter().all(|g| g.metric != *m))
-                    {
-                        w.definition.goals.push(Objective {
-                            metric,
-                            target: metric.step(),
-                        });
-                        w.goal = w.definition.goals.len() - 1;
-                    }
+                {
+                    w.definition.goals.push(Objective {
+                        metric,
+                        target: metric.step(),
+                    });
+                    w.goal = w.definition.goals.len() - 1;
                 }
             }
             Command::RemoveGoal => {
@@ -991,6 +990,27 @@ pub(crate) fn refresh(
     }
 }
 
+pub(crate) fn prepare_capture(
+    w: &mut Workshop,
+    park: &mut park_sim::Park,
+    view: &mut ViewState,
+    editing: bool,
+) {
+    open(view);
+    w.definition = ChallengeDefinition {
+        name: "Lakeside Adventure".into(),
+        description: "Welcome families to a scenic park and develop new attractions.".into(),
+        ..Default::default()
+    };
+    w.editing = editing;
+    w.tab = if editing { 1 } else { 0 };
+    w.original = Some(park.clone());
+    w.generation = view.park_generation;
+    w.notice =
+        "Scenario template includes the current map, rides, facilities, land rights and budget."
+            .into();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1050,25 +1070,4 @@ mod tests {
         let mut text = world.query_filtered::<&Text, With<Body>>();
         assert!(text.iter(world).all(|t| t.0.contains("Scenario library")));
     }
-}
-
-pub(crate) fn prepare_capture(
-    w: &mut Workshop,
-    park: &mut park_sim::Park,
-    view: &mut ViewState,
-    editing: bool,
-) {
-    open(view);
-    w.definition = ChallengeDefinition {
-        name: "Lakeside Adventure".into(),
-        description: "Welcome families to a scenic park and develop new attractions.".into(),
-        ..Default::default()
-    };
-    w.editing = editing;
-    w.tab = if editing { 1 } else { 0 };
-    w.original = Some(park.clone());
-    w.generation = view.park_generation;
-    w.notice =
-        "Scenario template includes the current map, rides, facilities, land rights and budget."
-            .into();
 }

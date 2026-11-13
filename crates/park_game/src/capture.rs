@@ -1201,6 +1201,7 @@ type PresetResources<'w> = (
     Option<ResMut<'w, crate::sound::SoundSettings>>,
     Option<ResMut<'w, crate::ui::guest_stats::GuestStatsHistory>>,
     Option<ResMut<'w, crate::campaign::Campaign>>,
+    Option<ResMut<'w, crate::ui::scenario_workshop::Workshop>>,
 );
 fn apply_preset(
     capture: Res<Capture>,
@@ -1211,9 +1212,8 @@ fn apply_preset(
     resources: PresetResources<'_>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
-    workshop: Option<ResMut<crate::ui::scenario_workshop::Workshop>>,
 ) {
-    let (library, mut sound, mut guest_history, mut campaign) = resources;
+    let (library, mut sound, mut guest_history, mut campaign, workshop) = resources;
     view.capture_active = true;
     view.set_speed(Speed::Paused);
     // These controlled scenes build their own stopped, waiting or paid state.

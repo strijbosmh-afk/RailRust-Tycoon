@@ -49,6 +49,7 @@ fn research_and_content_rules_block_normal_construction_and_loans() {
     );
     assert_eq!(before, park);
     park.set_loans_allowed(false);
+    assert_eq!(park.loan_stats().available_cents, 0);
     assert!(park.borrow_loan(10_000).is_err());
     roundtrip(&park);
 }

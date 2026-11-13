@@ -1111,8 +1111,8 @@ fn spawn_overlay(
                                 3..=6 => CampaignScenario::ALL[usize::from(front.mode-1)].description(),
                                 2 if campaign.unlocked(ScenarioKind::BoardwalkSprint) => "Boardwalk: flat 32×32 map, $1,000 start, free rides; 24 arrivals, 12 rides, $900 cash before 18,000 ticks. Award marks completion.",
                                 2 => "Boardwalk locked: complete Meadow Challenge first.",
-                                _ if front.sandbox_size == MAP_SIZE => "Sandbox: flat 32×32 park, starter rides and paths, $1,000 starting cash; no goals or deadline.",
-                                _ => "Sandbox: empty map, no starter rides or paths, $1,000 starting cash; build a public path and set a visitor entry before opening." };
+                                _ if front.sandbox_size == MAP_SIZE => "Sandbox: flat 32×32 park with starter rides and paths. Choose your starting rules below. No goals or deadline.",
+                                _ => "Sandbox: empty map. Choose your starting rules below, then build a public path and set a visitor entry before opening." };
                             title(p, description, 13.0, cream);
                             let selected = front.mode.checked_sub(1).and_then(|i| CampaignScenario::ALL.get(usize::from(i))).copied();
                             button(p, &format!("Later campaign · {}", selected.filter(|s|s.index()>=2).map_or("choose next scenario", |s|s.label())), Action::CycleCampaign);

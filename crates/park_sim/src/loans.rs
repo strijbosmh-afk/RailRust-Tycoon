@@ -63,7 +63,11 @@ impl Park {
         let a = self.loans;
         LoanStats {
             principal_cents: a.principal_cents,
-            available_cents: MAX_LOAN_CENTS - a.principal_cents,
+            available_cents: if self.loans_allowed() {
+                MAX_LOAN_CENTS - a.principal_cents
+            } else {
+                0
+            },
             borrowed_cents: a.borrowed_cents,
             repaid_cents: a.repaid_cents,
             interest_accrued_cents: a.interest_accrued_cents,
