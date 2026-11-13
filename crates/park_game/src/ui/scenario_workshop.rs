@@ -222,7 +222,7 @@ pub(crate) fn command(
                         Ok(doc) => {
                             let preview = doc.template()?;
                             w.preview_summary = format!(
-                                "{} × {} · Cash {} · {} rides · {} facilities",
+                                "{} x {} | Cash {} | {} rides | {} facilities",
                                 preview.width(),
                                 preview.height(),
                                 money(preview.cash_cents()),
@@ -830,11 +830,11 @@ pub(crate) fn refresh(
     let status = park.challenge_status();
     let visible = w.visible();
     let banner_text = if w.editing {
-        "Scenario editor · Build normally, then reopen Scenarios and editor to save or test.".into()
+        "Scenario editor | Build normally, then reopen Scenarios and editor to save or test.".into()
     } else {
         status.as_ref().map_or(String::new(), |s| {
             format!(
-                "{} · {} · {}",
+                "{} | {} | {}",
                 s.definition.name,
                 if s.completed_tick.is_some() {
                     "Completed"
@@ -878,7 +878,7 @@ pub(crate) fn refresh(
         .enumerate()
         .map(|(i, g)| {
             format!(
-                "{}{} ≥ {}",
+                "{}{} >= {}",
                 if i == w.goal { "> " } else { "" },
                 g.metric.label(),
                 g.target
@@ -907,7 +907,7 @@ pub(crate) fn refresh(
     };
     let settings = if w.tab == 0 {
         format!(
-            "Search [{}] · {} scenarios · Page {}\n{}",
+            "Search [{}] | {} scenarios | Page {}\n{}",
             w.search,
             visible.len(),
             w.page + 1,
@@ -915,7 +915,7 @@ pub(crate) fn refresh(
         )
     } else {
         format!(
-            "{} × {} · Budget {} · Cash {} · Research {} · Loans {} · Arrivals {}",
+            "{} x {} | Budget {} | Cash {} | Research {} | Loans {} | Arrivals {}",
             park.width(),
             park.height(),
             money(park.starting_cash_cents()),
@@ -949,7 +949,7 @@ pub(crate) fn refresh(
         String::new()
     };
     let body = format!(
-        "{}\n{}\nName [{}] · Typing edits {}\n{}\n{}\nDeadline {} · Charging {}\n{}\n{}",
+        "{}\n{}\nName [{}] | Typing edits {}\n{}\n{}\nDeadline {} | Charging {}\n{}\n{}",
         if w.editing {
             "Scenario editor"
         } else {
@@ -978,7 +978,7 @@ pub(crate) fn refresh(
         } else if let Some(row) = row {
             text.0 = visible.get(w.page * 5 + row.0).map_or(String::new(), |e| {
                 format!(
-                    "{}{} · {}",
+                    "{}{} | {}",
                     if w.selected == Some(e.id) { "> " } else { "" },
                     e.name,
                     e.error.as_ref().unwrap_or(&e.summary)
@@ -1012,7 +1012,7 @@ pub(crate) fn prepare_capture(
             id: 1,
             name: w.definition.name.clone(),
             summary: format!(
-                "{} × {} · 1 goal · {}",
+                "{} x {} | 1 goal | {}",
                 park.width(),
                 park.height(),
                 w.definition.description
@@ -1021,7 +1021,7 @@ pub(crate) fn prepare_capture(
         }];
         w.selected = Some(1);
         w.preview_summary = format!(
-            "{} × {} · Cash {} · {} rides · {} facilities",
+            "{} x {} | Cash {} | {} rides | {} facilities",
             park.width(),
             park.height(),
             money(park.cash_cents()),

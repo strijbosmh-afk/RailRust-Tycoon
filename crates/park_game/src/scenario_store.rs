@@ -50,7 +50,7 @@ impl ScenarioStore {
                         id,
                         name: doc.definition.name,
                         summary: format!(
-                            "{} × {} · {} goals · {}",
+                            "{} x {} | {} goals | {}",
                             park.width(),
                             park.height(),
                             doc.definition.goals.len(),
