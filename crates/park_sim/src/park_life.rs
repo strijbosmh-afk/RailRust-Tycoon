@@ -179,6 +179,8 @@ pub(super) struct Party {
     #[serde(deserialize_with = "crate::saves::bounded_vec::<_,_,4>")]
     pub members: Vec<GuestId>,
     pub returning: bool,
+    pub satisfaction_total: u16,
+    pub departed_members: u8,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

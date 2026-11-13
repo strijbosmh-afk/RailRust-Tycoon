@@ -56,6 +56,8 @@ impl Park {
             style,
             members: Vec::new(),
             returning,
+            satisfaction_total: 0,
+            departed_members: 0,
         });
         life.next_party_id += 1;
     }
@@ -91,7 +93,11 @@ impl Park {
         for p in &mut life.parties {
             if p.members.contains(&g.id) {
                 p.members.retain(|id| *id != g.id);
-                if p.members.is_empty() && g.satisfaction >= 60 {
+                p.satisfaction_total += u16::from(g.satisfaction);
+                p.departed_members += 1;
+                if p.members.is_empty()
+                    && p.satisfaction_total >= u16::from(p.departed_members) * 60
+                {
                     style = Some(p.style);
                 }
             }

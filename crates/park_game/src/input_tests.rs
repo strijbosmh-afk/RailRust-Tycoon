@@ -17,6 +17,8 @@ mod finance_input_tests;
 mod guest_inspection_input_tests;
 #[path = "journey_input_tests.rs"]
 mod journey_input_tests;
+#[path = "park_life_input_tests.rs"]
+mod park_life_input_tests;
 #[path = "path_input_tests.rs"]
 mod path_input_tests;
 #[path = "queue_input_tests.rs"]
