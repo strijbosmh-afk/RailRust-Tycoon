@@ -442,6 +442,7 @@ pub(crate) fn command(
                 view.front_new_park = true;
                 view.scenario_from_title = false;
                 w.editing = false;
+                w.tab = 0;
                 view.scene_dirty = true;
                 crate::configure_playable_camera(view, park);
                 view.set_modal(false, false, false, false);
@@ -482,6 +483,7 @@ pub(crate) fn buttons(
         w.original = None;
         w.test_draft = None;
         w.editing = false;
+        w.tab = 0;
         w.generation = view.park_generation;
     }
     if !view.workshop_open || view.capture_active {
@@ -1063,6 +1065,7 @@ mod tests {
         assert_eq!(store.list().unwrap().len(), 1);
         command(&mut park, &mut view, &mut w, &store, Command::Test);
         assert!(park.challenge_status().is_some());
+        assert_eq!(w.tab, 0);
         for _ in 0..50 {
             park.advance(park_sim::Speed::Normal);
         }
