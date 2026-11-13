@@ -147,7 +147,7 @@ impl Workshop {
         self.test_draft = None;
         view.front_new_park = true;
         view.scenario_from_title = false;
-        view.pause();
+        view.set_speed(park_sim::Speed::Paused);
         view.scene_dirty = true;
         crate::configure_playable_camera(view, park);
         self.notice="Editor active. Use Build park to edit terrain, land, paths, rides and facilities. Reopen Scenarios to save or test.".into();
@@ -311,7 +311,7 @@ pub(crate) fn command(
                     w.generation = view.park_generation;
                     view.scene_dirty = true;
                     crate::configure_playable_camera(view, park);
-                    view.pause();
+                    view.set_speed(park_sim::Speed::Paused);
                     view.set_modal(false, false, false, false);
                 }
                 Some(Pending::ReturnPark) => {
@@ -453,7 +453,7 @@ pub(crate) fn command(
                     *park = draft;
                     w.editing = true;
                     w.tab = 1;
-                    view.pause();
+                    view.set_speed(park_sim::Speed::Paused);
                     view.scene_dirty = true;
                     crate::configure_playable_camera(view, park);
                 }
@@ -1055,10 +1055,12 @@ mod tests {
         let store = ScenarioStore::new(&root);
         let mut w = Workshop::default();
         let mut view = ViewState::default();
+        view.set_speed(park_sim::Speed::Paused);
         let mut park = park_sim::Park::new(32, 32);
         let original = park.clone();
         open(&mut view);
         command(&mut park, &mut view, &mut w, &store, Command::New);
+        assert_eq!(view.speed, park_sim::Speed::Paused);
         command(&mut park, &mut view, &mut w, &store, Command::Funds(true));
         assert_eq!(park.starting_cash_cents(), 150_000);
         command(&mut park, &mut view, &mut w, &store, Command::Save);
@@ -1070,7 +1072,9 @@ mod tests {
             park.advance(park_sim::Speed::Normal);
         }
         open(&mut view);
+        view.set_speed(park_sim::Speed::Paused);
         command(&mut park, &mut view, &mut w, &store, Command::ReturnEditor);
+        assert_eq!(view.speed, park_sim::Speed::Paused);
         assert_eq!(park.ticks(), 0);
         assert_eq!(park.starting_cash_cents(), 150_000);
         command(&mut park, &mut view, &mut w, &store, Command::ReturnPark);
