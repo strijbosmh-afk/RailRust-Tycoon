@@ -1686,7 +1686,11 @@ fn apply_preset(
             .filter(|p| p.is_public_path() && p.pos.y == 1 && (2..=6).contains(&p.pos.x))
             .map(|p| p.id)
             .collect();
-        for (staff, path) in staff_ids.into_iter().zip(nearby_paths) {
+        for (staff, path) in staff_ids
+            .into_iter()
+            .zip(nearby_paths)
+            .filter(|_| !matches!(capture.scene, Scene::ParkLifeStaff))
+        {
             sim.0
                 .toggle_staff_patrol(staff, path)
                 .expect("capture patrol");

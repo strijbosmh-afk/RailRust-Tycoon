@@ -22,6 +22,8 @@ Open **Explore → Manage → Staff and park life**. Hire any combination of up 
 | Entertainer | Improves the satisfaction of nearby guests |
 | Service attendant | Helps tired or nauseous guests and assists service waiting/use |
 
+Service attendants wait at reachable open service counters. If the park has no open counter, they can help tired or nauseous guests on public paths.
+
 Select a staff row and use **Patrol tile** to add or remove a public-path tile. **Whole park** clears the restriction. Patrols restrict task destinations, with travel allowed through the connected public network. **Find selected** centers the park on the worker. **Dismiss selected** removes that worker and retains all paid wages in Finance.
 
 Insufficient funds suspend the affected worker. The outstanding wage is retried when money becomes available. Unpaid workers remain visible and resume after payment. Removing paths clears invalid movement references and assignments. Workers wait at the entrance if their route or workplace is unavailable. Building a connection lets them recover.
