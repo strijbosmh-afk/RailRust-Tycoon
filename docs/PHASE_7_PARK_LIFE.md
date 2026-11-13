@@ -12,7 +12,7 @@ Nearby scenery improves satisfaction up to 80. Entertainers can raise satisfacti
 
 ## Staff teams
 
-Open **Explore → Manage → Staff and park life**. Hire any combination of up to 20 team members. All five roles cost $1 every 30 simulation seconds. Staff walk along connected public paths from the visitor entrance and spend four seconds completing a task. Their task, completed-work count, patrol size and unpaid status are visible in the roster.
+Open **Explore → Manage → Staff and park life**. Hire any combination of up to 20 team members. All five roles cost $1 every 30 simulation seconds. Staff walk along connected public paths from the visitor entrance. Most tasks take four seconds. Service attendants work at reachable counters and assist every second during ordinary service visits. Their task, completed-work count, patrol size and unpaid status are visible in the roster.
 
 | Role | Work |
 | --- | --- |

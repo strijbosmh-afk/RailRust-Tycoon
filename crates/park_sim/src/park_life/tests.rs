@@ -211,6 +211,26 @@ fn wage_shortfall_stops_staff_then_funding_resumes_without_free_work() {
 }
 
 #[test]
+fn attendant_helps_a_normal_paid_service_visit_without_holding_the_guest() {
+    let mut p = park();
+    let service = p
+        .place_service(
+            TilePos { x: 1, y: 4 },
+            0,
+            PathDirection::South,
+            crate::ServiceKind::Food,
+        )
+        .unwrap();
+    p.hire_park_staff(StaffRole::Attendant).unwrap();
+    advance(&mut p, 900);
+    p.guests[0].needs.hunger = 80;
+    advance(&mut p, 110);
+    assert!(p.park_staff()[0].completed > 0);
+    assert!(p.service(service).unwrap().served > 0);
+    p.to_save_bytes().unwrap();
+}
+
+#[test]
 fn weather_controls_do_not_advance_visitors_and_storms_reopen_only_weather_closures() {
     let mut p = crate::diagnostics::build_catalogue_showcase().unwrap();
     p.enable_park_life();

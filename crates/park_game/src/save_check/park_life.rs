@@ -31,6 +31,13 @@ fn check(park: &Park) -> Result<(), String> {
     if park.park_staff().iter().all(|s| s.completed == 0) {
         return Err("Staff did not complete any work".into());
     }
+    if !park
+        .park_staff()
+        .iter()
+        .any(|s| s.role == park_sim::StaffRole::Attendant && s.completed > 0)
+    {
+        return Err("Service attendant did not assist normal visitors".into());
+    }
     park.to_save_bytes().map_err(|e| e.to_string())?;
     Ok(())
 }

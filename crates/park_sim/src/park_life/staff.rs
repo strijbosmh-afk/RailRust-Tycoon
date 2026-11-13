@@ -154,7 +154,12 @@ impl Park {
         worker.task = task;
         if current == destination {
             worker.task_ticks += 1;
-            if worker.task_ticks == 120 {
+            let work_ticks = if worker.role == StaffRole::Attendant {
+                30
+            } else {
+                120
+            };
+            if worker.task_ticks >= work_ticks {
                 worker.task_ticks = 0;
                 if self.complete_worker_task(worker, current) {
                     worker.completed = worker.completed.saturating_add(1);
@@ -206,21 +211,26 @@ impl Park {
                 })
                 .filter_map(|g| Some((g.current?, StaffTask::Entertain)))
                 .collect(),
-            StaffRole::Attendant => self
-                .guests
-                .iter()
-                .filter(|g| {
-                    g.needs.nausea >= 40
-                        || g.needs.energy <= 30
-                        || g.service_visit.as_ref().is_some_and(|v| {
-                            matches!(
-                                v.phase,
-                                ServiceVisitPhase::Waiting | ServiceVisitPhase::Using
-                            )
-                        })
-                })
-                .filter_map(|g| Some((g.current?, StaffTask::Assist)))
-                .collect(),
+            StaffRole::Attendant => {
+                // A stable counter lets staff help during a normal three-second
+                // service visit instead of continually chasing moving guests.
+                let counters: Vec<_> = self
+                    .services
+                    .iter()
+                    .filter(|s| s.object.is_some() && s.open)
+                    .filter_map(|s| {
+                        Some((self.service_access(s.id).public_path?, StaffTask::Assist))
+                    })
+                    .collect();
+                if !counters.is_empty() {
+                    return counters;
+                }
+                self.guests
+                    .iter()
+                    .filter(|g| g.needs.nausea >= 40 || g.needs.energy <= 30)
+                    .filter_map(|g| Some((g.current?, StaffTask::Assist)))
+                    .collect()
+            }
         }
     }
     fn complete_worker_task(&mut self, worker: &StaffMember, path: ObjectId) -> bool {
