@@ -408,7 +408,7 @@ mod tests {
         let mut older = CampaignProgress::empty();
         older.meadow_awarded = true;
         fs::write(store.directory().join(BACKUP), older.bytes()).unwrap();
-        fs::write(store.directory().join(PRIMARY), br#"{"format":"parkbound-campaign","version":2,"meadow_awarded":true,"boardwalk_awarded":false,"future_medal":true}"#).unwrap();
+        fs::write(store.directory().join(PRIMARY), br#"{"format":"parkbound-campaign","version":3,"meadow_awarded":true,"boardwalk_awarded":false,"future_medal":true}"#).unwrap();
         let original = fs::read(store.directory().join(PRIMARY)).unwrap();
         let campaign = Campaign::load(Some(store.clone()));
         assert!(!campaign.unlocked(ScenarioKind::BoardwalkSprint));
@@ -417,6 +417,7 @@ mod tests {
         let mut value = CampaignProgress::empty().bytes();
         value.extend_from_slice(b"garbage");
         assert!(CampaignProgress::from_bytes(&value).is_err());
+        assert!(CampaignProgress::from_bytes(br#"{"format":"parkbound-campaign","version":2,"meadow_awarded":true,"boardwalk_awarded":false,"later_awards":[false,false,false,false],"future_medal":true}"#).is_err());
         fs::remove_dir_all(store.directory()).unwrap();
     }
 
