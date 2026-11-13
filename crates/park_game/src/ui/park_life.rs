@@ -418,6 +418,9 @@ pub(crate) fn refresh(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn setup_system(mut commands: Commands) {
+        setup(&mut commands);
+    }
     #[test]
     fn roster_commands_and_path_picking_use_the_paid_simulation_apis() {
         let mut park = park_sim::Park::new(16, 16);
@@ -455,7 +458,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(Simulation(park))
             .insert_resource(view)
-            .add_systems(Startup, setup)
+            .add_systems(Startup, setup_system)
             .add_systems(Update, (refresh, refresh_banner).chain());
         app.update();
         let world = app.world_mut();

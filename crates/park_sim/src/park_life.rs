@@ -375,24 +375,36 @@ impl Park {
 }
 
 pub(crate) fn validate(park: &Park) -> Result<(), String> {
-    let Some(life) = &park.park_life else {
-        return Ok(());
-    };
-    let recorded_wages = park.finances.archived.staff_wages_cents
+    let recorded_wages = u128::from(park.finances.archived.staff_wages_cents)
         + park
             .finances
             .entries
             .iter()
             .filter(|e| e.kind == crate::FinanceKind::StaffWage)
-            .map(|e| e.amount_cents)
-            .sum::<u64>();
-    if life.wages_paid_cents != recorded_wages
-        || life.staff.iter().map(|s| s.wages_paid_cents).sum::<u64>() > recorded_wages
+            .map(|e| u128::from(e.amount_cents))
+            .sum::<u128>();
+    let Some(life) = &park.park_life else {
+        return if recorded_wages == 0 {
+            Ok(())
+        } else {
+            Err("Staff wages require park life".into())
+        };
+    };
+    if u128::from(life.wages_paid_cents) != recorded_wages
+        || life
+            .staff
+            .iter()
+            .map(|s| u128::from(s.wages_paid_cents))
+            .sum::<u128>()
+            > recorded_wages
     {
         return Err("Park staff receipts disagree with wages".into());
     }
     let valid = |id: ObjectId| park.object(id).is_some_and(|p| p.is_public_path());
-    if life.weather_ticks >= 1800
+    if life.next_staff_id == 0
+        || life.next_party_id == 0
+        || life.next_incident_id == 0
+        || life.weather_ticks >= 1800
         || life.staff.len() > PARK_STAFF_LIMIT
         || life.shelters.len() > 64
         || life.incidents.len() > INCIDENT_LIMIT
@@ -448,9 +460,13 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
         return Err("Shelter reference is invalid".into());
     }
     let mut member_ids = std::collections::BTreeSet::new();
+    let mut party_ids = std::collections::BTreeSet::new();
     for p in &life.parties {
         if p.id == 0
             || p.id >= life.next_party_id
+            || !party_ids.insert(p.id)
+            || usize::from(p.departed_members) + p.members.len() > 4
+            || p.satisfaction_total > u16::from(p.departed_members) * 100
             || p.members.is_empty()
             || p.members.len() > 4
             || p.members
