@@ -1,10 +1,10 @@
 # Parkbound: stepwise roadmap to a complete Windows game
 
-Planning checkpoint updated through Phase 8 in 0.87.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0; later stages advanced Phase 2 and completed the Phase 3–5 exit gates in 0.84.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
+Planning checkpoint updated through Phase 9 in 0.88.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0. Later work completed the graphics, construction, coaster, catalogue, park-life, management and editor milestones. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record. The remaining phases cover sound, onboarding, controls, accessibility, wider acceptance and distribution.
 
 ## Starting point and release target
 
-- The current game has a deterministic `park_sim` library, a Bevy `park_game` application, a flat 32×32 starter park, construction and ride systems, visitors, finance, saves, and two original campaign challenges. Park saves are strict schema/content 48/48; awards are stored separately. Completed Phase 3–5 work includes original art records, editable large maps, paid construction, independent coasters, three-train blocks, transitions/inversions, force estimates and design exchange. The audit records acceptance evidence and the interrupted final manual interaction check.
+- The current game has a deterministic `park_sim` library, a Bevy `park_game` application, a flat 32×32 starter park, construction and ride systems, visitors, finance, saves and six original campaign challenges. Park saves use strict schema/content 51/51. Awards are stored separately. Completed Phase 3–5 work includes original art records, editable large maps, paid construction, independent coasters, three-train blocks, transitions/inversions, force estimates and design exchange.
 - Normal play has an intro/title and park library. The default window is 1280×800 with a 1024×680 minimum; display settings and grouped, scrolling panels cover major flows, while the complete mixed-DPI acceptance matrix remains open. Large maps are playable and editable with current path/object/guest limits rather than diagnostic-only renders.
 - The 1.0 target is a free, offline, full-function Windows x64 game with original code, artwork, music, sounds, scenarios, and interface. Players should not need Rust or files from another game. Decide the public source license and every third-party asset right before release.
 - This development PC is not a performance reference. Set public hardware and frame-time targets only after testing a representative target PC and a clean Windows installation.
@@ -142,7 +142,7 @@ The 0.86.0 implementation provides three-person parties, return visits, all five
 
 Version 0.87.0 meets this gate with twelve funded research projects, the fourteen-ride/eight-facility catalogue, prepaid facility stock, two themed promotions, payroll caps, atomic price presets and historic operating reports. Normal control, loss/recovery, save, demolition and old-park tests pass. The exact Windows package also passes fresh-process continuation. See the [management guide](PHASE_8_MANAGEMENT_ECONOMY.md) and [resume section 56](../RESUME_DEVELOPMENT.md#56-phase-8-management-and-economy--0870).
 
-## 9. Campaign, sandbox, and editors
+## 9. Campaign, sandbox, and editors — complete in 0.88.0
 
 1. Extend the two-challenge foundation into the original Phase 0 campaign catalogue with a deliberate sequence, rewards, setbacks, objective types, deadlines and clear end states. Keep the profile separate from individual park saves and preserve prior awards.
 2. Make Sandbox configurable at New Park: funds, research availability, map/terrain, guest flow and optional restrictions, without campaign unlock requirements.
@@ -150,6 +150,8 @@ Version 0.87.0 meets this gate with twelve funded research projects, the fourtee
 4. Add a browser for owned scenarios and track designs with search, preview, rename/delete confirmation and compatibility messages.
 
 **Gate:** finish every original campaign scenario from the title screen; author a new scenario, export it, import it on a clean profile, play it, win/fail as specified, and resume it after save/load.
+
+Version 0.88.0 meets the Phase 9 implementation gate with six scenarios, persistent progression, configurable sandbox starts, ten objective metrics and portable scenario authoring. Windows production checks complete the campaign, test custom success and failure, import into a clean profile and verify exact continuation. See [the Phase 9 guide](PHASE_9_CAMPAIGN_AND_EDITORS.md) and [resume section 57](../RESUME_DEVELOPMENT.md#57-phase-9-campaign-sandbox-and-editors--0880).
 
 ## 10. Sound, onboarding, controls, and accessibility
 
@@ -181,7 +183,6 @@ Version 0.87.0 meets this gate with twelve funded research projects, the fourtee
 
 Use one branch/PR per bounded slice. Record the precise user flow, affected saves/content IDs, visual captures, and acceptance result in its report and in `RESUME_DEVELOPMENT.md`. Keep a playable package at each checkpoint. For simulation changes, verify deterministic continuation and old-save migration. For interface/art changes, inspect native input and captures at more than one display size. The Windows CI and a clean-PC playthrough remain independent of this development PC's speed.
 
-1. Begin Phase 9 by defining the original campaign sequence and objective types within the Phase 0 contract.
-2. Extend New Park with sandbox funds, research availability, terrain and guest-flow options.
-3. Add original scenario editing, versioned export/import and the scenario browser.
-4. Retain Phase 8 finance, stock, research, old-save and input checks while extending these systems.
+1. Complete the requested Codex Cloud handoff using the verified source and Windows package.
+2. Begin Phase 10 sound, onboarding, controls and accessibility.
+3. Retain campaign, editor, finance, stock, research, old-save and input checks.

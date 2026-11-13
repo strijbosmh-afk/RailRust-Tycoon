@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phase 9 implementation and verification are in progress in 0.88.0 on `codex/phase-9-campaign-editors`.** The six-scenario campaign, sandbox settings and portable scenario editor are implemented. Park saves use **51/51**, and campaign profile version 2 preserves version 1 awards. Final tests and package evidence will be recorded in section 57 before handoff. The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC supplies correctness checks and is excluded from performance references. Earlier sections are historical handoffs.
+**Phase 9 is complete in 0.88.0 on `codex/phase-9-campaign-editors`.** It adds a six-scenario campaign, configurable sandbox and portable scenario authoring. Runtime source is `9f5f4e39ce96373d25ac1ffc5023c2d33ba3121e` in [PR 80](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/80). Park saves use **51/51** and campaign profiles use version 2. See section 57 for verification and transfer status. The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Codex Cloud launch is awaiting a usable environment. This PC supplies correctness checks and is excluded from performance references. Earlier sections are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1536,8 +1536,40 @@ The next roadmap stage is Phase 9 campaign, configurable sandbox, scenario autho
 
 ## 57. Phase 9 campaign, sandbox and editors — 0.88.0
 
-Work is on `codex/phase-9-campaign-editors`, stacked on `codex/phase-8-management-economy`. Verification is in progress. The shared OneDrive checkout remains `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. See `docs/PHASE_9_CAMPAIGN_AND_EDITORS.md` for controls, six-scenario scope and file compatibility.
+### Current checkpoint and player workflow
 
-The runtime changes are in `park_sim/src/scenario_tools.rs`, the optional play-rules save field, financial opening-budget reconciliation, campaign profile version 2, `scenario_store.rs`, the three-page scenario workshop, the title/new-park flow and the existing track-design library. Custom scenarios use `.parkscenario.json` format 1. New park saves use schema/content 51/51. Earlier parks and profile awards are retained.
+The implementation is complete on `codex/phase-9-campaign-editors`, stacked on `codex/phase-8-management-economy`. Runtime source is `9f5f4e39ce96373d25ac1ffc5023c2d33ba3121e`. The shared OneDrive Git root is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Pull this branch before resuming on another PC. Extract the complete `dist/Parkbound-0.88.0-windows-x64.zip` and run `Parkbound.exe`.
 
-The native `write-scenario-tools` and `verify-scenario-tools` modes use the actual campaign factory and scenario files. Capture scenes are `scenario-editor` and `scenario-library`. Final test counts, native continuation evidence, executable hash and package integrity will be recorded here after verification. This development PC is excluded from performance baselines.
+The campaign contains Meadow, Boardwalk, Cedar Valley, Research Ridge, Lakeside Services and Grand Festival. Each award unlocks the next scenario and persists outside park saves. The six-scenario scope was selected because the roadmap left the count open. Meadow and Boardwalk retain their established restrictions and awards.
+
+New Park selects the sandbox budget, research availability, visitor arrivals, loans and charging rules, with existing map-size and terrain choices. Enter activates Create Park when this screen opens. The scenario workspace is available from the title screen and Explore → Manage. Its Library, Goals and rules, and Available content pages use the existing construction tools to author terrain, land rights, rides, facilities and starting state. Up to four goals use ten metric families, including operating profit. Test play preserves the authoring copy, and Return to editor restores it while paused. Track-design rename preserves the selected design's geometry.
+
+Read [the Phase 9 guide](docs/PHASE_9_CAMPAIGN_AND_EDITORS.md) for all controls, campaign targets and file rules. Opening budgets preserve recorded spending and finance reconciliation. Operating-profit goals use the current lifetime operating result, including template history. Sales goals count new scenario receipts.
+
+### Code and compatibility
+
+`crates/park_sim/src/scenario_tools.rs` owns play rules, objectives, campaign definitions and the portable format. `scenario_store.rs` and `ui/scenario_workshop.rs` provide atomic library operations and authoring. The title flow and campaign profile integrate the new scenarios. Financial opening-balance calculations, research and construction enforce saved rules.
+
+Park saves use schema/content **51/51** and read supported earlier schemas. Campaign profile version 2 migrates version 1 awards. Scenario documents use bounded `.parkscenario.json` format 1 with a validated embedded park and custom definition. Custom files cannot award campaign medals. Invalid files remain visible with an error, saved replacements retain backups, and archiving preserves identities. Native import/export uses the shared Windows file chooser.
+
+### Verification
+
+All **1,012 release tests pass**, comprising **553 application tests and 459 simulation tests**. Formatting, strict release Clippy and the 13-family original-asset audit pass. [Windows CI run 43452409591](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/43452409591), job `131977699440`, passes all **67 steps** for the runtime source above. Its production proof wins all six scenarios through the New Park factory, persists their awards, imports a custom scenario into a clean profile, reproduces its exact 3,600-tick future and saves a deadline failure. Existing gameplay and continuation proofs also pass.
+
+The executable comes from that verified Windows build. GitHub artifact `14052059495` has wrapper SHA256 `79427c8c43db9cfe03a0d7a0ac0923da856e5232154aaea2ca5e1d0610b52a3d`. Executable SHA256 is `87bd947ed46d16fa978bd87f7e32e48083a4b499416097b4db9e314b96dc800b`. The ZIP is identified by its adjacent `.zip.sha256` file.
+
+Local simulation tests also pass all 459 cases in `artifacts/phase9-simulation-final.log`. The final executable passes separate-process park-library checks and loads an authentic schema-50 park produced by packaged 0.87.0. Its 3,600-tick continuation and backup match, and the old source slot remains unchanged. These checks and logs are under `artifacts/phase9-release-tests/`.
+
+Native input checks confirm Enter creates a park and scenario saving writes a real library file. The final runtime was checked with an already paused park and paused test. Editing stays paused, the return controls are visible immediately, and Return to editor restores the original paused draft. The source scenario file remains byte-identical. These checks use automated native inputs. Physical-device and clean-PC coverage belong to the remaining release gates.
+
+The editor, library and New Park screen were captured at **1024×680**, with the editor also inspected at **2560×1440**. The final three small-window captures match their inspected images byte for byte. Logs and captures are under `artifacts/phase9-release-tests/`. Package verification checks every payload and all current guides, including nested session guides. This PC is excluded from performance baselines.
+
+### Registration and cloud handoff
+
+The existing project ID is `railrust-tycoon`. `PROJECT.json` preserves the verified GitHub and private Drive destinations. The local onboarding helper registered this exact Git root. The current Softwareprojecten prompt was fetched online, version **2.1.0**. My Drive, the Softwareprojecten root, project parent, project folder and all five destinations were verified as owned by `strijbosmh@gmail.com`. The central register update passed owner, parent, size and downloaded SHA256 checks.
+
+`STATUS.md`, `BESLISSINGEN.md`, `INSTALLATIE.md` and `docs/sessions/2026-11-13-phase9.md` carry the project handoff. Manual source and Windows-build archives are prepared for the registered Momentopnamen folder. Their receipt belongs in `artifacts/phase9-handoff-receipts.json`. These archives are separate from the native Stop chat export. A native Stop and accepted Drive receipt for this project remain to be verified through the automatic follow-up.
+
+The user approved a new Codex Cloud chat. Two cloud-creation requests stalled without returning a task ID. The authenticated command-line service returned `no cloud environments are available for this workspace`. A repository-connected environment has been requested from the user. Read `docs/CODEX_CLOUD_HANDOFF.md` before retrying the transfer. Preserve the full Git history, verify the active branch and downloaded Windows package, and record the actual cloud path.
+
+The next development stage is **Phase 10 — sound, onboarding, controls and accessibility**. Cloud transfer is the outstanding handoff action.

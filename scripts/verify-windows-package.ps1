@@ -83,7 +83,9 @@ foreach ($file in $files) {
     if ($file.FullName -ne $manifest -and -not $payloads.Contains($file.FullName)) { throw 'Unmanifested payload.' }
 }
 $guides = @('README.md', 'RESUME_DEVELOPMENT.md', 'DEVELOPMENT_PLAN.md') +
-    @(Get-ChildItem -LiteralPath (Join-Path $workspaceDirectory 'docs') -Filter '*.md' -File | ForEach-Object { 'docs/' + $_.Name })
+    @(Get-ChildItem -LiteralPath (Join-Path $workspaceDirectory 'docs') -Filter '*.md' -File -Recurse | ForEach-Object {
+        [IO.Path]::GetRelativePath($workspaceDirectory, $_.FullName).Replace('\', '/')
+    })
 if (@($files | Where-Object Extension -eq '.md').Count -ne $guides.Count) { throw 'Unexpected guide inventory.' }
 foreach ($guide in $guides) {
     if ((Get-FileHash -LiteralPath (Join-Path $package $guide)).Hash -ne
