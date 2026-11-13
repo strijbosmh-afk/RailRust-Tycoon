@@ -484,7 +484,7 @@ pub(crate) fn buttons(
         w.editing = false;
         w.generation = view.park_generation;
     }
-    if !view.workshop_open {
+    if !view.workshop_open || view.capture_active {
         return;
     }
     let store = match store(&session) {
@@ -1007,6 +1007,28 @@ pub(crate) fn prepare_capture(
     w.notice =
         "Scenario template includes the current map, rides, facilities, land rights and budget."
             .into();
+    if !editing {
+        w.entries = vec![ScenarioEntry {
+            id: 1,
+            name: w.definition.name.clone(),
+            summary: format!(
+                "{} × {} · 1 goal · {}",
+                park.width(),
+                park.height(),
+                w.definition.description
+            ),
+            error: None,
+        }];
+        w.selected = Some(1);
+        w.preview_summary = format!(
+            "{} × {} · Cash {} · {} rides · {} facilities",
+            park.width(),
+            park.height(),
+            money(park.cash_cents()),
+            park.all_rides().count(),
+            park.services().len()
+        );
+    }
 }
 
 #[cfg(test)]
