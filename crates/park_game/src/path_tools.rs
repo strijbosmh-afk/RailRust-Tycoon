@@ -276,6 +276,9 @@ pub(super) fn placement_message(error: PlacementError) -> String {
         PlacementError::EmptyClearance => "A path needs two height steps of clearance.".into(),
         PlacementError::FixtureMapSize { .. } => "Demo paths require a 32 x 32 park.".into(),
         PlacementError::EntranceRequiresRide => "Choose the ride Entrance tool.".into(),
+        PlacementError::ResearchRequired => {
+            "Research this facility in Management before construction.".into()
+        }
         PlacementError::ServiceRequiresDefinition => "Choose a facility from Services [M].".into(),
         PlacementError::CarouselRequiresDefinition => {
             "Choose Build carousel from Rides [Y].".into()

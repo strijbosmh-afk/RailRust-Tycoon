@@ -501,9 +501,11 @@ impl Park {
         }
     }
     pub(crate) fn finish_management_tick(&mut self) {
-        if self.management.is_some() && self.ticks.is_multiple_of(MANAGEMENT_PERIOD_TICKS) {
-            let report = self.management_report();
-            let m = self.management.as_mut().unwrap();
+        if !self.ticks.is_multiple_of(MANAGEMENT_PERIOD_TICKS) {
+            return;
+        }
+        let report = self.management_report();
+        if let Some(m) = self.management.as_mut() {
             if m.reports.len() == 60 {
                 m.reports.remove(0);
             }
@@ -525,9 +527,13 @@ impl Park {
                 .sum::<u64>()
                 / self.guests.len() as u64) as u8
         };
-        let total = self.all_rides().count();
+        let total = self
+            .all_rides()
+            .filter(|r| self.ride_available(r.id))
+            .count();
         let reliable = self
             .all_rides()
+            .filter(|r| self.ride_available(r.id))
             .filter(|r| {
                 self.ride_maintenance_status(r.id)
                     .is_some_and(|s| !s.shutdown)
@@ -709,10 +715,10 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
             || r.revenue_cents > current.revenue_cents
             || r.expenses_cents > current.expenses_cents
             || i128::from(crate::INITIAL_PARK_CASH_CENTS)
-                + r.operating_profit_cents()
-                + r.capital_net_cents
-                + r.financing_net_cents
-                != i128::from(r.cash_cents)
+                .checked_add(r.operating_profit_cents())
+                .and_then(|cash| cash.checked_add(r.capital_net_cents))
+                .and_then(|cash| cash.checked_add(r.financing_net_cents))
+                != Some(i128::from(r.cash_cents))
         {
             return Err("historic management account does not reconcile".into());
         }
