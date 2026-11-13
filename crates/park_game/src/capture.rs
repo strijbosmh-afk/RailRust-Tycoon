@@ -66,6 +66,8 @@ mod visitor_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
+    ScenarioEditor,
+    ScenarioLibrary,
     Management,
     Research,
     Supplies,
@@ -763,6 +765,8 @@ pub(super) fn configure(app: &mut App) {
         .position(|value| value == "--capture-scene")
         .map(
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("scenario-editor") => Scene::ScenarioEditor,
+                Some("scenario-library") => Scene::ScenarioLibrary,
                 Some("management") => Scene::Management,
                 Some("research") => Scene::Research,
                 Some("supplies") => Scene::Supplies,
@@ -1207,6 +1211,7 @@ fn apply_preset(
     resources: PresetResources<'_>,
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
+    workshop: Option<ResMut<crate::ui::scenario_workshop::Workshop>>,
 ) {
     let (library, mut sound, mut guest_history, mut campaign) = resources;
     view.capture_active = true;
@@ -1691,6 +1696,22 @@ fn apply_preset(
             _ => 0,
         };
         view.terrain_custom = true;
+        view.scene_dirty = true;
+    }
+    if matches!(
+        capture.scene,
+        Scene::ScenarioEditor | Scene::ScenarioLibrary
+    ) {
+        sim.0 =
+            crate::save_check::scenario_tools::editor_fixture().expect("scenario editor fixture");
+        if let Some(mut workshop) = workshop {
+            crate::ui::scenario_workshop::prepare_capture(
+                &mut workshop,
+                &mut sim.0,
+                &mut view,
+                matches!(capture.scene, Scene::ScenarioEditor),
+            );
+        }
         view.scene_dirty = true;
     }
     if matches!(capture.scene, Scene::TrackFollow) {

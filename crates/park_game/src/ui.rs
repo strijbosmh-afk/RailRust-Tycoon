@@ -25,6 +25,7 @@ pub(crate) mod names;
 pub(crate) mod navigation;
 pub(crate) mod park_life;
 pub(crate) mod rides;
+pub(crate) mod scenario_workshop;
 pub(crate) mod scenarios;
 pub(crate) mod services;
 pub(super) mod track;
@@ -102,6 +103,7 @@ pub(super) enum Action {
     Catalogue(catalogue::Command),
     ParkLife(park_life::Command),
     Management(management::Command),
+    Workshop(scenario_workshop::Command),
     Menu,
     Navigation,
     CloseNavigation,
@@ -839,6 +841,7 @@ pub(super) fn setup(mut commands: Commands) {
     catalogue::setup(&mut commands);
     park_life::setup(&mut commands);
     management::setup(&mut commands);
+    scenario_workshop::setup(&mut commands);
     finance::setup(&mut commands);
     rides::setup(&mut commands);
     track::setup(&mut commands);
@@ -897,6 +900,9 @@ pub(super) fn button_actions(
     }) && !view.edits_blocked()
     {
         navigation::open(&mut view);
+        return;
+    }
+    if view.workshop_open {
         return;
     }
     if let Some(command) = interactions.iter().find_map(|(i, a)| match a {
@@ -1277,7 +1283,10 @@ pub(super) fn button_actions(
             continue;
         }
         match action {
-            Action::Catalogue(_) | Action::ParkLife(_) | Action::Management(_) => {}
+            Action::Catalogue(_)
+            | Action::ParkLife(_)
+            | Action::Management(_)
+            | Action::Workshop(_) => {}
             Action::Navigation
             | Action::CloseNavigation
             | Action::NavGroup(_)

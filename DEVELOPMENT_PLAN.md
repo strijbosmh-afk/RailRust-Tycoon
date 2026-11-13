@@ -1,7 +1,9 @@
 # Theme Park Simulation Development Plan
 
-For the current, stepwise path from the 0.87.0 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
+For the current, stepwise path from the 0.88.0 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
 
+
+Phase 9 adds the six-scenario campaign, configurable sandbox starts and portable scenario authoring in 0.88.0. See the [campaign and editor guide](docs/PHASE_9_CAMPAIGN_AND_EDITORS.md).
 
 Phase 8 adds funded catalogue research, prepaid facility inventory, marketing attribution, payroll policies and historic management reports in 0.87.0. See the [management guide](docs/PHASE_8_MANAGEMENT_ECONOMY.md).
 

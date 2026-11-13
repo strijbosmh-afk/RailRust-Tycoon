@@ -608,7 +608,7 @@ impl Park {
             loan_borrowed_cents: self.loans.borrowed_cents,
             loan_repaid_cents: self.loans.repaid_cents,
             loan_interest_cents: self.loans.interest_paid_cents,
-            net_cash_cents: i128::from(self.cash_cents) - i128::from(INITIAL_PARK_CASH_CENTS),
+            net_cash_cents: i128::from(self.cash_cents) - i128::from(self.starting_cash_cents()),
             ride_upkeep_cents,
             service_upkeep_cents,
             cash_cents: self.cash_cents,
@@ -794,7 +794,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
             .checked_add(entry.revenue_cents)
             .ok_or("opening receipts overflow")?;
     }
-    if INITIAL_PARK_CASH_CENTS.checked_add(opening_revenue) != Some(ledger.opening_cash_cents) {
+    if park.starting_cash_cents().checked_add(opening_revenue) != Some(ledger.opening_cash_cents) {
         return Err("opening cash is not backed by legacy receipts".into());
     }
     let mut sources = BTreeMap::new();
@@ -1573,7 +1573,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     let mut lifetime = total;
     lifetime.ride_revenue_cents = ride_revenue;
     lifetime.service_revenue_cents = park.services.iter().map(|s| s.revenue_cents).sum();
-    if lifetime.balance(INITIAL_PARK_CASH_CENTS) != Some(park.cash_cents) {
+    if lifetime.balance(park.starting_cash_cents()) != Some(park.cash_cents) {
         return Err("finance funding, receipts and expenses do not conserve cash".into());
     }
 

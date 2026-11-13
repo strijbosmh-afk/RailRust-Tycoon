@@ -3,7 +3,7 @@
 use std::{fs, path::PathBuf};
 
 use bevy::prelude::*;
-use park_sim::ScenarioKind;
+use park_sim::{CampaignScenario, ScenarioKind};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -23,6 +23,8 @@ pub(crate) struct CampaignProgress {
     version: u32,
     pub meadow_awarded: bool,
     pub boardwalk_awarded: bool,
+    #[serde(default)]
+    pub later_awards: [bool; 4],
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -36,9 +38,10 @@ impl CampaignProgress {
     fn empty() -> Self {
         Self {
             format: CampaignFormat::Parkbound,
-            version: 1,
+            version: 2,
             meadow_awarded: false,
             boardwalk_awarded: false,
+            later_awards: [false; 4],
         }
     }
 
@@ -49,15 +52,19 @@ impl CampaignProgress {
         let header: serde_json::Value =
             serde_json::from_slice(bytes).map_err(|e| format!("invalid campaign record: {e}"))?;
         if let Some(version) = header.get("version").and_then(serde_json::Value::as_u64)
-            && version != 1
+            && !matches!(version, 1 | 2)
         {
             return Err(format!("unsupported campaign version {version}"));
         }
-        let progress: Self =
+        let mut progress: Self =
             serde_json::from_slice(bytes).map_err(|e| format!("invalid campaign record: {e}"))?;
-        if progress.version != 1 {
+        if !matches!(progress.version, 1 | 2) {
             return Err(format!("unsupported campaign version {}", progress.version));
         }
+        if progress.version == 2 && header.get("later_awards").is_none() {
+            return Err("campaign awards field is missing".into());
+        }
+        progress.version = 2;
         Ok(progress)
     }
 
@@ -73,6 +80,27 @@ impl CampaignProgress {
         }
     }
 
+    pub(crate) fn earned(self, kind: CampaignScenario) -> bool {
+        match kind {
+            CampaignScenario::Meadow => self.meadow_awarded,
+            CampaignScenario::Boardwalk => self.boardwalk_awarded,
+            _ => self.later_awards[kind.index() - 2],
+        }
+    }
+    pub(crate) fn unlocked_scenario(self, kind: CampaignScenario) -> bool {
+        kind.index() == 0
+            || self.earned(kind)
+            || self.earned(CampaignScenario::ALL[kind.index() - 1])
+    }
+    fn award_scenario(&mut self, kind: CampaignScenario) -> bool {
+        if let Some(legacy) = kind.legacy() {
+            return self.award(legacy);
+        }
+        let award = &mut self.later_awards[kind.index() - 2];
+        let changed = !*award;
+        *award = true;
+        changed
+    }
     fn award(&mut self, kind: ScenarioKind) -> bool {
         let awarded = match kind {
             ScenarioKind::MeadowChallenge => &mut self.meadow_awarded,
@@ -142,12 +170,24 @@ impl Campaign {
         !self.blocked && self.progress.unlocked(kind)
     }
 
+    pub(crate) fn unlocked_scenario(&self, kind: CampaignScenario) -> bool {
+        !self.blocked && self.progress.unlocked_scenario(kind)
+    }
     pub(crate) fn record_completed(&mut self, kind: ScenarioKind, tick: u64) {
+        self.record_scenario_completed(
+            match kind {
+                ScenarioKind::MeadowChallenge => CampaignScenario::Meadow,
+                ScenarioKind::BoardwalkSprint => CampaignScenario::Boardwalk,
+            },
+            tick,
+        );
+    }
+    pub(crate) fn record_scenario_completed(&mut self, kind: CampaignScenario, tick: u64) {
         if self.blocked || self.next_retry_tick.is_some_and(|next| tick < next) {
             return;
         }
         let mut updated = self.progress;
-        if !updated.award(kind) {
+        if !updated.award_scenario(kind) {
             return;
         }
         let Some(store) = &self.store else {
@@ -176,6 +216,12 @@ pub(crate) fn observe(
     sim: Res<Simulation>,
     mut view: ResMut<ViewState>,
 ) {
+    if let Some(status) = sim.0.challenge_status()
+        && status.completed_tick.is_some()
+        && let Some(kind) = status.definition.campaign
+    {
+        campaign.record_scenario_completed(kind, sim.0.ticks());
+    }
     if let Some(status) = sim.0.scenario_status()
         && let Some(tick) = status.completed_tick
     {

@@ -126,7 +126,7 @@ impl Park {
     }
 
     pub fn start_scenario(&mut self, kind: ScenarioKind) -> Result<(), ScenarioError> {
-        if self.scenario.is_some() {
+        if self.scenario.is_some() || self.challenge_status().is_some() {
             return Err(ScenarioError::AlreadyStarted);
         }
         if kind == ScenarioKind::MeadowChallenge

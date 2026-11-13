@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phase 8 is complete in 0.87.0 on `codex/phase-8-management-economy`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79).** Funded research, catalogue unlocks, prepaid facility stock, themed promotions, payroll policies and historic management reports are implemented and verified. Saves use **50/50**. Read [section 56](#56-phase-8-management-and-economy--0870) and the [management guide](docs/PHASE_8_MANAGEMENT_ECONOMY.md). The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier sections are historical handoffs.
+**Phase 9 implementation and verification are in progress in 0.88.0 on `codex/phase-9-campaign-editors`.** The six-scenario campaign, sandbox settings and portable scenario editor are implemented. Park saves use **51/51**, and campaign profile version 2 preserves version 1 awards. Final tests and package evidence will be recorded in section 57 before handoff. The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC supplies correctness checks and is excluded from performance references. Earlier sections are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1532,3 +1532,12 @@ The local ZIP is repackaged with the current OneDrive guide files after verifica
 Build and check with `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings`, and `cargo test --release --workspace --locked`. Package with `scripts/package-windows.ps1`. Run native proofs only with fresh absolute `--save-dir` paths. The intended Windows delivery is `dist/Parkbound-0.87.0-windows-x64.zip` plus its adjacent checksum.
 
 The next roadmap stage is Phase 9 campaign, configurable sandbox, scenario authoring/import/export and content libraries. Phase 11 owns representative-hardware performance targets and wider play-balance acceptance.
+
+
+## 57. Phase 9 campaign, sandbox and editors — 0.88.0
+
+Work is on `codex/phase-9-campaign-editors`, stacked on `codex/phase-8-management-economy`. Verification is in progress. The shared OneDrive checkout remains `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. See `docs/PHASE_9_CAMPAIGN_AND_EDITORS.md` for controls, six-scenario scope and file compatibility.
+
+The runtime changes are in `park_sim/src/scenario_tools.rs`, the optional play-rules save field, financial opening-budget reconciliation, campaign profile version 2, `scenario_store.rs`, the three-page scenario workshop, the title/new-park flow and the existing track-design library. Custom scenarios use `.parkscenario.json` format 1. New park saves use schema/content 51/51. Earlier parks and profile awards are retained.
+
+The native `write-scenario-tools` and `verify-scenario-tools` modes use the actual campaign factory and scenario files. Capture scenes are `scenario-editor` and `scenario-library`. Final test counts, native continuation evidence, executable hash and package integrity will be recorded here after verification. This development PC is excluded from performance baselines.

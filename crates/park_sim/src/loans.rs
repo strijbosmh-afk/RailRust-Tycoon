@@ -36,6 +36,7 @@ pub struct LoanStats {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LoanError {
     InvalidAmount,
+    Disabled,
     Limit,
     Principal,
     Funds,
@@ -45,6 +46,7 @@ pub enum LoanError {
 impl std::fmt::Display for LoanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
+            Self::Disabled => "This scenario does not allow new loans",
             Self::InvalidAmount => "Use positive $100 steps",
             Self::Limit => "Loan limit is $2000",
             Self::Principal => "Repayment exceeds the loan balance",
@@ -72,6 +74,9 @@ impl Park {
         }
     }
     pub fn borrow_loan(&mut self, amount: u64) -> Result<(), LoanError> {
+        if !self.loans_allowed() {
+            return Err(LoanError::Disabled);
+        }
         if amount == 0 || !amount.is_multiple_of(LOAN_STEP_CENTS) {
             return Err(LoanError::InvalidAmount);
         }

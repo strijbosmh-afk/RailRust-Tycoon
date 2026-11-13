@@ -402,6 +402,9 @@ impl Park {
         _facing: PathDirection,
         kind: ServiceKind,
     ) -> Result<u64, PlacementError> {
+        if !self.facility_content_available(kind) {
+            return Err(PlacementError::ResearchRequired);
+        }
         if !self.service_researched(kind) {
             return Err(PlacementError::ResearchRequired);
         }

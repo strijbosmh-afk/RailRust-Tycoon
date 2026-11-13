@@ -260,6 +260,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                     p.spawn(row()).with_children(|p| {
                         design_button(p, "Save new", DesignCommand::SaveNew, 154.0);
                         design_button(p, "Update selected", DesignCommand::UpdateSelected, 166.0);
+                        design_button(p, "Rename selected", DesignCommand::RenameSelected, 166.0);
                         value_cell(p, 174.0, DesignLabel::Draft);
                     });
                     p.spawn(row()).with_children(|p| {
@@ -410,6 +411,9 @@ fn notice(park: &park_sim::Park, library: &DesignLibrary) -> String {
         .and_then(|i| library.entries.get(i))
         .map_or("this design", |design| design.name());
     match library.confirmation {
+        Some(DesignCommand::RenameSelected) => {
+            format!("Rename \"{name}\" using the name field? The track geometry is preserved.")
+        }
         Some(DesignCommand::UpdateSelected) => {
             format!(
                 "Replace \"{name}\" with the current draft and name?\nThe previous saved design will be overwritten."

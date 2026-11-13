@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 50;
-pub const CONTENT_VERSION: u32 = 50;
+pub const SCHEMA_VERSION: u32 = 51;
+pub const CONTENT_VERSION: u32 = 51;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -207,6 +207,12 @@ struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
         deserialize_with = "required_object_option"
     )]
     management: Option<crate::management::Management>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "required_object_option"
+    )]
+    play_rules: Option<crate::scenario_tools::PlayRules>,
     #[serde(
         default,
         skip_serializing_if = "Vec::is_empty",
@@ -408,6 +414,7 @@ impl VersionNineParkData {
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -586,6 +593,7 @@ impl VersionEightParkData {
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -857,6 +865,7 @@ impl Park {
                 | 47
                 | 48
                 | 49
+                | 50
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -881,6 +890,9 @@ impl Park {
         validate_decoration_field(bytes, header.schema_version)?;
         validate_path_economy_field(bytes, header.schema_version)?;
         let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+        if header.schema_version < 51 && value["park"].get("play_rules").is_some() {
+            return Err(invalid("scenario tools require schema 51"));
+        }
         if header.schema_version < 50
             && (value["park"].get("management").is_some()
                 || value["park"]["finances"]["archived"]
@@ -2232,6 +2244,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2277,6 +2290,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2325,6 +2339,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFivePa
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2501,6 +2516,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2614,6 +2630,7 @@ impl ParkData {
                 .collect(),
             park_life: park.park_life.clone(),
             management: park.management.clone(),
+            play_rules: park.play_rules.clone(),
             scenario: park.scenario.clone(),
             grounds: park.grounds.clone(),
             decorations: park.decorations.clone(),
@@ -2683,6 +2700,7 @@ impl ParkData {
         let mut park = Park {
             park_life: self.park_life,
             management: self.management,
+            play_rules: self.play_rules,
             extra_trains: self.extra_trains,
             other_coasters: other_data
                 .iter()
@@ -2795,6 +2813,7 @@ impl ParkData {
         crate::services::validate_services(&park).map_err(invalid)?;
         crate::finances::validate_finances(&park).map_err(invalid)?;
         crate::management::validate(&park).map_err(invalid)?;
+        crate::scenario_tools::validate(&park).map_err(invalid)?;
         if legacy_banks {
             upgrade_banked_geometry(&mut park);
         }

@@ -38,6 +38,7 @@ mod render_scene;
 mod ride_operations;
 mod save_check;
 mod save_store;
+mod scenario_store;
 mod sound;
 mod starter_designs;
 mod static_landscape;
@@ -91,6 +92,10 @@ struct ViewState {
     rides_open: bool,
     designs_open: bool,
     catalogue_open: bool,
+    workshop_open: bool,
+    front_new_park: bool,
+    scenario_from_title: bool,
+    scenario_return_title: bool,
     management_open: bool,
     management_tab: u8,
     management_page: usize,
@@ -205,6 +210,10 @@ impl Default for ViewState {
             rides_open: false,
             designs_open: false,
             catalogue_open: false,
+            workshop_open: false,
+            front_new_park: false,
+            scenario_from_title: false,
+            scenario_return_title: false,
             management_open: false,
             management_tab: 0,
             management_page: 0,
@@ -373,6 +382,7 @@ impl ViewState {
             || self.rides_open
             || self.designs_open
             || self.catalogue_open
+            || self.workshop_open
             || self.management_open
             || self.park_life_open
             || self.modal_input_blocked
@@ -392,6 +402,7 @@ impl ViewState {
         self.rides_open = false;
         self.designs_open = false;
         self.catalogue_open = false;
+        self.workshop_open = false;
         self.management_open = false;
         self.park_life_open = false;
         self.park_life_pick = None;
@@ -677,6 +688,7 @@ fn main() -> AppExit {
         .insert_resource(campaign)
         .insert_resource(front)
         .init_resource::<design_library::DesignLibrary>()
+        .init_resource::<ui::scenario_workshop::Workshop>()
         .init_resource::<ui::guest_stats::GuestStatsHistory>()
         .init_resource::<design_transfer::DialogPause>()
         .insert_non_send_resource(design_transfer::DialogThread::default())
@@ -716,6 +728,11 @@ fn main() -> AppExit {
                         (
                             ui::install_ride_name_font,
                             history_shortcuts::collect,
+                            (
+                                ui::scenario_workshop::buttons,
+                                ui::scenario_workshop::keyboard_text,
+                            )
+                                .chain(),
                             ui::button_actions,
                             front_end::input,
                             display::update,
@@ -728,7 +745,11 @@ fn main() -> AppExit {
                         )
                             .chain(),
                         design_library::apply_commands,
-                        design_transfer::open_dialog,
+                        (
+                            design_transfer::open_dialog,
+                            ui::scenario_workshop::transfer,
+                        )
+                            .chain(),
                         apply_terrain_profile,
                         apply_path_actions,
                         apply_train_actions,
@@ -777,6 +798,7 @@ fn main() -> AppExit {
                             ui::catalogue::refresh,
                             ui::park_life::refresh,
                             ui::management::refresh,
+                            ui::scenario_workshop::refresh,
                             ui::park_life::refresh_banner,
                         )
                             .chain(),
@@ -1134,6 +1156,7 @@ fn keyboard_input(
     }
     if keys.just_pressed(KeyCode::Escape)
         && (view.help
+            || view.workshop_open
             || view.management_open
             || view.park_life_open
             || view.guests_open
@@ -1215,8 +1238,15 @@ fn keyboard_input(
         view.ui_pointer_consumed = true;
         return;
     }
-    if view.management_open || view.park_life_open || view.park_life_pick.is_some() {
+    if view.workshop_open
+        || view.management_open
+        || view.park_life_open
+        || view.park_life_pick.is_some()
+    {
         if keys.just_pressed(KeyCode::Escape) {
+            if view.workshop_open && view.scenario_from_title {
+                view.scenario_return_title = true;
+            }
             view.set_modal(false, false, false, false);
         }
         if keys.just_pressed(KeyCode::Space) {
@@ -1794,6 +1824,7 @@ fn pointer_input(
         cursor,
         window,
         view.help
+            || view.workshop_open
             || view.management_open
             || view.park_life_open
             || view.guests_open
