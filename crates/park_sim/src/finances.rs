@@ -1146,6 +1146,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 && !matches!(
                     entry.kind,
                     FinanceKind::ParkAdmission
+                        | FinanceKind::Promotion
                         | FinanceKind::Advertising
                         | FinanceKind::RadioAdvertising
                         | FinanceKind::RideConstruction
@@ -1163,7 +1164,8 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                         | FinanceKind::LoanBorrow
                         | FinanceKind::LoanRepayment
                         | FinanceKind::LoanInterest
-                ))
+                )
+                && !(entry.kind == FinanceKind::ServiceSupplies && park.management.is_some()))
             || entry.tick > park.ticks
             || entry.amount_cents == 0
         {
