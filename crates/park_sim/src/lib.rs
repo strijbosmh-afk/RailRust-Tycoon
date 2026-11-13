@@ -103,10 +103,15 @@ pub use ride_opening::RideOpeningError;
 mod ride_testing;
 mod saves;
 mod scenario;
+mod scenario_tools;
 pub use scenario::{
     BOARDWALK_ARRIVAL_GOAL, BOARDWALK_CASH_GOAL_CENTS, BOARDWALK_DEADLINE_TICKS,
     BOARDWALK_RIDE_GOAL, MEADOW_ARRIVAL_GOAL, MEADOW_CASH_GOAL_CENTS, MEADOW_RIDE_GOAL,
     ScenarioError, ScenarioKind, ScenarioStatus,
+};
+pub use scenario_tools::{
+    CampaignScenario, ChallengeDefinition, ChallengeStatus, MAX_SCENARIO_BYTES, Objective,
+    ObjectiveMetric, ScenarioDocument,
 };
 mod land_rights;
 mod services;
@@ -300,6 +305,7 @@ impl Speed {
 pub struct Park {
     park_life: Option<park_life::ParkLife>,
     management: Option<management::Management>,
+    play_rules: Option<scenario_tools::PlayRules>,
     width: u32,
     height: u32,
     tiles: Vec<Tile>,
@@ -347,7 +353,8 @@ pub struct Park {
 /// their previous equality semantics across cloning and save/load.
 impl PartialEq for Park {
     fn eq(&self, other: &Self) -> bool {
-        self.management == other.management
+        self.play_rules == other.play_rules
+            && self.management == other.management
             && self.park_life == other.park_life
             && self.width == other.width
             && self.height == other.height
@@ -423,6 +430,7 @@ impl Park {
             tiles,
             park_life: None,
             management: None,
+            play_rules: None,
             ticks: 0,
             objects: Vec::new(),
             next_object_id: 1,
@@ -608,6 +616,7 @@ impl Park {
             self.step_grounds();
             self.finish_visitor_departures();
             self.step_scenario();
+            self.step_custom_challenge();
             self.finish_management_tick();
         }
     }

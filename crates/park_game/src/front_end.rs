@@ -2,7 +2,7 @@
 use std::time::{Duration, Instant};
 
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
-use park_sim::{Park, ScenarioKind, Speed};
+use park_sim::{CampaignScenario, ChargingRule, Park, ScenarioKind, Speed};
 
 use crate::{
     MAP_SIZE, Simulation, ViewState,
@@ -35,9 +35,8 @@ enum Screen {
     Park,
 }
 
-fn initial_focus(screen: Screen) -> usize {
-    // New Park has a mode selected on entry, so Enter starts that mode.
-    if screen == Screen::New { 5 } else { 0 }
+fn initial_focus(_screen: Screen) -> usize {
+    0
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LibraryPurpose {
@@ -61,6 +60,13 @@ pub(super) enum Action {
     Mode(u8),
     MapSize,
     Landscape,
+    CycleCampaign,
+    Funds,
+    Research,
+    Arrivals,
+    Loans,
+    Charging,
+    ScenarioLibrary,
     Select(u64),
     Load,
     LoadBackup,
@@ -101,6 +107,11 @@ pub(super) struct FrontEnd {
     mode: u8,
     sandbox_size: u32,
     landscape_seed: Option<u64>,
+    starting_budget: u64,
+    all_research: bool,
+    arrivals: bool,
+    loans: bool,
+    charging: ChargingRule,
     purpose: LibraryPurpose,
     page: usize,
     draft: String,
@@ -158,6 +169,11 @@ impl FrontEnd {
             mode: 0,
             sandbox_size: MAP_SIZE,
             landscape_seed: None,
+            starting_budget: 100_000,
+            all_research: false,
+            arrivals: true,
+            loans: true,
+            charging: ChargingRule::Flexible,
             purpose: LibraryPurpose::TitleLoad,
             page: 0,
             draft: "My Park".into(),
@@ -320,13 +336,13 @@ impl FrontEnd {
         self.show(Screen::Loading, view);
     }
     fn new_park(&mut self, sim: &mut Simulation, view: &mut ViewState, campaign: &Campaign) {
-        let scenario = match self.mode {
-            1 => Some(ScenarioKind::MeadowChallenge),
-            2 => Some(ScenarioKind::BoardwalkSprint),
-            _ => None,
-        };
-        if scenario.is_some_and(|kind| !campaign.unlocked(kind)) {
-            self.notice = "Complete Meadow Challenge to unlock Boardwalk Sprint.".into();
+        let scenario = self
+            .mode
+            .checked_sub(1)
+            .and_then(|i| CampaignScenario::ALL.get(usize::from(i)))
+            .copied();
+        if scenario.is_some_and(|kind| !campaign.unlocked_scenario(kind)) {
+            self.notice = "Earn the previous campaign award to unlock this scenario.".into();
             self.dirty_ui = true;
             return;
         }
@@ -336,10 +352,17 @@ impl FrontEnd {
             self.dirty_ui = true;
             return;
         }
-        let mut park = if scenario.is_none() {
-            new_sandbox_park(self.sandbox_size)
+        let mut park = if let Some(kind) = scenario {
+            match campaign_park(campaign, kind) {
+                Ok(park) => park,
+                Err(e) => {
+                    self.notice = e;
+                    self.dirty_ui = true;
+                    return;
+                }
+            }
         } else {
-            new_game_park()
+            new_sandbox_park(self.sandbox_size)
         };
         if scenario.is_none()
             && self.sandbox_size > MAP_SIZE
@@ -348,15 +371,28 @@ impl FrontEnd {
             park.generate_rolling_terrain(seed)
                 .expect("a fresh sandbox has no placed objects");
         }
-        if let Some(kind) = scenario
-            && let Err(error) = park.start_scenario(kind)
-        {
-            self.notice = format!("Could not start scenario: {error}");
-            self.dirty_ui = true;
-            return;
+        if scenario.is_none() {
+            if let Err(error) = park.set_starting_budget(self.starting_budget) {
+                self.notice = error;
+                self.dirty_ui = true;
+                return;
+            }
+            park.enable_park_life();
+            park.enable_management();
+            park.set_sandbox_research(self.all_research);
+            park.set_loans_allowed(self.loans);
+            let _ = park.set_charging_rule(self.charging);
+            if self.arrivals
+                && let Some(entry) = park
+                    .objects()
+                    .iter()
+                    .find(|p| p.is_public_path() && !park.path_neighbors(p.id).is_empty())
+                    .map(|p| p.id)
+            {
+                let _ = park.set_visitor_entry(entry);
+            }
+            let _ = park.set_visitor_arrivals(self.arrivals);
         }
-        park.enable_park_life();
-        park.enable_management();
         let (terrain_profile, terrain_custom) = crate::persistence::terrain_style(&park);
         sim.0 = park;
         let generation = view.park_generation.wrapping_add(1);
@@ -375,6 +411,31 @@ impl FrontEnd {
         self.notice = "New park started. Save from the menu or press F5.".into();
         self.show(Screen::Park, view);
     }
+}
+
+pub(crate) fn campaign_park(campaign: &Campaign, kind: CampaignScenario) -> Result<Park, String> {
+    if !campaign.unlocked_scenario(kind) {
+        return Err("Earn the preceding campaign award first.".into());
+    }
+    let mut park = new_game_park();
+    park.set_starting_budget(kind.starting_budget())?;
+    park.enable_park_life();
+    park.enable_management();
+    if let Some(entry) = park
+        .objects()
+        .iter()
+        .find(|p| p.is_public_path() && !park.path_neighbors(p.id).is_empty())
+        .map(|p| p.id)
+    {
+        let _ = park.set_visitor_entry(entry);
+    }
+    let _ = park.set_visitor_arrivals(true);
+    if let Some(legacy) = kind.legacy() {
+        park.start_scenario(legacy).map_err(|e| e.to_string())?;
+    } else {
+        park.start_custom_challenge(kind.definition())?;
+    }
+    Ok(park)
 }
 
 pub(super) fn setup(
@@ -429,6 +490,17 @@ pub(super) fn input(
         front.show(Screen::Title, &mut view);
     }
     if front.screen == Screen::Park {
+        if view.scenario_return_title {
+            view.scenario_return_title = false;
+            view.scenario_from_title = false;
+            front.show(Screen::Title, &mut view);
+            return;
+        }
+        if view.front_new_park {
+            front.active = None;
+            front.snapshot = None;
+            view.front_new_park = false;
+        }
         if view.front_request_settings {
             view.front_request_settings = false;
             view.front_request_menu = false;
@@ -441,6 +513,7 @@ pub(super) fn input(
                 && !view.finance_open
                 && !view.rides_open
                 && !view.designs_open
+                && !view.workshop_open
                 && !view.navigation_open
                 && !view.track_editor.active
                 && view.selected.is_none()
@@ -460,6 +533,7 @@ pub(super) fn input(
                 || view.finance_open
                 || view.rides_open
                 || view.designs_open
+                || view.workshop_open
                 || view.modal_input_blocked
                 || view.capture_active
             {
@@ -607,6 +681,54 @@ pub(super) fn input(
         Action::Mode(mode) => {
             front.mode = mode;
             front.dirty_ui = true;
+        }
+        Action::CycleCampaign => {
+            front.mode = if (3..6).contains(&front.mode) {
+                front.mode + 1
+            } else {
+                3
+            };
+            front.dirty_ui = true;
+        }
+        Action::Funds => {
+            if front.mode == 0 {
+                front.starting_budget = match front.starting_budget {
+                    50_000 => 100_000,
+                    100_000 => 500_000,
+                    500_000 => 1_000_000,
+                    _ => 50_000,
+                };
+            }
+            front.dirty_ui = true;
+        }
+        Action::Research => {
+            if front.mode == 0 {
+                front.all_research = !front.all_research;
+            }
+            front.dirty_ui = true;
+        }
+        Action::Arrivals => {
+            if front.mode == 0 {
+                front.arrivals = !front.arrivals;
+            }
+            front.dirty_ui = true;
+        }
+        Action::Loans => {
+            if front.mode == 0 {
+                front.loans = !front.loans;
+            }
+            front.dirty_ui = true;
+        }
+        Action::Charging => {
+            if front.mode == 0 {
+                front.charging = front.charging.next();
+            }
+            front.dirty_ui = true;
+        }
+        Action::ScenarioLibrary => {
+            view.scenario_from_title = front.screen == Screen::Title;
+            front.show(Screen::Park, &mut view);
+            crate::ui::scenario_workshop::open(&mut view);
         }
         Action::MapSize => {
             if front.mode == 0 {
@@ -820,6 +942,7 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
             v.extend([
                 Action::New,
                 Action::Campaign,
+                Action::ScenarioLibrary,
                 Action::Library,
                 Action::Settings,
                 Action::Credits,
@@ -828,12 +951,18 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
             v
         }
         Screen::New => vec![
+            Action::Start,
             Action::Mode(0),
             Action::Mode(1),
             Action::Mode(2),
+            Action::CycleCampaign,
             Action::MapSize,
             Action::Landscape,
-            Action::Start,
+            Action::Funds,
+            Action::Research,
+            Action::Arrivals,
+            Action::Loans,
+            Action::Charging,
             Action::Back,
         ],
         Screen::Library => {
@@ -969,10 +1098,11 @@ fn spawn_overlay(
                         Screen::Intro => { title(p, &format!("{} Build a place worth remembering {}", "✦".repeat((front.intro_frame % 4 + 1) as usize), "✦".repeat((front.intro_frame % 4 + 1) as usize)), 24.0, cream); button(p, "Skip intro", Action::Skip); },
                         Screen::Title => { if front.continue_id().is_some() { button(p, "Continue latest park", Action::Continue); }
                             else { title(p, "Continue unavailable — no healthy saved park. Use Load Park for a backup.", 14.0, cream); }
-                            button(p, "New Park", Action::New); button(p, "Campaign", Action::Campaign);
+                            button(p, "New Park", Action::New); button(p, "Campaign", Action::Campaign); button(p, "Scenarios and editor", Action::ScenarioLibrary);
                             button(p, "Load Park", Action::Library); button(p, "Settings", Action::Settings);
                             button(p, "Credits", Action::Credits); button(p, "Quit", Action::Quit); },
                         Screen::New => { title(p, &format!("Name: {}_", front.draft), 18.0, cream);
+                            button(p, "Create Park [Enter]", Action::Start);
                             title(p, "Type to name your park. Choose how to play:", 14.0, cream);
                             button(p, if front.mode == 0 { "● Sandbox — open building" } else { "○ Sandbox — open building" }, Action::Mode(0));
                             button(p, if front.mode == 1 { "● Meadow Challenge — 20 arrivals, 5 rides, $750" } else { "○ Meadow Challenge — 20 arrivals, 5 rides, $750" }, Action::Mode(1));
@@ -980,12 +1110,21 @@ fn spawn_overlay(
                             button(p, &format!("Map: {} × {} — {}", if front.mode == 0 { front.sandbox_size } else { MAP_SIZE }, if front.mode == 0 { front.sandbox_size } else { MAP_SIZE }, if front.mode == 0 && front.sandbox_size != MAP_SIZE { "empty sandbox (click to change)" } else if front.mode == 0 { "starter park (click to change)" } else { "challenge size fixed" }), Action::MapSize);
                             button(p, &format!("Landscape: {}", if front.mode != 0 || front.sandbox_size == MAP_SIZE { "flat (fixed)".into() } else { front.landscape_seed.map_or_else(|| "flat (click for hills)".into(), |seed| format!("rolling hills / seed {seed} (click to change)")) }), Action::Landscape);
                             let description = match front.mode { 1 => "Meadow: flat 32×32 map, $1,000 start, free entry; 20 arrivals, 5 rides, $750 cash. No deadline. Award unlocks Boardwalk.",
+                                3..=6 => CampaignScenario::ALL[usize::from(front.mode-1)].description(),
                                 2 if campaign.unlocked(ScenarioKind::BoardwalkSprint) => "Boardwalk: flat 32×32 map, $1,000 start, free rides; 24 arrivals, 12 rides, $900 cash before 18,000 ticks. Award marks completion.",
                                 2 => "Boardwalk locked: complete Meadow Challenge first.",
-                                _ if front.sandbox_size == MAP_SIZE => "Sandbox: flat 32×32 park, starter rides and paths, $1,000 starting cash; no goals or deadline.",
-                                _ => "Sandbox: empty map, no starter rides or paths, $1,000 starting cash; build a public path and set a visitor entry before opening." };
+                                _ if front.sandbox_size == MAP_SIZE => "Sandbox: flat 32×32 park with starter rides and paths. Choose your starting rules below. No goals or deadline.",
+                                _ => "Sandbox: empty map. Choose your starting rules below, then build a public path and set a visitor entry before opening." };
                             title(p, description, 13.0, cream);
-                            button(p, "Create Park", Action::Start); button(p, "Back", Action::Back); },
+                            let selected = front.mode.checked_sub(1).and_then(|i| CampaignScenario::ALL.get(usize::from(i))).copied();
+                            button(p, &format!("Later campaign · {}", selected.filter(|s|s.index()>=2).map_or("choose next scenario", |s|s.label())), Action::CycleCampaign);
+                            if let Some(kind)=selected.filter(|s|s.index()>=2) { title(p,&format!("{} · {} · {}",kind.label(),kind.description(),if campaign.unlocked_scenario(kind){"unlocked"}else{"locked"}),13.0,cream); }
+                            button(p,&format!("Starting budget ${:.0}",front.mode.checked_sub(1).and_then(|i|CampaignScenario::ALL.get(usize::from(i))).map_or(front.starting_budget,|s|s.starting_budget()) as f64/100.0),Action::Funds);
+                            button(p,if front.all_research {"Research · all content available"} else {"Research · funded progression"},Action::Research);
+                            button(p,if front.arrivals {"Visitor arrivals · on"}else{"Visitor arrivals · off"},Action::Arrivals);
+                            button(p,if front.loans {"Loans · allowed"}else{"Loans · disabled"},Action::Loans);
+                            button(p,&format!("Charging · {}",front.charging.label()),Action::Charging);
+                            button(p, "Back", Action::Back); },
                         Screen::Library => { for entry in front.entries.iter().skip(front.page*4).take(4) {
                                 button(p, &format!("{} {}", if front.selected == Some(entry.id) { "●" } else { "○" }, entry.name), Action::Select(entry.id));
                             }
@@ -1081,6 +1220,13 @@ fn action_name(action: Action) -> &'static str {
         Action::Mode(0) => "Sandbox",
         Action::Mode(1) => "Meadow Challenge",
         Action::Mode(_) => "Boardwalk Sprint",
+        Action::CycleCampaign => "Later campaign scenarios",
+        Action::Funds => "Starting budget",
+        Action::Research => "Research availability",
+        Action::Arrivals => "Visitor flow",
+        Action::Loans => "Loan policy",
+        Action::Charging => "Charging policy",
+        Action::ScenarioLibrary => "Scenarios and editor",
         Action::MapSize => "Map size",
         Action::Landscape => "Landscape",
         Action::Load => "Load",

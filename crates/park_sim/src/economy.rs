@@ -312,7 +312,8 @@ pub(crate) fn validate_economy(park: &Park) -> Result<(), String> {
             .checked_add(service_revenue)
             .and_then(|sales| sales.checked_add(admission_spent))
             != Some(spent)
-        || INITIAL_PARK_CASH_CENTS
+        || park
+            .starting_cash_cents()
             .checked_add(spent)
             .and_then(|funds| funds.checked_add(park.loans.borrowed_cents))
             .and_then(|funds| {

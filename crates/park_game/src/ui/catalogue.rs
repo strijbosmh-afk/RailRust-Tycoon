@@ -111,7 +111,11 @@ pub(crate) fn refresh(
     for (label, mut text) in &mut research {
         let available = label.0.is_none_or(|m| park.0.ride_researched(m))
             && label.1.is_none_or(|k| park.0.service_researched(k));
-        text.0 = if available {
+        let allowed = label.0.is_none_or(|m| park.0.ride_content_available(m))
+            && label.1.is_none_or(|k| park.0.facility_content_available(k));
+        text.0 = if !allowed {
+            "Unavailable in this scenario"
+        } else if available {
             "Available to build"
         } else {
             "Research required in Manage > Management and economy"

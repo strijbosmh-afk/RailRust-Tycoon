@@ -9,6 +9,8 @@ use std::path::PathBuf;
 pub(crate) enum DialogRequest {
     Import,
     Export { suggested_name: String },
+    ScenarioImport,
+    ScenarioExport { suggested_name: String },
 }
 
 pub(crate) fn choose_file(request: DialogRequest, owner: usize) -> Result<Option<PathBuf>, String> {
@@ -67,7 +69,14 @@ mod platform {
         // Declared before every COM interface so it is dropped after they are released,
         // on this same thread, including all early returns and cancellation.
         let _apartment = ComApartment::initialize()?;
-        let exporting = matches!(request, DialogRequest::Export { .. });
+        let exporting = matches!(
+            request,
+            DialogRequest::Export { .. } | DialogRequest::ScenarioExport { .. }
+        );
+        let scenario = matches!(
+            request,
+            DialogRequest::ScenarioImport | DialogRequest::ScenarioExport { .. }
+        );
         let class = if exporting {
             &FileSaveDialog
         } else {
@@ -102,33 +111,59 @@ mod platform {
                 .map_err(|error| windows_error("configure the file dialog", error))?;
             dialog
                 .SetFileTypes(&[COMDLG_FILTERSPEC {
-                    pszName: w!("Parkbound track designs (*.parktrack.json)"),
-                    pszSpec: w!("*.parktrack.json"),
+                    pszName: if scenario {
+                        w!("Parkbound scenarios (*.parkscenario.json)")
+                    } else {
+                        w!("Parkbound track designs (*.parktrack.json)")
+                    },
+                    pszSpec: if scenario {
+                        w!("*.parkscenario.json")
+                    } else {
+                        w!("*.parktrack.json")
+                    },
                 }])
                 .map_err(|error| windows_error("set the track design filter", error))?;
             dialog
                 .SetFileTypeIndex(1)
                 .map_err(|error| windows_error("select the track design filter", error))?;
             match request {
-                DialogRequest::Import => {
+                DialogRequest::Import | DialogRequest::ScenarioImport => {
                     dialog
-                        .SetTitle(w!("Import track design"))
+                        .SetTitle(if scenario {
+                            w!("Import scenario")
+                        } else {
+                            w!("Import track design")
+                        })
                         .map_err(|error| windows_error("set the file dialog title", error))?;
                     dialog
                         .SetOkButtonLabel(w!("Import"))
                         .map_err(|error| windows_error("set the file dialog action", error))?;
                 }
-                DialogRequest::Export { suggested_name } => {
+                DialogRequest::Export { suggested_name }
+                | DialogRequest::ScenarioExport { suggested_name } => {
                     dialog
-                        .SetTitle(w!("Export track design"))
+                        .SetTitle(if scenario {
+                            w!("Export scenario")
+                        } else {
+                            w!("Export track design")
+                        })
                         .map_err(|error| windows_error("set the file dialog title", error))?;
                     dialog
                         .SetOkButtonLabel(w!("Export"))
                         .map_err(|error| windows_error("set the file dialog action", error))?;
                     dialog
-                        .SetDefaultExtension(w!("parktrack.json"))
+                        .SetDefaultExtension(if scenario {
+                            w!("parkscenario.json")
+                        } else {
+                            w!("parktrack.json")
+                        })
                         .map_err(|error| windows_error("set the track design extension", error))?;
-                    let initial_name = HSTRING::from(suggested_export_name(&suggested_name));
+                    let name = suggested_export_name(&suggested_name);
+                    let initial_name = HSTRING::from(if scenario {
+                        format!("{}.parkscenario.json", name.trim_end_matches(SUFFIX))
+                    } else {
+                        name
+                    });
                     dialog
                         .SetFileName(&initial_name)
                         .map_err(|error| windows_error("set the suggested filename", error))?;
@@ -152,7 +187,16 @@ mod platform {
             }
             // GetDisplayName supplies a live NUL-terminated allocation. OsString
             // preserves all Windows UTF-16, including unpaired surrogate code units.
-            let path = selected_path(filename.0.as_wide(), exporting)?;
+            let path = selected_path(filename.0.as_wide(), exporting && !scenario)?;
+            if scenario
+                && exporting
+                && !path
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .ends_with(".parkscenario.json")
+            {
+                return Err("Choose a filename ending in .parkscenario.json.".into());
+            }
             Ok(Some(path))
         }
     }

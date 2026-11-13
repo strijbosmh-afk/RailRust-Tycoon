@@ -19,6 +19,7 @@ pub(crate) enum ScrollLayer {
     Catalogue,
     ParkLife,
     Management,
+    Workshop,
     Navigation,
     Sidebar,
     Build,
@@ -70,6 +71,8 @@ pub(crate) fn scroll(
         Some(ScrollLayer::Front)
     } else if view.navigation_open {
         Some(ScrollLayer::Navigation)
+    } else if view.workshop_open {
+        Some(ScrollLayer::Workshop)
     } else if view.management_open {
         Some(ScrollLayer::Management)
     } else if view.park_life_open {

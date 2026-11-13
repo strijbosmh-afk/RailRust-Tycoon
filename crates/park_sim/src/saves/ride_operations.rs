@@ -45,6 +45,7 @@ impl VersionFifteenParkData {
         ParkData {
             park_life: None,
             management: None,
+            play_rules: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,

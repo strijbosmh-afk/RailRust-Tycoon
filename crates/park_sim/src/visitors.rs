@@ -325,6 +325,13 @@ impl Park {
         Ok(())
     }
     pub fn set_charging_rule(&mut self, rule: ChargingRule) -> Result<(), VisitorError> {
+        if self.scenario.is_none()
+            && self
+                .required_charging_rule()
+                .is_some_and(|required| rule != required)
+        {
+            return Err(VisitorError::ChargingRuleRestricted);
+        }
         if let Some(state) = &self.scenario
             && rule != state.kind.charging_rule()
         {

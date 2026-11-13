@@ -30,6 +30,14 @@ jobs:
       - name: Build the Windows distribution
         shell: pwsh
         run: ./scripts/package-windows.ps1
+      - name: Verify full campaign and portable scenario editor
+        shell: pwsh
+        run: |
+          $scenarioDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound scenario editor " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-scenario-tools --save-dir $scenarioDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Scenario editor writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-scenario-tools --save-dir $scenarioDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Scenario editor continuation failed" }
       - name: Verify management economy and saved reports
         shell: pwsh
         run: |

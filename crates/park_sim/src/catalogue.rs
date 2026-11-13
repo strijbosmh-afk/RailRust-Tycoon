@@ -401,6 +401,11 @@ impl Park {
         height: u8,
         rotation: u8,
     ) -> Result<CatalogueQuote, CatalogueError> {
+        if !self.ride_content_available(model) {
+            return Err(CatalogueError::Construction(
+                "This scenario does not allow that ride model".into(),
+            ));
+        }
         if !self.ride_researched(model) {
             return Err(CatalogueError::Construction(format!(
                 "Research {} before construction",

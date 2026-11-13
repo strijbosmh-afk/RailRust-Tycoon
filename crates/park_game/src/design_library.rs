@@ -24,6 +24,7 @@ pub(crate) enum DesignCommand {
     Sort,
     SaveNew,
     UpdateSelected,
+    RenameSelected,
     DeleteSelected,
     Confirm,
     Cancel,
@@ -234,6 +235,7 @@ pub(crate) fn command_enabled(
         UpdateSelected => {
             selected && !park.track_draft().is_empty() && !library.name.trim().is_empty()
         }
+        RenameSelected => selected && !library.name.trim().is_empty(),
         DeleteSelected | LoadDraft | Turn | Export => selected,
         Import => library.entries.len() < crate::design_store::MAX_TRACK_DESIGNS,
         Browse(_) => library.visible_indices().len() > 1,
@@ -565,12 +567,17 @@ pub(crate) fn perform_command(
                 Err(error) => library.notice = format!("Design not saved: {error}"),
             }
         }
-        UpdateSelected | DeleteSelected => {
+        UpdateSelected | RenameSelected | DeleteSelected => {
             let Some(target) = library.selected_design().cloned() else {
                 return;
             };
-            let replacement = if command == UpdateSelected {
-                match TrackDesign::from_draft(&library.name, park.track_draft()) {
+            let replacement = if matches!(command, UpdateSelected | RenameSelected) {
+                let pieces = if command == RenameSelected {
+                    target.pieces()
+                } else {
+                    park.track_draft()
+                };
+                match TrackDesign::from_draft(&library.name, pieces) {
                     Ok(design) => Some(design),
                     Err(error) => {
                         library.notice = format!("Design not updated: {error}");
@@ -580,7 +587,7 @@ pub(crate) fn perform_command(
             } else {
                 None
             };
-            library.notice = if command == UpdateSelected {
+            library.notice = if matches!(command, UpdateSelected | RenameSelected) {
                 format!(
                     "Replace \"{}\" with the current draft?\nThis changes the saved design; it cannot be undone.",
                     target.name()
@@ -603,7 +610,7 @@ pub(crate) fn perform_command(
             };
             let replacement = library.confirmed_replacement.take();
             let result = match (library.confirmation.take(), replacement.as_ref()) {
-                (Some(UpdateSelected), Some(replacement)) => {
+                (Some(UpdateSelected | RenameSelected), Some(replacement)) => {
                     store.replace_exact(&target, replacement)
                 }
                 (Some(DeleteSelected), _) => store.delete_exact(&target),

@@ -65,6 +65,20 @@ pub(crate) struct DialogInput<'w, 's> {
     real_time: Res<'w, Time<Real>>,
 }
 
+impl DialogInput<'_, '_> {
+    pub(crate) fn choose(&mut self, request: DialogRequest) -> Result<Option<PathBuf>, String> {
+        let result = match self.windows.single().ok().and_then(owner_handle) {
+            Some(owner) => design_file_dialog::choose_file(request, owner),
+            None => Err("The game window is unavailable for file selection.".into()),
+        };
+        self.keys.reset_all();
+        self.mouse.reset_all();
+        self.events.clear();
+        self.pause.finished_at(Instant::now());
+        result
+    }
+}
+
 fn owner_handle(wrapper: &RawHandleWrapper) -> Option<usize> {
     #[cfg(windows)]
     if let raw_window_handle::RawWindowHandle::Win32(handle) = wrapper.get_window_handle() {

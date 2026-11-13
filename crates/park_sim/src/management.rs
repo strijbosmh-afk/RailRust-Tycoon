@@ -257,6 +257,9 @@ impl Park {
         Ok(())
     }
     pub fn ride_researched(&self, model: RideModel) -> bool {
+        if self.all_research_available() {
+            return true;
+        }
         self.management.as_ref().is_none_or(|m| {
             ride_research(model).is_none_or(|(p, rank)| {
                 m.research_spent[p.index()] >= rank * RESEARCH_PROJECT_CENTS
@@ -264,6 +267,9 @@ impl Park {
         })
     }
     pub fn service_researched(&self, kind: ServiceKind) -> bool {
+        if self.all_research_available() {
+            return true;
+        }
         self.management
             .as_ref()
             .is_none_or(|m| m.research_spent[5] >= service_rank(kind) * RESEARCH_PROJECT_CENTS)
@@ -714,7 +720,7 @@ pub(crate) fn validate(park: &Park) -> Result<(), String> {
             || r.reliability > 100
             || r.revenue_cents > current.revenue_cents
             || r.expenses_cents > current.expenses_cents
-            || i128::from(crate::INITIAL_PARK_CASH_CENTS)
+            || i128::from(park.starting_cash_cents())
                 .checked_add(r.operating_profit_cents())
                 .and_then(|cash| cash.checked_add(r.capital_net_cents))
                 .and_then(|cash| cash.checked_add(r.financing_net_cents))

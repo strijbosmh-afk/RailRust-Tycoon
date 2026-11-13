@@ -992,6 +992,27 @@ fn search_controls_respect_confirmation_and_transfer_barriers_and_delete_refresh
 }
 
 #[test]
+fn rename_selected_preserves_saved_geometry_when_the_draft_differs() {
+    let scratch = Scratch::new();
+    save_gallery(&scratch);
+    let saved = scratch.store().load("Alpha").unwrap();
+    let (park, view) = fixture();
+    let (mut app, window) = gallery_app(&scratch, park.clone(), view);
+    let before_history = history(&app);
+    open(&mut app);
+    search_gallery(&mut app, window, "Alpha");
+    press_gallery_control(&mut app, DesignCommand::NameFocus);
+    type_text(&mut app, window, "Alpha renamed");
+    press_gallery_control(&mut app, DesignCommand::RenameSelected);
+    press_gallery_control(&mut app, DesignCommand::Confirm);
+    let renamed = scratch.store().load("Alpha renamed").unwrap();
+    assert_eq!(renamed.pieces(), saved.pieces());
+    assert!(scratch.store().load("Alpha").is_err());
+    assert_eq!(app.world().resource::<Simulation>().0, park);
+    assert_eq!(history(&app), before_history);
+}
+
+#[test]
 fn save_rename_and_import_reveal_the_result_while_matching_imports_keep_search() {
     let scratch = Scratch::new();
     save_gallery(&scratch);

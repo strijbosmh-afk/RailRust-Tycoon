@@ -1,5 +1,5 @@
 //! Read-only lifetime operating results, separate from capital cash movements.
-use crate::{INITIAL_PARK_CASH_CENTS, Park};
+use crate::Park;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct OperatingProfit {
@@ -78,7 +78,7 @@ impl Park {
                 + i128::from(self.loans.borrowed_cents)
                 - i128::from(self.loans.repaid_cents)
                 - i128::from(self.loans.interest_paid_cents),
-            starting_cash_cents: INITIAL_PARK_CASH_CENTS,
+            starting_cash_cents: self.starting_cash_cents(),
             cash_cents: self.cash_cents(),
         }
     }

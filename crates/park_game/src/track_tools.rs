@@ -506,6 +506,13 @@ pub(crate) fn apply_command(park: &mut Park, view: &mut ViewState, command: Trac
             };
         }
         TrackCommand::Apply => {
+            if park.ride().is_none()
+                && !park.ride_content_available(park_sim::RideModel::ClassicCoaster)
+            {
+                view.track_editor.notice =
+                    "This scenario does not permit new classic coasters.".into();
+                return;
+            }
             let quote = park.track_construction_quote().ok();
             match park.apply_track_draft() {
                 Ok(()) => {
