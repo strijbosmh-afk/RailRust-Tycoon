@@ -30,13 +30,15 @@ Open **Explore → Manage → Scenarios and editor**, or use **Scenarios and edi
 1. Start from a sandbox with the desired map, or select **New from this park**. The editor keeps a copy of the original park.
 2. Select **Build park** to use the existing terrain, water, land, path, scenery, ride and facility tools. The editor banner identifies the current mode. Reopen the workspace to continue authoring.
 3. Edit the name and description. Select a field, then type. Backspace edits the selected field.
-4. Add up to four distinct goals. Select a goal, cycle its metric and adjust its target. Choose a deadline or remove the deadline. Supported metrics include arrivals, rides, customers served, sales, cash, satisfaction, facilities, park value and funded research projects.
+4. Add up to four distinct goals. Select a goal, cycle its metric and adjust its target. Choose a deadline or remove the deadline. Supported metrics include arrivals, rides, customers served, sales, operating profit, cash, satisfaction, facilities, park value and funded research projects.
 5. Set the opening budget, charging rule, research availability, loan policy and visitor flow. Available content controls which ride models and facilities can be built. Existing buildings remain in the template.
 6. Select **Save scenario**. Its file contains the validated park layout, land rights, starting rides, finances, research, content restrictions and objective definition.
 7. Select **Test scenario** to play a separate test run. **Return to editor** restores the authoring state. Test play does not earn campaign awards.
 8. **Return to park**, followed by confirmation, restores the original park. Saved scenarios remain in the library.
 
 The budget is the opening financial allocation. Existing construction spending still belongs to the park. Reducing the budget below its recorded spending is rejected. Scenario play preserves integer-cent finance reconciliation and quoted guest fares.
+
+Sales goals count new sales during the scenario. Operating-profit goals use the park's current lifetime operating result, including the starting template's history. Loans, construction and refunds retain their separate financial treatment. An operating loss displays zero progress towards a positive profit goal.
 
 ## Scenario library and sharing
 

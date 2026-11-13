@@ -103,6 +103,7 @@ pub enum ObjectiveMetric {
     Rides,
     ServiceCustomers,
     Revenue,
+    OperatingProfit,
     Cash,
     Satisfaction,
     Facilities,
@@ -110,11 +111,12 @@ pub enum ObjectiveMetric {
     ResearchProjects,
 }
 impl ObjectiveMetric {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Arrivals,
         Self::Rides,
         Self::ServiceCustomers,
         Self::Revenue,
+        Self::OperatingProfit,
         Self::Cash,
         Self::Satisfaction,
         Self::Facilities,
@@ -127,6 +129,7 @@ impl ObjectiveMetric {
             Self::Rides => "Completed rides",
             Self::ServiceCustomers => "Customers served",
             Self::Revenue => "Sales in cents",
+            Self::OperatingProfit => "Operating profit in cents",
             Self::Cash => "Cash in cents",
             Self::Satisfaction => "Guest satisfaction",
             Self::Facilities => "Installed facilities",
@@ -146,7 +149,7 @@ impl ObjectiveMetric {
     }
     pub fn step(self) -> u64 {
         match self {
-            Self::Revenue | Self::Cash | Self::ParkValue => 10_000,
+            Self::Revenue | Self::OperatingProfit | Self::Cash | Self::ParkValue => 10_000,
             Self::Satisfaction => 5,
             Self::ResearchProjects | Self::Facilities => 1,
             _ => 5,
@@ -518,6 +521,9 @@ impl Park {
                 f.rides.revenue_cents + f.services.revenue_cents + f.admission_revenue_cents
             }
             ObjectiveMetric::Cash => self.cash_cents,
+            ObjectiveMetric::OperatingProfit => {
+                self.finance_summary().operating_profit_cents.max(0) as u64
+            }
             ObjectiveMetric::Satisfaction => {
                 if self.guests.is_empty() {
                     0

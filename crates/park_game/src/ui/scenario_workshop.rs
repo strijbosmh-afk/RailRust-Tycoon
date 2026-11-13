@@ -364,8 +364,8 @@ pub(crate) fn command(
                     .iter()
                     .position(|m| *m == current)
                     .unwrap();
-                for offset in 1..=9 {
-                    let next = ObjectiveMetric::ALL[(start + offset) % 9];
+                for offset in 1..=ObjectiveMetric::ALL.len() {
+                    let next = ObjectiveMetric::ALL[(start + offset) % ObjectiveMetric::ALL.len()];
                     if w.definition
                         .goals
                         .iter()

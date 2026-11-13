@@ -54,6 +54,35 @@ fn research_and_content_rules_block_normal_construction_and_loans() {
     roundtrip(&park);
 }
 #[test]
+fn operating_profit_goals_exclude_borrowed_funds_and_construction() {
+    let mut park = Park::new(32, 32);
+    park.start_custom_challenge(ChallengeDefinition {
+        goals: vec![Objective {
+            metric: ObjectiveMetric::OperatingProfit,
+            target: 1,
+        }],
+        deadline_ticks: Some(900),
+        ..Default::default()
+    })
+    .unwrap();
+    park.borrow_loan(10_000).unwrap();
+    park.place_service(
+        TilePos { x: 2, y: 2 },
+        0,
+        PathDirection::North,
+        ServiceKind::Food,
+    )
+    .unwrap();
+    for _ in 0..900 {
+        park.advance(Speed::Normal);
+    }
+    let status = park.challenge_status().unwrap();
+    assert_eq!(status.values, vec![0]);
+    assert_eq!(status.failed_tick, Some(900));
+    assert_eq!(status.completed_tick, None);
+    roundtrip(&park);
+}
+#[test]
 fn portable_scenario_preserves_land_rides_rules_and_exact_future() {
     let mut park = Park::new(32, 32);
     park.install_ground_starter_crowd(42).unwrap();
