@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Current development is 0.85.1 with automatic coaster continuation, following the completed Phase 6 catalogue in 0.85.0 on `codex/phase-6-catalogue`, in [PR #77](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/77).** The user approved a balanced catalogue of 14 rides and eight facilities. Save schema/content is **48/48**. Read [section 54](#54-automatic-coaster-continuation--0851), [section 53](#53-phase-6-ride-and-facility-catalogue--0850) and the [catalogue guide](docs/PHASE_6_CATALOGUE.md) before continuing. The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier stage paragraphs below are historical handoffs.
+**Phase 7 is being verified in version 0.86.0 on `codex/phase-7-park-life`.** It adds visitor groups, return visits, five staff roles, payroll and patrols, changing weather, covered benches and local incidents. Save schema/content is **49/49**. Read [section 55](#55-phase-7-visitors-staff-weather-and-park-life--0860) and the [park-life guide](docs/PHASE_7_PARK_LIFE.md). The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier sections are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1445,3 +1445,29 @@ The initial targeted test run exposed an old fixed-plane replacement test that e
 The working branch remains `codex/phase-6-catalogue` in PR #77. The shared local path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing, inspect `git status`, and check out that branch before continuing. Read the current controls in `docs/PHASES_3_5_FOUNDATIONS_GUIDE.md`. The next planned content stage remains Phase 7 in `docs/FULL_GAME_ROADMAP.md`.
 
 This development PC is excluded from performance targets. Its timing measurements establish neither release hardware requirements nor frame-rate acceptance.
+
+## 55. Phase 7 visitors, staff, weather and park life — 0.86.0
+
+### Scope and player controls
+
+New parks enable park life. Existing parks retain their saved mode and can enable the systems under **Explore → Manage → Staff and park life**. Visitor parties have three members with family, thrill-seeking or relaxed interests. Admission and wallets remain individual. Members regroup between activities and coordinate departure. Satisfied parties can return after 200 simulation seconds with new visit identities. Existing receipts remain in the retired-visitor ledger.
+
+The new roster supports 20 staff across mechanics, handymen, security, entertainers and service attendants. Each costs $1 every 30 simulation seconds. Staff use public paths, spend four seconds on a job, respect assigned destination patrol tiles and suspend work while a wage is unpaid. Path deletion and workplace removal are reconciled through the existing navigation and construction systems. The older single-worker controls remain available in Grounds controls.
+
+Weather cycles between sunshine, heat, rain and thunderstorms every 60 simulation seconds. Heat increases thirst. Rain rewards covered rest and reduces outdoor comfort. Storms close exposed rides, preserve dispatched journeys and check weather-closed rides for reopening. Explicit player closure is retained. Covered benches use the existing paid bench construction and refund system. Security resolves local vandalism and distress reports. Staff, shelters and incidents have original rendered details and visible status.
+
+### Implementation and save compatibility
+
+`crates/park_sim/src/park_life.rs` and its `guests`, `staff` and `weather` modules own saved park life. Existing visitor, service, finance, maintenance and route APIs remain the integration points. `ui/park_life.rs` provides the roster, weather policy, path assignment and find controls. `world/park_life.rs` provides original staff uniforms, roofs, rain and incident markers.
+
+The optional park-life save object uses schema/content 49/49. Its absence preserves legacy behavior. Readers explicitly accept schemas 47 and 48 as well as older supported versions. Park-life data under older headers is rejected. Staff wages are included in operating expenses and retain a separate subtotal when the finance ledger archives entries.
+
+### Verification and local package
+
+Verification is in progress. The final test results, executable hash, package checks and GitHub checkpoint will be recorded here before delivery. The new native proof is `--save-check write-park-life` followed by `--save-check verify-park-life`, using a new absolute `--save-dir`. It covers 27,000 simulation ticks, including an exact 9,000-tick continuation in a fresh process. Capture scenes are `park-life`, `park-life-rain` and `park-life-staff`.
+
+### Continue on another PC
+
+The shared local path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Let OneDrive finish syncing before opening it on another PC. Alternatively clone `https://github.com/strijbosmh-afk/RailRust-Tycoon` and check out `codex/phase-7-park-life`. Read this section and `docs/PHASE_7_PARK_LIFE.md`, inspect `git status`, and use the pinned Rust toolchain. Run the release tests and strict Clippy before packaging with `scripts/package-windows.ps1`. Keep personal saves separate from proof profiles.
+
+The next roadmap stage is Phase 8 management and economy. Performance acceptance requires a representative Windows computer selected separately from this development PC.

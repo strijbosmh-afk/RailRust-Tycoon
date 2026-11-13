@@ -11,6 +11,7 @@ pub enum RideOpeningError {
     Unavailable,
     OperatingFunds(u32),
     MaintenanceShutdown,
+    Storm,
     Circuit(TrainError),
     Entrance(RideAccessStatus),
     Exit(RideExitStatus),
@@ -28,6 +29,7 @@ impl std::fmt::Display for RideOpeningError {
                 cents / 100,
                 cents % 100
             ),
+            Self::Storm => f.write_str("Outdoor rides wait until the thunderstorm passes"),
             Self::MaintenanceShutdown => f.write_str("Service this ride before reopening"),
             Self::Circuit(_) => f.write_str("Repair the installed coaster track"),
             Self::Entrance(status) => status.fmt(f),
@@ -50,6 +52,9 @@ impl Park {
         let kind = self
             .ride_kind(id)
             .ok_or(RideOpeningError::UnknownRide(id))?;
+        if self.weather_blocks_ride(id) {
+            return Err(RideOpeningError::Storm);
+        }
         if !self.ride_available(id) {
             return Err(RideOpeningError::Unavailable);
         }

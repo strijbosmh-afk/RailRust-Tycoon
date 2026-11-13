@@ -22,6 +22,7 @@ pub(super) mod guests;
 pub(crate) mod layout;
 pub(crate) mod names;
 pub(crate) mod navigation;
+pub(crate) mod park_life;
 pub(crate) mod rides;
 pub(crate) mod scenarios;
 pub(crate) mod services;
@@ -98,6 +99,7 @@ const BUTTON: Color = Color::srgb_u8(230, 235, 221);
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
     Catalogue(catalogue::Command),
+    ParkLife(park_life::Command),
     Menu,
     Navigation,
     CloseNavigation,
@@ -833,6 +835,7 @@ pub(super) fn setup(mut commands: Commands) {
     guests::setup(&mut commands);
     services::setup(&mut commands);
     catalogue::setup(&mut commands);
+    park_life::setup(&mut commands);
     finance::setup(&mut commands);
     rides::setup(&mut commands);
     track::setup(&mut commands);
@@ -891,6 +894,25 @@ pub(super) fn button_actions(
     }) && !view.edits_blocked()
     {
         navigation::open(&mut view);
+        return;
+    }
+    if let Some(command) = interactions.iter().find_map(|(i, a)| match a {
+        Action::ParkLife(command) if *i == Interaction::Pressed => Some(*command),
+        _ => None,
+    }) {
+        if keys
+            .as_ref()
+            .is_some_and(|k| k.just_pressed(KeyCode::F9) || k.just_pressed(KeyCode::Escape))
+        {
+            view.ui_pointer_consumed = true;
+            return;
+        }
+        if let Some(sim) = sim.as_mut() {
+            park_life::command(&mut sim.0, &mut view, command);
+        }
+        return;
+    }
+    if view.park_life_open {
         return;
     }
     if view.designs_open {
@@ -1233,7 +1255,7 @@ pub(super) fn button_actions(
             continue;
         }
         match action {
-            Action::Catalogue(_) => {}
+            Action::Catalogue(_) | Action::ParkLife(_) => {}
             Action::Navigation
             | Action::CloseNavigation
             | Action::NavGroup(_)

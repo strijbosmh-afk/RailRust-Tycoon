@@ -875,7 +875,7 @@ pub(crate) fn refresh(
                 },
             ),
             GuestLabel::Details => {
-                selected.map_or_else(String::new, |guest| details(guest, &sim.0))
+                selected.map_or_else(String::new, |guest| { let details=details(guest,&sim.0); if sim.0.park_life_status().enabled {format!("{}\n{}",details,sim.0.guest_life_description(guest.id))}else{details} })
             }
             GuestLabel::Thought => selected.map_or_else(String::new, |guest| {
                 format!(

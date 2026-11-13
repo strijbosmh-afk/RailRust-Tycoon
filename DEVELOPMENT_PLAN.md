@@ -1,7 +1,9 @@
 # Theme Park Simulation Development Plan
 
-For the current, stepwise path from the 0.85.1 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
+For the current, stepwise path from the 0.86.0 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
 
+
+Phase 7 adds visitor groups, returning parties, five staff roles, wages and patrols, changing weather, covered benches and local incidents in 0.86.0. See the [park-life guide](docs/PHASE_7_PARK_LIFE.md).
 
 Phase 6 adds the approved 14-ride, eight-facility catalogue in 0.85.0. The current branch is `codex/phase-6-catalogue`. Read the [catalogue guide](docs/PHASE_6_CATALOGUE.md) and [current handoff](RESUME_DEVELOPMENT.md#53-phase-6-ride-and-facility-catalogue--0850) for player controls, saved continuation, verification and the next phase.
 

@@ -283,6 +283,7 @@ impl Park {
             .binary_search_by_key(&path, |bench| bench.path)
         {
             self.decorations.benches.remove(index);
+            self.reconcile_park_life();
             self.record_decoration_refund(BENCH_COST_CENTS);
             return Ok(false);
         }
@@ -312,6 +313,7 @@ impl Park {
             .binary_search_by_key(&removed, |bench| bench.path)
         {
             self.decorations.benches.remove(index);
+            self.reconcile_park_life();
             self.record_decoration_refund(BENCH_COST_CENTS);
         }
         if let Ok(index) = self

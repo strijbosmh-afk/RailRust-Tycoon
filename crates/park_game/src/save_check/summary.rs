@@ -61,7 +61,9 @@ pub(crate) fn check(park: &Park) -> Result<(), String> {
             FinanceKind::LoanBorrow => borrowed += amount,
             FinanceKind::LoanRepayment => repaid += amount,
             FinanceKind::LoanInterest => interest += amount,
-            FinanceKind::MechanicWage | FinanceKind::HandymanWage => wages += amount,
+            FinanceKind::MechanicWage | FinanceKind::HandymanWage | FinanceKind::StaffWage => {
+                wages += amount
+            }
             FinanceKind::RideRevenue => ride_revenue += amount,
             FinanceKind::ParkAdmission => admission += amount,
             FinanceKind::Advertising | FinanceKind::RadioAdvertising => advertising += amount,

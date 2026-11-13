@@ -91,6 +91,10 @@ struct ViewState {
     rides_open: bool,
     designs_open: bool,
     catalogue_open: bool,
+    park_life_open: bool,
+    park_life_pick: Option<ui::park_life::Pick>,
+    selected_park_staff: Option<u64>,
+    park_life_notice: String,
     catalogue_category: u8,
     design_commands: Vec<design_library::DesignCommand>,
     selected_ride: Option<park_sim::RideId>,
@@ -197,6 +201,10 @@ impl Default for ViewState {
             rides_open: false,
             designs_open: false,
             catalogue_open: false,
+            park_life_open: false,
+            park_life_pick: None,
+            selected_park_staff: None,
+            park_life_notice: String::new(),
             catalogue_category: 0,
             design_commands: Vec::new(),
             selected_ride: None,
@@ -357,6 +365,7 @@ impl ViewState {
             || self.rides_open
             || self.designs_open
             || self.catalogue_open
+            || self.park_life_open
             || self.modal_input_blocked
             || self.capture_active
             || self.diagnostic_case.is_some()
@@ -374,6 +383,8 @@ impl ViewState {
         self.rides_open = false;
         self.designs_open = false;
         self.catalogue_open = false;
+        self.park_life_open = false;
+        self.park_life_pick = None;
         self.design_commands.clear();
         self.ride_operating_commands.clear();
         self.ride_operating_notice = None;
@@ -751,7 +762,13 @@ fn main() -> AppExit {
                         ui::guest_stats::refresh,
                         ui::visitor_flow::refresh,
                         ui::scenarios::refresh,
-                        (ui::services::refresh, ui::catalogue::refresh).chain(),
+                        (
+                            ui::services::refresh,
+                            ui::catalogue::refresh,
+                            ui::park_life::refresh,
+                            ui::park_life::refresh_banner,
+                        )
+                            .chain(),
                         ui::finance::refresh,
                         ui::track::refresh,
                         design_preview::refresh_images,
@@ -1106,6 +1123,7 @@ fn keyboard_input(
     }
     if keys.just_pressed(KeyCode::Escape)
         && (view.help
+            || view.park_life_open
             || view.guests_open
             || view.services_open
             || view.finance_open
@@ -1183,6 +1201,16 @@ fn keyboard_input(
             .any(|key| keys.pressed(key) || keys.just_pressed(key) || keys.just_released(key))
     {
         view.ui_pointer_consumed = true;
+        return;
+    }
+    if view.park_life_open || view.park_life_pick.is_some() {
+        if keys.just_pressed(KeyCode::Escape) {
+            view.set_modal(false, false, false, false);
+        }
+        if keys.just_pressed(KeyCode::Space) {
+            view.pause();
+        }
+        request_keyboard_save(&keys, &mut view);
         return;
     }
     if keys.just_pressed(KeyCode::KeyY) {
@@ -1754,6 +1782,7 @@ fn pointer_input(
         cursor,
         window,
         view.help
+            || view.park_life_open
             || view.guests_open
             || view.services_open
             || view.finance_open
@@ -1803,6 +1832,12 @@ fn pointer_input(
     let panning = view.dragging
         || buttons.pressed(MouseButton::Right)
         || buttons.pressed(MouseButton::Middle);
+    if view.park_life_pick.is_some() && point.is_some() && !panning && !view.edits_blocked() {
+        if buttons.just_pressed(MouseButton::Left) {
+            ui::park_life::pick(&mut sim.0, &mut view);
+        }
+        return;
+    }
     if let Some(point) = point
         && !panning
         && !view.edits_blocked()

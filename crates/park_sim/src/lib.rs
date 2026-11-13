@@ -51,7 +51,12 @@ pub use grounds::{
 mod park_value;
 pub use park_value::ParkValue;
 mod loans;
+mod park_life;
 mod staff;
+pub use park_life::{
+    IncidentKind, PARK_STAFF_LIMIT, PARK_STAFF_WAGE_CENTS, PARK_STAFF_WAGE_TICKS, ParkIncident,
+    ParkLifeStatus, PartyStyle, StaffMember, StaffRole, StaffTask, Weather, WeatherPolicy,
+};
 pub use staff::{MECHANIC_WAGE_CENTS, MECHANIC_WAGE_TICKS, MechanicStatus};
 mod maintenance;
 pub use finance_summary::{OperatingProfit, ParkFinanceSummary};
@@ -287,6 +292,7 @@ impl Speed {
 
 #[derive(Clone, Debug)]
 pub struct Park {
+    park_life: Option<park_life::ParkLife>,
     width: u32,
     height: u32,
     tiles: Vec<Tile>,
@@ -334,7 +340,8 @@ pub struct Park {
 /// their previous equality semantics across cloning and save/load.
 impl PartialEq for Park {
     fn eq(&self, other: &Self) -> bool {
-        self.width == other.width
+        self.park_life == other.park_life
+            && self.width == other.width
             && self.height == other.height
             && self.tiles == other.tiles
             && self.ticks == other.ticks
@@ -406,6 +413,7 @@ impl Park {
             width,
             height,
             tiles,
+            park_life: None,
             ticks: 0,
             objects: Vec::new(),
             next_object_id: 1,
@@ -579,6 +587,7 @@ impl Park {
             self.step_service_upkeep();
             self.step_needs();
             self.step_visitor_arrivals();
+            self.step_park_life();
             self.step_crowd();
             self.step_ride_journeys();
             self.step_coasters();

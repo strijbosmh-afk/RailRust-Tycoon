@@ -49,8 +49,8 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 48;
-pub const CONTENT_VERSION: u32 = 48;
+pub const SCHEMA_VERSION: u32 = 49;
+pub const CONTENT_VERSION: u32 = 49;
 const FORMAT: &str = "parkbound-save";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -195,6 +195,12 @@ impl CoasterData {
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "required_object_option"
+    )]
+    park_life: Option<crate::park_life::ParkLife>,
     #[serde(
         default,
         skip_serializing_if = "Vec::is_empty",
@@ -394,6 +400,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            park_life: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -570,6 +577,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            park_life: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -838,6 +846,8 @@ impl Park {
                 | 44
                 | 45
                 | 46
+                | 47
+                | 48
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -862,6 +872,19 @@ impl Park {
         validate_decoration_field(bytes, header.schema_version)?;
         validate_path_economy_field(bytes, header.schema_version)?;
         let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+        if header.schema_version < 49 {
+            let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+            if value["park"].get("park_life").is_some()
+                || value["park"]["finances"]["archived"]
+                    .get("staff_wages_cents")
+                    .is_some()
+                || value["park"]["finances"]["entries"]
+                    .as_array()
+                    .is_some_and(|rows| rows.iter().any(|row| row["kind"] == "StaffWage"))
+            {
+                return Err(invalid("park life requires schema 49"));
+            }
+        }
         if header.schema_version < 48 {
             fn catalogue_fields(value: &serde_json::Value) -> bool {
                 match value {
@@ -2181,6 +2204,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            park_life: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2224,6 +2248,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            park_life: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2270,6 +2295,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            park_life: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2444,6 +2470,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            park_life: None,
             other_coasters: Vec::new(),
             extra_trains: Vec::new(),
             scenario: None,
@@ -2555,6 +2582,7 @@ impl ParkData {
                 .iter()
                 .map(CoasterData::from_state)
                 .collect(),
+            park_life: park.park_life.clone(),
             scenario: park.scenario.clone(),
             grounds: park.grounds.clone(),
             decorations: park.decorations.clone(),
@@ -2622,6 +2650,7 @@ impl ParkData {
         let circuit_data = self.circuit;
         let other_data = self.other_coasters;
         let mut park = Park {
+            park_life: self.park_life,
             extra_trains: self.extra_trains,
             other_coasters: other_data
                 .iter()
@@ -2679,6 +2708,7 @@ impl ParkData {
         crate::maintenance::validate(&park).map_err(invalid)?;
         crate::staff::validate(&park).map_err(invalid)?;
         crate::grounds::validate(&park).map_err(invalid)?;
+        crate::park_life::validate(&park).map_err(invalid)?;
         crate::decorations::validate(&park).map_err(invalid)?;
         crate::path_economy::validate(&park).map_err(invalid)?;
         crate::visitors::validate(&park).map_err(invalid)?;

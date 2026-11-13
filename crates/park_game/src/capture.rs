@@ -66,6 +66,9 @@ mod visitor_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
+    ParkLife,
+    ParkLifeRain,
+    ParkLifeStaff,
     Catalogue,
     CatalogueMenu,
     CatalogueWater,
@@ -756,6 +759,9 @@ pub(super) fn configure(app: &mut App) {
         .position(|value| value == "--capture-scene")
         .map(
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("park-life") => Scene::ParkLife,
+                Some("park-life-rain") => Scene::ParkLifeRain,
+                Some("park-life-staff") => Scene::ParkLifeStaff,
                 Some("catalogue") => Scene::Catalogue,
                 Some("catalogue-menu") => Scene::CatalogueMenu,
                 Some("catalogue-water") => Scene::CatalogueWater,
@@ -1663,6 +1669,32 @@ fn apply_preset(
     }
     if matches!(capture.scene, Scene::TrackFollow) {
         track_construction_scenes::prepare_follow(&mut sim.0, &mut view);
+    }
+    if matches!(
+        capture.scene,
+        Scene::ParkLife | Scene::ParkLifeRain | Scene::ParkLifeStaff
+    ) {
+        sim.0 = crate::save_check::park_life::fixture().expect("park life capture fixture");
+        if matches!(capture.scene, Scene::ParkLifeRain) {
+            sim.0.set_weather_policy(park_sim::WeatherPolicy::Rain);
+        }
+        for _ in 0..capture.ticks.max(1200) {
+            sim.0.advance(Speed::Normal);
+        }
+        view.set_modal(false, false, false, false);
+        view.rotation = capture.rotation.unwrap_or(0);
+        view.zoom = 2.0;
+        let focus = sim
+            .0
+            .visitor_flow_stats()
+            .entry
+            .and_then(|id| sim.0.object(id))
+            .expect("park entry");
+        view.pan = world::tile_center(focus.pos, 64, view.rotation);
+        view.selected_park_staff = sim.0.park_staff().first().map(|s| s.id);
+        view.park_life_open = matches!(capture.scene, Scene::ParkLifeStaff);
+        view.terrain_custom = true;
+        view.scene_dirty = true;
     }
     if capture.detail {
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;

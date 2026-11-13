@@ -249,6 +249,9 @@ impl Park {
     /// Low-level operating switch retained for fixtures and legacy continuation.
     /// Player commands must use `set_ride_open_checked` to require current access.
     pub fn set_ride_open(&mut self, id: RideId, open: bool) -> Result<(), RideAccessError> {
+        if !open && let Some(life) = &mut self.park_life {
+            life.weather_closed.retain(|closed| *closed != id);
+        }
         let settings = self.ride_operating_settings(id).unwrap_or_default();
         match self.ride_kind(id).ok_or(RideAccessError::UnknownRide(id))? {
             RideKind::Coaster => self.with_coaster(id, |park| park.set_train_open(open)),

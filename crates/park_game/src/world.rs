@@ -1,5 +1,7 @@
 //! Isometric surfaces shared by rendering, selection, and picking.
 
+mod park_life;
+
 use bevy::{
     asset::RenderAssetUsages, color::ColorToComponents, mesh::Indices, prelude::*,
     render::render_resource::PrimitiveTopology,
@@ -1615,6 +1617,7 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             );
         }
     }
+    park_life::paint(&mut mesh, park, rotation, mode);
     mesh.finish()
 }
 
