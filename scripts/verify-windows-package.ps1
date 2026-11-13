@@ -8,7 +8,8 @@ param(
     [string[]]$Proofs = @('access', 'operations', 'design-transfer'),
     [string[]]$CaptureScenes = @('access-needs', 'access-ready', 'access-unavailable'),
     [string[]]$FrontCaptureScenes = @(),
-    [switch]$SkipRuntime
+    [switch]$SkipRuntime,
+    [ValidateRange(1, 3600)][int]$ProcessTimeoutSeconds = 180
 )
 
 # Verify a specific locally built release, retain evidence in a fresh folder,
@@ -107,9 +108,9 @@ function Run-ProofProcess([string]$Label, [string]$ProcessArguments) {
     $process = Start-Process -FilePath $executable -ArgumentList $ProcessArguments -WorkingDirectory $env:WINDIR -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $output ($Label + '.stdout.txt')) -RedirectStandardError (Join-Path $output ($Label + '.stderr.txt'))
     $timer = [Diagnostics.Stopwatch]::StartNew()
     while (-not $process.WaitForExit(10000)) {
-        if ($timer.Elapsed.TotalSeconds -ge 180) {
+          if ($timer.Elapsed.TotalSeconds -ge $ProcessTimeoutSeconds) {
             Stop-Process -Id $process.Id -Force
-            throw "$Label exceeded 180 seconds; logs retained."
+              throw "$Label exceeded $ProcessTimeoutSeconds seconds; logs retained."
         }
         Write-Output "$Label running"
     }

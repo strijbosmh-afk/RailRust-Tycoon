@@ -1,6 +1,6 @@
 # Parkbound: stepwise roadmap to a complete Windows game
 
-Planning checkpoint after 0.70.0, updated for the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0; later stages advanced Phase 2 and completed the Phase 3–5 exit gates in 0.84.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
+Planning checkpoint updated through Phase 7 in 0.86.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0; later stages advanced Phase 2 and completed the Phase 3–5 exit gates in 0.84.0. This is the implementation order for the original Rust theme park game. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record; this roadmap groups that work into playable, reviewable phases. “Complete” means the agreed 1.0 checklist has working player controls, saved continuation, visible feedback, and clean-Windows acceptance. A playable early build is not the full game.
 
 ## Starting point and release target
 
@@ -122,13 +122,15 @@ The approved catalogue contains 14 rides across gentle, thrill, water, transport
 
 The common acceptance gate covers paid placement, demolition, operation, guest use, four-view presentation, sound and exact save continuation in a mixed park. The approved catalogue passes that gate in 0.85.0. Verification is recorded in resume section 53.
 
-## 7. Visitors, staff, weather, and park life
+## 7. Visitors, staff, weather, and park life — complete in 0.86.0
 
 1. Expand guest groups/preferences, affordability, ride selection, happiness/thoughts, needs, queue patience, litter, nausea, departure and return behavior. Make visible decisions traceable to simulation state.
 2. Complete mechanic and handyman staffing; add the agreed security, entertainer and service roles, patrol zones, wages, tasks and reachability. Handle missing paths and deleted workplaces safely.
 3. Add weather, shelter and scenery effects, incidents, vandalism, ride faults and recovery where included in the Phase 0 contract. Give player notices that identify the affected place and a useful action.
 
 **Gate:** a long-running busy park keeps guest/staff counts, money and references consistent; staff can reach and resolve their assigned work; climate and incident changes have visible, explainable effects; save/load continuation remains deterministic.
+
+The 0.86.0 implementation provides three-person parties, return visits, all five staff roles with wages and patrols, four weather states, covered benches and incident response. The mixed-park continuation and player controls pass the gate above. Scope, controls and evidence are in the [park-life guide](PHASE_7_PARK_LIFE.md) and [resume section 55](../RESUME_DEVELOPMENT.md#55-phase-7-visitors-staff-weather-and-park-life--0860).
 
 ## 8. Management and economy
 
@@ -177,9 +179,7 @@ The common acceptance gate covers paid placement, demolition, operation, guest u
 
 Use one branch/PR per bounded slice. Record the precise user flow, affected saves/content IDs, visual captures, and acceptance result in its report and in `RESUME_DEVELOPMENT.md`. Keep a playable package at each checkpoint. For simulation changes, verify deterministic continuation and old-save migration. For interface/art changes, inspect native input and captures at more than one display size. The Windows CI and a clean-PC playthrough remain independent of this development PC's speed.
 
-1. Continue Phase 7 with expanded guest behavior and park life, using the completed catalogue as the mixed-park test input.
-2. Extend staff from the current mechanic and handyman into independently managed workers, routes, wages and workplace access.
-3. Implement the agreed security, entertainer and service roles, with visible tasks and safe recovery after construction edits.
-4. Add the agreed shelter, weather and incident effects, then run long mixed-park continuation checks before Phase 8 management work.
-
-The order can change when a proof exposes a prerequisite, but a later phase cannot be declared complete while its checklist gate or save/visual acceptance is still open.
+1. Begin Phase 8 with research priorities, funding and catalogue unlocks.
+2. Extend facility stock and supply economics through the existing ledger.
+3. Add management reports and policies with explainable guest, staff and finance effects.
+4. Retain the Phase 7 mixed-park, old-save and input checks while extending these systems.
