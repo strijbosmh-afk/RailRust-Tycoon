@@ -1,6 +1,6 @@
 # Resume development on another Windows PC
 
-**Phase 8 implementation and verification are in progress in 0.87.0 on `codex/phase-8-management-economy`.** Funded research, stock ordering, promotions, payroll caps and management reports are implemented. Final test and package results will be recorded below before handoff. Save schema/content is **50/50**. The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC supplies correctness checks and is excluded from performance references. See the [management guide](docs/PHASE_8_MANAGEMENT_ECONOMY.md).
+**Phase 8 is complete in 0.87.0 on `codex/phase-8-management-economy`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79).** Funded research, catalogue unlocks, prepaid facility stock, themed promotions, payroll policies and historic management reports are implemented and verified. Saves use **50/50**. Read [section 56](#56-phase-8-management-and-economy--0870) and the [management guide](docs/PHASE_8_MANAGEMENT_ECONOMY.md). The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. This PC is excluded from performance references. Earlier sections are historical handoffs.
 
 **Historical stage: 0.67.0 radio advertising** on `codex/radio-advertising` in [draft PR #67](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/67), stacked on 0.66.0 `codex/park-marketing` / [draft PR #66](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/66). See [section 34](#34-radio-advertising--0670) for controls, save migration, checks and next work. The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`; section 1 lists the alternate PC paths and switching steps. This development PC is not a performance reference.
 
@@ -1487,7 +1487,7 @@ The next roadmap stage is Phase 8 management and economy. Performance acceptance
 
 ## 56. Phase 8 management and economy — 0.87.0
 
-Work is on `codex/phase-8-management-economy`, stacked on `codex/phase-7-park-life`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79). Final verification is in progress at this checkpoint.
+Work is on `codex/phase-8-management-economy`, stacked on `codex/phase-7-park-life`, in [PR #79](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/79). Phase 8 is complete. Runtime source is `94cb826b52a8c77268b248db692459be2bc24683`; later commits finalize documentation.
 
 ### Shared checkout and resuming elsewhere
 
@@ -1515,7 +1515,19 @@ Payroll caps suspend unpaid team members and permit them to resume when funds an
 
 ### Verification and delivery
 
-Final test counts, executable/archive hashes, native continuation and display captures will be recorded here after verification. Evidence is being retained under `artifacts/phase8-0.87.0/` and `artifacts/phase8-*.log`. An authentic 0.86.0 writer has produced the schema-49 park-life migration fixture under `artifacts/phase8-0.87.0/legacy-v49/`.
+All **999 release tests pass**, comprising **547 application tests and 452 simulation tests**. Formatting, strict release Clippy and the 13-family original-asset audit pass. Local evidence is in `artifacts/phase8-all-tests-corrected.log`, `phase8-clippy-final.log`, `phase8-format-final.log` and `phase8-assets.log`. Earlier failed/interrupted logs are retained as development history.
+
+[Windows CI run 43433199022](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/43433199022), job `131911593953`, passes all 66 steps, including the full test suite, Windows packaging and every native continuation proof. The delivered executable comes from this verified Windows build. Its downloaded artifact is `14043371813`, with wrapper SHA256 `34682481aea60959ea2b16197efaa6e79e67d20e93698068fc0cc33db352061a`. Local tests and strict Clippy also passed. The redundant local executable compilation was stopped to reuse the verified CI executable. The working `target/release/parkbound.exe` and distribution contain that same verified runtime.
+
+Executable SHA256 is `94afd5a483a2fab3c1309e68105046d45862908ef36f389ff7e73116dcc0d23d`. The ZIP's adjacent `.zip.sha256` identifies the final archive. Extract the complete `dist/Parkbound-0.87.0-windows-x64.zip` and open `Parkbound.exe`.
+
+The local extracted package passes **140 payload hashes and 127 current guides**. Its management writer/verifier passes **36,000 simulation ticks**, including exact **9,000-tick fresh-process continuation**, independently reconstructed cash accounts and an unchanged source save. Evidence is under `artifacts/phase8-0.87.0/runtime-verification/` and in `artifacts/phase8-runtime-verification.log`.
+
+An authentic schema-49 save written by packaged 0.86.0 loads and matches its original 9,000-tick future in the new executable. The original slot remains unchanged. Evidence is in `artifacts/phase8-0.87.0/legacy-v49/`, `migration-verify.log` and `migration-verify.err`. Earlier schema migrations remain covered by the release tests.
+
+The Overview, Research, Supplies and History screens were captured and inspected at **1024×680**. Overview was also inspected at **2560×1440** in `artifacts/phase8-0.87.0/management-qhd.png`. All controls and text fit their intended scrolling dialogs. Automated UI checks cover normal commands, inactive/capture guards and live refresh across all six tabs. Physical mouse/keyboard acceptance remains part of the later release checks. This PC supplied correctness evidence only.
+
+The local ZIP is repackaged with the current OneDrive guide files after verification. A final integrity pass checks every refreshed document and confirms the runtime executable remains byte-identical to the tested build. Native evidence and screenshots remain valid for those unchanged runtime bytes.
 
 Build and check with `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings`, and `cargo test --release --workspace --locked`. Package with `scripts/package-windows.ps1`. Run native proofs only with fresh absolute `--save-dir` paths. The intended Windows delivery is `dist/Parkbound-0.87.0-windows-x64.zip` plus its adjacent checksum.
 
