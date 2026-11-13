@@ -446,7 +446,7 @@ pub(crate) fn command(
                 view.scene_dirty = true;
                 crate::configure_playable_camera(view, park);
                 view.set_modal(false, false, false, false);
-                view.speed = park_sim::Speed::Normal;
+                view.set_speed(park_sim::Speed::Normal);
             }
             Command::ReturnEditor => {
                 if let Some(draft) = w.test_draft.take() {
@@ -1065,9 +1065,12 @@ mod tests {
         assert_eq!(park.starting_cash_cents(), 150_000);
         command(&mut park, &mut view, &mut w, &store, Command::Save);
         assert_eq!(store.list().unwrap().len(), 1);
+        view.set_speed(park_sim::Speed::Fast);
         command(&mut park, &mut view, &mut w, &store, Command::Test);
         assert!(park.challenge_status().is_some());
         assert_eq!(w.tab, 0);
+        assert_eq!(view.speed, park_sim::Speed::Normal);
+        assert_eq!(view.resume_speed, park_sim::Speed::Normal);
         for _ in 0..50 {
             park.advance(park_sim::Speed::Normal);
         }
