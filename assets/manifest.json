@@ -12,6 +12,7 @@
     {"id": "rides.carousel", "type": "procedural", "source": "crates/park_game/src/world/carousel_render.rs", "rights": "Parkbound original", "variants": ["carousel", "swing", "drop-tower"]},
     {"id": "services.buildings", "type": "procedural", "source": "crates/park_game/src/world/service_render.rs", "rights": "Parkbound original", "variants": ["food", "drink", "toilet", "rest", "ice-cream", "souvenir", "information", "first-aid"]},
     {"id": "sound.score", "type": "procedural", "source": "crates/park_game/src/sound/synth.rs", "rights": "Parkbound original", "variants": ["music", "coaster", "carousel", "interface", "water-channel", "steam-chuffs", "monorail-motor", "observation-motor", "pendulum-wind"]},
-    {"id": "rides.catalogue-flat", "type": "procedural", "source": "crates/park_game/src/world/catalogue_render.rs", "rights": "Parkbound original", "variants": ["ferris-wheel", "tea-cups", "observation-tower", "pirate-ship"]}
+    {"id": "rides.catalogue-flat", "type": "procedural", "source": "crates/park_game/src/world/catalogue_render.rs", "rights": "Parkbound original", "variants": ["ferris-wheel", "tea-cups", "observation-tower", "pirate-ship"]},
+    {"id": "park.life", "type": "procedural", "source": "crates/park_game/src/world/park_life.rs", "rights": "Parkbound original", "variants": ["team-uniforms", "security-badge", "entertainer-balloons", "attendant-cross", "covered-benches", "incident-markers", "weather-rain"]}
   ]
 }

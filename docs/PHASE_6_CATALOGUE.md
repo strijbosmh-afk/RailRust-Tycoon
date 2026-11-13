@@ -1,6 +1,6 @@
 # Phase 6 — ride and facility catalogue
 
-The catalogue was completed in 0.85.0. Current development version 0.85.1 adds automatic coaster height and heading continuation, documented in the [construction guide](PHASES_3_5_FOUNDATIONS_GUIDE.md). Park schema/content remains 48/48.
+The catalogue was completed in 0.85.0. Version 0.85.1 added automatic coaster height and heading continuation, documented in the [construction guide](PHASES_3_5_FOUNDATIONS_GUIDE.md). Version 0.86.0 adds [Phase 7 park life](PHASE_7_PARK_LIFE.md) and uses park schema/content 49/49.
 
 The agreed scope is 14 rides across five families and eight facilities. The catalogue is available through **Build → Catalogue**, the Rides window and the Services window. Choose a category and an entry, position the preview, use **C** to rotate and click to build. Height controls apply to the entire prefab. Construction validates the complete footprint and charges only after the whole operation succeeds.
 

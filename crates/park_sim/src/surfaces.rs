@@ -541,6 +541,7 @@ impl Park {
         }
         self.reconcile_mechanic_after_removal(id);
         self.reconcile_grounds_after_removal(id);
+        self.reconcile_park_life();
         self.refund_removed_decoration(id);
         self.refund_removed_path(id);
         self.reconcile_train_after_removal(id);

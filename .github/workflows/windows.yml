@@ -30,6 +30,15 @@ jobs:
       - name: Build the Windows distribution
         shell: pwsh
         run: ./scripts/package-windows.ps1
+      - name: Verify park life, staff and changing weather
+        shell: pwsh
+        run: |
+          $lifeDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound park life proof " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-park-life --save-dir $lifeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Park life writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-park-life --save-dir $lifeDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Park life continuation failed" }
+          Get-Content -LiteralPath (Join-Path $lifeDirectory "verification-park-life.txt")
       - name: Verify the full ride and facility catalogue
         shell: pwsh
         run: |

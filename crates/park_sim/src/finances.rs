@@ -13,6 +13,7 @@ pub enum FinanceKind {
     LoanInterest,
     MechanicWage,
     HandymanWage,
+    StaffWage,
     RideUpkeep,
     RideRevenue,
     ParkAdmission,
@@ -75,6 +76,7 @@ impl std::fmt::Display for FinanceKind {
             Self::LoanInterest => "Loan interest",
             Self::MechanicWage => "Mechanic wage",
             Self::HandymanWage => "Handyman wage",
+            Self::StaffWage => "Park staff wage",
             Self::RideUpkeep => "Ride upkeep",
             Self::RideRevenue => "Ride tickets",
             Self::ParkAdmission => "Park entry",
@@ -121,6 +123,8 @@ pub struct FinanceTotals {
     pub wages_cents: u64,
     #[serde(default)]
     pub handyman_wages_cents: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub staff_wages_cents: u64,
     pub loan_borrowed_cents: u64,
     pub loan_repaid_cents: u64,
     pub loan_interest_cents: u64,
@@ -135,8 +139,22 @@ pub struct FinanceTotals {
     pub construction_cents: u64,
     pub demolition_refunds_cents: u64,
 }
+fn is_zero(value: &u64) -> bool {
+    *value == 0
+}
 impl FinanceTotals {
     fn add(&mut self, kind: FinanceKind, amount: u64) -> Result<(), String> {
+        if kind == FinanceKind::StaffWage {
+            self.wages_cents = self
+                .wages_cents
+                .checked_add(amount)
+                .ok_or("wage overflow")?;
+            self.staff_wages_cents = self
+                .staff_wages_cents
+                .checked_add(amount)
+                .ok_or("staff wage overflow")?;
+            return Ok(());
+        }
         if kind == FinanceKind::HandymanWage {
             let wages = self
                 .wages_cents
@@ -152,7 +170,7 @@ impl FinanceTotals {
         }
         let target = match kind {
             FinanceKind::MechanicWage => &mut self.wages_cents,
-            FinanceKind::HandymanWage => unreachable!(),
+            FinanceKind::HandymanWage | FinanceKind::StaffWage => unreachable!(),
             FinanceKind::LoanBorrow => &mut self.loan_borrowed_cents,
             FinanceKind::LoanRepayment => &mut self.loan_repaid_cents,
             FinanceKind::LoanInterest => &mut self.loan_interest_cents,
@@ -537,7 +555,9 @@ impl Park {
                 .filter(|entry| {
                     matches!(
                         entry.kind,
-                        FinanceKind::MechanicWage | FinanceKind::HandymanWage
+                        FinanceKind::MechanicWage
+                            | FinanceKind::HandymanWage
+                            | FinanceKind::StaffWage
                     )
                 })
                 .map(|entry| entry.amount_cents)
@@ -903,7 +923,12 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     let archived_mechanic_wages = ledger
         .archived
         .wages_cents
-        .checked_sub(ledger.archived.handyman_wages_cents)
+        .checked_sub(
+            ledger
+                .archived
+                .handyman_wages_cents
+                .saturating_add(ledger.archived.staff_wages_cents),
+        )
         .ok_or("archived handyman wages exceed total wages")?;
     if !archived_mechanic_wages.is_multiple_of(crate::MECHANIC_WAGE_CENTS)
         || archived_mechanic_wages / crate::MECHANIC_WAGE_CENTS
@@ -921,6 +946,19 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     }
     let archived_wages = u128::from(archived_mechanic_wages / crate::MECHANIC_WAGE_CENTS)
         + u128::from(ledger.archived.handyman_wages_cents / crate::HANDYMAN_WAGE_CENTS);
+    let team_wages = ledger.archived.staff_wages_cents / crate::PARK_STAFF_WAGE_CENTS;
+    if !ledger
+        .archived
+        .staff_wages_cents
+        .is_multiple_of(crate::PARK_STAFF_WAGE_CENTS)
+        || team_wages
+            > crate::PARK_STAFF_LIMIT as u64 * (ledger.archived_through_tick - ledger.opening_tick)
+                / u64::from(crate::PARK_STAFF_WAGE_TICKS)
+    {
+        return Err("archived park staff wages are invalid".into());
+    }
+    minimum_archived += u128::from(team_wages);
+    maximum_archived += u128::from(team_wages);
     minimum_archived += archived_wages;
     maximum_archived += archived_wages;
     archived_check.loan_borrowed_cents = archived_loans.loan_borrowed_cents;
@@ -928,6 +966,7 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
     archived_check.loan_interest_cents = archived_loans.loan_interest_cents;
     archived_check.wages_cents = archived_loans.wages_cents;
     archived_check.handyman_wages_cents = archived_loans.handyman_wages_cents;
+    archived_check.staff_wages_cents = archived_loans.staff_wages_cents;
     let archived_admission = ledger.archived.admission_revenue_cents;
     minimum_archived +=
         u128::from(archived_admission).div_ceil(u128::from(crate::MAX_PARK_ENTRY_PRICE_CENTS));
@@ -1117,7 +1156,10 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                 || entry.service.is_some()
                 || entry.amount_cents != crate::MECHANIC_WAGE_CENTS
                 || entry.tick == 0
-                || total.wages_cents.saturating_sub(total.handyman_wages_cents)
+                || total
+                    .wages_cents
+                    .saturating_sub(total.handyman_wages_cents)
+                    .saturating_sub(total.staff_wages_cents)
                     / crate::MECHANIC_WAGE_CENTS
                     + 1
                     > (entry.tick - ledger.opening_tick) / u64::from(crate::MECHANIC_WAGE_TICKS)
@@ -1133,6 +1175,17 @@ pub(crate) fn validate_finances(park: &Park) -> Result<(), String> {
                     > (entry.tick - ledger.opening_tick) / u64::from(crate::HANDYMAN_WAGE_TICKS)
             {
                 return Err("handyman wage receipt is invalid".into());
+            }
+        } else if entry.kind == FinanceKind::StaffWage {
+            if entry.ride.is_some()
+                || entry.service.is_some()
+                || entry.amount_cents != crate::PARK_STAFF_WAGE_CENTS
+                || entry.tick == 0
+                || total.staff_wages_cents / crate::PARK_STAFF_WAGE_CENTS + 1
+                    > crate::PARK_STAFF_LIMIT as u64 * (entry.tick - ledger.opening_tick)
+                        / u64::from(crate::PARK_STAFF_WAGE_TICKS)
+            {
+                return Err("park staff wage receipt is invalid".into());
             }
         } else if entry.kind == FinanceKind::ParkAdmission {
             if entry.ride.is_some()

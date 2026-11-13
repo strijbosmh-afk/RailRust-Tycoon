@@ -75,6 +75,7 @@ impl Park {
                         + *queue as u128 * 10
                         + u128::from(ride.ticket_price_cents / 25)
                         + family_penalty
+                        + self.life_ride_penalty(guest.id, ride.id)
                         + u128::from(history) * 20
                         + u128::from(appeal.for_preference(preferred_challenge).total_penalty);
                     Some((refused, score, ride.id))

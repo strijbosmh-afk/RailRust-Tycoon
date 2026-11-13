@@ -17,6 +17,7 @@ pub(crate) enum ScrollLayer {
     Rides,
     Designs,
     Catalogue,
+    ParkLife,
     Navigation,
     Sidebar,
     Build,
@@ -68,6 +69,8 @@ pub(crate) fn scroll(
         Some(ScrollLayer::Front)
     } else if view.navigation_open {
         Some(ScrollLayer::Navigation)
+    } else if view.park_life_open {
+        Some(ScrollLayer::ParkLife)
     } else if view.catalogue_open {
         Some(ScrollLayer::Catalogue)
     } else if view.designs_open {

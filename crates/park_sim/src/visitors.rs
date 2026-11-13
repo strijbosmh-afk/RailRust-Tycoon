@@ -126,6 +126,7 @@ impl Default for VisitorFlow {
 pub(crate) enum WalkGoal {
     Explore,
     Exit(Option<ObjectId>),
+    Meet(Option<ObjectId>),
 }
 impl VisitorFlow {
     pub(crate) fn leaving(&self, id: GuestId) -> bool {
@@ -133,6 +134,19 @@ impl VisitorFlow {
             .binary_search_by_key(&id, |r| r.guest)
             .ok()
             .is_some_and(|i| self.stays[i].leaving)
+    }
+    pub(crate) fn walk_goal_with(
+        &self,
+        id: GuestId,
+        targets: &std::collections::BTreeMap<GuestId, ObjectId>,
+    ) -> WalkGoal {
+        if self.leaving(id) {
+            self.walk_goal(id)
+        } else if let Some(path) = targets.get(&id) {
+            WalkGoal::Meet(Some(*path))
+        } else {
+            WalkGoal::Explore
+        }
     }
     pub(crate) fn walk_goal(&self, id: GuestId) -> WalkGoal {
         if self.leaving(id) {
@@ -427,6 +441,20 @@ impl Park {
         {
             return;
         }
+        let party_size = if self.park_life.is_some() { 3 } else { 1 };
+        self.begin_arrival_party();
+        for _ in 0..party_size {
+            self.spawn_visitor_candidate(flyers_active, radio_active);
+        }
+        self.finish_arrival_party();
+    }
+    fn spawn_visitor_candidate(&mut self, flyers_active: bool, radio_active: bool) {
+        if self.guests.len() >= VISITOR_ACTIVE_CAP
+            || self.visitors.departed.count + self.guests.len() as u64 >= VISITOR_LIFETIME_CAP
+            || self.next_guest_id == u64::MAX
+        {
+            return;
+        }
         let price = self.visitors.entry_price_cents;
         let id = GuestId(self.next_guest_id);
         self.next_guest_id += 1;
@@ -473,6 +501,7 @@ impl Park {
             },
         );
         self.visitors.spawned += 1;
+        self.join_arrival_party(id);
     }
     pub(crate) fn finish_visitor_departures(&mut self) {
         let Some(entry) = self.visitors.entry else {
@@ -494,6 +523,7 @@ impl Park {
         for id in ids {
             let i = self.guests.iter().position(|g| g.id == id).unwrap();
             let g = self.guests.remove(i);
+            self.record_life_departure(&g);
             let a = &mut self.visitors.departed;
             a.count += 1;
             a.highest_id = a.highest_id.max(g.id.0);

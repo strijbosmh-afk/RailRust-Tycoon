@@ -1,9 +1,11 @@
 # Theme Park Simulation Development Plan
 
-For the current, stepwise path from the 0.85.1 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
+For the current, stepwise path from the 0.86.0 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
 
 
-Phase 6 adds the approved 14-ride, eight-facility catalogue in 0.85.0. The current branch is `codex/phase-6-catalogue`. Read the [catalogue guide](docs/PHASE_6_CATALOGUE.md) and [current handoff](RESUME_DEVELOPMENT.md#53-phase-6-ride-and-facility-catalogue--0850) for player controls, saved continuation, verification and the next phase.
+Phase 7 completes visitor groups, returning parties, five staff roles, wages and patrols, changing weather, covered benches and local incidents in 0.86.0 on `codex/phase-7-park-life`. See the [park-life guide](docs/PHASE_7_PARK_LIFE.md).
+
+Phase 6 adds the approved 14-ride, eight-facility catalogue in 0.85.0. The historical Phase 6 branch is `codex/phase-6-catalogue`. Read the [catalogue guide](docs/PHASE_6_CATALOGUE.md) and [current handoff](RESUME_DEVELOPMENT.md#53-phase-6-ride-and-facility-catalogue--0850) for player controls, saved continuation, verification and the next phase.
 
 The 0.70.0 phase on `codex/campaign-awards` adds a small original campaign sequence: Meadow win → award and Boardwalk unlock → Boardwalk award. A separate local, backed-up campaign record persists across parks and restarts; Guests → Scenarios displays and enforces the unlock. Park saves remain 39/39. More objective families, campaign content and a scenario editor remain ahead. See the [player guide](docs/CAMPAIGN_AWARDS_GUIDE.md) and [stage report](docs/CAMPAIGN_AWARDS_REPORT.md). This PC is not a performance reference.
 

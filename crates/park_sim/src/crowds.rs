@@ -617,7 +617,9 @@ impl PathGraph {
         } else {
             goal
         };
-        if let crate::visitors::WalkGoal::Exit(target) = goal {
+        if let crate::visitors::WalkGoal::Exit(target) | crate::visitors::WalkGoal::Meet(target) =
+            goal
+        {
             guest.wait_ticks = 0;
             // Finish the current edge before rerouting. Each exit edge has its
             // own destination, so neither reversal nor entry edits create a

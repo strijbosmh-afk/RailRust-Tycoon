@@ -43,6 +43,7 @@ impl Park {
                 .archived
                 .wages_cents
                 .saturating_sub(self.finances.archived.handyman_wages_cents)
+                .saturating_sub(self.finances.archived.staff_wages_cents)
                 + self
                     .finances
                     .entries

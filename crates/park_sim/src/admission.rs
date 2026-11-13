@@ -206,6 +206,8 @@ impl Park {
         let mut ids: Vec<_> = self.all_rides().map(|r| r.id).collect();
         ids.sort_unstable();
         let mut patience = std::collections::BTreeSet::new();
+        let life_targets = self.life_walking_targets();
+        let life_enabled = self.park_life.is_some();
         if !ids.is_empty() {
             for guest in &mut self.guests {
                 guest.ride_cooldown = guest.ride_cooldown.saturating_sub(1);
@@ -216,7 +218,16 @@ impl Park {
                         .waited_ticks
                         .saturating_add(1)
                         .min(QUEUE_PATIENCE_TICKS);
-                    if visit.waited_ticks == QUEUE_PATIENCE_TICKS {
+                    let limit = if life_enabled {
+                        guest
+                            .preferences
+                            .comfortable_queue_ticks
+                            .saturating_add(450)
+                            .min(QUEUE_PATIENCE_TICKS)
+                    } else {
+                        QUEUE_PATIENCE_TICKS
+                    };
+                    if visit.waited_ticks >= limit {
                         patience.insert(visit.ride);
                     }
                     if visit.waited_ticks == guest.preferences.comfortable_queue_ticks {
@@ -240,14 +251,21 @@ impl Park {
             .map(|g| g.id)
             .collect();
         for id in ids {
-            self.step_admission_for_ride(id, graph, &accesses[&id], &choices, ordinary_inline);
+            self.step_admission_for_ride(
+                id,
+                graph,
+                &accesses[&id],
+                &choices,
+                ordinary_inline,
+                &life_targets,
+            );
         }
         for guest in &mut self.guests {
             if guest.service_visit.is_none() && !processed.contains(&guest.id) {
                 graph.step_guest(
                     guest,
                     &mut self.crowd_rng,
-                    self.visitors.walk_goal(guest.id),
+                    self.visitors.walk_goal_with(guest.id, &life_targets),
                 );
             }
         }
@@ -260,6 +278,7 @@ impl Park {
         access: &RideAccess,
         choices: &BTreeMap<GuestId, RideId>,
         ordinary_inline: bool,
+        life_targets: &BTreeMap<GuestId, ObjectId>,
     ) {
         let mut ride = self.ride_by_id(id).unwrap().clone();
         let eligible = self.admission_eligible(id, access)
@@ -277,7 +296,7 @@ impl Park {
                         graph.step_guest(
                             guest,
                             &mut self.crowd_rng,
-                            self.visitors.walk_goal(guest.id),
+                            self.visitors.walk_goal_with(guest.id, life_targets),
                         );
                     }
                 }
@@ -426,7 +445,7 @@ impl Park {
                     graph.step_guest(
                         guest,
                         &mut self.crowd_rng,
-                        self.visitors.walk_goal(guest.id),
+                        self.visitors.walk_goal_with(guest.id, life_targets),
                     );
                 }
                 continue;
@@ -444,7 +463,7 @@ impl Park {
                     graph.step_guest(
                         guest,
                         &mut self.crowd_rng,
-                        self.visitors.walk_goal(guest.id),
+                        self.visitors.walk_goal_with(guest.id, life_targets),
                     );
                     if guest.next.is_none() && guest.current == access.public_entry {
                         guest.wait_ticks = 0;
@@ -485,7 +504,7 @@ impl Park {
                     graph.step_guest(
                         guest,
                         &mut self.crowd_rng,
-                        self.visitors.walk_goal(guest.id),
+                        self.visitors.walk_goal_with(guest.id, life_targets),
                     );
                     continue;
                 }
@@ -495,7 +514,7 @@ impl Park {
                     graph.step_guest(
                         guest,
                         &mut self.crowd_rng,
-                        self.visitors.walk_goal(guest.id),
+                        self.visitors.walk_goal_with(guest.id, life_targets),
                     );
                     continue;
                 }
