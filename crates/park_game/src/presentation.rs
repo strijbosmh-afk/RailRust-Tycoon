@@ -64,6 +64,7 @@ type PresentationResources<'w> = (
     Option<Res<'w, WorldMaterial>>,
     Option<Res<'w, crate::display::DisplaySettings>>,
     Option<ResMut<'w, ClearColor>>,
+    Option<Res<'w, crate::visual_style::FoliageMaterial>>,
 );
 
 pub(crate) fn animate(
@@ -74,7 +75,7 @@ pub(crate) fn animate(
     preferences: Option<Res<crate::accessibility::Preferences>>,
     resources: PresentationResources<'_>,
 ) {
-    let (mut meshes, mut materials, world_material, display, mut background) = resources;
+    let (mut meshes, mut materials, world_material, display, mut background, foliage) = resources;
     let lighting = display
         .as_ref()
         .map_or(Lighting::Day, |display| display.value.lighting);
@@ -96,6 +97,7 @@ pub(crate) fn animate(
         .iter()
         .map(|material| &material.0)
         .chain(std::iter::once(&water.material))
+        .chain(foliage.iter().map(|material| &material.0))
     {
         if let Some(material) = materials.get_mut(handle)
             && material.color != tint

@@ -394,53 +394,74 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
             rotation,
         );
     }
-    // A faceted festival canopy leaves every third bay open so the moving
-    // mounts remain visible. The physical roof and valance stay below the
-    // existing three-step clearance and inside the three-by-three footprint.
+    // The continuous striped roof and scalloped valance follow the physical
+    // canopy. Its open sides expose moving mounts below the eaves.
     let canopy = |angle: f32, radius: f32, z: f32| {
         center + Vec3::new(angle.cos() * radius, angle.sin() * radius, z)
     };
-    for i in 0..24 {
-        let a = i as f32 * std::f32::consts::TAU / 24.0;
-        let b = (i + 1) as f32 * std::f32::consts::TAU / 24.0;
-        if i % 3 != 2 {
-            face(
-                &mut result,
-                [
-                    canopy(a, 0.37, 2.87),
-                    canopy(a, 1.45, 2.10),
-                    canopy(b, 1.45, 2.10),
-                    canopy(b, 0.37, 2.87),
-                ],
-                festival[i % 3],
-                size,
-                rotation,
-            );
-        }
+    for i in 0..48 {
+        let a = i as f32 * std::f32::consts::TAU / 48.0;
+        let b = (i + 1) as f32 * std::f32::consts::TAU / 48.0;
+        face(
+            &mut result,
+            [
+                canopy(a, 0.13, 2.91),
+                canopy(a, 1.45, 2.10),
+                canopy(b, 1.45, 2.10),
+                canopy(b, 0.13, 2.91),
+            ],
+            if (i / 3) % 2 == 0 {
+                festival[0]
+            } else {
+                cream[0]
+            },
+            size,
+            rotation,
+        );
         face(
             &mut result,
             [
                 canopy(a, 1.43, 2.10),
                 canopy(b, 1.43, 2.10),
-                canopy(b, 1.43, 1.94),
-                canopy(a, 1.43, 1.94),
+                canopy(b, 1.43, if i % 3 == 1 { 1.88 } else { 1.94 }),
+                canopy(a, 1.43, if i % 3 == 1 { 1.88 } else { 1.94 }),
             ],
-            if i % 2 == 0 { gold[0] } else { teal[0] },
+            if (i / 3) % 2 == 0 { gold[0] } else { cream[0] },
             size,
             rotation,
         );
     }
-    for i in 0..8 {
-        let angle = i as f32 * std::f32::consts::TAU / 8.0;
+    for i in 0..24 {
+        let angle = i as f32 * std::f32::consts::TAU / 24.0;
         let point = canopy(angle, 1.42, 2.12);
         cuboid(
             &mut result,
             point + Vec3::new(-0.045, -0.045, 0.0),
-            point + Vec3::new(0.045, 0.045, 0.14),
+            point + Vec3::new(0.045, 0.045, 0.11),
             gold,
             size,
             rotation,
         );
+        let inside = canopy(angle, 1.38, 1.99);
+        cuboid(
+            &mut result,
+            inside - Vec3::new(0.035, 0.035, 0.025),
+            inside + Vec3::new(0.035, 0.035, 0.055),
+            cream,
+            size,
+            rotation,
+        );
+        if i % 3 == 0 {
+            let foot = canopy(angle, 1.35, 0.37);
+            cuboid(
+                &mut result,
+                foot - Vec3::new(0.027, 0.027, 0.0),
+                foot + Vec3::new(0.027, 0.027, 1.50),
+                gold,
+                size,
+                rotation,
+            );
+        }
     }
     cuboid(
         &mut result,
@@ -658,6 +679,24 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
                         p + Vec3::new(0.235, y, 0.11),
                         p + Vec3::new(0.257, y + 0.012, 0.14),
                         teal,
+                        park.width(),
+                        rotation,
+                    );
+                }
+                cuboid(
+                    &mut surfaces,
+                    p + Vec3::new(-0.014, -0.014, -0.40),
+                    p + Vec3::new(0.014, 0.014, 1.18),
+                    gold,
+                    park.width(),
+                    rotation,
+                );
+                for x in [0.15, 0.23] {
+                    cuboid(
+                        &mut surfaces,
+                        p + Vec3::new(x, -0.036, 0.22),
+                        p + Vec3::new(x + 0.03, 0.036, 0.33),
+                        cream,
                         park.width(),
                         rotation,
                     );

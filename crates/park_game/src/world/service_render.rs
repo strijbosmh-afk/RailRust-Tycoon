@@ -431,6 +431,127 @@ pub(super) fn faces(
         Vec3::new(0.065, 0.065, 2.85),
         accent,
     );
+    // Layered plinths, cornices and corner pilasters make the small facades
+    // readable from every view. All trim stays inside the reserved tile.
+    let brass = [rgb(247, 202, 91), rgb(187, 133, 45), rgb(123, 83, 29)];
+    let ivory = [rgb(255, 248, 215), rgb(227, 207, 158), rgb(179, 153, 110)];
+    for y in [-0.40, 0.34] {
+        cuboid(
+            Vec3::new(0.27, y, 0.24),
+            Vec3::new(0.35, y + 0.06, 2.23),
+            ivory,
+        );
+        cuboid(
+            Vec3::new(0.26, y - 0.01, 0.23),
+            Vec3::new(0.36, y + 0.07, 0.39),
+            brass,
+        );
+        cuboid(
+            Vec3::new(0.26, y - 0.01, 2.15),
+            Vec3::new(0.36, y + 0.07, 2.26),
+            brass,
+        );
+    }
+    for z in [0.30, 0.58, 0.86, 1.14, 1.42, 1.70, 1.98] {
+        cuboid(
+            Vec3::new(-0.425, -0.41, z),
+            Vec3::new(-0.415, 0.41, z + 0.025),
+            ivory,
+        );
+    }
+    for y in [-0.425, 0.413] {
+        cuboid(
+            Vec3::new(-0.39, y, 0.32),
+            Vec3::new(0.20, y + 0.012, 0.45),
+            brass,
+        );
+        cuboid(
+            Vec3::new(-0.36, y, 1.16),
+            Vec3::new(-0.03, y + 0.012, 1.90),
+            dark,
+        );
+        cuboid(
+            Vec3::new(-0.205, y - 0.003, 1.16),
+            Vec3::new(-0.185, y + 0.02, 1.90),
+            ivory,
+        );
+        cuboid(
+            Vec3::new(-0.36, y - 0.003, 1.51),
+            Vec3::new(-0.03, y + 0.02, 1.55),
+            ivory,
+        );
+    }
+    cuboid(
+        Vec3::new(-0.45, -0.45, 2.37),
+        Vec3::new(0.39, 0.45, 2.43),
+        brass,
+    );
+    if !matches!(kind, ServiceKind::Rest | ServiceKind::Toilet) {
+        // Counter attendant, menu boards and warm little lamps remain solid
+        // geometry, so their visible faces are also valid inspection targets.
+        cuboid(
+            Vec3::new(-0.12, -0.085, 1.10),
+            Vec3::new(0.04, 0.085, 1.58),
+            accent,
+        );
+        cuboid(
+            Vec3::new(-0.09, -0.07, 1.58),
+            Vec3::new(0.02, 0.07, 1.84),
+            [rgb(221, 163, 114); 3],
+        );
+        cuboid(
+            Vec3::new(-0.11, -0.10, 1.83),
+            Vec3::new(0.04, 0.10, 1.89),
+            ivory,
+        );
+        for y in [-0.32, 0.22] {
+            cuboid(
+                Vec3::new(0.305, y, 1.32),
+                Vec3::new(0.326, y + 0.10, 1.93),
+                brass,
+            );
+            cuboid(
+                Vec3::new(0.327, y + 0.012, 1.36),
+                Vec3::new(0.333, y + 0.087, 1.89),
+                dark,
+            );
+            for z in [1.47, 1.61, 1.75] {
+                cuboid(
+                    Vec3::new(0.334, y + 0.025, z),
+                    Vec3::new(0.34, y + 0.075, z + 0.025),
+                    ivory,
+                );
+            }
+        }
+        for y in [-0.39, 0.33] {
+            cuboid(
+                Vec3::new(0.35, y, 1.97),
+                Vec3::new(0.42, y + 0.06, 2.14),
+                brass,
+            );
+            cuboid(
+                Vec3::new(0.36, y + 0.01, 2.01),
+                Vec3::new(0.43, y + 0.05, 2.11),
+                ivory,
+            );
+        }
+    }
+    // Layered teal shingles and brass edging replace the flat roof slab.
+    for row in 0..4 {
+        for column in 0..6 {
+            let x = -0.43 + row as f32 * 0.205;
+            let y = -0.43 + column as f32 * 0.143;
+            cuboid(
+                Vec3::new(x, y, 2.733),
+                Vec3::new(x + 0.19, y + 0.128, 2.745),
+                if (row + column) % 3 == 0 {
+                    [rgb(69, 145, 125), rgb(39, 102, 89), rgb(26, 76, 70)]
+                } else {
+                    [rgb(48, 118, 102), rgb(31, 86, 76), rgb(20, 63, 58)]
+                },
+            );
+        }
+    }
     result
 }
 

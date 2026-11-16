@@ -2,6 +2,8 @@
 
 ## Play on Windows
 
+Version 0.92.0 embeds its title artwork, oak texture and interface fonts. The package includes the source art and font licenses. It supports offline launch from an extracted writable folder.
+
 Extract the latest verified `dist/Parkbound-*-windows-x64.zip` to a writable directory and run `Parkbound.exe`. The package includes assets, required runtime files and player documentation. See `README.md` for controls and save locations.
 
 Version 0.91.0 includes **Play Sunhaven Gardens · 7 rides** on the title screen. The playable demo is built into the executable and needs no separate download or installation. Save your visit from the park menu to continue it later.

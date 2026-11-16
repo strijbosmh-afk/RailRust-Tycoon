@@ -45,7 +45,7 @@ enum LibraryPurpose {
 }
 #[derive(Component)]
 pub(super) struct Overlay;
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
     Skip,
     Continue,
@@ -410,6 +410,13 @@ impl FrontEnd {
             Ok(park) => {
                 self.draft = park_sim::demo_park::DEMO_PARK_NAME.into();
                 self.start_park(park, sim, view);
+                view.zoom = 1.45;
+                view.grid = false;
+                view.pan = crate::world::tile_center(
+                    park_sim::TilePos { x: 24, y: 24 },
+                    48,
+                    view.rotation,
+                );
                 view.tutorial_requested = false;
                 self.notice =
                     "Welcome to Sunhaven Gardens. Explore, build and save your own park.".into();
@@ -473,6 +480,7 @@ pub(super) fn setup(
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
     display: Option<Res<DisplaySettings>>,
+    art: Option<Res<crate::visual_style::ClassicArt>>,
 ) {
     if front.enabled {
         spawn_overlay(
@@ -482,6 +490,7 @@ pub(super) fn setup(
             display.as_deref(),
             &campaign,
             &sim.0,
+            art.as_deref(),
         );
     }
 }
@@ -1073,6 +1082,12 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
     }
 }
 
+type PresentationSettings<'w> = (
+    Option<Res<'w, DisplaySettings>>,
+    Option<Res<'w, crate::accessibility::Preferences>>,
+    Option<Res<'w, crate::visual_style::ClassicArt>>,
+);
+
 pub(super) fn refresh(
     mut commands: Commands,
     mut front: ResMut<FrontEnd>,
@@ -1080,12 +1095,9 @@ pub(super) fn refresh(
     sound: Option<Res<SoundSettings>>,
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
-    settings: (
-        Option<Res<DisplaySettings>>,
-        Option<Res<crate::accessibility::Preferences>>,
-    ),
+    settings: PresentationSettings<'_>,
 ) {
-    let (display, preferences) = settings;
+    let (display, preferences, art) = settings;
     if front.screen == Screen::Settings && display.as_ref().is_some_and(|value| value.is_changed())
     {
         front.dirty_ui = true;
@@ -1115,6 +1127,7 @@ pub(super) fn refresh(
             display.as_deref(),
             &campaign,
             &sim.0,
+            art.as_deref(),
         );
     }
     // Campaign locks and goals are shown in New Park; changes can occur only in park.
@@ -1128,7 +1141,12 @@ fn spawn_overlay(
     display: Option<&DisplaySettings>,
     campaign: &Campaign,
     park: &Park,
+    art: Option<&crate::visual_style::ClassicArt>,
 ) {
+    if matches!(front.screen, Screen::Intro | Screen::Title) {
+        spawn_welcome(commands, front, art);
+        return;
+    }
     let gold = Color::srgb_u8(255, 207, 71);
     let cream = Color::srgb_u8(255, 249, 219);
     let ink = Color::srgb_u8(20, 61, 45);
@@ -1235,6 +1253,139 @@ fn spawn_overlay(
                 });
         });
     let _ = ink;
+}
+
+fn spawn_welcome(
+    commands: &mut Commands,
+    front: &FrontEnd,
+    art: Option<&crate::visual_style::ClassicArt>,
+) {
+    use crate::visual_style::{CREAM, FOREST, GOLD, MenuButton};
+    commands
+        .spawn((
+            Overlay,
+            GlobalZIndex(30),
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                padding: UiRect::all(vw(3.0)),
+                overflow: Overflow::clip(),
+                ..default()
+            },
+            BackgroundColor(FOREST),
+        ))
+        .with_children(|root| {
+            if let Some(art) = art {
+                root.spawn((
+                    crate::visual_style::TitleBackdrop,
+                    ImageNode::new(art.background.clone()),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: px(0),
+                        top: px(0),
+                        width: percent(100),
+                        height: percent(100),
+                        ..default()
+                    },
+                ));
+            }
+            root.spawn((
+                crate::ui::layout::ScrollLayer::Front,
+                ScrollPosition::default(),
+                Node {
+                    width: px(390),
+                    max_width: percent(48),
+                    max_height: percent(100),
+                    padding: UiRect::all(px(24)),
+                    row_gap: px(9),
+                    flex_direction: FlexDirection::Column,
+                    border: UiRect::all(px(1)),
+                    overflow: Overflow::scroll_y(),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.03, 0.14, 0.10, 0.94)),
+                BorderColor::all(GOLD),
+                BorderRadius::all(px(16)),
+            ))
+            .with_children(|panel| {
+                panel.spawn((
+                    Text::new("PARKBOUND"),
+                    TextFont {
+                        font: art.map(|a| a.heading.clone()).unwrap_or_default(),
+                        font_size: 40.0,
+                        ..default()
+                    },
+                    TextColor(CREAM),
+                    Node {
+                        margin: UiRect::bottom(px(18)),
+                        ..default()
+                    },
+                ));
+                if front.screen == Screen::Intro {
+                    title(panel, "Build a park worth exploring.", 20.0, CREAM);
+                    welcome_button(panel, "Enter Parkbound", Action::Skip, true, true);
+                } else {
+                    for action in keyboard_actions(front) {
+                        let value = match action {
+                            Action::Continue => "Continue",
+                            Action::Demo => "Play Sunhaven Gardens",
+                            Action::ScenarioLibrary => "Scenarios & editor",
+                            Action::Quit => "Exit",
+                            _ => action_name(action),
+                        };
+                        welcome_button(
+                            panel,
+                            value,
+                            action,
+                            matches!(action, Action::Demo),
+                            keyboard_actions(front).get(front.focus) == Some(&action),
+                        );
+                    }
+                }
+                if !front.notice.is_empty() {
+                    title(panel, &front.notice, 14.0, GOLD);
+                }
+                if let Some(action) = keyboard_actions(front).get(front.focus) {
+                    title(
+                        panel,
+                        &format!("↑ / ↓  ·  Enter — {}", action_name(*action)),
+                        13.0,
+                        CREAM,
+                    );
+                }
+                title(panel, env!("CARGO_PKG_VERSION"), 12.0, GOLD);
+            });
+        });
+    fn welcome_button(
+        parent: &mut ChildSpawnerCommands,
+        text: &str,
+        action: Action,
+        primary: bool,
+        focused: bool,
+    ) {
+        parent
+            .spawn((
+                Button,
+                action,
+                MenuButton { primary, focused },
+                Node {
+                    width: percent(100),
+                    min_height: px(38),
+                    padding: UiRect::axes(px(14), px(6)),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    border: UiRect::all(px(1)),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+                BackgroundColor(if primary { GOLD } else { FOREST }),
+                BorderColor::all(GOLD),
+                BorderRadius::all(px(6)),
+            ))
+            .with_children(|p| title(p, text, 18.0, if primary { FOREST } else { CREAM }));
+    }
 }
 
 fn title(parent: &mut ChildSpawnerCommands, value: &str, size: f32, color: Color) {

@@ -657,6 +657,44 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                                 ink,
                             );
                         }
+                        for i in 0..17 {
+                            let angle = i as f32 * 2.399_963;
+                            let radius = 3.0 + (i % 5) as f32 * 3.0;
+                            let bloom =
+                                base + Vec2::new(angle.cos() * radius, angle.sin() * radius * 0.45);
+                            let color = match i % 4 {
+                                0 => rgb(255, 218, 78),
+                                1 => rgb(243, 100, 157),
+                                2 => rgb(255, 242, 211),
+                                _ => rgb(202, 99, 199),
+                            };
+                            mesh.surface_ellipse(
+                                top,
+                                bloom + Vec2::new(1.0, -0.4),
+                                2.6,
+                                1.5,
+                                DETAIL_BIAS * 3.0,
+                                rgb(43, 113, 55),
+                            );
+                            for (x, y) in [(-1.2, 0.0), (1.2, 0.0), (0.0, 0.7), (0.0, -0.7)] {
+                                mesh.surface_ellipse(
+                                    top,
+                                    bloom + Vec2::new(x, y),
+                                    1.1,
+                                    0.8,
+                                    DETAIL_BIAS * 4.0,
+                                    color,
+                                );
+                            }
+                            mesh.surface_ellipse(
+                                top,
+                                bloom,
+                                0.6,
+                                0.4,
+                                DETAIL_BIAS * 5.0,
+                                rgb(249, 196, 59),
+                            );
+                        }
                     }
                     _ => unreachable!(),
                 }
@@ -719,6 +757,11 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 }
                 (ObjectKind::Path, SurfaceKind::RightCliff) if object.queue_owner.is_some() => {
                     rgb(32, 76, 112)
+                }
+                (ObjectKind::Path, SurfaceKind::Top)
+                    if object.height == park.tile(object.pos).map_or(0, |tile| tile.height) =>
+                {
+                    rgb(229, 204, 160)
                 }
                 (ObjectKind::Path, SurfaceKind::Top) => rgb(224, 189, 128),
                 (ObjectKind::Path, SurfaceKind::LeftCliff) => rgb(155, 108, 65),
@@ -819,7 +862,30 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                             rgb(240, 225, 160),
                         );
                     }
-                } else if park.width() <= 32 {
+                } else if object.height == park.tile(object.pos).map_or(0, |t| t.height) {
+                    // Ground-level promenades use pale inset pavers. Elevated
+                    // paths retain timber so bridges remain visually distinct.
+                    for across in [-0.18, 0.18] {
+                        mesh.surface_line(
+                            top,
+                            point(-0.5, across),
+                            point(0.5, across),
+                            0.55,
+                            DETAIL_BIAS * 2.0,
+                            rgb(244, 218, 163),
+                        );
+                    }
+                    for along in [-0.3, 0.1] {
+                        mesh.surface_line(
+                            top,
+                            point(along, -0.17),
+                            point(along, 0.17),
+                            0.55,
+                            DETAIL_BIAS * 2.0,
+                            rgb(178, 143, 98),
+                        );
+                    }
+                } else if park.width() <= 64 {
                     // Sparse wood grain and fasteners add a material cue at
                     // close zoom without changing the path footprint.
                     for (along, across) in [(-0.34, -0.13), (0.08, 0.12)] {
@@ -1027,7 +1093,7 @@ fn scene_painter(
             let variation = (noise(pos) % 5) as i16 - 2;
             let color = if tile.owned {
                 match tile.terrain {
-                    Terrain::Grass => varied(75, 171, 58, variation),
+                    Terrain::Grass => varied(61, 154, 57, variation),
                     Terrain::Water => varied(39, 167, 183, variation),
                     Terrain::Sand => varied(229, 202, 130, variation),
                 }
@@ -1179,28 +1245,7 @@ fn scene_painter(
 
     // Scenery is anchored to simulation coordinates, so it follows rotation.
     // The generous central clearing is reserved for later construction tools.
-    let mut trees = Vec::new();
-    for y in 0..size {
-        for x in 0..size {
-            let pos = TilePos { x, y };
-            let edge = x.min(y).min(size - 1 - x).min(size - 1 - y);
-            let entrance_clearance = x <= 4 && y.abs_diff(size / 2) <= 3;
-            if edge < 4
-                && !entrance_clearance
-                && !park
-                    .objects()
-                    .iter()
-                    .any(|o| o.pos.x.abs_diff(x) <= 2 && o.pos.y.abs_diff(y) <= 2)
-                && noise(pos).is_multiple_of(5)
-                && park
-                    .tile(pos)
-                    .is_some_and(|tile| tile.terrain == Terrain::Grass)
-            {
-                trees.push(pos);
-            }
-        }
-    }
-    // Also preserve painter order if a caller uses a blending material.
+    let mut trees = natural_trees(park);
     trees.sort_by(|a, b| {
         tile_center(*b, size, rotation)
             .y
@@ -1222,6 +1267,54 @@ fn scene_painter(
     }
     paint_objects(&mut mesh, park, rotation, mode);
     mesh
+}
+
+fn natural_trees(park: &Park) -> Vec<TilePos> {
+    let size = park.width();
+    let mut trees = Vec::new();
+    for y in 0..size {
+        for x in 0..size {
+            let pos = TilePos { x, y };
+            let edge = x.min(y).min(size - 1 - x).min(size - 1 - y);
+            let entrance_clearance = x <= 4 && y.abs_diff(size / 2) <= 3;
+            if edge < 4
+                && !entrance_clearance
+                && !park
+                    .objects()
+                    .iter()
+                    .any(|o| o.pos.x.abs_diff(x) <= 2 && o.pos.y.abs_diff(y) <= 2)
+                && noise(pos).is_multiple_of(5)
+                && park
+                    .tile(pos)
+                    .is_some_and(|tile| tile.terrain == Terrain::Grass)
+            {
+                trees.push(pos);
+            }
+        }
+    }
+    trees
+}
+
+pub(crate) fn scenery_trees(park: &Park) -> Vec<(TilePos, u32)> {
+    let mut trees: Vec<_> = natural_trees(park)
+        .into_iter()
+        .map(|pos| (pos, noise(pos)))
+        .collect();
+    trees.extend(
+        park.objects()
+            .iter()
+            .filter(|o| o.kind == ObjectKind::SceneryTree)
+            .map(|o| (o.pos, o.id.0 as u32)),
+    );
+    trees
+}
+
+pub(crate) fn tree_depth(park: &Park, pos: TilePos, rotation: u8) -> f32 {
+    let base = elevated_tile_center(park, pos, rotation).expect("tree tile");
+    column_surfaces(park, pos, rotation)[0]
+        .expect("tree roof")
+        .depth_at(base)
+        + 0.045
 }
 
 /// Outline only the selected owner's visible surfaces. A small depth bias
@@ -1800,6 +1893,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             depth + 0.0048,
             rgb(141, 86, 71),
         );
+        paint_visitor_details(&mut mesh, point, depth, guest.id);
         if guest.state == GuestState::Lost {
             mesh.line(
                 point + Vec2::new(0.0, 28.0),
@@ -1849,6 +1943,104 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
 }
 
 /// Compact teal uniform, safety cap and orange tool case for the path-walking mechanic.
+fn paint_visitor_details(mesh: &mut Painter, point: Vec2, depth: f32, id: park_sim::GuestId) {
+    let look = crate::visitor_look::look(id);
+    let light = rgb(255, 240, 204);
+    let hair = rgb_from(look.hair);
+    // Open collar, sleeve hems, pocket, belt and backpack buckle stay readable
+    // when zoomed in. Shared by the cached and independent character renderers.
+    mesh.triangle(
+        [
+            point + Vec2::new(-1.8, 16.9),
+            point + Vec2::new(1.8, 16.9),
+            point + Vec2::new(0.0, 14.5),
+        ],
+        depth + 0.0049,
+        light,
+    );
+    mesh.line(
+        point + Vec2::new(-2.9, 8.0),
+        point + Vec2::new(2.9, 8.0),
+        0.7,
+        depth + 0.005,
+        rgb(57, 60, 50),
+    );
+    mesh.line(
+        point + Vec2::new(-4.5, 14.1),
+        point + Vec2::new(-3.5, 14.1),
+        0.7,
+        depth + 0.005,
+        light,
+    );
+    mesh.line(
+        point + Vec2::new(3.5, 14.1),
+        point + Vec2::new(4.5, 14.1),
+        0.7,
+        depth + 0.005,
+        light,
+    );
+    mesh.line(
+        point + Vec2::new(-4.0, 11.0),
+        point + Vec2::new(-2.8, 11.0),
+        0.6,
+        depth + 0.005,
+        light,
+    );
+    for x in [-1.8, 1.8] {
+        mesh.line(
+            point + Vec2::new(x, 6.3),
+            point + Vec2::new(x, 2.0),
+            0.6,
+            depth + 0.0005,
+            rgb(102, 123, 128),
+        );
+    }
+    if id.0.is_multiple_of(4) {
+        for x in [-1.1, 1.1] {
+            mesh.ellipse(
+                point + Vec2::new(x, 20.0),
+                1.0,
+                0.65,
+                depth + 0.0052,
+                rgb(44, 66, 59),
+            );
+        }
+        mesh.line(
+            point + Vec2::new(-0.5, 20.0),
+            point + Vec2::new(0.5, 20.0),
+            0.35,
+            depth + 0.0053,
+            hair,
+        );
+    }
+    if id.0.is_multiple_of(3) {
+        mesh.line(
+            point + Vec2::new(1.5, 9.2),
+            point + Vec2::new(1.5, 14.1),
+            0.45,
+            depth + 0.0051,
+            light,
+        );
+        mesh.line(
+            point + Vec2::new(1.3, 13.0),
+            point + Vec2::new(2.5, 13.0),
+            0.45,
+            depth + 0.0052,
+            light,
+        );
+    }
+    for i in 0..3 {
+        let x = -1.7 + i as f32 * 1.25;
+        mesh.line(
+            point + Vec2::new(x, 22.4),
+            point + Vec2::new(x + 0.5, 21.8),
+            0.4,
+            depth + 0.0051,
+            hair,
+        );
+    }
+}
+
 fn paint_mechanic_body(mesh: &mut Painter, point: Vec2, depth: f32) {
     for side in [-1.8, 1.8] {
         mesh.line(
@@ -2155,6 +2347,52 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
                 depth + 0.007,
                 rgb(151, 188, 112),
             );
+        }
+        // Small overlapping leaf groups give the crown a textured silhouette.
+        // Their deterministic placement preserves scenery identity on reload.
+        for i in 0..28_u32 {
+            let sample = seed.wrapping_mul(747_796_405).wrapping_add(i * 2_891_337);
+            let angle = i as f32 * 2.399_963;
+            let radius = 4.0 + (sample % 14) as f32;
+            let offset = Vec2::new(angle.cos() * radius, 40.0 + angle.sin() * radius * 1.05);
+            let leaf = base + offset * scale;
+            let width = 2.7 + ((sample >> 8) % 3) as f32;
+            mesh.ellipse(
+                leaf,
+                width * scale,
+                width * 0.74 * scale,
+                depth + 0.0075,
+                if offset.x < 0.0 {
+                    rgb(105, 177, 65)
+                } else {
+                    rgb(40, 124, 54)
+                },
+            );
+            mesh.ellipse(
+                leaf + Vec2::new(-0.6, 0.7) * scale,
+                width * 0.44 * scale,
+                width * 0.28 * scale,
+                depth + 0.0077,
+                rgb(142, 195, 78),
+            );
+        }
+    } else {
+        for level in 0..8 {
+            let y = 22.0 + level as f32 * 4.7;
+            let width = 16.0 - level as f32 * 1.5;
+            for side in [-1.0, 1.0] {
+                mesh.line(
+                    base + Vec2::new(0.0, y + 4.0) * scale,
+                    base + Vec2::new(width * side, y) * scale,
+                    1.0 * scale,
+                    depth + 0.007,
+                    if side < 0.0 {
+                        rgb(120, 183, 77)
+                    } else {
+                        rgb(33, 108, 60)
+                    },
+                );
+            }
         }
     }
 }

@@ -10,7 +10,7 @@ pub(super) fn ground_details(
     let seed = noise(pos);
     // The close-view material marks are clipped to this exact roof. Diagnostic
     // maps keep the simpler material so their geometry stays bounded.
-    if park.width() <= 32 {
+    if park.width() <= 64 {
         match park.tile(pos).unwrap().terrain {
             Terrain::Grass if seed.is_multiple_of(4) => {
                 let offset = Vec2::new((seed % 13) as f32 - 6.0, ((seed >> 7) % 7) as f32 - 3.0);
@@ -121,7 +121,7 @@ pub(super) fn shore_details(
     rotation: u8,
     top: Surface,
 ) {
-    if park.width() > 32
+    if park.width() > 64
         || park
             .tile(pos)
             .is_none_or(|tile| tile.terrain != Terrain::Water)
@@ -169,7 +169,7 @@ pub(super) fn shore_details(
 /// remain on large maps, so animation never scans the 256x256 diagnostic map.
 pub(crate) fn water_mesh(park: &Park, rotation: u8, mode: ViewMode, phase: u8) -> Mesh {
     let mut mesh = Painter::default();
-    if mode == ViewMode::Underground || park.width() > 32 {
+    if mode == ViewMode::Underground || park.width() > 64 {
         return mesh.finish();
     }
     for y in 0..park.height() {
@@ -261,9 +261,10 @@ mod tests {
             0
         );
         assert_eq!(
-            water_mesh(&Park::new(64, 64), 0, ViewMode::Surface, 0).count_vertices(),
+            water_mesh(&Park::new(128, 128), 0, ViewMode::Surface, 0).count_vertices(),
             0
         );
+        assert!(water_mesh(&Park::new(48, 48), 0, ViewMode::Surface, 0).count_vertices() > 0);
         assert_eq!(p.to_save_bytes().unwrap(), before);
     }
 }

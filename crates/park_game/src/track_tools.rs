@@ -895,10 +895,14 @@ mod tests {
         assert_eq!(history(&view), (1, 1));
         assert_eq!(park.track_draft(), copied);
 
-        // Pick an actual sampled point of a copied level piece for erase.
+        // The station canopy can obscure its center. Exercise history with a
+        // visible level rail, as a player does when erasing the draft ribbon.
         let piece = copied
             .iter()
-            .find(|piece| piece.entry.height == piece.exit.height)
+            .find(|piece| {
+                piece.kind == park_sim::TrackKind::Straight
+                    && piece.entry.height == piece.exit.height
+            })
             .copied()
             .unwrap();
         let point = build_center(&park, piece.pos, piece.entry.height, view.rotation);

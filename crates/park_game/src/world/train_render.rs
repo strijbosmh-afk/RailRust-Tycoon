@@ -388,6 +388,46 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                         size,
                         rotation,
                     );
+                    // Platform canopies leave the running track open to view.
+                    let outer = if lo < 0.0 { lo } else { hi };
+                    for at in [0.08, 0.92] {
+                        let p = a.lerp(b, at);
+                        let n = na.lerp(nb, at);
+                        slab(
+                            &mut faces,
+                            strip(
+                                p - (b - a) * 0.025,
+                                p + (b - a) * 0.025,
+                                n,
+                                n,
+                                outer - 0.018,
+                                outer + 0.018,
+                            ),
+                            0.24,
+                            1.43,
+                            [rgb(236, 207, 134), rgb(173, 133, 66), rgb(115, 88, 49)],
+                            size,
+                            rotation,
+                        );
+                    }
+                    slab(
+                        &mut faces,
+                        strip(a, b, na, nb, lo, hi),
+                        1.40,
+                        1.48,
+                        [rgb(43, 124, 107), rgb(26, 84, 76), rgb(18, 62, 59)],
+                        size,
+                        rotation,
+                    );
+                    slab(
+                        &mut faces,
+                        strip(a, b, na, nb, outer - 0.015, outer + 0.015),
+                        1.48,
+                        1.52,
+                        [rgb(249, 210, 117), rgb(190, 145, 63), rgb(123, 88, 36)],
+                        size,
+                        rotation,
+                    );
                 }
             }
             TrackKind::Lift => {
@@ -1134,6 +1174,14 @@ fn catalogue_car_faces(
                 part(0.0, 1.0, l, r, 0.38, 0.85, red);
             }
             part(0.90, 1.0, -0.25, 0.25, 0.38, 0.75, gold);
+            for h in [0.45, 0.57, 0.69, 0.80] {
+                for (lo, hi) in [(-0.305, -0.295), (0.295, 0.305)] {
+                    part(0.04, 0.94, lo, hi, h, h + 0.017, dark);
+                }
+            }
+            for at in [0.22, 0.48, 0.72] {
+                part(at, at + 0.07, -0.24, 0.24, 0.39, 0.52, dark);
+            }
         }
         M::InvertedCoaster => {
             part(0.05, 0.85, -0.21, 0.21, 0.36, 0.65, red);
@@ -1147,6 +1195,9 @@ fn catalogue_car_faces(
             part(0.0, 0.4, -0.25, 0.25, 0.70, 1.25, red);
             part(0.0, 0.4, -0.20, 0.20, 0.9, 1.15, glass);
             part(-0.04, 0.44, -0.29, 0.29, 1.25, 1.35, gold);
+            part(0.81, 0.87, -0.11, 0.11, 0.70, 0.92, gold);
+            part(0.76, 0.92, -0.13, 0.13, 0.90, 0.97, dark);
+            part(0.45, 0.59, -0.16, 0.16, 0.67, 0.74, gold);
         }
         _ => {
             part(0.0, 1.0, -0.25, 0.25, 0.28, 0.75, red);
@@ -1155,6 +1206,25 @@ fn catalogue_car_faces(
             for x in [0.0, 0.45, 0.92] {
                 part(x, x + 0.05, -0.26, 0.26, 0.7, 1.26, dark);
             }
+        }
+    }
+    if model == M::ParkRailway {
+        for at in [0.14, 0.42, 0.78] {
+            for (left, right) in [(-0.285, -0.245), (0.245, 0.285)] {
+                part(at, at + 0.14, left, right, 0.21, 0.42, dark);
+                part(
+                    at + 0.04,
+                    at + 0.10,
+                    left - 0.007,
+                    right + 0.007,
+                    0.28,
+                    0.35,
+                    gold,
+                );
+            }
+        }
+        for (left, right) in [(-0.261, -0.25), (0.25, 0.261)] {
+            part(0.08, 0.92, left, right, 0.57, 0.62, gold);
         }
     }
     bank_vehicle_faces(&mut out, pose, ground(pose.center), size, rotation);

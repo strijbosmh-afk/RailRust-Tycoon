@@ -62,6 +62,8 @@ try {
     $assetDirectory = Join-Path $stagedPackage 'assets'
     [void](New-Item -ItemType Directory -Path $assetDirectory)
     Copy-Item -LiteralPath (Join-Path $workspaceDirectory 'assets/manifest.json') -Destination $assetDirectory
+    Copy-Item -LiteralPath (Join-Path $workspaceDirectory 'assets/art') -Destination $assetDirectory -Recurse
+    Copy-Item -LiteralPath (Join-Path $workspaceDirectory 'assets/fonts') -Destination $assetDirectory -Recurse
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'measure-performance.ps1') -Destination $stagedPackage
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'verify-beta.ps1') -Destination $stagedPackage
     $documents = Join-Path $workspaceDirectory 'docs'
@@ -78,6 +80,13 @@ try {
         Copy-Item -LiteralPath (Join-Path $workspaceDirectory ('designs/' + $name)) -Destination $starterDirectory
     }
     & (Join-Path $PSScriptRoot 'write-third-party-notices.ps1') -Metadata $metadata -OutputDirectory $stagedPackage
+    foreach ($font in @('Barlow','Gloock')) {
+        [System.IO.File]::AppendAllText(
+            (Join-Path $stagedPackage 'THIRD_PARTY_NOTICES.txt'),
+            "`n$font font — SIL Open Font License 1.1`n" + [System.IO.File]::ReadAllText((Join-Path $workspaceDirectory "assets/fonts/$font-OFL.txt")),
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
     & (Join-Path $PSScriptRoot 'copy-windows-runtime.ps1') -Executable $executable -OutputDirectory $stagedPackage
 
     $rustSysroot = & rustc --print sysroot
