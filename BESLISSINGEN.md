@@ -1,5 +1,13 @@
 # Project decisions
 
+## 2026-11-16 — Detailed ride geometry
+
+- Continue the selected classic isometric style with physical geometry for ride details; retain the same world-space depth system in all four camera directions.
+- Use open bowls and gondolas, bevelled hulls and small faceted tubes instead of replacing moving attractions with fixed pictures.
+- Keep authoritative seat positions, physical ride footprints, paint controls, existing simulation and 51/51 saves.
+- Keep added static details in the existing terrain/object chunks. Use bounded segments for moving detail. This PC supplies correctness evidence only.
+
+
 ## 2026-11-16 — Classic graphics direction
 
 - Follow the user's selected detailed classic isometric concept. Keep ride motion and object selection anchored to the existing simulation geometry.

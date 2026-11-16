@@ -1,5 +1,15 @@
 # Resume development on another Windows PC
 
+## Current work — Ride graphics, 0.93.0
+
+Continue on `codex/ride-graphics-overhaul`, based on `69044094a68bad6d1f00cd07db4bcac1352efafa`. The user requested a further graphics improvement specifically for rides. Read `docs/RIDE_GRAPHICS_GUIDE.md` and `docs/RIDE_GRAPHICS_VERIFICATION.md`.
+
+Shared local checkout: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the existing registration and remote. Version 0.93.0 keeps park saves at schema/content 51/51, the same Rust toolchain, assets and dependencies. The ride geometry is generated in Rust; no new artwork download is needed.
+
+The new rounded surfaces, shaped gondolas and hulls, carousel mounts, tower bracing, train seating and track trim are implemented. All 1,034 tests passed (570 game, 464 simulation), together with strict Clippy, formatting, fourteen ride captures, four wheel views and production demo/catalogue continuation. The extracted Windows package passed 166 payload hashes, 146 bundled guides, independent front/demo write/verify pairs and inspected title/demo captures. Runtime commit `dabbd2e6f99a6518a24e71ef2a78878103e375a3` is verified on GitHub in PR 85. The final documentation refresh preserves the same executable. This PC is not a performance reference.
+
+
+
 ## Current work — Classic graphics, 0.92.0
 
 Continue on `codex/classic-graphics-overhaul` from baseline `2b0df01b22013e4a913a2f363b9963256efefcc7`. The user selected the detailed classic isometric direction and matching opening screen. Runtime source `c767fa0d1360ba55ba93a351b04978306def1193` is verified on GitHub in PR 84. Read `docs/CLASSIC_GRAPHICS_GUIDE.md` and `docs/CLASSIC_GRAPHICS_VERIFICATION.md` for implementation and evidence. Strict checks, all 568 game tests, four-view inspection and extracted-package play/save verification pass. All 464 simulation tests also pass, completing 1,032 tests. The remote workflow is still running at this checkpoint.

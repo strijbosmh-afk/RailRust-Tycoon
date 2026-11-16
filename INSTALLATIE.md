@@ -1,5 +1,8 @@
 # Installation and development
 
+Version 0.93.0 adds the ride graphics refinement. It uses the same embedded assets, dependencies and installation requirements as 0.92.0. Extract `dist/Parkbound-0.93.0-windows-x64.zip` when its verification is complete, then run `Parkbound.exe`.
+
+
 ## Play on Windows
 
 Version 0.92.0 embeds its title artwork, oak texture and interface fonts. The package includes the source art and font licenses. It supports offline launch from an extracted writable folder.
