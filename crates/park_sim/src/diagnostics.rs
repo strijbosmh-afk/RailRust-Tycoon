@@ -270,13 +270,17 @@ fn build_mixed_fixture(case: DiagnosticCase, seed: u64) -> Result<Park, String> 
     for path in shelters {
         park.toggle_path_shelter(path)?;
     }
-    if case == DiagnosticCase::CrowdCapacity {
-        // Admit real parties through the production entry operation. Their
-        // wallets, histories and party membership follow the normal rules.
-        while park.guests.len() < crate::VISITOR_ACTIVE_CAP {
-            park.visitors.arrival_progress = crate::VISITOR_ARRIVAL_TICKS - 1;
-            park.step_visitor_arrivals();
-        }
+    let initial_guests = match case {
+        DiagnosticCase::MediumMixed => 48,
+        DiagnosticCase::LargeMixed => 126,
+        DiagnosticCase::CrowdCapacity => crate::VISITOR_ACTIVE_CAP,
+        _ => return Err("Expected a mixed beta fixture".into()),
+    };
+    // Admit real parties through the production entry operation. Their
+    // wallets, histories and party membership follow the normal rules.
+    while park.guests.len() < initial_guests {
+        park.visitors.arrival_progress = crate::VISITOR_ARRIVAL_TICKS - 1;
+        park.step_visitor_arrivals();
     }
     park.enable_management();
     park.set_research(
@@ -513,6 +517,7 @@ mod tests {
                 assert_eq!(fixture.metadata.rides, 14);
                 assert_eq!(fixture.park.services().len(), 8);
                 assert_eq!(fixture.park.park_staff().len(), 5);
+                assert!(fixture.metadata.guests >= 48);
             }
             if case == DiagnosticCase::CrowdCapacity {
                 assert_eq!(fixture.metadata.guests, crate::VISITOR_ACTIVE_CAP);

@@ -19,8 +19,8 @@ From the source checkout, use `./scripts/verify-beta.ps1` after a release build.
 | Case | Map and workload |
 | --- | --- |
 | `starter` | Flat 32×32 starter, existing guests and coaster, management and park life |
-| `medium-mixed` | 64×64 district with all 14 catalogue rides, eight facilities, five staff roles, research, weather and arrivals |
-| `large-mixed` | 256×256 version of that district, with a connected avenue extending across the map |
+| `medium-mixed` | 64×64 district with 48 guests, all 14 catalogue rides, eight facilities, five staff roles, research, weather and arrivals |
+| `large-mixed` | 256×256 version with 126 guests and a connected avenue extending across the map |
 | `crowd-capacity` | Large mixed park beginning with 256 guests admitted through production arrival rules |
 
 The mixed fixtures retain the existing catalogue showcase's recorded historical admission income. Their balance is useful for comparing changes under a fixed workload. Campaign difficulty is assessed separately with actual campaign starts and play sessions.
