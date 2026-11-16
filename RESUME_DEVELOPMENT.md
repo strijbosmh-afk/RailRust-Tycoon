@@ -2,7 +2,7 @@
 
 ## Current checkpoint — Phase 10, 0.89.0
 
-Continue on `codex/phase-10-sound-accessibility` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. Phase 9 baseline is `7c2fa3c70bbbdd21917444068360e6b577bd1fa4`. The final Phase 10 source commit and checks are recorded in `docs/PHASE_10_VERIFICATION.md`.
+Continue on `codex/phase-10-sound-accessibility` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. Phase 9 baseline is `7c2fa3c70bbbdd21917444068360e6b577bd1fa4`. Phase 10 runtime source is `dae33c85753003a526315b000e883e63ee8c6856`, in PR 81. All 1,022 tests and all 68 exact-source Windows CI steps pass. The local 0.89.0 Windows ZIP is in `dist/`. Final checks are recorded in `docs/PHASE_10_VERIFICATION.md`.
 
 The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Preserve the other historical PC paths below. Fetch and verify branch/commit before resuming. This PC supplies correctness evidence only.
 

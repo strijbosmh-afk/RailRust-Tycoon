@@ -4,7 +4,7 @@ Project ID `railrust-tycoon`.
 
 ## Current work
 
-Phase 10 is being completed in 0.89.0 on `codex/phase-10-sound-accessibility`, based on verified Phase 9 commit `7c2fa3c70bbbdd21917444068360e6b577bd1fa4`. It adds a replayable first-park guide, remappable gameplay shortcuts, keyboard menu focus, contrast/motion preferences, captions, original audio expansion and device recovery. See `docs/PHASE_10_PLAYER_GUIDE.md` for controls and `docs/PHASE_10_VERIFICATION.md` for final checks.
+Phase 10 is complete in 0.89.0 on `codex/phase-10-sound-accessibility`, based on verified Phase 9 commit `7c2fa3c70bbbdd21917444068360e6b577bd1fa4`. It adds a replayable first-park guide, remappable gameplay shortcuts, keyboard menu focus, contrast/motion preferences, captions, original audio expansion and device recovery. Runtime source `dae33c85753003a526315b000e883e63ee8c6856` is pushed in PR 81. All 1,022 tests and all 68 exact-source Windows CI steps pass. The local Windows package and resume guide are updated. See `docs/PHASE_10_PLAYER_GUIDE.md` for controls and `docs/PHASE_10_VERIFICATION.md` for final checks.
 
 Park saves remain schema/content 51/51. Accessibility preferences are separate version 1. Sound settings advance to version 2 with explicit version-1 migration.
 
