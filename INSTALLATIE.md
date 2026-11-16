@@ -4,6 +4,8 @@
 
 Extract the latest verified `dist/Parkbound-*-windows-x64.zip` to a writable directory and run `Parkbound.exe`. The package includes assets, required runtime files and player documentation. See `README.md` for controls and save locations.
 
+Version 0.91.0 includes **Play Sunhaven Gardens · 7 rides** on the title screen. The playable demo is built into the executable and needs no separate download or installation. Save your visit from the park menu to continue it later.
+
 ## Resume development on another PC
 
 Clone the repository specified in `PROJECT.json`, then check out the branch and commit recorded in `STATUS.md` and `RESUME_DEVELOPMENT.md`. Install Git, Rust 1.93.1 and the Microsoft Visual C++ build tools with Windows SDK. Use the committed lockfile.

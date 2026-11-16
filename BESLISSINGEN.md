@@ -25,3 +25,11 @@
 - Guide users through the existing paid construction and access tools. A skipped guide preserves every park field. Completion checks inspect actual public paths, a newly built ride, connected access, completed visits and a successful save.
 - Keep physical vehicle and guest positions visible in reduced motion. Freeze decorative weather/water animation, guest walk poses and intro pulsing.
 - Retain original procedural assets and the locked dependency set. Add a second score and synthesized staff/guest responses with bounded voices, independent volume, focus fades and retryable Windows PCM output.
+
+## 2026-11-16 — Sunhaven Gardens demo, 0.91.0
+
+- Add an original 48×48 landscaped sandbox accessible directly from the title screen. Its seven attractions span coaster, water, transport and gentle/thrill rides.
+- Build rides, paths, queues, scenery and facilities through production purchase methods. Record the $15,000 opening budget and all costs in the ordinary ledger.
+- Provide all eight facilities, automatic stock, five staff roles, $1 admission and affordable tickets. Use sunny weather and unlocked research for the demo's opening conditions.
+- Start each title-screen demo as a fresh unsaved park. Save it through the existing library without replacing the player's existing parks. Retain save schema/content 51/51.
+- Advance five minutes of real simulation with an opening flyer campaign to populate the park. Continue normal arrivals, spending, needs, maintenance and staffing during play.

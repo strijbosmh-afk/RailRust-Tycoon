@@ -78,6 +78,7 @@ enum Scene {
     ParkLifeRain,
     ParkLifeStaff,
     Catalogue,
+    DemoPark,
     CatalogueMenu,
     CatalogueWater,
     CatalogueTransport,
@@ -779,6 +780,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("park-life-rain") => Scene::ParkLifeRain,
                 Some("park-life-staff") => Scene::ParkLifeStaff,
                 Some("catalogue") => Scene::Catalogue,
+                Some("demo-park") => Scene::DemoPark,
                 Some("catalogue-menu") => Scene::CatalogueMenu,
                 Some("catalogue-water") => Scene::CatalogueWater,
                 Some("catalogue-transport") => Scene::CatalogueTransport,
@@ -1206,6 +1208,7 @@ type PresetResources<'w> = (
     Option<ResMut<'w, crate::ui::guest_stats::GuestStatsHistory>>,
     Option<ResMut<'w, crate::campaign::Campaign>>,
     Option<ResMut<'w, crate::ui::scenario_workshop::Workshop>>,
+    Option<ResMut<'w, crate::front_end::FrontEnd>>,
 );
 fn apply_preset(
     capture: Res<Capture>,
@@ -1217,7 +1220,7 @@ fn apply_preset(
     mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
     render_scene: Option<Res<crate::render_scene::RenderScene>>,
 ) {
-    let (library, mut sound, mut guest_history, mut campaign, workshop) = resources;
+    let (library, mut sound, mut guest_history, mut campaign, workshop, mut front) = resources;
     view.capture_active = true;
     view.accessibility_open = matches!(capture.scene, Scene::Accessibility);
     view.set_speed(Speed::Paused);
@@ -1650,6 +1653,21 @@ fn apply_preset(
         view.terrain_custom = true;
         view.scene_dirty = true;
         sim.0 = park;
+    }
+    if matches!(capture.scene, Scene::DemoPark) {
+        if let Some(front) = front.as_mut() {
+            front.capture_scene("demo-park").expect("demo capture name");
+        }
+        sim.0 = park_sim::demo_park::build_demo_park().expect("playable demo park");
+        view.path_tool.height = 0;
+        view.rotation = capture.rotation.unwrap_or(0);
+        view.terrain_custom = true;
+        view.set_modal(false, false, false, false);
+        view.selected = None;
+        view.hovered = None;
+        view.path_tool.set_mode(PathTool::Inspect);
+        crate::configure_playable_camera(&mut view, &sim.0);
+        view.scene_dirty = true;
     }
     if matches!(
         capture.scene,

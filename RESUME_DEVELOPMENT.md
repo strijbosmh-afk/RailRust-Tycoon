@@ -1,6 +1,14 @@
 # Resume development on another Windows PC
 
-## Current checkpoint — Phase 11 beta tools, 0.90.0
+## Current work — Sunhaven Gardens demo, 0.91.0
+
+Continue on `codex/playable-demo-park`, based on Phase 11 commit `8d6ed23c1c4a95e0163182bae1394515d94ec0aa`. **Play Sunhaven Gardens · 7 rides** starts the new landscaped sandbox from the title screen. The normal park library saves it independently. Read `docs/DEMO_PARK_GUIDE.md` for its layout, operating choices and reproduction commands. Verification is in progress.
+
+The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the registered Git root and preserve local changes when switching PCs. The development PC remains excluded from performance acceptance.
+
+The automatic archive queues remain pending after a readback download error. Queue `q-1981abefda07ea3b445a106c9e472de6` has 69/147 verified files, and `q-e6c25399542a7d74945073bf34b4ff8f` remains queued. Keep their source exports and receipts for the next authorized upload continuation.
+
+## Previous checkpoint — Phase 11 beta tools, 0.90.0
 
 Continue on `codex/phase-11-beta-stability` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. This work is based on Phase 10 commit `3cecab22fe24aa6063ff4cb9d8b0dc53e3bfd07d` in PR 81. Runtime `3f3bf6da1ff57b861ad4d6bb1358a144dfd4e97a` is published in PR 82. Version 0.90.0 adds the Operations page, four current-content beta fixtures, long-run save/backup/accounting checks, separate-process replay and balance reports. All 1,029 tests, the 70-step Windows build/gameplay job and all four one-hour endurance cases pass. The 0.90.0 ZIP is in `dist/`. Exact source, executable and endurance identities are recorded in `docs/PHASE_11_VERIFICATION.md`. Hardware and independent-player acceptance remain open.
 
