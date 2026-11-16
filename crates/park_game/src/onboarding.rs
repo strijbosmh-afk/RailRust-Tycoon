@@ -10,7 +10,7 @@ pub(crate) struct Guide {
     generation: u64,
     baseline_paths: usize,
     baseline_rides: Vec<park_sim::RideId>,
-    saved: String,
+    saved_revision: u64,
 }
 #[derive(Component)]
 struct Panel;
@@ -143,7 +143,7 @@ fn update(
                 .filter(|o| o.is_public_path())
                 .count(),
             baseline_rides: sim.0.all_rides().map(|r| r.id).collect(),
-            saved: view.save_notice.clone(),
+            saved_revision: view.successful_saves,
             ..default()
         };
     }
@@ -198,7 +198,7 @@ fn update(
             .0
             .all_rides()
             .any(|r| Some(r.id) == new_ride && r.completed > 0),
-        5 => view.save_notice != guide.saved && view.save_notice.starts_with("Saved"),
+        5 => view.successful_saves != guide.saved_revision,
         _ => true,
     };
     let (title, copy, tool) = STEPS[guide.step];
@@ -376,7 +376,7 @@ mod tests {
         assert_eq!(app.world().resource::<Guide>().step, 5);
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 5);
-        app.world_mut().resource_mut::<ViewState>().save_notice = "Saved First park".into();
+        app.world_mut().resource_mut::<ViewState>().successful_saves += 1;
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 6);
         next(&mut app, button);

@@ -226,6 +226,7 @@ fn update(
             .filter(|r| sim.0.ride_is_open(r.id))
             .count(),
         view.save_notice.clone(),
+        view.successful_saves,
         sim.0.park_life_status().resolved,
     );
     let cue = feedback.last.as_ref().and_then(|old| {
@@ -240,9 +241,9 @@ fn update(
             Some((Cue::Alert, "A ride closed. Check ride operations"))
         } else if old.4 != snapshot.4 && snapshot.4.to_lowercase().contains("failed") {
             Some((Cue::Alert, "Save failed. Check the park menu"))
-        } else if old.4 != snapshot.4 && snapshot.4.starts_with("Saved") {
+        } else if old.5 != snapshot.5 {
             Some((Cue::Sale, "Park saved"))
-        } else if old.5 < snapshot.5 {
+        } else if old.6 < snapshot.6 {
             Some((Cue::Staff, "Staff resolved a park incident"))
         } else if old.2 < snapshot.2 && feedback.remaining == 0.0 {
             Some((Cue::Cheer, "Guests completed a ride"))
@@ -381,7 +382,7 @@ fn update(
 }
 #[derive(Resource, Default)]
 struct Feedback {
-    last: Option<(u64, usize, u64, usize, String, u64)>,
+    last: Option<(u64, usize, u64, usize, String, u64, u64)>,
     caption: String,
     remaining: f32,
 }

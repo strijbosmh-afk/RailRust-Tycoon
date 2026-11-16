@@ -266,6 +266,7 @@ impl FrontEnd {
                 self.selected = Some(entry.id);
                 self.draft = entry.name.clone();
                 self.saved(park);
+                view.successful_saves = view.successful_saves.wrapping_add(1);
                 self.notice = format!("Saved {}.", entry.name);
                 view.save_notice = self.notice.clone();
                 self.reload();
@@ -1293,6 +1294,31 @@ mod tests {
     use super::*;
     use std::{ffi::OsString, fs};
 
+    #[test]
+    fn repeated_saves_keep_distinct_success_revisions_for_the_guide() {
+        let root = std::env::temp_dir().join(format!(
+            "parkbound-save-revisions-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let session = SaveSession::from_arguments([
+            OsString::from("--save-dir"),
+            root.clone().into_os_string(),
+        ]);
+        let mut front = FrontEnd::new(true, &session);
+        let mut view = ViewState::default();
+        let park = new_game_park();
+        front.save(&park, &mut view);
+        let first = view.save_notice.clone();
+        assert_eq!(view.successful_saves, 1);
+        front.save(&park, &mut view);
+        assert_eq!(view.save_notice, first);
+        assert_eq!(view.successful_saves, 2);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn park_settings_route_returns_through_pause_without_losing_speed() {
         let root = std::env::temp_dir().join(format!(
