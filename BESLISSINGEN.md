@@ -1,5 +1,13 @@
 # Project decisions
 
+## 2026-11-16 — Landscape graphics
+
+- Use original procedural material geometry and the existing oak image. Keep saved terrain, paths, scenery and construction prices unchanged.
+- Clip every ground/path/border detail to its authoritative surface plane, including ramps. Preserve open edges at path junctions.
+- Distinguish ground-level stone paving from raised timber and blue queue paths. Keep richer material details on maps through 64×64; larger parks retain simpler details and the existing chunk visibility system.
+- Remove duplicate solid oak crowns behind the existing texture; vary its green tint and scale.
+- Keep this PC excluded from performance acceptance.
+
 ## 2026-11-16 — Detailed ride geometry
 
 - Continue the selected classic isometric style with physical geometry for ride details; retain the same world-space depth system in all four camera directions.

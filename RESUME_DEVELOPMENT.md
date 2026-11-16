@@ -1,5 +1,10 @@
 # Resume development on another Windows PC
 
+## Current work — Landscape graphics, 0.94.0
+
+Branch `codex/landscape-graphics`, runtime `5488cf973ec5b4222fadd0c7d192036f24db3ac1`, in [PR 86](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/86). Terrain materials, stone promenades, timber paths, flower borders, conifers and oak variation are implemented. Strict checks, GitHub workspace tests, actual landscape/height/rotation captures and extracted-package demo continuation passed. Read `docs/LANDSCAPE_GRAPHICS_GUIDE.md` and `docs/LANDSCAPE_GRAPHICS_VERIFICATION.md`. Shared OneDrive checkout: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Save schema/content stays 51/51; this PC is not a performance reference. DropSync handoff: `Rust builds/Parkbound`; see `docs/DROPSYNC_HANDOFF.md` for contents and verification status.
+
+
 ## Current work — Ride graphics, 0.93.0
 
 Continue on `codex/ride-graphics-overhaul`, based on `69044094a68bad6d1f00cd07db4bcac1352efafa`. The user requested a further graphics improvement specifically for rides. Read `docs/RIDE_GRAPHICS_GUIDE.md` and `docs/RIDE_GRAPHICS_VERIFICATION.md`.

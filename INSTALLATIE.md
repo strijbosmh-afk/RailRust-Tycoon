@@ -1,5 +1,7 @@
 # Installation and development
 
+Version 0.94.0 uses the same Rust toolchain, dependencies and embedded assets as 0.93.0. Extract the verified `Parkbound-0.94.0-windows-x64.zip` and run `Parkbound.exe`. Existing parks automatically use the updated landscape materials.
+
 Version 0.93.0 adds the ride graphics refinement. It uses the same embedded assets, dependencies and installation requirements as 0.92.0. Extract `dist/Parkbound-0.93.0-windows-x64.zip` when its verification is complete, then run `Parkbound.exe`.
 
 
