@@ -1,5 +1,14 @@
 # Project decisions
 
+## 2026-11-16 — Phase 11
+
+- Preserve schema/content 51/51 and established prices while collecting reproducible balance data. Actual player sessions and representative hardware determine later tuning.
+- Retain historical diagnostic fixtures and add current-content starter, medium mixed, large mixed and active-capacity cases. Large mixed parks use the existing full catalogue district plus a long connected avenue.
+- Run beta checks in a new explicit output directory. Compare uninterrupted simulation, repeated save/load and a separate process replay, including backup rotation and independent ledger reconciliation.
+- Add an Operations page with targeted inspection using the existing management panels. Derive issues from live simulation state.
+- Use one breadth-first distance traversal per ride-choice or staff-job decision. Compare distance results to existing route reconstruction and retain destination scoring and tie ordering.
+- Keep this development PC excluded from hardware acceptance. Phase 11's complete gate includes independent display, audio, usability and campaign-balance sessions.
+
 ## 2026-11-13 — Phase 9
 
 - Use six campaign scenarios. Retain Meadow and Boardwalk and add Cedar Valley, Research Ridge, Lakeside and Grand Festival, each with distinct goals.

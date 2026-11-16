@@ -19,3 +19,7 @@ The current shared OneDrive path is recorded in `RESUME_DEVELOPMENT.md`. Registe
 ## Phase 10 preferences
 
 Version 0.89.0 adds `accessibility-settings.json` and sound-settings version 2 in the selected save directory. Older sound preferences migrate when read and are rewritten when the user changes a control. The dependency/toolchain requirements are unchanged. Run `Parkbound.exe --accessibility-check ABSOLUTE_NEW_DIRECTORY` and then `--verify-accessibility SAME_DIRECTORY` for independent-process preference verification.
+
+## Phase 11 beta tools
+
+Version 0.90.0 includes `verify-beta.ps1` beside the packaged executable. PowerShell 7 runs the supplied script without Rust. A source checkout uses `scripts/verify-beta.ps1` with the release build. Choose a new absolute output folder. See `docs/PHASE_11_BETA_GUIDE.md` for cases, run lengths and separate rendering measurements. The Rust toolchain and dependency versions are unchanged.

@@ -51,17 +51,10 @@ impl RenderScene {
                         .ok_or_else(|| format!("{flag} requires a value"))?;
                     let duplicate = match flag {
                         "--render-case" => case
-                            .replace(match value {
-                                "baseline" => DiagnosticCase::Baseline,
-                                "save-scale" => DiagnosticCase::SaveScale,
-                                "stress" => DiagnosticCase::Stress,
-                                _ => {
-                                    return Err(
-                                        "--render-case must be baseline, save-scale or stress"
-                                            .into(),
-                                    );
-                                }
-                            })
+                            .replace(
+                                DiagnosticCase::parse(value)
+                                    .ok_or("Unknown render case; see the beta testing guide")?,
+                            )
                             .is_some(),
                         "--render-camera" => camera
                             .replace(match value {
@@ -242,7 +235,7 @@ pub(super) fn describe(park: &Park, view: &ViewState, scene: Option<&RenderScene
             "guests":park.guests().len(),
             "paths":park.objects().iter().filter(|o| o.kind == ObjectKind::Path).count(),
             "objects":park.objects().len(),
-            "rides":park.coaster_ids().into_iter().filter(|id| park.coaster_circuit(*id).is_some()).count(),
+            "rides":park.all_rides().filter(|ride| park.ride_access(ride.id).status != park_sim::RideAccessStatus::RideUnavailable).count(),
             "trains":park.coaster_ids().into_iter().map(|id| park.coaster_trains(id).len()).sum::<usize>(),
             "track_pieces":park.coaster_ids().into_iter().filter_map(|id| park.coaster_circuit(id)).map(|c| c.pieces.len()).sum::<usize>(),
             "save_supported":case != DiagnosticCase::Stress,
@@ -252,7 +245,7 @@ pub(super) fn describe(park: &Park, view: &ViewState, scene: Option<&RenderScene
         "view":if view.view_mode == world::ViewMode::Surface { "surface" } else { "underground" },
         "zoom_relative_to_map_fit":view.zoom, "pan_world":view.pan.to_array(),
         "edits_and_saves_enabled":scene.is_none() && !view.capture_active,
-        "note":"Controlled rendering fixture; one circuit/train. Codec capacity is distinct from preview persistence, which is disabled. No reference PC or hardware acceptance.",
+        "note":"Controlled rendering fixture. Counts describe current installed content. Preview persistence is disabled. Hardware acceptance is recorded separately.",
     })
 }
 

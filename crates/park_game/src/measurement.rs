@@ -4,7 +4,7 @@ use std::{ffi::OsString, fs::OpenOptions, io::Write, path::Path, time::Duration}
 
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, serde::Deserialize)]
 pub(super) struct TimingSummary {
     pub samples: usize,
     pub total_ms: f64,
@@ -71,6 +71,8 @@ pub(super) fn validate_modes(args: &[OsString]) -> Result<(), String> {
         "--save-check",
         "--accessibility-check",
         "--verify-accessibility",
+        "--beta-check",
+        "--beta-verify",
     ];
     let count = args
         .iter()
@@ -80,6 +82,15 @@ pub(super) fn validate_modes(args: &[OsString]) -> Result<(), String> {
         return Err("choose exactly one diagnostic mode; repeated modes are invalid".into());
     }
     for (flags, mode) in [
+        (
+            &[
+                "--beta-case",
+                "--beta-ticks",
+                "--beta-checkpoint",
+                "--beta-seed",
+            ][..],
+            "--beta-check",
+        ),
         (
             &["--benchmark-case", "--benchmark-ticks"][..],
             "--benchmark",

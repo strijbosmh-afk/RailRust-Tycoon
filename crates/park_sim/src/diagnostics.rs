@@ -3,8 +3,8 @@
 //! Fixture creation is setup work, not a simulation measurement. Callers own
 //! warmup, timers, iteration counts, and reporting. No diagnostic code runs from
 //! `Park::advance`, and no simulation clock or random state changes during a
-//! graph probe. These inputs exercise the current single-circuit model: they
-//! cannot establish performance for a future park with fifty working rides.
+//! graph probe. Legacy cases retain their original content. Beta cases use the
+//! current catalogue, staff, management and production guest-arrival rules.
 
 use std::collections::VecDeque;
 
@@ -24,6 +24,10 @@ pub enum DiagnosticCase {
     Baseline,
     SaveScale,
     Stress,
+    Starter,
+    MediumMixed,
+    LargeMixed,
+    CrowdCapacity,
 }
 
 impl DiagnosticCase {
@@ -32,13 +36,31 @@ impl DiagnosticCase {
             Self::Baseline => "baseline",
             Self::SaveScale => "save-scale",
             Self::Stress => "stress",
+            Self::Starter => "starter",
+            Self::MediumMixed => "medium-mixed",
+            Self::LargeMixed => "large-mixed",
+            Self::CrowdCapacity => "crowd-capacity",
         }
+    }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        [
+            Self::Baseline,
+            Self::SaveScale,
+            Self::Stress,
+            Self::Starter,
+            Self::MediumMixed,
+            Self::LargeMixed,
+            Self::CrowdCapacity,
+        ]
+        .into_iter()
+        .find(|case| case.name() == name)
     }
 }
 
 /// Actual fixture counts, independent of any aspirational performance target.
-/// `save_supported` describes the unchanged codec limits for this fixture;
-/// the stress case deliberately exceeds its maximum of 256 guests.
+/// `save_supported` describes the current codec limits for this fixture.
+/// The legacy 5,000-guest stress case exceeds the 512-guest save limit.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct FixtureMetadata {
     pub case: DiagnosticCase,
@@ -72,7 +94,28 @@ pub struct DiagnosticFixture {
 /// ticks spread their first route requests over one second of simulation.
 ///
 /// Guests subsequently use only ordinary `Park::advance` and crowd routing.
-pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixture, TrainError> {
+pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixture, String> {
+    let park = match case {
+        DiagnosticCase::Baseline | DiagnosticCase::SaveScale | DiagnosticCase::Stress => {
+            return build_legacy_fixture(case, seed).map_err(|error| error.to_string());
+        }
+        DiagnosticCase::Starter => {
+            let mut park = Park::new(32, 32);
+            park.install_ground_starter_crowd(seed)
+                .map_err(|error| error.to_string())?;
+            park.install_ground_starter_coaster()
+                .map_err(|error| error.to_string())?;
+            park.enable_park_life();
+            park.enable_management();
+            park
+        }
+        _ => build_mixed_fixture(case, seed)?,
+    };
+    let metadata = fixture_metadata(&park, case, seed);
+    Ok(DiagnosticFixture { park, metadata })
+}
+
+fn build_legacy_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixture, TrainError> {
     let mut park = if case == DiagnosticCase::Baseline {
         let mut park = Park::new(32, 32);
         park.apply_terrain_profile(TerrainProfile::Terraced);
@@ -149,7 +192,12 @@ pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixtur
             park.next_guest_id += 1;
         }
     }
-    let metadata = FixtureMetadata {
+    let metadata = fixture_metadata(&park, case, seed);
+    Ok(DiagnosticFixture { park, metadata })
+}
+
+fn fixture_metadata(park: &Park, case: DiagnosticCase, seed: u64) -> FixtureMetadata {
+    FixtureMetadata {
         case,
         seed,
         map_width: park.width(),
@@ -162,15 +210,87 @@ pub fn build_fixture(case: DiagnosticCase, seed: u64) -> Result<DiagnosticFixtur
             .filter(|object| object.kind == ObjectKind::Path)
             .count(),
         objects: park.objects.len(),
-        rides: usize::from(park.circuit.is_some()),
-        trains: usize::from(park.train.is_some()),
+        rides: park
+            .all_rides()
+            .filter(|ride| park.ride_available(ride.id))
+            .count(),
+        trains: park
+            .coaster_ids()
+            .iter()
+            .map(|id| park.coaster_trains(*id).len())
+            .sum(),
         track_pieces: park
-            .circuit
-            .as_ref()
-            .map_or(0, |circuit| circuit.pieces.len()),
+            .coaster_ids()
+            .iter()
+            .filter_map(|id| park.coaster_circuit(*id))
+            .map(|circuit| circuit.pieces.len())
+            .sum(),
         save_supported: case != DiagnosticCase::Stress,
+    }
+}
+
+fn build_mixed_fixture(case: DiagnosticCase, seed: u64) -> Result<Park, String> {
+    let mut park = build_catalogue_showcase()?;
+    park.crowd_seed = Some(seed);
+    park.crowd_rng = seed;
+    if matches!(
+        case,
+        DiagnosticCase::LargeMixed | DiagnosticCase::CrowdCapacity
+    ) {
+        let terrain = Park::new(256, 256);
+        park.width = terrain.width;
+        park.height = terrain.height;
+        park.tiles = terrain.tiles;
+        for tile in &mut park.tiles {
+            tile.terrain = crate::Terrain::Grass;
+        }
+        // A long public avenue connects the occupied district to the far map
+        // edge and exercises routing and chunk visibility over a large area.
+        for x in 62..=240 {
+            park.place_path(TilePos { x, y: 1 }, 0)
+                .map_err(|e| e.to_string())?;
+        }
+        for y in 2..=240 {
+            park.place_path(TilePos { x: 240, y }, 0)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    park.enable_park_life();
+    for role in crate::StaffRole::ALL {
+        park.hire_park_staff(role)?;
+    }
+    let shelters: Vec<_> = park
+        .objects()
+        .iter()
+        .filter(|p| p.is_public_path())
+        .step_by(12)
+        .take(12)
+        .map(|p| p.id)
+        .collect();
+    for path in shelters {
+        park.toggle_path_shelter(path)?;
+    }
+    let initial_guests = match case {
+        DiagnosticCase::MediumMixed => 48,
+        DiagnosticCase::LargeMixed => 126,
+        DiagnosticCase::CrowdCapacity => crate::VISITOR_ACTIVE_CAP,
+        _ => return Err("Expected a mixed beta fixture".into()),
     };
-    Ok(DiagnosticFixture { park, metadata })
+    // Admit real parties through the production entry operation. Their
+    // wallets, histories and party membership follow the normal rules.
+    while park.guests.len() < initial_guests {
+        park.visitors.arrival_progress = crate::VISITOR_ARRIVAL_TICKS - 1;
+        park.step_visitor_arrivals();
+    }
+    park.enable_management();
+    park.set_research(
+        crate::ResearchPriority::Facilities,
+        crate::ResearchFunding::High,
+    )?;
+    park.start_promotion(crate::Promotion::Family)?;
+    park.to_save_bytes()
+        .map_err(|e| format!("Mixed fixture validation: {e}"))?;
+    Ok(park)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
@@ -375,6 +495,38 @@ mod tests {
         assert_eq!((fixture.metadata.rides, fixture.metadata.trains), (1, 1));
         assert_eq!(fixture.metadata.track_pieces, 46);
         assert!(fixture.metadata.save_supported);
+    }
+
+    #[test]
+    fn beta_fixtures_use_current_counts_and_production_persistence() {
+        for case in [
+            DiagnosticCase::Starter,
+            DiagnosticCase::MediumMixed,
+            DiagnosticCase::LargeMixed,
+            DiagnosticCase::CrowdCapacity,
+        ] {
+            let fixture = build_fixture(case, 73).unwrap();
+            assert_eq!(fixture.metadata.case, case);
+            assert!(fixture.metadata.save_supported);
+            assert_eq!(
+                Park::from_save_bytes(&fixture.park.to_save_bytes().unwrap()).unwrap(),
+                fixture.park
+            );
+            assert_eq!(fixture, build_fixture(case, 73).unwrap());
+            if case != DiagnosticCase::Starter {
+                assert_eq!(fixture.metadata.rides, 14);
+                assert_eq!(fixture.park.services().len(), 8);
+                assert_eq!(fixture.park.park_staff().len(), 5);
+                assert!(fixture.metadata.guests >= 48);
+            }
+            if case == DiagnosticCase::CrowdCapacity {
+                assert_eq!(fixture.metadata.guests, crate::VISITOR_ACTIVE_CAP);
+                assert_eq!(
+                    fixture.park.visitor_flow_stats().tracked,
+                    crate::VISITOR_ACTIVE_CAP
+                );
+            }
+        }
     }
 
     #[test]

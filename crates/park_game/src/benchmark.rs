@@ -36,12 +36,12 @@ fn options(args: &[OsString]) -> Result<Options, String> {
         match arg.to_str() {
             Some("--benchmark") if output.is_none() => output = Some(PathBuf::from(value)),
             Some("--benchmark-case") if case.is_none() => {
-                case = Some(match value.to_str() {
-                    Some("baseline") => DiagnosticCase::Baseline,
-                    Some("save-scale") => DiagnosticCase::SaveScale,
-                    Some("stress") => DiagnosticCase::Stress,
-                    _ => return Err("benchmark case must be baseline, save-scale or stress".into()),
-                });
+                case = Some(
+                    value
+                        .to_str()
+                        .and_then(DiagnosticCase::parse)
+                        .ok_or("Unknown benchmark case; see the beta testing guide")?,
+                );
             }
             Some("--benchmark-ticks") if ticks.is_none() => {
                 ticks = Some(
@@ -264,11 +264,11 @@ fn measure(options: &Options) -> Result<Value, String> {
             "filesystem_scope":"production SaveStore with flush and backup rotation, warm OS cache, isolated OS-temp directory; includes codec; not cold-disk or OneDrive throughput"
         },
         "target": {
-            "map":[256,256], "guests":5000, "rides":50, "resolution":[1920,1080], "frames_per_second":60,
-            "status":"unsupported",
-            "limitations":["Current model supports one circuit and one train, not 50 rides.",
-                "CPU stress fixture is not a playable 256-map renderer benchmark.",
-                "Frame profiling measures the normal 32-map demo; no GPU timestamp or presentation timing."]
+            "status":"awaiting-representative-hardware",
+            "playable_active_guest_limit":park_sim::VISITOR_ACTIVE_CAP,
+            "limitations":["Legacy stress is a synthetic 5,000-guest workload beyond save limits.",
+                "Use medium-mixed, large-mixed and crowd-capacity for current catalogue workloads.",
+                "Frame and optional GPU measurements run separately with the selected render case."]
         },
         "warmup":warmup, "simulation":simulation,
         "simulation_ticks":{"before":first_tick,"after":last_tick,"advanced":last_tick-first_tick},

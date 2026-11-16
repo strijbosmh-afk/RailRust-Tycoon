@@ -34,6 +34,9 @@ impl Park {
             })
             .collect();
         let mut choices = BTreeMap::new();
+        if eligible.is_empty() {
+            return choices;
+        }
         for guest in &self.guests {
             if self.visitors.leaving(guest.id)
                 || guest.ride_visit.is_some()
@@ -52,10 +55,11 @@ impl Park {
             let preferred = preference(self.crowd_seed.unwrap_or(0), guest.id);
             let preferred_challenge =
                 crate::ride_appeal::preferred_challenge(self.crowd_seed.unwrap_or(0), guest.id);
+            let distances = graph.distances_from(current);
             let selected = eligible
                 .iter()
                 .filter_map(|(ride, access, queue, appeal)| {
-                    let route = graph.route(current, access.public_entry?)?;
+                    let distance = distances.get(&access.public_entry?)?;
                     // First prefer affordable, acceptable fares, then balance travel,
                     // line length, price, personal taste, previous ride count,
                     // layout challenge and cumulative review reputation.
@@ -71,7 +75,7 @@ impl Park {
                         (Some(kind), preferred) if kind == preferred => 0,
                         _ => 80,
                     };
-                    let score = route.len() as u128 * 10
+                    let score = *distance as u128 * 10
                         + *queue as u128 * 10
                         + u128::from(ride.ticket_price_cents / 25)
                         + family_penalty

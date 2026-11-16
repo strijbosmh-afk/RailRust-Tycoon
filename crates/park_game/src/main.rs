@@ -3,6 +3,7 @@
 mod access_planning;
 mod accessibility;
 mod benchmark;
+mod beta_check;
 mod capture;
 mod onboarding;
 #[cfg(test)]
@@ -583,6 +584,9 @@ fn main() -> AppExit {
         return result;
     }
     if let Some(result) = benchmark::run(&arguments) {
+        return result;
+    }
+    if let Some(result) = beta_check::run(&arguments) {
         return result;
     }
     if let Some(result) = save_check::run(arguments.clone()) {

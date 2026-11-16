@@ -52,6 +52,8 @@ mod park_value;
 pub use park_value::ParkValue;
 mod loans;
 mod management;
+mod operation_issues;
+pub use operation_issues::{OperationIssue, OperationTarget};
 mod park_life;
 pub use management::{
     FacilityStock, MANAGEMENT_PERIOD_TICKS, ManagementReport, ManagementStatus,

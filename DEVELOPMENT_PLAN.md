@@ -478,3 +478,7 @@ The [visitor wellness report](docs/VISITOR_WELLNESS_REPORT.md) records fixed-tic
 ## Phase 10 — 0.89.0
 
 Sound, onboarding, controls and accessibility are implemented together in the player flow. See `docs/PHASE_10_PLAYER_GUIDE.md` and `docs/PHASE_10_VERIFICATION.md`. Phase 11 covers beta balance, sustained playtests and representative-hardware measurements.
+
+## Phase 11 — 0.90.0
+
+Operations inspection links current park problems to their management panels. Four reproducible beta fixtures share the CPU/render tools and an isolated long-run checkpoint suite. The suite verifies complete replay, backup rotation and independent accounts, and records throughput, guest feedback, research and service costs. See `docs/PHASE_11_BETA_GUIDE.md` and `docs/PHASE_11_VERIFICATION.md`. Representative hardware and independent play sessions complete the remaining acceptance gate.
