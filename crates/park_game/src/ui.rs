@@ -91,12 +91,12 @@ pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
 #[cfg(test)]
 pub(super) const PATH_PANEL_HEIGHT: f32 = 358.0;
 
-pub(crate) const INK: Color = Color::srgb_u8(30, 62, 53);
-pub(crate) const MUTED: Color = Color::srgb_u8(91, 109, 95);
-pub(crate) const PAPER: Color = Color::srgb_u8(248, 248, 237);
-const BORDER: Color = Color::srgb_u8(211, 219, 205);
-const GOLD: Color = Color::srgb_u8(245, 194, 89);
-pub(crate) const BUTTON: Color = Color::srgb_u8(230, 235, 221);
+pub(crate) const INK: Color = Color::srgb_u8(24, 63, 48);
+pub(crate) const MUTED: Color = Color::srgb_u8(92, 110, 84);
+pub(crate) const PAPER: Color = Color::srgb_u8(252, 244, 222);
+const BORDER: Color = Color::srgb_u8(193, 174, 123);
+const GOLD: Color = Color::srgb_u8(239, 192, 76);
+pub(crate) const BUTTON: Color = Color::srgb_u8(240, 231, 201);
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {

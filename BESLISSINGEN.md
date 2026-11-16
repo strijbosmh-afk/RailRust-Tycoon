@@ -1,5 +1,13 @@
 # Project decisions
 
+## 2026-11-16 — Classic graphics direction
+
+- Follow the user's selected detailed classic isometric concept. Keep ride motion and object selection anchored to the existing simulation geometry.
+- Embed original title and oak artwork, retaining alpha on the foliage. Bundle both source images and licensed Barlow/Gloock fonts for offline distribution.
+- Use live menu controls over the opening art and preserve keyboard navigation through every title action.
+- Extend scenery and water details to the 48×48 demo and 64×64 parks. Continue using the existing bounded rendering paths for large-map diagnostics.
+- Keep saves at schema/content 51/51 and verify the real demo continuation after presentation changes.
+
 ## 2026-11-16 — Phase 11
 
 - Preserve schema/content 51/51 and established prices while collecting reproducible balance data. Actual player sessions and representative hardware determine later tuning.

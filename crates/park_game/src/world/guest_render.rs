@@ -506,6 +506,12 @@ fn body_template(appearance: usize, pose: usize) -> BodyTemplate {
         0.0048,
         rgb(141, 86, 71),
     );
+    paint_visitor_details(
+        &mut mesh,
+        Vec2::ZERO,
+        0.0,
+        park_sim::GuestId(appearance as u64),
+    );
     if lost {
         mesh.line(
             Vec2::new(0.0, 28.0),

@@ -1,5 +1,11 @@
 # Resume development on another Windows PC
 
+## Current work — Classic graphics, 0.92.0
+
+Continue on `codex/classic-graphics-overhaul` from baseline `2b0df01b22013e4a913a2f363b9963256efefcc7`. The user selected the detailed classic isometric direction and matching opening screen. The implementation and verification instructions are in `docs/CLASSIC_GRAPHICS_GUIDE.md`. Tests, visual inspection and packaging are in progress.
+
+Shared OneDrive checkout `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Embedded original art and licensed fonts are included in the source and Windows package. Save schema remains 51/51. This PC remains excluded from performance acceptance.
+
 ## Current work — Sunhaven Gardens demo, 0.91.0
 
 Continue on `codex/playable-demo-park`, based on Phase 11 commit `8d6ed23c1c4a95e0163182bae1394515d94ec0aa`, in PR 83. **Play Sunhaven Gardens · 7 rides** starts the landscaped sandbox from the title screen. The normal park library saves it independently. Read `docs/DEMO_PARK_GUIDE.md` for its layout, operating choices and reproduction commands. All 1,031 local tests pass, along with strict checks, release build and separate-process continuation proving paid visits on all seven rides. Read `docs/DEMO_PARK_VERIFICATION.md` for exact scope and the final package/remote check status.

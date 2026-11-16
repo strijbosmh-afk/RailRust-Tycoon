@@ -49,6 +49,7 @@ mod terrain_tools;
 mod track_tools;
 mod ui;
 mod visitor_look;
+mod visual_style;
 mod world;
 
 use bevy::{
@@ -561,6 +562,7 @@ struct SceneMeshes {
     guests: Handle<Mesh>,
     grounds: Handle<Mesh>,
     train: Handle<Mesh>,
+    foliage: Option<Handle<Mesh>>,
     guest_renderer: world::GuestRenderer,
 }
 
@@ -727,6 +729,7 @@ fn main() -> AppExit {
         .add_systems(
             Startup,
             (
+                visual_style::setup,
                 setup_scene,
                 presentation::setup,
                 ui::setup,
@@ -735,6 +738,14 @@ fn main() -> AppExit {
                 .chain(),
         )
         .add_systems(FixedUpdate, tick_simulation)
+        .add_systems(
+            Update,
+            (
+                visual_style::fonts,
+                visual_style::button_feedback,
+                visual_style::fit_backdrop,
+            ),
+        )
         .add_systems(
             Update,
             (
@@ -904,6 +915,7 @@ fn setup_scene(
     mut view: ResMut<ViewState>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    art: Option<Res<visual_style::ClassicArt>>,
 ) {
     commands.spawn(Camera2d);
     let material = materials.add(ColorMaterial::from(Color::WHITE));
@@ -957,12 +969,28 @@ fn setup_scene(
         MeshMaterial2d(material),
         NoFrustumCulling,
     ));
+    let foliage = art.map(|art| {
+        let mesh = meshes.add(visual_style::foliage(&sim.0, view.rotation, view.view_mode));
+        let material = materials.add(ColorMaterial {
+            texture: Some(art.oak.clone()),
+            alpha_mode: bevy::sprite_render::AlphaMode2d::Mask(0.5),
+            ..default()
+        });
+        commands.insert_resource(visual_style::FoliageMaterial(material.clone()));
+        commands.spawn((
+            Mesh2d(mesh.clone()),
+            MeshMaterial2d(material),
+            NoFrustumCulling,
+        ));
+        mesh
+    });
     commands.insert_resource(SceneMeshes {
         selection,
         path_preview,
         guests,
         grounds,
         train,
+        foliage,
         guest_renderer,
     });
     // Startup has already built this view. A later capture preset or edit can
@@ -2016,6 +2044,13 @@ fn update_scene(
     let terrain_changed = view.scene_dirty;
     if terrain_changed {
         landscape.rebuild(&mut commands, &mut meshes, &sim.0, &view);
+        if let Some(mesh) = scene
+            .foliage
+            .as_ref()
+            .and_then(|handle| meshes.get_mut(handle))
+        {
+            *mesh = visual_style::foliage(&sim.0, view.rotation, view.view_mode);
+        }
         view.scene_dirty = false;
     }
     let selection = (

@@ -1,5 +1,7 @@
 # Parkbound
 
+**0.92.0 classic graphics** adds an illustrated opening screen with live menu controls, licensed embedded typography, detailed oak foliage, richer services and rides, and expanded visitor detail. Read the [graphics guide](docs/CLASSIC_GRAPHICS_GUIDE.md) for the selected direction and controls.
+
 **Play Sunhaven Gardens** from the title screen in **0.91.0**. The landscaped demo has seven working rides, eight facilities, five staff roles, connected queues and exits, a lake and flower gardens. Build freely, manage prices and save your visit as an independent park. See the [demo park guide](docs/DEMO_PARK_GUIDE.md).
 
 The [full-game roadmap](docs/FULL_GAME_ROADMAP.md) lays out the remaining acceptance work from the current 0.91.0 build through a distributable Windows 1.0 release. Phases 1–10 provide startup, scalable menus, construction, original graphics, the 14-ride/eight-facility catalogue, park life, management, campaign/editors, sound and accessibility. Phase 11 adds Operations inspection, current-content beta fixtures and cross-process long-run verification. Representative hardware and independent playtesting remain open.

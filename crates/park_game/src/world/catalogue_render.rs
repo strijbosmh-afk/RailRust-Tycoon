@@ -182,6 +182,38 @@ pub(super) fn static_faces(
             RED,
         );
     }
+    // The perimeter is assembled from slim posts and two rails, preserving
+    // the open gate at the front left and every model's reserved footprint.
+    let fence = [GOLD[0], GOLD[1], GOLD[2]];
+    for x in 0..w {
+        for y in [-0.34, d as f32 - 0.66] {
+            if x == 0 && y < 0.0 {
+                continue;
+            }
+            local_box(
+                &mut out,
+                Vec3::new(x as f32 - 0.04, y, z + 0.16),
+                Vec3::new(x as f32 + 0.04, y + 0.06, z + 0.75),
+                fence,
+            );
+            local_box(
+                &mut out,
+                Vec3::new(x as f32 - 0.07, y - 0.02, z + 0.75),
+                Vec3::new(x as f32 + 0.07, y + 0.08, z + 0.84),
+                fence,
+            );
+            if x > 0 && !(x == 1 && y < 0.0) {
+                for h in [0.43, 0.69] {
+                    local_box(
+                        &mut out,
+                        Vec3::new(x as f32 - 0.95, y, z + h),
+                        Vec3::new(x as f32 - 0.05, y + 0.04, z + h + 0.035),
+                        fence,
+                    );
+                }
+            }
+        }
+    }
     match model {
         RideModel::FerrisWheel => {
             for y in [0.45, 1.55] {
@@ -242,6 +274,38 @@ pub(super) fn static_faces(
                 center + Vec3::new(0.28, 0.28, 1.3),
                 GOLD,
             );
+            // A scalloped striped parasol crowns the central tea service.
+            for i in 0..32 {
+                let a = i as f32 * std::f32::consts::TAU / 32.0;
+                let b = (i + 1) as f32 * std::f32::consts::TAU / 32.0;
+                let p = |angle: f32, r: f32, h: f32| {
+                    center + Vec3::new(angle.cos() * r, angle.sin() * r, h)
+                };
+                local_panel(
+                    &mut out,
+                    [
+                        p(a, 0.04, 2.85),
+                        p(a, 0.70, 2.43),
+                        p(b, 0.70, 2.43),
+                        p(b, 0.04, 2.85),
+                    ],
+                    if i % 4 < 2 {
+                        GOLD[0]
+                    } else {
+                        rgb(255, 243, 205)
+                    },
+                );
+                local_panel(
+                    &mut out,
+                    [
+                        p(a, 0.70, 2.43),
+                        p(b, 0.70, 2.43),
+                        p(b, 0.70, 2.31),
+                        p(a, 0.70, 2.31),
+                    ],
+                    GOLD[1],
+                );
+            }
         }
         RideModel::ObservationTower => {
             local_box(
@@ -292,6 +356,20 @@ pub(super) fn static_faces(
                 Vec3::new(3.75, 1.1, z + 5.5),
                 GOLD,
             );
+            for x in [0.42, 3.42] {
+                local_box(
+                    &mut out,
+                    Vec3::new(x, -0.20, z + 0.25),
+                    Vec3::new(x + 0.16, 0.25, z + 1.25),
+                    WOOD,
+                );
+                local_box(
+                    &mut out,
+                    Vec3::new(x - 0.03, -0.23, z + 1.25),
+                    Vec3::new(x + 0.19, 0.28, z + 1.36),
+                    GOLD,
+                );
+            }
         }
         _ => {}
     }
@@ -325,6 +403,36 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                     size,
                     rotation,
                 );
+                // Porcelain handles and a gold lip make each cup readable.
+                for side in [-1.0, 1.0] {
+                    let handle = c + Vec3::new(side * 0.41, 0.0, 0.05);
+                    for segment in 0..10 {
+                        let a = segment as f32 * std::f32::consts::TAU / 10.0;
+                        let b = (segment + 1) as f32 * std::f32::consts::TAU / 10.0;
+                        beam(
+                            &mut out,
+                            handle + Vec3::new(a.cos() * 0.12, 0.0, a.sin() * 0.20),
+                            handle + Vec3::new(b.cos() * 0.12, 0.0, b.sin() * 0.20),
+                            0.025,
+                            GOLD[0],
+                            size,
+                            rotation,
+                        );
+                    }
+                }
+                for segment in 0..24 {
+                    let a = segment as f32 * std::f32::consts::TAU / 24.0;
+                    let b = (segment + 1) as f32 * std::f32::consts::TAU / 24.0;
+                    beam(
+                        &mut out,
+                        c + Vec3::new(a.cos() * 0.40, a.sin() * 0.40, 0.20),
+                        c + Vec3::new(b.cos() * 0.40, b.sin() * 0.40, 0.20),
+                        0.018,
+                        GOLD[0],
+                        size,
+                        rotation,
+                    );
+                }
                 cylinder(
                     &mut out,
                     c + Vec3::Z * 0.18,
@@ -376,6 +484,26 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                 size,
                 rotation,
             );
+            for x in [-0.4, 0.36] {
+                for y in [-0.31, 0.27] {
+                    cuboid(
+                        &mut out,
+                        c + Vec3::new(x, y, 0.12),
+                        c + Vec3::new(x + 0.04, y + 0.04, 0.95),
+                        GOLD,
+                        size,
+                        rotation,
+                    );
+                }
+            }
+            cuboid(
+                &mut out,
+                c + Vec3::new(-0.38, -0.33, 0.15),
+                c + Vec3::new(0.38, 0.33, 0.25),
+                BLUE,
+                size,
+                rotation,
+            );
             cuboid(
                 &mut out,
                 c + Vec3::new(-0.45, -0.38, 0.95),
@@ -412,6 +540,26 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                     size,
                     rotation,
                 );
+                for y in [-0.22, 0.19] {
+                    for x in [-0.21, 0.18] {
+                        cuboid(
+                            &mut out,
+                            pos + Vec3::new(x, y, 0.2),
+                            pos + Vec3::new(x + 0.03, y + 0.03, 0.62),
+                            GOLD,
+                            size,
+                            rotation,
+                        );
+                    }
+                }
+                cuboid(
+                    &mut out,
+                    pos + Vec3::new(-0.29, -0.28, 0.60),
+                    pos + Vec3::new(0.29, 0.28, 0.69),
+                    GOLD,
+                    size,
+                    rotation,
+                );
             }
         }
         RideModel::PirateShip => {
@@ -429,6 +577,52 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                     a - side * 0.45 - Vec3::Z * 0.32,
                     a + along * 0.32 + side * 0.45,
                     WOOD,
+                    size,
+                    rotation,
+                );
+            }
+            for side_sign in [-1.0, 1.0] {
+                for row in 0..7 {
+                    let a = c + along * (row as f32 * 0.4 - 1.2) + side * side_sign * 0.43;
+                    beam(
+                        &mut out,
+                        a - Vec3::Z * 0.25,
+                        a + Vec3::Z * 0.36,
+                        0.025,
+                        GOLD[0],
+                        size,
+                        rotation,
+                    );
+                    if row < 6 {
+                        beam(
+                            &mut out,
+                            a + Vec3::Z * 0.36,
+                            a + along * 0.4 + Vec3::Z * 0.36,
+                            0.032,
+                            GOLD[0],
+                            size,
+                            rotation,
+                        );
+                    }
+                }
+            }
+            for end in [-1.0, 1.0] {
+                let bow = c + along * end * 1.26;
+                beam(
+                    &mut out,
+                    bow - Vec3::Z * 0.2,
+                    bow + Vec3::Z * 0.68,
+                    0.10,
+                    WOOD[0],
+                    size,
+                    rotation,
+                );
+                beam(
+                    &mut out,
+                    bow + Vec3::Z * 0.68,
+                    bow + along * end * 0.28 + Vec3::Z * 0.80,
+                    0.06,
+                    GOLD[0],
                     size,
                     rotation,
                 );

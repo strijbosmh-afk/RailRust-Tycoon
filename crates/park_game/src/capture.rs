@@ -1667,6 +1667,9 @@ fn apply_preset(
         view.hovered = None;
         view.path_tool.set_mode(PathTool::Inspect);
         crate::configure_playable_camera(&mut view, &sim.0);
+        view.zoom = 1.45;
+        view.grid = false;
+        view.pan = world::tile_center(TilePos { x: 24, y: 24 }, 48, view.rotation);
         view.scene_dirty = true;
     }
     if matches!(
@@ -1792,6 +1795,10 @@ fn apply_preset(
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
         view.zoom = 3.5 * view.camera_span;
         match capture.scene {
+            Scene::DemoPark => {
+                view.zoom = 2.4;
+                view.pan = world::tile_center(TilePos { x: 22, y: 24 }, 48, view.rotation);
+            }
             scene if scene.is_train() => {
                 view.pan = world::leading_car_focus(
                     &sim.0,
