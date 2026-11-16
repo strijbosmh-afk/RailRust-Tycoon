@@ -656,7 +656,7 @@ fn continue_park(park: &mut Park) -> Result<(), String> {
     Ok(())
 }
 
-fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(super) fn write_new(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)

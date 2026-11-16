@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory)]
     [string] $OutputDirectory,
     [string] $Executable,
-    [ValidateSet('baseline', 'save-scale', 'stress')]
+    [ValidateSet('baseline', 'save-scale', 'stress', 'starter', 'medium-mixed', 'large-mixed', 'crowd-capacity')]
     [string[]] $Cases = @('baseline', 'save-scale', 'stress'),
     [ValidateRange(1, 5)]
     [int] $Repetitions = 3,
@@ -14,7 +14,7 @@ param(
     [int] $ProfileSamples = 600,
     [switch] $SkipFrames,
     [switch] $SkipCpu,
-    [ValidateSet('baseline', 'save-scale', 'stress')]
+    [ValidateSet('baseline', 'save-scale', 'stress', 'starter', 'medium-mixed', 'large-mixed', 'crowd-capacity')]
     [string] $RenderCase = 'baseline',
     [ValidateSet('overview', 'crowd', 'ride')]
     [string] $RenderCamera = 'overview',
@@ -702,7 +702,7 @@ $summary = [ordered]@{
         'No performance threshold is imposed by this wrapper; preserve incomplete or unsupported runtime outcomes as measured evidence.',
         'Frame profiles use the baseline UI unless an explicit controlled render fixture is selected. Main-loop intervals are not GPU execution or physically presented-frame timings.',
         'Optional GPU diagnostics report instrumented timestamp spans when supported; asynchronous receipt, nested spans, and unmeasured presentation prevent a total frame-time inference.',
-        'The full 256x256/5000-guest/50-ride target is unsupported by the current single-circuit model.',
+        'The legacy 5000-guest stress case exceeds playable limits. Mixed cases use the current catalogue and the 256-active-visitor cap.',
         'Absolute executable/output paths, account names, machine names, and serial numbers are omitted from this summary.'
     )
 }

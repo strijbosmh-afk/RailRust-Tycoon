@@ -1,14 +1,14 @@
 # Resume development on another Windows PC
 
-## Current checkpoint — Phase 10, 0.89.0
+## Current checkpoint — Phase 11 beta tools, 0.90.0
 
-Continue on `codex/phase-10-sound-accessibility` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. Phase 9 baseline is `7c2fa3c70bbbdd21917444068360e6b577bd1fa4`. Phase 10 runtime source is `dae33c85753003a526315b000e883e63ee8c6856`, in PR 81. All 1,022 tests and all 68 exact-source Windows CI steps pass. The local 0.89.0 Windows ZIP is in `dist/`. Final checks are recorded in `docs/PHASE_10_VERIFICATION.md`.
+Continue on `codex/phase-11-beta-stability` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. This work is based on Phase 10 commit `3cecab22fe24aa6063ff4cb9d8b0dc53e3bfd07d` in PR 81. Version 0.90.0 adds the Operations page, four current-content beta fixtures, long-run save/backup/accounting checks, separate-process replay and balance reports. Current results are recorded in `docs/PHASE_11_VERIFICATION.md`. Hardware and independent-player acceptance remain open.
 
 The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Preserve the other historical PC paths below. Fetch and verify branch/commit before resuming. This PC supplies correctness evidence only.
 
 The [Phase 10 player guide](docs/PHASE_10_PLAYER_GUIDE.md) covers the seven-step guide, actual construction/access requirements, keyboard focus, 18 configurable actions, high contrast, reduced motion, captions, the second original score and audio recovery. Park format remains 51/51. `accessibility-settings.json` is independent version 1. Sound settings version 2 reads old version 1 and preserves its levels. Both are in the selected save directory, normally `%LOCALAPPDATA%\Parkbound\saves`.
 
-The native Stop snapshot from 2026-11-13 was fully verified on the private Drive account. Accepted receipt `q-38bbf860d212ca6448ffe4344b56e24b` covers 144 files and the recorded partial conversation text. No native resumable chat is claimed. Codex Cloud transfer still needs a working repository-connected environment. The next development phase is Phase 11 beta and balance, with representative hardware selected separately.
+The native Stop snapshot from 2026-11-13 was fully verified on the private Drive account. Accepted receipt `q-38bbf860d212ca6448ffe4344b56e24b` covers 144 files and the recorded partial conversation text. The later export `q-1981abefda07ea3b445a106c9e472de6` remains queued after 60 of 147 files were verified and an upload failed. Its local receipt evidence is retained. Codex Cloud transfer still needs a working repository-connected environment. Complete Phase 11 on the separately agreed target PC using `docs/PHASE_11_BETA_GUIDE.md`.
 
 
 **Phase 9 is complete in 0.88.0 on `codex/phase-9-campaign-editors`.** It adds a six-scenario campaign, configurable sandbox and portable scenario authoring. Runtime source is `9f5f4e39ce96373d25ac1ffc5023c2d33ba3121e` in [PR 80](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/80). Park saves use **51/51** and campaign profiles use version 2. See section 57 for verification and transfer status. The shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Codex Cloud launch is awaiting a usable environment. This PC supplies correctness checks and is excluded from performance references. Earlier sections are historical handoffs.

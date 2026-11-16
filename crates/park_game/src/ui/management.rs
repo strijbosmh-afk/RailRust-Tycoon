@@ -24,6 +24,7 @@ pub(crate) enum Command {
     Staff,
     Catalogue,
     RidePrices(u32),
+    InspectIssue,
 }
 #[derive(Component)]
 pub(crate) struct Panel;
@@ -159,6 +160,31 @@ pub(crate) fn command(park: &mut park_sim::Park, view: &mut ViewState, action: C
             super::catalogue::command(view, super::catalogue::Command::Open);
             return;
         }
+        Command::InspectIssue => {
+            if let Some(issue) = park.operation_issues().get(view.management_page) {
+                match issue.target {
+                    park_sim::OperationTarget::Ride(id) => {
+                        view.set_rides_modal(true);
+                        view.selected_ride = Some(id);
+                    }
+                    park_sim::OperationTarget::Facility(id) => {
+                        view.set_modal(false, false, true, false);
+                        view.selected_service = Some(id);
+                    }
+                    park_sim::OperationTarget::Guest(id) => {
+                        view.set_modal(false, true, false, false);
+                        view.guest_flow_view = false;
+                        view.selected_guest = Some(id);
+                    }
+                    park_sim::OperationTarget::Visitors => {
+                        view.set_modal(false, true, false, false);
+                        view.guest_flow_view = true;
+                    }
+                    park_sim::OperationTarget::Staff => super::park_life::open(view),
+                }
+            }
+            return;
+        }
         Command::RidePrices(price) => {
             let mut candidate = park.clone();
             let ids: Vec<_> = candidate.all_rides().map(|r| r.id).collect();
@@ -229,6 +255,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                         "Marketing",
                         "Policies",
                         "History",
+                        "Operations",
                     ]
                     .into_iter()
                     .enumerate()
@@ -316,6 +343,16 @@ pub(crate) fn setup(commands: &mut Commands) {
                         ("Receipt ledger", Command::Finances),
                     ],
                 );
+                controls(
+                    p,
+                    6,
+                    &[
+                        ("Previous issue", Command::Previous),
+                        ("Next issue", Command::Next),
+                        ("Inspect issue", Command::InspectIssue),
+                        ("Finance accounts", Command::Finances),
+                    ],
+                );
             });
         });
 }
@@ -358,6 +395,7 @@ pub(crate) fn refresh(
         view.management_notice
     );
     let body = match view.management_tab {
+        6 => operations_text(p, view.management_page),
         1 => {
             let rows = ResearchPriority::ALL
                 .into_iter()
@@ -493,6 +531,39 @@ pub(crate) fn refresh(
         text.0 = format!("{intro}{body}");
     }
 }
+fn operations_text(park: &park_sim::Park, page: usize) -> String {
+    let issues = park.operation_issues();
+    let flow = park.visitor_flow_stats();
+    let needs = park.guest_needs_summary();
+    let heading = format!(
+        "{} current issues · {} active guests · {} need urgent service\nArrivals {} · Departures {} · Lost {}\n\n",
+        issues.len(),
+        flow.active,
+        needs.critical_guests,
+        flow.spawned,
+        flow.departed,
+        park.crowd_stats().lost
+    );
+    let detail = issues.get(page).map_or_else(
+        || {
+            if issues.is_empty() {
+                "Current paths, supplies and operations have no detected issues.".into()
+            } else {
+                "Use Previous issue to return to the current list.".into()
+            }
+        },
+        |issue| {
+            format!(
+                "Issue {} of {}\n{}\n\n{}\nUse Inspect issue to open the affected item.",
+                page + 1,
+                issues.len(),
+                issue.summary,
+                issue.action
+            )
+        },
+    );
+    heading + &detail
+}
 fn signed_money(value: i128) -> String {
     format!(
         "{}{}",
@@ -518,13 +589,35 @@ mod tests {
             .insert_resource(view)
             .add_systems(Startup, setup_system)
             .add_systems(Update, refresh);
-        for tab in 0..6 {
+        for tab in 0..7 {
             app.world_mut().resource_mut::<ViewState>().management_tab = tab;
             app.update();
             let world = app.world_mut();
             let mut texts = world.query_filtered::<&Text, With<Content>>();
             assert!(texts.iter(world).all(|t| !t.0.is_empty()));
         }
+    }
+    #[test]
+    fn operation_issue_opens_the_affected_facility_without_changing_the_park() {
+        let mut park = park_sim::Park::new(32, 32);
+        let id = park
+            .place_service(
+                park_sim::TilePos { x: 4, y: 4 },
+                0,
+                park_sim::PathDirection::North,
+                park_sim::ServiceKind::Food,
+            )
+            .unwrap();
+        let before = park.clone();
+        let mut view = ViewState::default();
+        open(&mut view);
+        command(&mut park, &mut view, Command::Tab(6));
+        assert!(operations_text(&park, 0).contains("Public path is disconnected"));
+        command(&mut park, &mut view, Command::InspectIssue);
+        assert!(view.services_open);
+        assert!(!view.management_open);
+        assert_eq!(view.selected_service, Some(id));
+        assert_eq!(park, before);
     }
     #[test]
     fn modal_and_research_commands_work_through_player_actions() {

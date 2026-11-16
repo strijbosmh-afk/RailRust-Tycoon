@@ -1,6 +1,6 @@
 # Parkbound: stepwise roadmap to a complete Windows game
 
-Planning checkpoint updated through Phase 9 in 0.88.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0. Later work completed the graphics, construction, coaster, catalogue, park-life, management and editor milestones. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record. The remaining phases cover sound, onboarding, controls, accessibility, wider acceptance and distribution.
+Planning checkpoint updated through the Phase 11 implementation in 0.90.0, incorporating the 0.84.0 [Phase 3–5 audit](PHASES_3_5_COMPLETION_STATUS.md). [Phase 1](STARTUP_PARK_LIBRARY_REPORT.md) was implemented in 0.71.0. Later work completed the graphics, construction, coaster, catalogue, park-life, management, editor and accessibility milestones. The [gameplay checklist](GAMEPLAY_CHECKLIST.md) remains the feature-level record. Representative hardware, independent player acceptance and distribution remain open.
 
 ## Starting point and release target
 
@@ -165,6 +165,8 @@ Version 0.89.0 implements the guide, original audio expansion, saved controls, k
 
 ## 11. Beta, balance, and performance
 
+Version 0.90.0 supplies the [beta runner and Operations page](PHASE_11_BETA_GUIDE.md). Four current-content fixtures cover a starter, 64×64 mixed park, 256×256 mixed park and 256-active-guest park. Checkpoint/backup validation, independent finance reconciliation and separate-process replay are automated. Reports record actual throughput, refusals, satisfaction, research, staff and operating results. [Verification](PHASE_11_VERIFICATION.md) distinguishes tested runs from remaining external acceptance.
+
 1. Use fixed benchmark parks and seeds: small starter, medium active, large 256×256 mixed park, and a long-running high-guest park. Measure simulation, navigation, render submission/GPU spans, memory, save size and load time separately.
 2. Agree a representative Windows target PC and minimum/target specifications, then set frame-time and simulation-speed budgets. The current development PC supplies diagnostics only.
 3. Profile and optimize proven bottlenecks, check graphics drivers and DPI/multi-monitor behavior, test save migrations from supported older versions, and run long simulation/replay checks.
@@ -186,5 +188,5 @@ Version 0.89.0 implements the guide, original audio expansion, saved controls, k
 Use one branch/PR per bounded slice. Record the precise user flow, affected saves/content IDs, visual captures, and acceptance result in its report and in `RESUME_DEVELOPMENT.md`. Keep a playable package at each checkpoint. For simulation changes, verify deterministic continuation and old-save migration. For interface/art changes, inspect native input and captures at more than one display size. The Windows CI and a clean-PC playthrough remain independent of this development PC's speed.
 
 1. Complete the requested Codex Cloud handoff using the verified source and Windows package.
-2. Begin Phase 11 beta, balance and representative-hardware validation.
+2. Complete Phase 11 representative-hardware and independent-player acceptance using the shipped beta tools.
 3. Retain campaign, editor, finance, stock, research, old-save and input checks.

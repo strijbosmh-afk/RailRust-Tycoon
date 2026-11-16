@@ -73,6 +73,7 @@ enum Scene {
     Research,
     Supplies,
     ManagementHistory,
+    Operations,
     ParkLife,
     ParkLifeRain,
     ParkLifeStaff,
@@ -773,6 +774,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("research") => Scene::Research,
                 Some("supplies") => Scene::Supplies,
                 Some("management-history") => Scene::ManagementHistory,
+                Some("operations") => Scene::Operations,
                 Some("park-life") => Scene::ParkLife,
                 Some("park-life-rain") => Scene::ParkLifeRain,
                 Some("park-life-staff") => Scene::ParkLifeStaff,
@@ -1685,7 +1687,11 @@ fn apply_preset(
     }
     if matches!(
         capture.scene,
-        Scene::Management | Scene::Research | Scene::Supplies | Scene::ManagementHistory
+        Scene::Management
+            | Scene::Research
+            | Scene::Supplies
+            | Scene::ManagementHistory
+            | Scene::Operations
     ) {
         sim.0 = crate::save_check::management::fixture().expect("management capture fixture");
         for _ in 0..capture.ticks.max(3600) {
@@ -1696,6 +1702,7 @@ fn apply_preset(
             Scene::Research => 1,
             Scene::Supplies => 2,
             Scene::ManagementHistory => 5,
+            Scene::Operations => 6,
             _ => 0,
         };
         view.terrain_custom = true;

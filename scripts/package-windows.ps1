@@ -63,6 +63,7 @@ try {
     [void](New-Item -ItemType Directory -Path $assetDirectory)
     Copy-Item -LiteralPath (Join-Path $workspaceDirectory 'assets/manifest.json') -Destination $assetDirectory
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'measure-performance.ps1') -Destination $stagedPackage
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'verify-beta.ps1') -Destination $stagedPackage
     $documents = Join-Path $workspaceDirectory 'docs'
     if (Test-Path -LiteralPath $documents -PathType Container) {
         Copy-Item -LiteralPath $documents -Destination (Join-Path $stagedPackage 'docs') -Recurse

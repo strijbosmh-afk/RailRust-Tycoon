@@ -38,6 +38,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Accessibility writer failed" }
           & ./target/release/parkbound.exe --verify-accessibility $accessDirectory | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Accessibility restart failed" }
+      - name: Verify beta mixed parks and fresh-process checkpoint replay
+        shell: pwsh
+        run: |
+          ./scripts/verify-beta.ps1 -OutputDirectory (Join-Path $env:RUNNER_TEMP 'Parkbound beta smoke é') -Ticks 900 -CheckpointTicks 900
+      - name: Store beta evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parkbound-beta-evidence
+          path: ${{ runner.temp }}/Parkbound beta smoke é
+          if-no-files-found: warn
+          retention-days: 14
       - name: Verify full campaign and portable scenario editor
         shell: pwsh
         run: |
