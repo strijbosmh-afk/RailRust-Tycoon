@@ -730,6 +730,7 @@ struct Capture {
     large_window: bool,
     custom_window: Option<(u32, u32)>,
     detail: bool,
+    ride_model: Option<park_sim::RideModel>,
     ticks: u32,
     started: Instant,
     frames: u32,
@@ -1141,6 +1142,19 @@ pub(super) fn configure(app: &mut App) {
         "choose one capture window size"
     );
     let detail = arguments.iter().any(|value| value == "--capture-detail");
+    let ride_model = arguments
+        .iter()
+        .position(|value| value == "--capture-ride")
+        .map(|i| {
+            let name = arguments
+                .get(i + 1)
+                .and_then(|v| v.to_str())
+                .expect("--capture-ride needs a model name");
+            park_sim::RideModel::ALL
+                .into_iter()
+                .find(|model| format!("{model:?}").eq_ignore_ascii_case(name))
+                .expect("unknown --capture-ride model")
+        });
     assert!(
         !scene.is_terrain_tool()
             || matches!(scene, Scene::TerrainUnderground)
@@ -1191,6 +1205,7 @@ pub(super) fn configure(app: &mut App) {
         large_window,
         custom_window,
         detail,
+        ride_model,
         ticks,
         started: Instant::now(),
         frames: 0,
@@ -1841,6 +1856,20 @@ fn apply_preset(
         }
         view.scene_dirty = true;
     }
+    if let Some(model) = capture.ride_model {
+        let ride = sim
+            .0
+            .all_rides()
+            .find(|ride| sim.0.ride_model(ride.id) == Some(model))
+            .expect("capture ride exists");
+        view.pan = world::ride_focus(&sim.0, ride.id, view.rotation).expect("ride capture focus")
+            - Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
+        view.zoom = if model.tracked() { 4.2 } else { 7.0 };
+        view.grid = false;
+        view.selected = None;
+        view.hovered = None;
+        view.scene_dirty = true;
+    }
     if capture.small_window
         && let Ok(mut window) = windows.single_mut()
     {
@@ -2149,6 +2178,7 @@ mod tests {
                 large_window: false,
                 custom_window: None,
                 detail: false,
+                ride_model: None,
                 ticks: DEFAULT_CAPTURE_TICKS,
                 started: Instant::now(),
                 frames: 0,
@@ -2333,6 +2363,7 @@ mod tests {
                     large_window: false,
                     custom_window: None,
                     detail: false,
+                    ride_model: None,
                     ticks: 137,
                     started: Instant::now(),
                     frames: 0,

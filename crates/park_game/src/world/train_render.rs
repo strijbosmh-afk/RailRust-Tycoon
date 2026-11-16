@@ -655,15 +655,25 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
             );
         }
     }
-    vehicle_slab(
-        &mut faces,
-        footprint(0.0, 1.0, -0.215, 0.215),
-        0.36,
-        0.77,
-        [rgb(218, 67, 57), rgb(160, 40, 45), rgb(114, 32, 40)],
-        size,
-        rotation,
-    );
+    // Angled body sides meet a narrower underframe. The deck retains the
+    // authoritative front/rear pose so slope and bank tests remain meaningful.
+    let top = footprint(0.0, 1.0, -0.215, 0.215).map(|p| p + Vec3::Z * 0.77);
+    let lower = footprint(0.04, 0.96, -0.175, 0.175).map(|p| p + Vec3::Z * 0.36);
+    face(&mut faces, top, rgb(218, 67, 57), size, rotation);
+    for i in 0..4 {
+        let j = (i + 1) % 4;
+        face(
+            &mut faces,
+            [top[i], top[j], lower[j], lower[i]],
+            if i % 2 == 0 {
+                rgb(160, 40, 45)
+            } else {
+                rgb(114, 32, 40)
+            },
+            size,
+            rotation,
+        );
+    }
     // Gold nose, dark seat cushion, and gold side rims form the original livery.
     vehicle_slab(
         &mut faces,
@@ -738,6 +748,38 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
         size,
         rotation,
     );
+    // Divided upholstery, individual restraints and recessed wheel hubs.
+    for (left, right) in [(-0.15, -0.018), (0.018, 0.15)] {
+        vehicle_slab(
+            &mut faces,
+            footprint(0.14, 0.24, left, right),
+            0.80,
+            0.99,
+            [rgb(42, 62, 74), rgb(28, 42, 53), rgb(22, 32, 46)],
+            size,
+            rotation,
+        );
+        vehicle_slab(
+            &mut faces,
+            footprint(0.54, 0.59, left, right),
+            0.83,
+            0.89,
+            [rgb(210, 226, 225), rgb(123, 148, 152), rgb(70, 88, 98)],
+            size,
+            rotation,
+        );
+    }
+    for (lo, hi) in [(-0.219, -0.209), (0.209, 0.219)] {
+        vehicle_slab(
+            &mut faces,
+            footprint(0.08, 0.92, lo, hi),
+            0.47,
+            0.50,
+            [rgb(248, 190, 70), rgb(184, 116, 43), rgb(145, 86, 36)],
+            size,
+            rotation,
+        );
+    }
     bank_vehicle_faces(&mut faces, pose, ground(pose.center), size, rotation);
     faces.retain(|f| f.surface.has_area());
     faces
@@ -1069,6 +1111,113 @@ fn catalogue_track_faces(
             );
         }
     }
+    let mut detail = Vec::new();
+    let timber = [rgb(177, 122, 68), rgb(115, 73, 40), rgb(73, 45, 29)];
+    let brass = [rgb(248, 204, 95), rgb(174, 128, 51), rgb(107, 75, 34)];
+    for pair in piece.samples.windows(2) {
+        let a = ground(pair[0]);
+        let b = ground(pair[1]);
+        let length = a.truncate().distance(b.truncate());
+        let count = (length / 0.18).ceil().max(1.0) as usize;
+        for j in 0..count {
+            let t = (j as f32 + 0.5) / count as f32;
+            let center = a.lerp(b, t);
+            let tangent = (b - a).truncate().normalize_or_zero().extend(0.0);
+            let side = Vec3::new(-tangent.y, tangent.x, 0.0);
+            match model {
+                M::ParkRailway => {
+                    ride_detail::tube(
+                        &mut detail,
+                        center - side * 0.28 + Vec3::Z * 0.14,
+                        center + side * 0.28 + Vec3::Z * 0.14,
+                        0.024,
+                        timber,
+                    );
+                }
+                M::LogFlume | M::RiverRapids => {
+                    for sign in [-1.0, 1.0] {
+                        let rim = center + side * sign * 0.455;
+                        ride_detail::tube(
+                            &mut detail,
+                            rim + Vec3::Z * 0.17,
+                            rim + Vec3::Z * 0.64,
+                            0.012,
+                            brass,
+                        );
+                    }
+                    // Thin foam streaks sit inside the channel, below vehicles.
+                    if j % 2 == 0 {
+                        ride_detail::tube(
+                            &mut detail,
+                            center - side * 0.20 + Vec3::Z * 0.174,
+                            center + side * 0.07 + Vec3::Z * 0.174,
+                            0.006,
+                            [rgb(172, 234, 242); 3],
+                        );
+                    }
+                }
+                M::Monorail => {}
+                _ => {
+                    let z = if model == M::InvertedCoaster {
+                        1.30
+                    } else {
+                        0.19
+                    };
+                    ride_detail::tube(
+                        &mut detail,
+                        center - side * 0.21 + Vec3::Z * z,
+                        center + side * 0.21 + Vec3::Z * z,
+                        0.018,
+                        color,
+                    );
+                }
+            }
+        }
+        if piece.kind == TrackKind::Station {
+            let tangent = (b - a).truncate().normalize_or_zero().extend(0.0);
+            let side = Vec3::new(-tangent.y, tangent.x, 0.0);
+            for sign in [-1.0, 1.0] {
+                // The roof covers the platform only; the running lane stays open.
+                let left = a + side * sign * 0.34;
+                let right = b + side * sign * 0.34;
+                for t in [0.12, 0.88] {
+                    let post = a.lerp(b, t) + side * sign * 0.46;
+                    ride_detail::tube(
+                        &mut detail,
+                        post + Vec3::Z * 0.25,
+                        post + Vec3::Z * 1.48,
+                        0.015,
+                        brass,
+                    );
+                }
+                ride_detail::panel(
+                    &mut detail,
+                    [
+                        left - side * 0.12 + Vec3::Z * 1.50,
+                        right - side * 0.12 + Vec3::Z * 1.50,
+                        right + side * 0.12 + Vec3::Z * 1.50,
+                        left + side * 0.12 + Vec3::Z * 1.50,
+                    ],
+                    color[0],
+                );
+                ride_detail::tube(
+                    &mut detail,
+                    left + side * sign * 0.12 + Vec3::Z * 1.50,
+                    right + side * sign * 0.12 + Vec3::Z * 1.50,
+                    0.012,
+                    brass,
+                );
+            }
+        }
+    }
+    out.extend(
+        ride_detail::project(detail, size, rotation)
+            .into_iter()
+            .map(|f| Face {
+                surface: f.surface,
+                ink: f.ink,
+            }),
+    );
     let index = piece.samples.len() / 2;
     let point = ground(piece.samples[index]);
     let height = if model == M::InvertedCoaster {
@@ -1111,38 +1260,59 @@ fn catalogue_car_faces(
         return car_faces(pose, size, rotation);
     }
     if model == M::RiverRapids {
-        let mut faces = Vec::new();
         let center = ground(pose.center);
-        for i in 0..16 {
-            let a = i as f32 * std::f32::consts::TAU / 16.0;
-            let b = (i + 1) as f32 * std::f32::consts::TAU / 16.0;
-            let radius =
-                |angle: f32, r: f32| center + Vec3::new(angle.cos() * r, angle.sin() * r, 0.0);
-            let foot = [
-                radius(a, 0.43),
-                radius(b, 0.43),
-                radius(b, 0.29),
-                radius(a, 0.29),
-            ];
-            vehicle_slab(
-                &mut faces,
-                foot,
-                0.23,
-                0.43,
-                [rgb(49, 61, 74), rgb(25, 35, 47), rgb(17, 25, 36)],
-                size,
-                rotation,
-            );
-            vehicle_slab(
-                &mut faces,
-                foot,
-                0.43,
-                0.73,
-                [rgb(240, 63, 75), rgb(172, 35, 51), rgb(106, 22, 39)],
-                size,
-                rotation,
+        let mut body = Vec::new();
+        let rubber = [rgb(49, 61, 74), rgb(25, 35, 47), rgb(17, 25, 36)];
+        let red = [rgb(240, 63, 75), rgb(172, 35, 51), rgb(106, 22, 39)];
+        let gold = [rgb(254, 198, 56), rgb(176, 116, 36), rgb(126, 75, 25)];
+        ride_detail::lathe(
+            &mut body,
+            center,
+            &[
+                (0.28, 0.20),
+                (0.40, 0.24),
+                (0.45, 0.37),
+                (0.43, 0.46),
+                (0.29, 0.46),
+            ],
+            rubber,
+        );
+        ride_detail::lathe(
+            &mut body,
+            center,
+            &[
+                (0.28, 0.38),
+                (0.37, 0.45),
+                (0.37, 0.70),
+                (0.30, 0.74),
+                (0.25, 0.60),
+            ],
+            red,
+        );
+        ride_detail::lathe(
+            &mut body,
+            center,
+            &[(0.25, 0.61), (0.36, 0.70), (0.37, 0.75), (0.26, 0.70)],
+            gold,
+        );
+        for i in 0..6 {
+            let angle = i as f32 * std::f32::consts::TAU / 6.0;
+            let direction = Vec3::new(angle.cos(), angle.sin(), 0.0);
+            ride_detail::tube(
+                &mut body,
+                center + direction * 0.30 + Vec3::Z * 0.50,
+                center + direction * 0.30 + Vec3::Z * 0.75,
+                0.014,
+                gold,
             );
         }
+        let mut faces = ride_detail::project(body, size, rotation)
+            .into_iter()
+            .map(|f| Face {
+                surface: f.surface,
+                ink: f.ink,
+            })
+            .collect::<Vec<_>>();
         bank_vehicle_faces(&mut faces, pose, center, size, rotation);
         return faces;
     }
@@ -1226,6 +1396,52 @@ fn catalogue_car_faces(
         for (left, right) in [(-0.261, -0.25), (0.25, 0.261)] {
             part(0.08, 0.92, left, right, 0.57, 0.62, gold);
         }
+    }
+    // Rounded end caps, side lining and real wheel silhouettes distinguish
+    // transport vehicles at the same zoom as a coaster train.
+    if model == M::Monorail {
+        part(0.80, 1.04, -0.22, 0.22, 0.40, 0.76, gold);
+        part(0.88, 1.02, -0.20, 0.20, 0.78, 1.05, glass);
+        for (lo, hi) in [(-0.268, -0.256), (0.256, 0.268)] {
+            part(0.04, 0.95, lo, hi, 0.59, 0.64, gold);
+            for window in [0.12, 0.36, 0.60, 0.84] {
+                part(window, window + 0.018, lo, hi, 0.80, 1.20, dark);
+            }
+        }
+    }
+    if model == M::ParkRailway && car == 0 {
+        // Faceted cylindrical boiler follows the authoritative car tangent.
+        let mut boiler = Vec::new();
+        ride_detail::tube(
+            &mut boiler,
+            Vec3::new(0.35, 0.0, 0.75),
+            Vec3::new(0.93, 0.0, 0.75),
+            0.17,
+            dark,
+        );
+        for ring in [0.40, 0.67, 0.88] {
+            ride_detail::tube(
+                &mut boiler,
+                Vec3::new(ring, 0.0, 0.75),
+                Vec3::new(ring + 0.025, 0.0, 0.75),
+                0.18,
+                gold,
+            );
+        }
+        for f in &mut boiler {
+            for p in &mut f.surface.vertices {
+                let fraction = p.x;
+                *p = a.lerp(b, fraction) + n * p.y + Vec3::Z * p.z;
+            }
+        }
+        out.extend(
+            ride_detail::project(boiler, size, rotation)
+                .into_iter()
+                .map(|f| Face {
+                    surface: f.surface,
+                    ink: f.ink,
+                }),
+        );
     }
     bank_vehicle_faces(&mut out, pose, ground(pose.center), size, rotation);
     out.retain(|f| f.surface.has_area());
