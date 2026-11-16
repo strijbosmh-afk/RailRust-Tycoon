@@ -265,6 +265,14 @@ impl Park {
         }
     }
 
+    pub(crate) fn public_path_distances(&self, from: ObjectId) -> BTreeMap<ObjectId, usize> {
+        if let Some(graph) = &self.path_cache.graph {
+            graph.distances_from(from)
+        } else {
+            PathGraph::new(&self.objects).distances_from(from)
+        }
+    }
+
     pub fn crowd_stats(&self) -> CrowdStats {
         let mut stats = CrowdStats {
             total: self.guests.len(),
@@ -545,6 +553,27 @@ impl PathGraph {
         Self { nodes, edges }
     }
 
+    /// One traversal supplies all candidate distances for a single decision.
+    /// It uses the same edges and ordering as full route reconstruction.
+    pub(crate) fn distances_from(&self, start: ObjectId) -> BTreeMap<ObjectId, usize> {
+        if !self.nodes.contains_key(&start) {
+            return BTreeMap::new();
+        }
+        let mut distances = BTreeMap::from([(start, 0)]);
+        let mut queue = VecDeque::from([start]);
+        while let Some(current) = queue.pop_front() {
+            let distance = distances[&current] + 1;
+            for &neighbor in &self.edges[&current] {
+                if let std::collections::btree_map::Entry::Vacant(entry) = distances.entry(neighbor)
+                {
+                    entry.insert(distance);
+                    queue.push_back(neighbor);
+                }
+            }
+        }
+        distances
+    }
+
     /// Stable breadth-first traversal: shortest routes, deterministic ties.
     fn parents_from(&self, start: ObjectId) -> BTreeMap<ObjectId, Option<ObjectId>> {
         let mut parents = BTreeMap::from([(start, None)]);
@@ -715,6 +744,23 @@ fn route_from_parents(
 mod tests {
     use super::*;
     use crate::{Speed, TerrainProfile};
+
+    #[test]
+    fn decision_distances_match_every_production_route_and_ignore_missing_nodes() {
+        let mut park = Park::new(32, 32);
+        park.install_ground_starter_crowd(81).unwrap();
+        let graph = PathGraph::new(park.objects());
+        for &start in graph.nodes.keys() {
+            let distances = graph.distances_from(start);
+            for &target in graph.nodes.keys() {
+                assert_eq!(
+                    distances.get(&target).copied(),
+                    graph.route(start, target).map(|r| r.len())
+                );
+            }
+        }
+        assert!(graph.distances_from(ObjectId(u64::MAX)).is_empty());
+    }
 
     /// Independent pre-cache graph construction retained as a regression
     /// oracle. Its all-pairs scan must agree with indexed topology and ID order.

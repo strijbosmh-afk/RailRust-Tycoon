@@ -118,6 +118,11 @@ impl Park {
         jobs.retain(|(path, task)| {
             worker.patrol.is_empty() || worker.patrol.contains(path) || *task == StaffTask::Patrol
         });
+        let distances = if jobs.is_empty() {
+            Default::default()
+        } else {
+            self.public_path_distances(current)
+        };
         let choice = jobs
             .into_iter()
             .filter_map(|(path, task)| {
@@ -126,7 +131,7 @@ impl Park {
                 }) {
                     return None;
                 }
-                let distance = self.public_path_route(current, path)?.len();
+                let distance = *distances.get(&path)?;
                 Some((distance, path, task))
             })
             .min_by_key(|(distance, path, _)| (*distance, *path));
