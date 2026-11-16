@@ -548,3 +548,40 @@ jobs:
           path: artifacts/performance-ci
           if-no-files-found: error
           retention-days: 14
+
+  beta_endurance:
+    needs: windows
+    runs-on: windows-2022
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [starter, medium-mixed, large-mixed, crowd-capacity]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Parkbound-windows-x64
+          path: beta-package
+      - name: Check archive identity and extract the tested executable
+        shell: pwsh
+        run: |
+          $archive = @(Get-ChildItem beta-package -Filter '*.zip')
+          if ($archive.Count -ne 1) { throw 'Expected one Windows package' }
+          $expected = ((Get-Content ($archive[0].FullName + '.sha256') -Raw) -split '\s+')[0]
+          if ((Get-FileHash $archive[0].FullName -Algorithm SHA256).Hash -ne $expected) { throw 'Package checksum mismatch' }
+          Expand-Archive $archive[0].FullName -DestinationPath beta-unpacked
+      - name: Replay one simulated hour of the packaged beta workload
+        shell: pwsh
+        run: |
+          $executable = @(Get-ChildItem beta-unpacked -Filter 'Parkbound.exe' -Recurse)
+          if ($executable.Count -ne 1) { throw 'Expected one packaged executable' }
+          ./scripts/verify-beta.ps1 -Executable $executable[0].FullName -OutputDirectory (Join-Path $env:RUNNER_TEMP 'beta-endurance') -Cases '${{ matrix.case }}' -Ticks 108000 -CheckpointTicks 9000 -ProcessTimeoutSeconds 3600
+      - name: Store endurance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parkbound-beta-${{ matrix.case }}
+          path: ${{ runner.temp }}/beta-endurance
+          if-no-files-found: warn
+          retention-days: 14
