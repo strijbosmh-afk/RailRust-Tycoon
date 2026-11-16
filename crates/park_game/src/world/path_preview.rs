@@ -344,8 +344,8 @@ mod tests {
                     );
                     let mut painted = Painter::default();
                     paint_objects(&mut painted, &queue, rotation, mode);
-                    assert!(painted.colors.contains(&rgb(78, 145, 181)));
-                    assert!(painted.colors.contains(&rgb(240, 225, 160)));
+                    assert!(painted.colors.contains(&rgb(45, 129, 154)));
+                    assert!(painted.colors.contains(&rgb(247, 224, 137)));
                 }
                 let ghost = path_preview_mesh(Some(preview), &queue, rotation);
                 let Some(VertexAttributeValues::Float32x4(colors)) =
@@ -632,7 +632,9 @@ mod tests {
                     let depth = faces[0]
                         .hit_depth(point.truncate())
                         .expect("decoration outside ramp");
-                    assert!((0.0..=DETAIL_BIAS * 2.0 + 0.0001).contains(&(point.z - depth)));
+                    // Grain, curb and fastener layers use four shallow biases;
+                    // their geometry must still sit on the inclined roof.
+                    assert!((0.0..=DETAIL_BIAS * 4.0 + 0.0001).contains(&(point.z - depth)));
                 }
                 let center = path_build_center(pos, &park, rotation, 8, slope).unwrap();
                 park.set_terrain_height(unrotate(11, 11, 32, rotation), 12)

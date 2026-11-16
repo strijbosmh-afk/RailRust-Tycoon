@@ -7,107 +7,29 @@ pub(super) fn ground_details(
     center: Vec2,
     top: Surface,
 ) {
+    landscape::ground(mesh, park, pos, top);
     let seed = noise(pos);
-    // The close-view material marks are clipped to this exact roof. Diagnostic
-    // maps keep the simpler material so their geometry stays bounded.
-    if park.width() <= 64 {
-        match park.tile(pos).unwrap().terrain {
-            Terrain::Grass if seed.is_multiple_of(4) => {
-                let offset = Vec2::new((seed % 13) as f32 - 6.0, ((seed >> 7) % 7) as f32 - 3.0);
-                mesh.surface_ellipse(
-                    top,
-                    center + offset,
-                    12.0,
-                    4.2,
-                    DETAIL_BIAS,
-                    rgb(79, 184, 68),
-                );
-                mesh.surface_ellipse(
-                    top,
-                    center + offset + Vec2::new(-4.0, 1.5),
-                    6.0,
-                    2.0,
-                    DETAIL_BIAS * 2.0,
-                    rgb(111, 204, 80),
-                );
-            }
-            Terrain::Sand if seed.is_multiple_of(3) => {
-                let shift = (seed % 9) as f32 - 4.0;
-                for offset in [-3.0, 1.0, 5.0] {
-                    mesh.surface_line(
-                        top,
-                        center + Vec2::new(-9.0 + shift, offset),
-                        center + Vec2::new(8.0 + shift, offset + 1.0),
-                        0.7,
-                        DETAIL_BIAS,
-                        rgb(225, 211, 167),
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
-    match park.tile(pos).unwrap().terrain {
-        Terrain::Grass => {
-            // Tiny paired blades break up broad flat areas without a texture pack.
-            if seed.is_multiple_of(7) {
-                let p =
-                    center + Vec2::new((seed % 15) as f32 - 7.0, ((seed / 17) % 7) as f32 - 3.0);
-                mesh.surface_line(
-                    top,
-                    p,
-                    p + Vec2::new(2.0, 2.3),
-                    0.7,
-                    DETAIL_BIAS,
-                    rgb(135, 175, 106),
-                );
-                mesh.surface_line(
-                    top,
-                    p + Vec2::X * 3.0,
-                    p + Vec2::new(4.0, 2.5),
-                    0.7,
-                    DETAIL_BIAS,
-                    rgb(93, 143, 77),
-                );
-            }
-            if seed.is_multiple_of(11) && !park.objects().iter().any(|o| o.pos == pos) {
-                for (dx, dy) in [(-7.0, -1.0), (0.0, 2.0), (5.0, -2.0)] {
-                    let c = center + Vec2::new(dx, dy);
-                    mesh.surface_ellipse(
-                        top,
-                        c + Vec2::new(1.0, -1.0),
-                        4.3,
-                        1.9,
-                        DETAIL_BIAS,
-                        rgb(56, 144, 68),
-                    );
-                    mesh.surface_ellipse(
-                        top,
-                        c,
-                        2.1,
-                        1.5,
-                        DETAIL_BIAS * 2.0,
-                        if seed.is_multiple_of(2) {
-                            rgb(255, 202, 63)
-                        } else {
-                            rgb(234, 78, 166)
-                        },
-                    );
-                    mesh.surface_ellipse(top, c, 0.55, 0.4, DETAIL_BIAS * 3.0, rgb(255, 240, 104));
-                }
-            }
-        }
-        Terrain::Sand if seed.is_multiple_of(3) => {
-            mesh.surface_line(
+    if park.width() <= 64
+        && park.tile(pos).is_some_and(|t| t.terrain == Terrain::Grass)
+        && seed.is_multiple_of(19)
+        && !park.objects().iter().any(|o| o.pos == pos)
+    {
+        for (dx, dy) in [(-5.0, 0.0), (1.0, 2.0), (5.0, -1.0)] {
+            let c = center + Vec2::new(dx, dy);
+            mesh.surface_ellipse(top, c, 2.8, 1.6, DETAIL_BIAS * 2.0, rgb(48, 120, 58));
+            mesh.surface_ellipse(
                 top,
-                center - Vec2::X * 7.0,
-                center + Vec2::X * 6.0,
-                0.7,
-                DETAIL_BIAS,
-                rgb(224, 208, 161),
+                c + Vec2::Y * 0.4,
+                1.4,
+                1.0,
+                DETAIL_BIAS * 3.0,
+                if seed.is_multiple_of(2) {
+                    rgb(247, 214, 98)
+                } else {
+                    rgb(229, 120, 169)
+                },
             );
         }
-        _ => {}
     }
 }
 
@@ -147,6 +69,22 @@ pub(super) fn shore_details(
         }
         let a = top.vertices[edge].truncate();
         let b = top.vertices[(edge + 1) % 4].truncate();
+        let shore_color = if park
+            .tile(neighbor)
+            .is_some_and(|t| t.terrain == Terrain::Sand)
+        {
+            rgb(196, 192, 135)
+        } else {
+            rgb(60, 142, 110)
+        };
+        mesh.surface_line(
+            top,
+            a.lerp(center, 0.025),
+            b.lerp(center, 0.025),
+            1.4,
+            DETAIL_BIAS,
+            shore_color,
+        );
         mesh.surface_line(
             top,
             a.lerp(center, 0.08),
@@ -163,6 +101,22 @@ pub(super) fn shore_details(
             DETAIL_BIAS * 2.0,
             rgb(177, 219, 196),
         );
+        // Small water-edge stones break up the straight bank, while remaining
+        // clipped to the actual water roof and below crossing paths.
+        if noise(pos).is_multiple_of(3) {
+            for t in [0.27, 0.67] {
+                let stone = a.lerp(b, t).lerp(center, 0.08);
+                mesh.surface_ellipse(top, stone, 1.8, 0.9, DETAIL_BIAS * 3.0, rgb(100, 135, 112));
+                mesh.surface_ellipse(
+                    top,
+                    stone + Vec2::new(-0.3, 0.3),
+                    1.2,
+                    0.55,
+                    DETAIL_BIAS * 4.0,
+                    rgb(181, 194, 143),
+                );
+            }
+        }
     }
 }
 /// Water glints are cosmetic and capped to normal playable maps. Static waves

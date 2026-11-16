@@ -17,6 +17,7 @@ mod carousel_render;
 mod catalogue_render;
 mod entrance_render;
 mod guest_render;
+mod landscape;
 mod layout;
 mod path_preview;
 mod ride_colors;
@@ -641,61 +642,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 match object.kind {
                     ObjectKind::SceneryTree => tree(mesh, base, top, object.id.0 as u32),
                     ObjectKind::FlowerBed => {
-                        mesh.surface_ellipse(top, base, 19.0, 9.0, DETAIL_BIAS, rgb(74, 125, 69));
-                        for (dx, dy, ink) in [
-                            (-12.0, 1.0, rgb(237, 98, 128)),
-                            (-4.0, 5.0, rgb(245, 206, 87)),
-                            (6.0, 3.0, rgb(236, 132, 175)),
-                            (13.0, -2.0, rgb(255, 228, 120)),
-                            (-2.0, -4.0, rgb(239, 123, 119)),
-                        ] {
-                            mesh.surface_ellipse(
-                                top,
-                                base + Vec2::new(dx, dy),
-                                3.6,
-                                2.8,
-                                DETAIL_BIAS * 2.0,
-                                ink,
-                            );
-                        }
-                        for i in 0..17 {
-                            let angle = i as f32 * 2.399_963;
-                            let radius = 3.0 + (i % 5) as f32 * 3.0;
-                            let bloom =
-                                base + Vec2::new(angle.cos() * radius, angle.sin() * radius * 0.45);
-                            let color = match i % 4 {
-                                0 => rgb(255, 218, 78),
-                                1 => rgb(243, 100, 157),
-                                2 => rgb(255, 242, 211),
-                                _ => rgb(202, 99, 199),
-                            };
-                            mesh.surface_ellipse(
-                                top,
-                                bloom + Vec2::new(1.0, -0.4),
-                                2.6,
-                                1.5,
-                                DETAIL_BIAS * 3.0,
-                                rgb(43, 113, 55),
-                            );
-                            for (x, y) in [(-1.2, 0.0), (1.2, 0.0), (0.0, 0.7), (0.0, -0.7)] {
-                                mesh.surface_ellipse(
-                                    top,
-                                    bloom + Vec2::new(x, y),
-                                    1.1,
-                                    0.8,
-                                    DETAIL_BIAS * 4.0,
-                                    color,
-                                );
-                            }
-                            mesh.surface_ellipse(
-                                top,
-                                bloom,
-                                0.6,
-                                0.4,
-                                DETAIL_BIAS * 5.0,
-                                rgb(249, 196, 59),
-                            );
-                        }
+                        landscape::flowerbed(mesh, base, top, object.id.0 as u32)
                     }
                     _ => unreachable!(),
                 }
@@ -751,7 +698,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
         for surface in surfaces {
             let ink = match (object.kind, surface.kind) {
                 (ObjectKind::Path, SurfaceKind::Top) if object.queue_owner.is_some() => {
-                    rgb(78, 145, 181)
+                    rgb(45, 129, 154)
                 }
                 (ObjectKind::Path, SurfaceKind::LeftCliff) if object.queue_owner.is_some() => {
                     rgb(43, 103, 140)
@@ -762,9 +709,9 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 (ObjectKind::Path, SurfaceKind::Top)
                     if object.height == park.tile(object.pos).map_or(0, |tile| tile.height) =>
                 {
-                    rgb(229, 204, 160)
+                    rgb(172, 158, 125)
                 }
-                (ObjectKind::Path, SurfaceKind::Top) => rgb(224, 189, 128),
+                (ObjectKind::Path, SurfaceKind::Top) => rgb(183, 143, 89),
                 (ObjectKind::Path, SurfaceKind::LeftCliff) => rgb(155, 108, 65),
                 (ObjectKind::Path, SurfaceKind::RightCliff) => rgb(116, 76, 47),
                 (ObjectKind::Track, SurfaceKind::Top) => rgb(65, 79, 84),
@@ -807,110 +754,7 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
             )
         };
         match object.kind {
-            ObjectKind::Path => {
-                let (min_x, max_x, min_y, max_y) = object_bounds(park, object);
-                let (min_across, max_across) = match object_axis(object) {
-                    Axis::X => (min_y, max_y),
-                    Axis::Y => (min_x, max_x),
-                };
-                // Original timber planks and a dark inset edge make the
-                // raised walkway readable. A connected junction has no
-                // dark border painted across its open walking edge.
-                for along in [-0.4, -0.2, 0.0, 0.2, 0.4] {
-                    mesh.surface_line(
-                        top,
-                        point(along, min_across + 0.02),
-                        point(along, max_across - 0.02),
-                        0.8,
-                        DETAIL_BIAS,
-                        if object.queue_owner.is_some() {
-                            rgb(164, 204, 218)
-                        } else {
-                            rgb(188, 143, 88)
-                        },
-                    );
-                }
-                for across in [
-                    (min_across > -0.5).then_some(min_across + 0.05),
-                    (max_across < 0.5).then_some(max_across - 0.05),
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    mesh.surface_line(
-                        top,
-                        point(-0.5, across),
-                        point(0.5, across),
-                        1.8,
-                        DETAIL_BIAS * 2.0,
-                        if object.queue_owner.is_some() {
-                            rgb(219, 230, 206)
-                        } else {
-                            rgb(139, 91, 54)
-                        },
-                    );
-                }
-                if object.queue_owner.is_some() {
-                    // A broken center stripe distinguishes queues even when
-                    // their blue palette is hard to distinguish from timber.
-                    for along in [-0.30, 0.0, 0.30] {
-                        mesh.surface_line(
-                            top,
-                            point(along - 0.065, 0.0),
-                            point(along + 0.065, 0.0),
-                            1.8,
-                            DETAIL_BIAS * 3.0,
-                            rgb(240, 225, 160),
-                        );
-                    }
-                } else if object.height == park.tile(object.pos).map_or(0, |t| t.height) {
-                    // Ground-level promenades use pale inset pavers. Elevated
-                    // paths retain timber so bridges remain visually distinct.
-                    for across in [-0.18, 0.18] {
-                        mesh.surface_line(
-                            top,
-                            point(-0.5, across),
-                            point(0.5, across),
-                            0.55,
-                            DETAIL_BIAS * 2.0,
-                            rgb(244, 218, 163),
-                        );
-                    }
-                    for along in [-0.3, 0.1] {
-                        mesh.surface_line(
-                            top,
-                            point(along, -0.17),
-                            point(along, 0.17),
-                            0.55,
-                            DETAIL_BIAS * 2.0,
-                            rgb(178, 143, 98),
-                        );
-                    }
-                } else if park.width() <= 64 {
-                    // Sparse wood grain and fasteners add a material cue at
-                    // close zoom without changing the path footprint.
-                    for (along, across) in [(-0.34, -0.13), (0.08, 0.12)] {
-                        mesh.surface_line(
-                            top,
-                            point(along, across),
-                            point(along + 0.13, across),
-                            0.55,
-                            DETAIL_BIAS * 2.0,
-                            rgb(239, 207, 150),
-                        );
-                    }
-                    for along in [-0.39, 0.39] {
-                        mesh.surface_ellipse(
-                            top,
-                            point(along, min_across + 0.09),
-                            0.8,
-                            0.5,
-                            DETAIL_BIAS * 2.0,
-                            rgb(99, 72, 48),
-                        );
-                    }
-                }
-            }
+            ObjectKind::Path => landscape::path(mesh, park, object, rotation, top),
             ObjectKind::RideEntrance
             | ObjectKind::RideExit
             | ObjectKind::Service
@@ -1094,9 +938,9 @@ fn scene_painter(
             let variation = (noise(pos) % 5) as i16 - 2;
             let color = if tile.owned {
                 match tile.terrain {
-                    Terrain::Grass => varied(61, 154, 57, variation),
+                    Terrain::Grass => varied(62, 151, 66, variation),
                     Terrain::Water => varied(39, 167, 183, variation),
-                    Terrain::Sand => varied(229, 202, 130, variation),
+                    Terrain::Sand => varied(226, 204, 148, variation),
                 }
             } else {
                 match tile.terrain {
@@ -1124,96 +968,30 @@ fn scene_painter(
                     }
                 }
                 if surface.kind != SurfaceKind::Top {
-                    let a = surface.vertices[0].truncate();
-                    let b = surface.vertices[1].truncate();
-                    let face_height = a.y - surface.vertices[3].y;
-                    if size <= 32 && face_height > 4.0 {
-                        mesh.surface_line(
-                            surface,
-                            a - Vec2::Y * 1.5,
-                            b - Vec2::Y * 1.5,
-                            1.2,
-                            DETAIL_BIAS,
-                            rgb(190, 151, 101),
-                        );
-                        let crack = a.lerp(b, 0.23 + (noise(pos) % 4) as f32 * 0.11);
-                        mesh.surface_line(
-                            surface,
-                            crack - Vec2::Y * 4.0,
-                            crack + Vec2::new(2.5, -face_height.min(18.0)),
-                            0.7,
-                            DETAIL_BIAS * 2.0,
-                            rgb(98, 75, 52),
-                        );
-                    }
-                    let mut layer = HEIGHT_STEP;
-                    while layer < face_height {
-                        mesh.surface_line(
-                            surface,
-                            a - Vec2::Y * layer,
-                            b - Vec2::Y * layer,
-                            0.8,
-                            DETAIL_BIAS,
-                            rgb(157, 126, 83),
-                        );
-                        layer += HEIGHT_STEP;
-                    }
+                    landscape::cliff(&mut mesh, park, pos, surface);
                 }
             }
 
-            match tile.terrain {
-                Terrain::Water => {
-                    if !noise(pos).is_multiple_of(3) {
-                        let offset = (noise(pos) % 11) as f32 - 5.0;
-                        mesh.surface_line(
-                            top,
-                            center + Vec2::new(-11.0, offset),
-                            center + Vec2::new(8.0, offset),
-                            1.1,
-                            DETAIL_BIAS,
-                            rgb(133, 197, 192),
-                        );
-                        mesh.surface_line(
-                            top,
-                            center + Vec2::new(2.0, offset + 4.0),
-                            center + Vec2::new(9.0, offset + 4.0),
-                            0.8,
-                            DETAIL_BIAS,
-                            rgb(105, 179, 181),
-                        );
-                    }
-                }
-                Terrain::Grass if noise(pos).is_multiple_of(17) => {
-                    let tuft = center + Vec2::new(-3.0, -1.0);
-                    mesh.surface_line(
-                        top,
-                        tuft,
-                        tuft + Vec2::new(-2.0, 3.0),
-                        0.9,
-                        DETAIL_BIAS,
-                        rgb(132, 173, 105),
-                    );
-                    mesh.surface_line(
-                        top,
-                        tuft + Vec2::new(3.0, 0.0),
-                        tuft + Vec2::new(4.0, 4.0),
-                        0.9,
-                        DETAIL_BIAS,
-                        rgb(132, 173, 105),
-                    );
-                }
-                Terrain::Sand if noise(pos).is_multiple_of(5) => {
-                    mesh.surface_ellipse(
-                        top,
-                        center + Vec2::new(4.0, 1.0),
-                        2.4,
-                        1.2,
-                        DETAIL_BIAS,
-                        rgb(189, 176, 133),
-                    );
-                }
-                _ => {}
+            if tile.terrain == Terrain::Water && !noise(pos).is_multiple_of(3) {
+                let offset = (noise(pos) % 11) as f32 - 5.0;
+                mesh.surface_line(
+                    top,
+                    center + Vec2::new(-11.0, offset),
+                    center + Vec2::new(8.0, offset),
+                    1.1,
+                    DETAIL_BIAS,
+                    rgb(133, 197, 192),
+                );
+                mesh.surface_line(
+                    top,
+                    center + Vec2::new(2.0, offset + 4.0),
+                    center + Vec2::new(9.0, offset + 4.0),
+                    0.8,
+                    DETAIL_BIAS,
+                    rgb(105, 179, 181),
+                );
             }
+
             atmosphere::shore_details(&mut mesh, park, pos, rotation, top);
             atmosphere::ground_details(&mut mesh, park, pos, center, top);
             if grid {
@@ -2272,129 +2050,32 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
         rgb(159, 119, 73),
     );
     if seed.is_multiple_of(3) {
-        for (height, width, ink) in [
-            (18.0, 19.0, rgb(33, 116, 61)),
-            (30.0, 16.0, rgb(42, 145, 72)),
-            (41.0, 11.0, rgb(74, 171, 85)),
-        ] {
-            mesh.triangle(
-                [
-                    base + Vec2::new(-width, height) * scale,
-                    base + Vec2::new(width, height) * scale,
-                    base + Vec2::new(0.0, height + 24.0) * scale,
-                ],
-                depth + height / 10_000.0,
-                ink,
-            );
-        }
-        for (dx, dy) in [(-7.0, 30.0), (3.0, 42.0), (-2.0, 54.0)] {
+        landscape::pine(mesh, base, depth, scale, seed);
+    } else {
+        // The retained oak texture supplies the crown. Avoid a second opaque
+        // procedural crown showing around the textured silhouette.
+        for sign in [-1.0, 1.0] {
             mesh.line(
-                base + Vec2::new(dx, dy) * scale,
-                base + Vec2::new(dx + 5.0, dy + 2.0) * scale,
-                1.1 * scale,
-                depth + 0.006,
-                rgb(132, 179, 105),
+                base + Vec2::new(0.0, 14.0) * scale,
+                base + Vec2::new(sign * 7.0, 30.0) * scale,
+                2.0 * scale,
+                depth,
+                rgb(105, 76, 44),
             );
         }
-    } else {
-        mesh.ellipse(
-            base + Vec2::new(1.0, 34.0) * scale,
-            21.0 * scale,
-            24.0 * scale,
-            depth + 0.002,
-            rgb(40, 130, 64),
-        );
-        mesh.ellipse(
-            base + Vec2::new(-6.0, 40.0) * scale,
-            17.0 * scale,
-            20.0 * scale,
-            depth + 0.003,
-            rgb(53, 151, 71),
-        );
-        mesh.ellipse(
-            base + Vec2::new(-7.0, 48.0) * scale,
-            11.0 * scale,
-            12.0 * scale,
-            depth + 0.004,
-            rgb(83, 178, 80),
-        );
     }
-    if !seed.is_multiple_of(3) {
-        for (dx, dy, r, ink) in [
-            (-15.0, 35.0, 7.0, rgb(58, 122, 75)),
-            (9.0, 40.0, 8.0, rgb(76, 142, 80)),
-            (-4.0, 52.0, 7.0, rgb(115, 163, 91)),
-        ] {
-            mesh.ellipse(
-                base + Vec2::new(dx, dy) * scale,
-                r * scale,
-                r * 1.15 * scale,
-                depth + 0.005,
-                ink,
-            );
-        }
-        mesh.line(
-            base + Vec2::new(0.0, 21.0) * scale,
-            base + Vec2::new(-6.0, 32.0) * scale,
-            1.4 * scale,
-            depth + 0.006,
-            rgb(94, 95, 57),
+    for i in 0..5 {
+        let angle = i as f32 * 2.399_963;
+        let p = base + Vec2::new(angle.cos() * 8.0, angle.sin() * 3.0);
+        mesh.surface_ellipse(top, p, 4.0, 2.0, DETAIL_BIAS * 2.0, rgb(48, 113, 52));
+        mesh.surface_ellipse(
+            top,
+            p + Vec2::new(-0.6, 0.7),
+            2.8,
+            1.2,
+            DETAIL_BIAS * 3.0,
+            rgb(92, 151, 65),
         );
-        for (dx, dy, radius) in [(-14.0, 47.0, 3.4), (1.0, 55.0, 3.0), (9.0, 40.0, 2.5)] {
-            mesh.ellipse(
-                base + Vec2::new(dx, dy) * scale,
-                radius * scale,
-                radius * 0.65 * scale,
-                depth + 0.007,
-                rgb(151, 188, 112),
-            );
-        }
-        // Small overlapping leaf groups give the crown a textured silhouette.
-        // Their deterministic placement preserves scenery identity on reload.
-        for i in 0..28_u32 {
-            let sample = seed.wrapping_mul(747_796_405).wrapping_add(i * 2_891_337);
-            let angle = i as f32 * 2.399_963;
-            let radius = 4.0 + (sample % 14) as f32;
-            let offset = Vec2::new(angle.cos() * radius, 40.0 + angle.sin() * radius * 1.05);
-            let leaf = base + offset * scale;
-            let width = 2.7 + ((sample >> 8) % 3) as f32;
-            mesh.ellipse(
-                leaf,
-                width * scale,
-                width * 0.74 * scale,
-                depth + 0.0075,
-                if offset.x < 0.0 {
-                    rgb(105, 177, 65)
-                } else {
-                    rgb(40, 124, 54)
-                },
-            );
-            mesh.ellipse(
-                leaf + Vec2::new(-0.6, 0.7) * scale,
-                width * 0.44 * scale,
-                width * 0.28 * scale,
-                depth + 0.0077,
-                rgb(142, 195, 78),
-            );
-        }
-    } else {
-        for level in 0..8 {
-            let y = 22.0 + level as f32 * 4.7;
-            let width = 16.0 - level as f32 * 1.5;
-            for side in [-1.0, 1.0] {
-                mesh.line(
-                    base + Vec2::new(0.0, y + 4.0) * scale,
-                    base + Vec2::new(width * side, y) * scale,
-                    1.0 * scale,
-                    depth + 0.007,
-                    if side < 0.0 {
-                        rgb(120, 183, 77)
-                    } else {
-                        rgb(33, 108, 60)
-                    },
-                );
-            }
-        }
     }
 }
 
