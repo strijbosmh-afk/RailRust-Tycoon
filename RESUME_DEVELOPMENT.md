@@ -2,7 +2,9 @@
 
 ## Current work — Sunhaven Gardens demo, 0.91.0
 
-Continue on `codex/playable-demo-park`, based on Phase 11 commit `8d6ed23c1c4a95e0163182bae1394515d94ec0aa`. **Play Sunhaven Gardens · 7 rides** starts the new landscaped sandbox from the title screen. The normal park library saves it independently. Read `docs/DEMO_PARK_GUIDE.md` for its layout, operating choices and reproduction commands. Verification is in progress.
+Continue on `codex/playable-demo-park`, based on Phase 11 commit `8d6ed23c1c4a95e0163182bae1394515d94ec0aa`, in PR 83. **Play Sunhaven Gardens · 7 rides** starts the landscaped sandbox from the title screen. The normal park library saves it independently. Read `docs/DEMO_PARK_GUIDE.md` for its layout, operating choices and reproduction commands. All 1,031 local tests pass, along with strict checks, release build and separate-process continuation proving paid visits on all seven rides. Read `docs/DEMO_PARK_VERIFICATION.md` for exact scope and the final package/remote check status.
+
+The playable distribution is `dist/Parkbound-0.91.0-windows-x64.zip`. Extract it to a writable folder and launch `Parkbound.exe`, then choose the demo button. The package contains the resume guide and player documentation. Final extracted-package verification is in progress.
 
 The shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the registered Git root and preserve local changes when switching PCs. The development PC remains excluded from performance acceptance.
 
