@@ -23,11 +23,15 @@ Revenue is charged at departure. A paid passenger can still be riding or exiting
 ## Checks
 
 - All 1,031 release tests passed, consisting of 567 game tests and 464 simulation tests. The demo-specific tests cover paid operation, connected access, save continuation, title entry and independent library saves that preserve an existing park.
-- Strict release Clippy and formatting passed for the tested source. The final presentation-only correction updates the status bar to the current park name and receives a fresh lint/build check.
+- Strict release Clippy and formatting passed for the tested source. The final presentation-only correction updates the status bar to the current park name and passed a fresh lint/build check.
 - Production `write-demo-park` and `verify-demo-park` ran in separate executable processes. The original slot remained byte-identical.
 - Inspected 1920×1080 full-park captures from opposite rotations and the 1024×680 title screen. The demo button is visible and keyboard-focusable. The park uses ground-level paths and stations, a central lake and original ride/scenery rendering.
 
 Local evidence is retained under ignored `artifacts/demo-*` paths. The Windows distribution is `dist/Parkbound-0.91.0-windows-x64.zip`. Its adjacent `.sha256` file records the archive checksum. The package verification report records the exact executable checksum, payload integrity and isolated extracted-package runs.
+
+The shipping executable SHA256 is `55802dd42b858a03a1acd778bb2083fe60ee2d15313e601ac4b7a1a93f55884d`. The initial extracted package passed all 153 payload hashes and 139 current guides. Its `front` and `demo-park` write/verify pairs passed from `C:\Windows` with isolated profiles, and its title/demo captures passed and were inspected. The final package refresh changes the documentation and keeps this executable. Raw receipts remain in `artifacts/demo-package-verified/verification.txt` and the final refresh verification folder.
+
+Runtime source `e0239b841c9df60d7a5bb76e7d4719b59002eeb1` is verified on GitHub in PR 83. Its Windows workflow is `43857209308`; the remote full workflow was still running at the documentation checkpoint. Earlier source workflow `43855141565` passed the new seven-ride fresh-process proof. The local checks and package evidence above are complete independently of the remote workflow.
 
 ## Scope
 
