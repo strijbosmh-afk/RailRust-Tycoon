@@ -69,6 +69,8 @@ pub(super) fn validate_modes(args: &[OsString]) -> Result<(), String> {
         "--profile-frames",
         "--capture-frame",
         "--save-check",
+        "--accessibility-check",
+        "--verify-accessibility",
     ];
     let count = args
         .iter()

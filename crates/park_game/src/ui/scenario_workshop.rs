@@ -516,7 +516,7 @@ pub(crate) fn keyboard_text(
     view: Res<ViewState>,
     mut events: MessageReader<KeyboardInput>,
 ) {
-    if !view.workshop_open || view.front_modal || view.capture_active {
+    if view.accessibility_open || !view.workshop_open || view.front_modal || view.capture_active {
         return;
     }
     let field = w.field;
@@ -530,7 +530,7 @@ pub(crate) fn keyboard_text(
             Key::Backspace => {
                 target.pop();
             }
-            Key::Enter => {}
+            Key::Enter | Key::Tab | Key::Escape => {}
             _ => {
                 if let Some(text) = &event.text {
                     for c in text.chars().filter(|c| !c.is_control()) {

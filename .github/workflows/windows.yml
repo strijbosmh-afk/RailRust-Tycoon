@@ -30,6 +30,14 @@ jobs:
       - name: Build the Windows distribution
         shell: pwsh
         run: ./scripts/package-windows.ps1
+      - name: Verify accessibility settings across processes
+        shell: pwsh
+        run: |
+          $accessDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound accessibility é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --accessibility-check $accessDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Accessibility writer failed" }
+          & ./target/release/parkbound.exe --verify-accessibility $accessDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Accessibility restart failed" }
       - name: Verify full campaign and portable scenario editor
         shell: pwsh
         run: |

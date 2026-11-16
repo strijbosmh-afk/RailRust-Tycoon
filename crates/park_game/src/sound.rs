@@ -21,13 +21,19 @@ pub(crate) struct Settings {
     pub version: u8,
     pub muted: bool,
     pub levels: [u8; 5],
+    #[serde(default = "default_reactions")]
+    pub reactions: u8,
+}
+fn default_reactions() -> u8 {
+    60
 }
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: 2,
             muted: false,
             levels: [40, 30, 55, 65, 70],
+            reactions: default_reactions(),
         }
     }
 }
@@ -43,40 +49,28 @@ impl Settings {
         if bytes.len() > 4096 {
             return Err("Sound settings exceed 4 KiB".into());
         }
-        let value: Self = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        if value.version != 1 || value.levels.iter().any(|v| *v > 100) {
+        let mut value: Self = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        if ![1, 2].contains(&value.version)
+            || value.levels.iter().any(|v| *v > 100)
+            || value.reactions > 100
+        {
             return Err("Unsupported or invalid sound settings".into());
         }
+        value.version = 2;
         Ok(value)
     }
     fn save(self, path: &Path) -> Result<(), String> {
-        use std::io::Write;
         let directory = path.parent().ok_or("Settings directory missing")?;
-        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
-        let temp = directory.join(format!(
-            "sound-settings-{}-{}.tmp",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos()
-        ));
-        let result = (|| {
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp)
-                .map_err(|e| e.to_string())?;
-            file.write_all(&serde_json::to_vec_pretty(&self).map_err(|e| e.to_string())?)
-                .map_err(|e| e.to_string())?;
-            file.sync_all().map_err(|e| e.to_string())?;
-            drop(file);
-            std::fs::rename(&temp, path).map_err(|e| e.to_string())
-        })();
-        if result.is_err() {
-            let _ = std::fs::remove_file(temp);
-        }
-        result
+        let store = crate::save_store::SaveStore::new(directory.into());
+        store.check_directory(true).map_err(|e| e.to_string())?;
+        let _lock = crate::save_store::SaveLock::acquire(directory).map_err(|e| e.to_string())?;
+        let mut staged = crate::save_store::StagedFile::write(
+            directory,
+            "sound",
+            &serde_json::to_vec_pretty(&self).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        staged.replace(path).map_err(|e| e.to_string())
     }
 }
 #[derive(Resource)]
@@ -84,6 +78,7 @@ pub(crate) struct SoundSettings {
     pub value: Settings,
     pub notice: String,
     pub test_requested: bool,
+    pub restart_requested: bool,
     path: Option<PathBuf>,
     status: Arc<Mutex<String>>,
 }
@@ -105,6 +100,7 @@ impl SoundSettings {
             value,
             notice,
             test_requested: false,
+            restart_requested: false,
             path,
             status: Arc::new(Mutex::new(status.into())),
         }
@@ -128,13 +124,13 @@ enum Message {
     State(MixState),
     Cue(Cue),
     Quit,
+    Restart,
 }
 #[derive(Resource)]
 struct Output {
     sender: Option<SyncSender<Message>>,
     worker: Option<JoinHandle<()>>,
     last: Option<MixState>,
-    observed: Option<(u64, usize, u64, usize, String)>,
     cooldown: f32,
 }
 impl Drop for Output {
@@ -184,7 +180,6 @@ pub(crate) fn configure(app: &mut App, args: &[std::ffi::OsString]) {
                     sender: Some(sender),
                     worker: Some(worker),
                     last: None,
-                    observed: None,
                     cooldown: 0.0,
                 });
             }
@@ -196,21 +191,102 @@ pub(crate) fn configure(app: &mut App, args: &[std::ffi::OsString]) {
         }
     }
     app.insert_resource(settings)
+        .init_resource::<Feedback>()
+        .add_systems(Startup, setup_captions)
         .add_systems(Update, update.after(crate::ui::refresh));
 }
+type FeedbackResources<'w, 's> = (
+    ResMut<'w, Feedback>,
+    Option<Res<'w, crate::accessibility::Preferences>>,
+    Query<'w, 's, (&'static mut Text, &'static mut Node), With<Caption>>,
+);
+type DeviceInputs<'w, 's> = (
+    Query<'w, 's, &'static Window, With<bevy::window::PrimaryWindow>>,
+    Query<'w, 's, &'static Interaction, (Changed<Interaction>, With<Button>)>,
+);
 fn update(
     sim: Res<Simulation>,
     view: Res<ViewState>,
     mut settings: ResMut<SoundSettings>,
     time: Res<Time>,
-    window: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    buttons: Query<&Interaction, (Changed<Interaction>, With<Button>)>,
+    inputs: DeviceInputs<'_, '_>,
     output: Option<ResMut<Output>>,
+    feedback_resources: FeedbackResources<'_, '_>,
 ) {
+    let (window, buttons) = inputs;
+    let (mut feedback, preferences, mut captions) = feedback_resources;
     let test = std::mem::take(&mut settings.test_requested);
+    feedback.remaining = (feedback.remaining - time.delta_secs()).max(0.0);
+    let snapshot = (
+        view.park_generation,
+        sim.0.objects().len(),
+        sim.0.all_rides().map(|r| r.completed).sum::<u64>(),
+        sim.0
+            .all_rides()
+            .filter(|r| sim.0.ride_is_open(r.id))
+            .count(),
+        view.save_notice.clone(),
+        view.successful_saves,
+        sim.0.park_life_status().resolved,
+    );
+    let cue = feedback.last.as_ref().and_then(|old| {
+        if old.0 != snapshot.0 {
+            return None;
+        }
+        if old.1 < snapshot.1 {
+            Some((Cue::Build, "Construction completed"))
+        } else if old.1 > snapshot.1 {
+            Some((Cue::Remove, "Object removed"))
+        } else if old.3 > snapshot.3 {
+            Some((Cue::Alert, "A ride closed. Check ride operations"))
+        } else if old.4 != snapshot.4 && snapshot.4.to_lowercase().contains("failed") {
+            Some((Cue::Alert, "Save failed. Check the park menu"))
+        } else if old.5 != snapshot.5 {
+            Some((Cue::Sale, "Park saved"))
+        } else if old.6 < snapshot.6 {
+            Some((Cue::Staff, "Staff resolved a park incident"))
+        } else if old.2 < snapshot.2 && feedback.remaining == 0.0 {
+            Some((Cue::Cheer, "Guests completed a ride"))
+        } else {
+            None
+        }
+    });
+    feedback.last = Some(snapshot);
+    if let Some((_, caption)) = cue {
+        feedback.caption = caption.into();
+        feedback.remaining = 3.0;
+    }
+    for (mut label, mut node) in &mut captions {
+        label.0 =
+            if preferences.as_ref().is_none_or(|p| p.value.captions) && feedback.remaining > 0.0 {
+                feedback.caption.clone()
+            } else {
+                String::new()
+            };
+        node.display = if label.0.is_empty() {
+            Display::None
+        } else {
+            Display::Flex
+        };
+    }
     let Some(mut out) = output else {
         return;
     };
+    if settings.restart_requested
+        && out
+            .sender
+            .as_ref()
+            .is_some_and(|sender| sender.try_send(Message::Restart).is_ok())
+    {
+        settings.restart_requested = false;
+    }
+    if let Some((cue, _)) = cue
+        && !view.front_modal
+        && !view.capture_active
+        && let Some(sender) = &out.sender
+    {
+        let _ = sender.try_send(Message::Cue(cue));
+    }
     let focused = window.iter().next().is_none_or(|w| w.focused);
     let camera =
         view.pan + Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
@@ -277,6 +353,7 @@ fn update(
         carousel: running_carousel.is_some(),
         carousel_pan,
         carousel_presence,
+        rain: sim.0.park_life_status().weather == park_sim::Weather::Rain,
     };
     if out.last != Some(state)
         && out
@@ -286,57 +363,50 @@ fn update(
     {
         out.last = Some(state);
     }
-    let snapshot = (
-        sim.0.ticks(),
-        sim.0.objects().len(),
-        sim.0.all_rides().map(|r| r.revenue_cents).sum::<u64>()
-            + sim
-                .0
-                .services()
-                .iter()
-                .map(|s| s.revenue_cents)
-                .sum::<u64>(),
-        sim.0
-            .all_rides()
-            .filter(|r| sim.0.ride_is_open(r.id))
-            .count(),
-        view.save_notice.clone(),
-    );
     out.cooldown = (out.cooldown - time.delta_secs()).max(0.0);
-    if focused && !view.capture_active {
-        let mut cue = buttons
-            .iter()
-            .any(|i| *i == Interaction::Pressed)
-            .then_some(Cue::Click);
-        if test {
-            cue = Some(Cue::Build);
-        }
-        if let Some(old) = &out.observed {
-            if snapshot.0 >= old.0 {
-                if snapshot.1 > old.1 {
-                    cue = Some(Cue::Build);
-                } else if snapshot.1 < old.1 {
-                    cue = Some(Cue::Remove);
-                } else if snapshot.3 < old.3 {
-                    cue = Some(Cue::Alert);
-                } else if snapshot.2 > old.2 && out.cooldown == 0.0 {
-                    cue = Some(Cue::Sale);
-                }
-            }
-            if snapshot.4 != old.4 && snapshot.4.to_lowercase().contains("failed") {
-                cue = Some(Cue::Alert);
-            }
-        }
-        if let Some(c) = cue {
-            if let Some(s) = &out.sender {
-                let _ = s.try_send(Message::Cue(c));
-            }
-            if c == Cue::Sale {
-                out.cooldown = 0.4;
-            }
+    if focused && !view.capture_active && cue.is_none() {
+        let cue = if test {
+            Some(Cue::Build)
+        } else if buttons.iter().any(|i| *i == Interaction::Pressed) && out.cooldown == 0.0 {
+            Some(Cue::Click)
+        } else {
+            None
+        };
+        if let Some(cue) = cue
+            && let Some(sender) = &out.sender
+        {
+            let _ = sender.try_send(Message::Cue(cue));
+            out.cooldown = 0.12;
         }
     }
-    out.observed = Some(snapshot);
+}
+#[derive(Resource, Default)]
+struct Feedback {
+    last: Option<(u64, usize, u64, usize, String, u64, u64)>,
+    caption: String,
+    remaining: f32,
+}
+#[derive(Component)]
+struct Caption;
+fn setup_captions(mut commands: Commands) {
+    commands.spawn((
+        Caption,
+        Text::new(""),
+        TextFont {
+            font_size: 16.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            left: percent(30),
+            top: px(78),
+            padding: UiRect::all(px(4)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+        GlobalZIndex(45),
+    ));
 }
 pub(crate) fn run(args: &[std::ffi::OsString]) -> Option<AppExit> {
     proof::run(args)

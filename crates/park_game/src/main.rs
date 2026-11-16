@@ -1,8 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod access_planning;
+mod accessibility;
 mod benchmark;
 mod capture;
+mod onboarding;
 #[cfg(test)]
 mod legacy_cost_test_support {
     include!(concat!(
@@ -169,6 +171,8 @@ struct ViewState {
     terrain_error: Option<String>,
     capture_active: bool,
     front_modal: bool,
+    accessibility_open: bool,
+    tutorial_requested: bool,
     front_request_menu: bool,
     front_request_settings: bool,
     navigation_open: bool,
@@ -185,6 +189,7 @@ struct ViewState {
     price_notice: Option<String>,
     save_pending: Option<SaveAction>,
     save_notice: String,
+    successful_saves: u64,
     diagnostic_case: Option<park_sim::diagnostics::DiagnosticCase>,
     camera_span: f32,
     pan_limit: Vec2,
@@ -287,6 +292,8 @@ impl Default for ViewState {
             terrain_error: None,
             capture_active: false,
             front_modal: false,
+            accessibility_open: false,
+            tutorial_requested: false,
             front_request_menu: false,
             front_request_settings: false,
             navigation_open: false,
@@ -302,6 +309,7 @@ impl Default for ViewState {
             price_delta_pending: 0,
             price_notice: None,
             save_pending: None,
+            successful_saves: 0,
             save_notice: "F5 save / F9 load\nShift+F9 loads backup".into(),
             diagnostic_case: None,
             camera_span: 1.0,
@@ -373,7 +381,8 @@ impl ViewState {
     }
 
     fn edits_blocked(&self) -> bool {
-        self.front_modal
+        self.accessibility_open
+            || self.front_modal
             || self.navigation_open
             || self.help
             || self.guests_open
@@ -567,6 +576,9 @@ fn main() -> AppExit {
             return AppExit::error();
         }
     };
+    if let Some(result) = accessibility::run_check(&arguments) {
+        return result;
+    }
     if let Some(result) = sound::run(&arguments) {
         return result;
     }
@@ -817,6 +829,8 @@ fn main() -> AppExit {
     if let Some(scene) = render_scene {
         app.insert_resource(scene);
     }
+    accessibility::configure(&mut app, &arguments);
+    onboarding::configure(&mut app);
     capture::configure(&mut app);
     sound::configure(&mut app, &arguments);
     if let Err(error) = frame_probe::configure(&mut app, &arguments) {
@@ -1100,7 +1114,7 @@ fn keyboard_input(
     // UI transitions are gathered first; neither their closing click nor a
     // simultaneous keyboard command may reach controls under the modal.
     view.modal_input_blocked = std::mem::take(&mut view.modal_transition_pending);
-    if view.capture_active || view.front_modal {
+    if view.accessibility_open || view.capture_active || view.front_modal {
         return;
     }
     if view.modal_input_blocked {
@@ -1769,7 +1783,7 @@ fn pointer_input(
             MouseScrollUnit::Pixel => event.y / 60.0,
         })
         .sum();
-    if view.capture_active || view.front_modal {
+    if view.accessibility_open || view.capture_active || view.front_modal {
         view.hovered = None;
         *previous_cursor = None;
         return;
@@ -1968,9 +1982,13 @@ fn update_scene(
     mut scene: ResMut<SceneMeshes>,
     assets: SceneAssets,
     mut last_selection: Local<Option<SelectionSnapshot>>,
-    mut last_guests: Local<Option<(u64, u8, world::ViewMode)>>,
-    mut probe: Option<ResMut<frame_probe::Probe>>,
+    mut last_guests: Local<Option<(u64, u8, world::ViewMode, bool)>>,
+    diagnostics: (
+        Option<Res<accessibility::Preferences>>,
+        Option<ResMut<frame_probe::Probe>>,
+    ),
 ) {
+    let (preferences, mut probe) = diagnostics;
     let SceneAssets {
         mut commands,
         mut meshes,
@@ -2039,11 +2057,13 @@ fn update_scene(
         }
         *last_selection = Some(selection);
     }
-    let guest_snapshot = (sim.0.ticks(), view.rotation, view.view_mode);
+    let reduced_motion = preferences.as_ref().is_some_and(|p| p.value.reduced_motion);
+    let guest_snapshot = (sim.0.ticks(), view.rotation, view.view_mode, reduced_motion);
     let dynamic_rebuild =
         terrain_changed || sim.is_changed() || *last_guests != Some(guest_snapshot);
     if dynamic_rebuild {
         let scene = &mut *scene;
+        scene.guest_renderer.reduced_motion = reduced_motion;
         if let Some(mesh) = meshes.get_mut(&scene.guests) {
             scene
                 .guest_renderer

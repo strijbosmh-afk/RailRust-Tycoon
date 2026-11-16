@@ -1,12 +1,13 @@
 //! Production export/restart proof. Audio checks never touch player park slots.
 use super::*;
 use std::{ffi::OsString, fs, io::Read};
-const CLIPS: [(&str, usize, Option<usize>); 5] = [
+const CLIPS: [(&str, usize, Option<usize>); 6] = [
     ("parkbound-mix.wav", 40, None),
     ("meadow-theme.wav", 8, Some(1)),
     ("park-ambience.wav", 8, Some(2)),
     ("ride-effects.wav", 8, Some(3)),
     ("interface-cues.wav", 3, Some(4)),
+    ("evening-and-reactions.wav", 8, Some(5)),
 ];
 fn demo(seconds: usize, bus: Option<usize>) -> Vec<u8> {
     let mut mixer = Mixer::default();
@@ -17,11 +18,27 @@ fn demo(seconds: usize, bus: Option<usize>) -> Vec<u8> {
     if let Some(bus) = bus {
         mixer.state.settings.levels = [0; 5];
         mixer.state.settings.levels[0] = 50;
-        mixer.state.settings.levels[bus] = 70;
+        if bus < 5 {
+            mixer.state.settings.levels[bus] = 70;
+        } else {
+            mixer.state.settings.levels[1] = 40;
+            mixer.state.settings.reactions = 70;
+        }
     }
     let mut pcm = Vec::new();
+    if bus == Some(5) {
+        mixer.skip_to_evening();
+    }
     for second in 0..seconds {
-        mixer.cue([Cue::Click, Cue::Build, Cue::Remove, Cue::Sale, Cue::Alert][second % 5]);
+        mixer.cue(if bus == Some(5) {
+            if second % 2 == 0 {
+                Cue::Cheer
+            } else {
+                Cue::Staff
+            }
+        } else {
+            [Cue::Click, Cue::Build, Cue::Remove, Cue::Sale, Cue::Alert][second % 5]
+        });
         pcm.extend(mixer.render(synth::RATE as usize));
     }
     synth::wav(&pcm)
@@ -135,7 +152,7 @@ fn verify(directory: &Path) -> Result<(), String> {
             return Err(format!("Original PCM restart differs: {name}"));
         }
     }
-    fs::write(directory.join("verification-sound.txt"),"PASS: actual UI levels/mute, bounded strict settings, independent park bytes, five exact original WAV re-renders after fresh restart.\n").map_err(|e|e.to_string())
+    fs::write(directory.join("verification-sound.txt"),"PASS: actual UI levels/mute, bounded strict settings, independent park bytes, six exact original WAV re-renders after fresh restart.\n").map_err(|e|e.to_string())
 }
 pub(super) fn run(args: &[OsString]) -> Option<AppExit> {
     let flags: Vec<_> = args
@@ -204,13 +221,32 @@ mod tests {
         fs::remove_dir_all(p).unwrap();
     }
     #[test]
+    fn version_one_audio_settings_migrate_with_reaction_defaults() {
+        let p = directory();
+        fs::create_dir_all(&p).unwrap();
+        let file = p.join("sound-settings.json");
+        fs::write(
+            &file,
+            r#"{"version":1,"muted":true,"levels":[20,30,40,50,60]}"#,
+        )
+        .unwrap();
+        let s = Settings::read(&file).unwrap();
+        assert_eq!(s.version, 2);
+        assert_eq!(s.reactions, 60);
+        assert!(s.muted);
+        assert_eq!(s.levels, [20, 30, 40, 50, 60]);
+        s.save(&file).unwrap();
+        assert_eq!(Settings::read(&file).unwrap(), s);
+        fs::remove_dir_all(p).unwrap();
+    }
+    #[test]
     fn strict_bounded_settings_refuse_unknown_versions_values_fields_and_preserve_existing_files_on_failed_replace()
      {
         let p = directory();
         fs::create_dir_all(&p).unwrap();
         let file = p.join("settings.json");
         for bad in [
-            r#"{"version":2,"muted":false,"levels":[40,30,55,65,70]}"#.to_string(),
+            r#"{"version":3,"muted":false,"levels":[40,30,55,65,70]}"#.to_string(),
             r#"{"version":1,"muted":false,"levels":[101,30,55,65,70]}"#.into(),
             r#"{"version":1,"muted":false,"levels":[40,30,55,65,70],"x":1}"#.into(),
             " ".repeat(4097),

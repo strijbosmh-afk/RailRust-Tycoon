@@ -66,6 +66,7 @@ mod visitor_scenes;
 
 #[derive(Clone, Copy)]
 enum Scene {
+    Accessibility,
     ScenarioEditor,
     ScenarioLibrary,
     Management,
@@ -765,6 +766,7 @@ pub(super) fn configure(app: &mut App) {
         .position(|value| value == "--capture-scene")
         .map(
             |index| match arguments.get(index + 1).and_then(|value| value.to_str()) {
+                Some("accessibility") => Scene::Accessibility,
                 Some("scenario-editor") => Scene::ScenarioEditor,
                 Some("scenario-library") => Scene::ScenarioLibrary,
                 Some("management") => Scene::Management,
@@ -1215,6 +1217,7 @@ fn apply_preset(
 ) {
     let (library, mut sound, mut guest_history, mut campaign, workshop) = resources;
     view.capture_active = true;
+    view.accessibility_open = matches!(capture.scene, Scene::Accessibility);
     view.set_speed(Speed::Paused);
     // These controlled scenes build their own stopped, waiting or paid state.
     // Generic pre-roll would start the demonstration train before its closed

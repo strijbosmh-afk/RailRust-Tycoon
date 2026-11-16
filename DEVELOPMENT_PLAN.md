@@ -474,3 +474,7 @@ The [visitor trends and triage report](docs/VISITOR_TRENDS_TRIAGE_REPORT.md) rec
 ## Visitor wellness and Rest facilities — 0.51.0
 
 The [visitor wellness report](docs/VISITOR_WELLNESS_REPORT.md) records fixed-tick energy and nausea, ride-choice gating, and a buildable Rest facility with path access, pricing, upkeep, supplies, demolition refund and two-need relief. Guest inspection, triage and park statistics show the new condition. Strict save schema/content advances to 25/25 with explicit older-version defaults and field-shape rejection. Next add bounded guest assistance and fuller service decisions, then staff and maintenance as separate stages. This PC remains excluded as a performance reference.
+
+## Phase 10 — 0.89.0
+
+Sound, onboarding, controls and accessibility are implemented together in the player flow. See `docs/PHASE_10_PLAYER_GUIDE.md` and `docs/PHASE_10_VERIFICATION.md`. Phase 11 covers beta balance, sustained playtests and representative-hardware measurements.

@@ -15,3 +15,7 @@ Run `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targ
 For project registration on that PC, read the current Softwareprojecten standard prompt and local `ONBOARDING.md`, verify the existing GitHub and private Drive destinations, then use `node onboarding.mjs --project PATH --apply`. The helper installation lives in `%USERPROFILE%\.codex\softwareprojecten`. Review native hook trust on that PC. Automatic export is established only after its native Stop event, local export and accepted Drive readback receipt.
 
 The current shared OneDrive path is recorded in `RESUME_DEVELOPMENT.md`. Register the actual Git root on each PC rather than assuming an identical drive path.
+
+## Phase 10 preferences
+
+Version 0.89.0 adds `accessibility-settings.json` and sound-settings version 2 in the selected save directory. Older sound preferences migrate when read and are rewritten when the user changes a control. The dependency/toolchain requirements are unchanged. Run `Parkbound.exe --accessibility-check ABSOLUTE_NEW_DIRECTORY` and then `--verify-accessibility SAME_DIRECTORY` for independent-process preference verification.

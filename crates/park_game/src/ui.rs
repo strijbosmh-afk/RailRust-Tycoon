@@ -91,12 +91,12 @@ pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
 #[cfg(test)]
 pub(super) const PATH_PANEL_HEIGHT: f32 = 358.0;
 
-const INK: Color = Color::srgb_u8(30, 62, 53);
-const MUTED: Color = Color::srgb_u8(91, 109, 95);
-const PAPER: Color = Color::srgb_u8(248, 248, 237);
+pub(crate) const INK: Color = Color::srgb_u8(30, 62, 53);
+pub(crate) const MUTED: Color = Color::srgb_u8(91, 109, 95);
+pub(crate) const PAPER: Color = Color::srgb_u8(248, 248, 237);
 const BORDER: Color = Color::srgb_u8(211, 219, 205);
 const GOLD: Color = Color::srgb_u8(245, 194, 89);
-const BUTTON: Color = Color::srgb_u8(230, 235, 221);
+pub(crate) const BUTTON: Color = Color::srgb_u8(230, 235, 221);
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
@@ -181,6 +181,8 @@ pub(super) enum Action {
     Sound,
     Help,
     CloseHelp,
+    Accessibility,
+    ReplayGuide,
 }
 
 #[derive(Component)]
@@ -239,7 +241,7 @@ pub(crate) fn adapt_header(
     }
 }
 
-fn label(parent: &mut ChildSpawnerCommands, text: &str, size: f32, color: Color) {
+pub(crate) fn label(parent: &mut ChildSpawnerCommands, text: &str, size: f32, color: Color) {
     parent.spawn((
         Text::new(text),
         TextFont {
@@ -268,7 +270,7 @@ fn dynamic_label(
     ));
 }
 
-fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: f32) {
+pub(crate) fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: f32) {
     parent
         .spawn((
             Button,
@@ -296,7 +298,7 @@ fn button(parent: &mut ChildSpawnerCommands, text: &str, action: Action, width: 
         });
 }
 
-fn row() -> Node {
+pub(crate) fn row() -> Node {
     Node {
         flex_direction: FlexDirection::Row,
         column_gap: px(7),
@@ -780,6 +782,7 @@ pub(super) fn setup(mut commands: Commands) {
             ))
             .with_children(|p| {
                 label(p, "Make yourself at home", 23.0, INK);
+                label(p,"Paths join at matching edge heights. A queue needs one public entry and a ride entrance.\nRides → Access explains missing connections. Coaster tools show the next height before placement.\nChoose slope up/down, then Add next. Close the circuit, test it, and follow opening checks.\nFacilities need a public path and stock. Staff need reachable work. Save before major changes.\nShortcuts below are defaults. Controls & accessibility shows your saved key assignments.",12.0,INK);
                 label(
                     p,
                     &format!(
@@ -832,6 +835,8 @@ pub(super) fn setup(mut commands: Commands) {
                 p.spawn(row()).with_children(|p|{
                     button(p, "Back to the park", Action::CloseHelp, 180.0);
                     button(p,"Sound [F10]",Action::Sound,160.0);
+                    button(p,"Accessibility",Action::Accessibility,180.0);
+                    button(p,"First park guide",Action::ReplayGuide,180.0);
                 });
             });
         });
@@ -862,7 +867,22 @@ pub(super) fn button_actions(
     // Consume that press so it cannot also select the landscape beneath it.
     view.ui_pointer_consumed = false;
     view.modal_input_blocked = false;
-    if view.capture_active || view.front_modal {
+    if view.accessibility_open || view.capture_active || view.front_modal {
+        return;
+    }
+    if let Some(action) = interactions.iter().find_map(|(i, a)| {
+        (*i == Interaction::Pressed && matches!(a, Action::Accessibility | Action::ReplayGuide))
+            .then_some(*a)
+    }) {
+        view.ui_pointer_consumed = true;
+        match action {
+            Action::Accessibility => view.accessibility_open = true,
+            Action::ReplayGuide => {
+                view.set_modal(false, false, false, false);
+                view.tutorial_requested = true;
+            }
+            _ => {}
+        }
         return;
     }
     if view.navigation_open {
@@ -1509,6 +1529,7 @@ pub(super) fn button_actions(
                 view.audio_view = false;
                 view.help = !view.help;
             }
+            Action::Accessibility | Action::ReplayGuide => {}
             Action::CloseHelp => view.help = false,
         }
     }

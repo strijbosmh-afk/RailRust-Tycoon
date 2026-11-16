@@ -71,7 +71,8 @@ pub(super) fn apply_save_action(
     let Some(action) = view.save_pending.take() else {
         return;
     };
-    if view.help
+    if view.accessibility_open
+        || view.help
         || view.guests_open
         || view.services_open
         || view.finance_open
@@ -105,6 +106,7 @@ pub(super) fn perform_action(
     if action == SaveAction::Save {
         return match store.save(park) {
             Ok(()) => {
+                view.successful_saves = view.successful_saves.wrapping_add(1);
                 let seconds = park.elapsed_seconds();
                 view.save_notice = format!(
                     "Saved at {:02}:{:02}\nF9 loads this park",

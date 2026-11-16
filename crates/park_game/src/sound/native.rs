@@ -128,43 +128,66 @@ impl Drop for Device {
     }
 }
 pub(super) fn stream(receiver: Receiver<Message>, status: Arc<Mutex<String>>) {
-    let result = (|| -> Result<(), String> {
-        let mut device = Device::open()?;
-        let mut mixer = Mixer::default();
-        mixer.state.focused = false;
+    let mut mixer = Mixer::default();
+    mixer.state.focused = false;
+    loop {
+        if let Ok(mut value) = status.lock() {
+            *value = "Opening audio device...".into();
+        }
+        let result = play(&receiver, &status, &mut mixer);
+        if matches!(result, Ok(true)) {
+            return;
+        }
+        if let Ok(mut value) = status.lock() {
+            *value = format!(
+                "{} Retrying audio in two seconds.",
+                result.err().unwrap_or_default()
+            );
+        }
+        let until = std::time::Instant::now() + Duration::from_secs(2);
+        while std::time::Instant::now() < until {
+            match receiver.recv_timeout(Duration::from_millis(50)) {
+                Ok(Message::Quit) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+                Ok(Message::State(state)) => mixer.state = state,
+                Ok(Message::Cue(_))
+                | Ok(Message::Restart)
+                | Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            }
+        }
+    }
+}
+fn play(
+    receiver: &Receiver<Message>,
+    status: &Mutex<String>,
+    mixer: &mut Mixer,
+) -> Result<bool, String> {
+    let mut device = Device::open()?;
+    for index in 0..3 {
+        device.fill(index, mixer)?;
+    }
+    if let Ok(mut value) = status.lock() {
+        *value = "Playing original PCM sound / 44.1 kHz stereo".into();
+    }
+    let mut progress = std::time::Instant::now();
+    loop {
         for index in 0..3 {
-            device.fill(index, &mut mixer)?;
-        }
-        if let Ok(mut s) = status.lock() {
-            *s = "Playing original PCM sound / 44.1 kHz stereo".into();
-        }
-        loop {
-            while let Ok(message) = receiver.try_recv() {
-                match message {
-                    Message::State(state) => mixer.state = state,
-                    Message::Cue(c) => mixer.cue(c),
-                    Message::Quit => return Ok(()),
-                }
-            }
-            for i in 0..3 {
-                if device.done(i) {
-                    device.fill(i, &mut mixer)?;
-                }
-            }
-            match receiver.recv_timeout(Duration::from_millis(5)) {
-                Ok(Message::State(s)) => mixer.state = s,
-                Ok(Message::Cue(c)) => mixer.cue(c),
-                Ok(Message::Quit) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    return Ok(());
-                }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            if device.done(index) {
+                device.fill(index, mixer)?;
+                progress = std::time::Instant::now();
             }
         }
-    })();
-    if let Err(error) = result
-        && let Ok(mut s) = status.lock()
-    {
-        *s = error;
+        if progress.elapsed() > Duration::from_secs(3) {
+            return Err("Audio device stopped returning buffers.".into());
+        }
+        match receiver.recv_timeout(Duration::from_millis(5)) {
+            Ok(Message::State(state)) => mixer.state = state,
+            Ok(Message::Cue(cue)) => mixer.cue(cue),
+            Ok(Message::Restart) => return Ok(false),
+            Ok(Message::Quit) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Ok(true);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
     }
 }
 pub(super) fn device_check() -> Result<(), String> {

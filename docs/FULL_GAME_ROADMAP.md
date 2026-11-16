@@ -153,13 +153,15 @@ Version 0.87.0 meets this gate with twelve funded research projects, the fourtee
 
 Version 0.88.0 meets the Phase 9 implementation gate with six scenarios, persistent progression, configurable sandbox starts, ten objective metrics and portable scenario authoring. Windows production checks complete the campaign, test custom success and failure, import into a clean profile and verify exact continuation. See [the Phase 9 guide](PHASE_9_CAMPAIGN_AND_EDITORS.md) and [resume section 57](../RESUME_DEVELOPMENT.md#57-phase-9-campaign-sandbox-and-editors--0880).
 
-## 10. Sound, onboarding, controls, and accessibility
+## 10. Sound, onboarding, controls, and accessibility — implemented in 0.89.0
 
 1. Expand the original soundtrack, ambience, ride/vehicle sounds, guest/staff reactions and alerts with individual volume controls, device recovery and fatigue-safe mixing. Credits must identify every shipped asset and license.
 2. Add a short guided first park, contextual build/access/coaster help, clear error explanations and an in-game reference. Tutorials use the actual controls and can be skipped or replayed.
 3. Add keyboard focus and navigation across title/park menus, remappable gameplay shortcuts, readable scaling, high-contrast/non-color-only states, captions for meaningful audio cues, and adjustable motion/effect settings.
 
 **Gate:** a new player can start, build a ride with a valid queue, attract guests, save, and resume without external instructions. The agreed accessibility checklist passes in normal play and on the display matrix.
+
+Version 0.89.0 implements the guide, original audio expansion, saved controls, keyboard focus, captions and contrast/motion preferences. The [player guide](PHASE_10_PLAYER_GUIDE.md) and [verification record](PHASE_10_VERIFICATION.md) cover the delivered behavior and checks. Independent new-player sessions and extended hardware/audio testing continue in Phase 11.
 
 ## 11. Beta, balance, and performance
 
@@ -184,5 +186,5 @@ Version 0.88.0 meets the Phase 9 implementation gate with six scenarios, persist
 Use one branch/PR per bounded slice. Record the precise user flow, affected saves/content IDs, visual captures, and acceptance result in its report and in `RESUME_DEVELOPMENT.md`. Keep a playable package at each checkpoint. For simulation changes, verify deterministic continuation and old-save migration. For interface/art changes, inspect native input and captures at more than one display size. The Windows CI and a clean-PC playthrough remain independent of this development PC's speed.
 
 1. Complete the requested Codex Cloud handoff using the verified source and Windows package.
-2. Begin Phase 10 sound, onboarding, controls and accessibility.
+2. Begin Phase 11 beta, balance and representative-hardware validation.
 3. Retain campaign, editor, finance, stock, research, old-save and input checks.
