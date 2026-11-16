@@ -2,7 +2,7 @@
 
 ## Current checkpoint — Phase 11 beta tools, 0.90.0
 
-Continue on `codex/phase-11-beta-stability` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. This work is based on Phase 10 commit `3cecab22fe24aa6063ff4cb9d8b0dc53e3bfd07d` in PR 81. Version 0.90.0 adds the Operations page, four current-content beta fixtures, long-run save/backup/accounting checks, separate-process replay and balance reports. Current results are recorded in `docs/PHASE_11_VERIFICATION.md`. Hardware and independent-player acceptance remain open.
+Continue on `codex/phase-11-beta-stability` from the existing GitHub repository `https://github.com/strijbosmh-afk/RailRust-Tycoon`. This work is based on Phase 10 commit `3cecab22fe24aa6063ff4cb9d8b0dc53e3bfd07d` in PR 81. Runtime `3f3bf6da1ff57b861ad4d6bb1358a144dfd4e97a` is published in PR 82. Version 0.90.0 adds the Operations page, four current-content beta fixtures, long-run save/backup/accounting checks, separate-process replay and balance reports. All 1,029 tests, the 70-step Windows build/gameplay job and all four one-hour endurance cases pass. The 0.90.0 ZIP is in `dist/`. Exact source, executable and endurance identities are recorded in `docs/PHASE_11_VERIFICATION.md`. Hardware and independent-player acceptance remain open.
 
 The active shared OneDrive checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Preserve the other historical PC paths below. Fetch and verify branch/commit before resuming. This PC supplies correctness evidence only.
 

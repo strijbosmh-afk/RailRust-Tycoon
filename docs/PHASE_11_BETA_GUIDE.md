@@ -34,6 +34,8 @@ The mixed fixtures retain the existing catalogue showcase's recorded historical 
 
 The report's simulation timings cover the uninterrupted production ticks. Save and load durations are separate. Memory is sampled every 200 ms. These values describe the machine that ran the test.
 
+Ride choice and staff job ranking share one path-distance traversal for each decision. Destination scores, route lengths and stable identity tie-breaking retain their existing behavior. The beta suite verifies saved continuation across this optimization.
+
 ## Measure rendering separately
 
 The same case names work in the CPU and rendering tools. Existing `baseline`, `save-scale` and synthetic `stress` cases remain available for historical comparisons. The synthetic 5,000-guest case exceeds the 512-guest save limit and the 256-active-arrival limit.
