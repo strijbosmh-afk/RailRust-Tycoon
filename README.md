@@ -1,5 +1,8 @@
 # Parkbound
 
+Version **0.93.0** improves the rides' classic isometric graphics: shaped gondolas, open cups, wooden ship hull, carousel horses, structural bracing, train details and station/track trim. See [the ride graphics guide](docs/RIDE_GRAPHICS_GUIDE.md). Saves remain 51/51.
+
+
 **0.92.0 classic graphics** adds an illustrated opening screen with live menu controls, licensed embedded typography, detailed oak foliage, richer services and rides, and expanded visitor detail. Read the [graphics guide](docs/CLASSIC_GRAPHICS_GUIDE.md) for the selected direction and controls.
 
 **Play Sunhaven Gardens** from the title screen in **0.91.0**. The landscaped demo has seven working rides, eight facilities, five staff roles, connected queues and exits, a lake and flower gardens. Build freely, manage prices and save your visit as an independent park. See the [demo park guide](docs/DEMO_PARK_GUIDE.md).

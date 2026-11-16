@@ -1,5 +1,6 @@
 //! Original catalogue models. All surfaces participate in physical depth and picking.
 use super::carousel_render::{at, cuboid, face, nominal};
+use super::ride_detail::{lathe, shell, tube};
 use super::*;
 use park_sim::{CarouselRide, RideModel};
 type Face = service_render::Face;
@@ -29,67 +30,6 @@ const GLASS: [Ink; 3] = [
     [0.10, 0.40, 0.57, 1.0],
 ];
 
-fn cylinder(
-    faces: &mut Vec<Face>,
-    center: Vec3,
-    radius: f32,
-    height: f32,
-    colors: [Ink; 3],
-    size: u32,
-    rotation: u8,
-) {
-    for i in 0..24 {
-        let a = i as f32 * std::f32::consts::TAU / 24.0;
-        let b = (i + 1) as f32 * std::f32::consts::TAU / 24.0;
-        let p = center + Vec3::new(a.cos() * radius, a.sin() * radius, 0.0);
-        let q = center + Vec3::new(b.cos() * radius, b.sin() * radius, 0.0);
-        face(
-            faces,
-            [p, q, q + Vec3::Z * height, p + Vec3::Z * height],
-            colors[1 + i % 2],
-            size,
-            rotation,
-        );
-        face(
-            faces,
-            [
-                center + Vec3::Z * height,
-                p + Vec3::Z * height,
-                q + Vec3::Z * height,
-                center + Vec3::Z * height,
-            ],
-            colors[0],
-            size,
-            rotation,
-        );
-    }
-}
-fn beam(faces: &mut Vec<Face>, a: Vec3, b: Vec3, width: f32, ink: Ink, size: u32, rotation: u8) {
-    face(
-        faces,
-        [
-            a - Vec3::X * width,
-            b - Vec3::X * width,
-            b + Vec3::X * width,
-            a + Vec3::X * width,
-        ],
-        ink,
-        size,
-        rotation,
-    );
-    face(
-        faces,
-        [
-            a - Vec3::Y * width,
-            b - Vec3::Y * width,
-            b + Vec3::Y * width,
-            a + Vec3::Y * width,
-        ],
-        ink,
-        size,
-        rotation,
-    );
-}
 fn transform_faces(
     mut faces: Vec<Face>,
     origin: TilePos,
@@ -216,40 +156,40 @@ pub(super) fn static_faces(
     }
     match model {
         RideModel::FerrisWheel => {
+            let pivot = center + Vec3::Z * 5.55;
             for y in [0.45, 1.55] {
                 for x in [0.65, 3.35] {
-                    local_panel(
+                    let base = Vec3::new(x, y, z + 0.18);
+                    tube(&mut out, base, Vec3::new(2.0, y, z + 5.55), 0.065, RED);
+                    shell(
                         &mut out,
-                        [
-                            Vec3::new(x - 0.10, y, z + 0.2),
-                            Vec3::new(x + 0.10, y, z + 0.2),
-                            Vec3::new(2.1, y, z + 5.6),
-                            Vec3::new(1.9, y, z + 5.6),
-                        ],
-                        RED[1],
+                        base,
+                        &[(0.21, 0.18, 0.0), (0.21, 0.18, 0.16)],
+                        0.04,
+                        GOLD,
                     );
                 }
-                local_box(
+                tube(
                     &mut out,
-                    Vec3::new(1.85, y - 0.08, z + 5.40),
-                    Vec3::new(2.15, y + 0.08, z + 5.75),
+                    Vec3::new(0.75, y, z + 0.5),
+                    Vec3::new(3.25, y, z + 0.5),
+                    0.035,
                     GOLD,
                 );
             }
-            for y in [0.78, 1.22] {
-                for i in 0..40 {
-                    let a = i as f32 * std::f32::consts::TAU / 40.0;
-                    let b = (i + 1) as f32 * std::f32::consts::TAU / 40.0;
-                    local_panel(
-                        &mut out,
-                        [
-                            center + Vec3::new(a.sin() * 1.32, y - 1.0, 5.55 + a.cos() * 5.2),
-                            center + Vec3::new(b.sin() * 1.32, y - 1.0, 5.55 + b.cos() * 5.2),
-                            center + Vec3::new(b.sin() * 1.27, y - 1.0, 5.55 + b.cos() * 5.0),
-                            center + Vec3::new(a.sin() * 1.27, y - 1.0, 5.55 + a.cos() * 5.0),
-                        ],
-                        GOLD[0],
-                    );
+            for y in [-0.22, 0.22] {
+                let point = |angle: f32, r: f32| {
+                    pivot + Vec3::new(angle.sin() * 1.30 * r, y, -angle.cos() * 5.20 * r)
+                };
+                for i in 0..64 {
+                    let a = i as f32 * std::f32::consts::TAU / 64.0;
+                    let b = (i + 1) as f32 * std::f32::consts::TAU / 64.0;
+                    for r in [1.0, 0.94] {
+                        tube(&mut out, point(a, r), point(b, r), 0.016, GOLD);
+                    }
+                    if i % 2 == 0 {
+                        tube(&mut out, point(a, 0.94), point(a, 1.0), 0.009, RED);
+                    }
                 }
             }
         }
@@ -373,6 +313,97 @@ pub(super) fn static_faces(
         }
         _ => {}
     }
+    // Inlaid deck border and side railings have open gaps at the entry.
+    for x in [-0.34, w as f32 - 0.66] {
+        for y in 0..d {
+            let post = Vec3::new(x, y as f32, z + 0.18);
+            tube(&mut out, post, post + Vec3::Z * 0.55, 0.018, GOLD);
+            if y > 0 {
+                for h in [0.39, 0.69] {
+                    tube(
+                        &mut out,
+                        Vec3::new(x, y as f32 - 1.0, z + h),
+                        Vec3::new(x, y as f32, z + h),
+                        0.012,
+                        GOLD,
+                    );
+                }
+            }
+        }
+    }
+    if model == RideModel::TeaCups {
+        lathe(
+            &mut out,
+            center,
+            &[(2.18, 0.18), (2.25, 0.21), (2.25, 0.27), (2.18, 0.27)],
+            GOLD,
+        );
+        lathe(
+            &mut out,
+            center,
+            &[
+                (0.28, 0.2),
+                (0.36, 0.4),
+                (0.20, 0.62),
+                (0.20, 1.98),
+                (0.10, 2.20),
+            ],
+            BLUE,
+        );
+        lathe(
+            &mut out,
+            center,
+            &[(0.0, 2.81), (0.14, 2.83), (0.08, 3.0), (0.0, 3.0)],
+            GOLD,
+        );
+    }
+    if model == RideModel::ObservationTower {
+        for h in 0..10 {
+            let height = h as f32 + 0.4;
+            for side in [-1.0, 1.0] {
+                tube(
+                    &mut out,
+                    center + Vec3::new(side * 0.18, -0.13, height),
+                    center + Vec3::new(side * 0.18, 0.13, height + 0.45),
+                    0.013,
+                    GOLD,
+                );
+            }
+        }
+        lathe(
+            &mut out,
+            center,
+            &[(0.0, 10.25), (0.65, 10.25), (0.58, 10.45), (0.15, 10.70)],
+            RED,
+        );
+    }
+    if model == RideModel::PirateShip {
+        for x in [0.35, 3.65] {
+            for y in [-0.2, 2.2] {
+                tube(
+                    &mut out,
+                    Vec3::new(x, y, z + 0.15),
+                    Vec3::new(x, 1.0, z + 5.35),
+                    0.055,
+                    WOOD,
+                );
+                shell(
+                    &mut out,
+                    Vec3::new(x, y, z + 0.18),
+                    &[(0.15, 0.15, 0.0), (0.15, 0.15, 0.16)],
+                    0.03,
+                    GOLD,
+                );
+            }
+            tube(
+                &mut out,
+                Vec3::new(x, 0.0, z + 0.7),
+                Vec3::new(x, 2.0, z + 0.7),
+                0.026,
+                GOLD,
+            );
+        }
+    }
     transform_faces(out, origin, orientation, model, size, camera)
 }
 
@@ -394,173 +425,206 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
         RideModel::TeaCups => {
             for (i, seats) in points.chunks(2).enumerate() {
                 let c = mid(seats);
-                cylinder(
-                    &mut out,
-                    c - Vec3::Z * 0.25,
-                    0.40,
-                    0.45,
-                    if i % 2 == 0 { colors } else { BLUE },
-                    size,
-                    rotation,
+                let porcelain = if i % 2 == 0 { colors } else { BLUE };
+                let mut body = Vec::new();
+                // Saucer, tapered porcelain bowl and a recessed inner wall.
+                lathe(
+                    &mut body,
+                    c,
+                    &[(0.0, -0.25), (0.43, -0.25), (0.47, -0.19), (0.30, -0.15)],
+                    GOLD,
                 );
-                // Porcelain handles and a gold lip make each cup readable.
-                for side in [-1.0, 1.0] {
-                    let handle = c + Vec3::new(side * 0.41, 0.0, 0.05);
-                    for segment in 0..10 {
-                        let a = segment as f32 * std::f32::consts::TAU / 10.0;
-                        let b = (segment + 1) as f32 * std::f32::consts::TAU / 10.0;
-                        beam(
-                            &mut out,
-                            handle + Vec3::new(a.cos() * 0.12, 0.0, a.sin() * 0.20),
-                            handle + Vec3::new(b.cos() * 0.12, 0.0, b.sin() * 0.20),
-                            0.025,
-                            GOLD[0],
-                            size,
-                            rotation,
-                        );
+                lathe(
+                    &mut body,
+                    c,
+                    &[
+                        (0.24, -0.18),
+                        (0.34, -0.08),
+                        (0.42, 0.21),
+                        (0.40, 0.25),
+                        (0.36, 0.21),
+                        (0.29, -0.06),
+                    ],
+                    porcelain,
+                );
+                lathe(
+                    &mut body,
+                    c,
+                    &[(0.36, 0.21), (0.40, 0.25), (0.42, 0.21)],
+                    GOLD,
+                );
+                // Handles turn with the saved seat pair instead of facing the camera.
+                let axis = (nominal(seats[0]) - c)
+                    .truncate()
+                    .normalize_or_zero()
+                    .extend(0.0);
+                let axis = if axis == Vec3::ZERO { Vec3::X } else { axis };
+                for sign in [-1.0, 1.0] {
+                    let handle = c + axis * sign * 0.40;
+                    for j in 0..16 {
+                        let point = |j: usize| {
+                            let angle = j as f32 * std::f32::consts::TAU / 16.0;
+                            handle
+                                + axis * sign * angle.cos() * 0.14
+                                + Vec3::Z * (0.05 + angle.sin() * 0.19)
+                        };
+                        tube(&mut body, point(j), point(j + 1), 0.015, GOLD);
                     }
                 }
-                for segment in 0..24 {
-                    let a = segment as f32 * std::f32::consts::TAU / 24.0;
-                    let b = (segment + 1) as f32 * std::f32::consts::TAU / 24.0;
-                    beam(
-                        &mut out,
-                        c + Vec3::new(a.cos() * 0.40, a.sin() * 0.40, 0.20),
-                        c + Vec3::new(b.cos() * 0.40, b.sin() * 0.40, 0.20),
-                        0.018,
-                        GOLD[0],
-                        size,
-                        rotation,
-                    );
-                }
-                cylinder(
-                    &mut out,
-                    c + Vec3::Z * 0.18,
-                    0.14,
-                    0.07,
+                lathe(
+                    &mut body,
+                    c,
+                    &[
+                        (0.07, -0.05),
+                        (0.07, 0.17),
+                        (0.15, 0.17),
+                        (0.15, 0.22),
+                        (0.0, 0.22),
+                    ],
                     GOLD,
-                    size,
-                    rotation,
                 );
+                out.extend(ride_detail::project(body, size, rotation));
             }
         }
         RideModel::ObservationTower => {
             let c = mid(&points);
-            cylinder(
-                &mut out,
-                c - Vec3::Z * 0.25,
-                0.72,
-                0.20,
+            let mut body = Vec::new();
+            lathe(
+                &mut body,
+                c,
+                &[
+                    (0.0, -0.26),
+                    (0.62, -0.26),
+                    (0.78, -0.12),
+                    (0.78, 0.06),
+                    (0.68, 0.15),
+                ],
                 colors,
-                size,
-                rotation,
             );
-            cylinder(
-                &mut out,
-                c + Vec3::Z * 0.15,
-                0.66,
-                0.85,
-                GLASS,
-                size,
-                rotation,
-            );
-            cylinder(
-                &mut out,
-                c + Vec3::Z * 1.0,
-                0.75,
-                0.18,
+            lathe(&mut body, c, &[(0.66, 0.15), (0.66, 0.88)], GLASS);
+            for i in 0..12 {
+                let angle = i as f32 * std::f32::consts::TAU / 12.0;
+                let offset = Vec3::new(angle.cos() * 0.665, angle.sin() * 0.665, 0.0);
+                tube(
+                    &mut body,
+                    c + offset + Vec3::Z * 0.15,
+                    c + offset + Vec3::Z * 0.9,
+                    0.012,
+                    GOLD,
+                );
+            }
+            lathe(
+                &mut body,
+                c,
+                &[
+                    (0.68, 0.89),
+                    (0.80, 0.91),
+                    (0.80, 1.04),
+                    (0.42, 1.19),
+                    (0.0, 1.19),
+                ],
                 GOLD,
-                size,
-                rotation,
             );
+            out.extend(ride_detail::project(body, size, rotation));
         }
         RideModel::FerrisWheel => {
             let c = mid(&points);
-            cuboid(
-                &mut out,
-                c - Vec3::new(0.42, 0.35, 0.25),
-                c + Vec3::new(0.42, 0.35, 0.14),
-                colors,
-                size,
-                rotation,
-            );
-            for x in [-0.4, 0.36] {
-                for y in [-0.31, 0.27] {
-                    cuboid(
-                        &mut out,
-                        c + Vec3::new(x, y, 0.12),
-                        c + Vec3::new(x + 0.04, y + 0.04, 0.95),
-                        GOLD,
-                        size,
-                        rotation,
-                    );
-                }
-            }
-            cuboid(
-                &mut out,
-                c + Vec3::new(-0.38, -0.33, 0.15),
-                c + Vec3::new(0.38, 0.33, 0.25),
-                BLUE,
-                size,
-                rotation,
-            );
-            cuboid(
-                &mut out,
-                c + Vec3::new(-0.45, -0.38, 0.95),
-                c + Vec3::new(0.45, 0.38, 1.1),
-                GOLD,
-                size,
-                rotation,
-            );
-            let (w, d) = model.dimensions();
             let center = Vec3::new(
-                ride.origin.x as f32 + (w - 1) as f32 / 2.0,
-                ride.origin.y as f32 + (d - 1) as f32 / 2.0,
+                ride.origin.x as f32
+                    + if ride.rotation.is_multiple_of(2) {
+                        2.0
+                    } else {
+                        1.0
+                    },
+                ride.origin.y as f32
+                    + if ride.rotation.is_multiple_of(2) {
+                        1.0
+                    } else {
+                        2.0
+                    },
                 ride.height as f32 + 5.55,
             );
-            beam(&mut out, center, c, 0.035, GOLD[0], size, rotation);
-            for i in 1..8 {
-                let a = i as f32 * std::f32::consts::TAU / 8.0;
-                let direction = c - center;
-                let along = if ride.rotation.is_multiple_of(2) {
-                    Vec3::X
+            let along = if ride.rotation.is_multiple_of(2) {
+                Vec3::X
+            } else {
+                Vec3::Y
+            };
+            let across = Vec3::new(-along.y, along.x, 0.0);
+            let direction = c - center;
+            let phase = (direction.dot(along) / 1.30).atan2(-direction.z / 5.20);
+            let mut body = Vec::new();
+            for i in 0..8 {
+                let angle = phase + i as f32 * std::f32::consts::TAU / 8.0;
+                let pos = if i == 0 {
+                    c
                 } else {
-                    Vec3::Y
+                    center + along * (angle.sin() * 1.30) - Vec3::Z * (angle.cos() * 5.20)
                 };
-                let signed = direction.dot(along);
-                let pos = center
-                    + along * (signed * a.cos() + direction.z * 0.25 * a.sin())
-                    + Vec3::Z * (direction.z * a.cos() - signed * 4.0 * a.sin());
-                beam(&mut out, center, pos, 0.028, GOLD[0], size, rotation);
-                cuboid(
-                    &mut out,
-                    pos - Vec3::new(0.25, 0.25, 0.18),
-                    pos + Vec3::new(0.25, 0.25, 0.3),
-                    if i % 2 == 0 { BLUE } else { RED },
-                    size,
-                    rotation,
+                for sign in [-1.0, 1.0] {
+                    tube(
+                        &mut body,
+                        center + across * sign * 0.22,
+                        pos + across * sign * 0.22,
+                        0.016,
+                        GOLD,
+                    );
+                }
+                let cabin = if i == 0 {
+                    colors
+                } else if i % 2 == 0 {
+                    BLUE
+                } else {
+                    RED
+                };
+                let mut parts = Vec::new();
+                shell(
+                    &mut parts,
+                    Vec3::ZERO,
+                    &[(0.29, 0.24, -0.29), (0.38, 0.29, -0.12), (0.38, 0.29, 0.20)],
+                    0.09,
+                    cabin,
                 );
-                for y in [-0.22, 0.19] {
-                    for x in [-0.21, 0.18] {
-                        cuboid(
-                            &mut out,
-                            pos + Vec3::new(x, y, 0.2),
-                            pos + Vec3::new(x + 0.03, y + 0.03, 0.62),
+                shell(
+                    &mut parts,
+                    Vec3::ZERO,
+                    &[(0.40, 0.31, 0.18), (0.40, 0.31, 0.25)],
+                    0.08,
+                    GOLD,
+                );
+                // Open windows retain the six real riders in the active gondola.
+                for x in [-0.30, 0.30] {
+                    for y in [-0.23, 0.23] {
+                        tube(
+                            &mut parts,
+                            Vec3::new(x, y, 0.24),
+                            Vec3::new(x, y, 0.92),
+                            0.013,
                             GOLD,
-                            size,
-                            rotation,
                         );
                     }
                 }
-                cuboid(
-                    &mut out,
-                    pos + Vec3::new(-0.29, -0.28, 0.60),
-                    pos + Vec3::new(0.29, 0.28, 0.69),
-                    GOLD,
-                    size,
-                    rotation,
+                shell(
+                    &mut parts,
+                    Vec3::ZERO,
+                    &[(0.43, 0.34, 0.91), (0.34, 0.27, 1.06), (0.12, 0.12, 1.17)],
+                    0.09,
+                    cabin,
                 );
+                for face in &mut parts {
+                    for p in &mut face.surface.vertices {
+                        *p = pos + along * p.x + across * p.y + Vec3::Z * p.z;
+                    }
+                }
+                body.extend(parts);
             }
+            tube(
+                &mut body,
+                center - across * 0.60,
+                center + across * 0.60,
+                0.09,
+                GOLD,
+            );
+            out.extend(ride_detail::project(body, size, rotation));
         }
         RideModel::PirateShip => {
             let c = mid(&points);
@@ -570,65 +634,103 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                 Vec3::Y
             };
             let side = Vec3::new(-along.y, along.x, 0.0);
-            for i in 0..6 {
-                let a = c + along * (i as f32 * 0.4 - 1.2);
-                cuboid(
-                    &mut out,
-                    a - side * 0.45 - Vec3::Z * 0.32,
-                    a + along * 0.32 + side * 0.45,
-                    WOOD,
-                    size,
-                    rotation,
+            let mut body = Vec::new();
+            shell(
+                &mut body,
+                Vec3::ZERO,
+                &[(0.91, 0.16, -0.32), (1.21, 0.32, -0.24), (1.44, 0.46, 0.0)],
+                0.32,
+                WOOD,
+            );
+            shell(
+                &mut body,
+                Vec3::ZERO,
+                &[(1.46, 0.47, -0.04), (1.46, 0.47, 0.06)],
+                0.30,
+                GOLD,
+            );
+            for x in [-1.0, -0.6, -0.2, 0.2, 0.6, 1.0] {
+                shell(
+                    &mut body,
+                    Vec3::new(x, 0.0, 0.0),
+                    &[(0.055, 0.38, 0.06), (0.055, 0.38, 0.17)],
+                    0.02,
+                    colors,
                 );
-            }
-            for side_sign in [-1.0, 1.0] {
-                for row in 0..7 {
-                    let a = c + along * (row as f32 * 0.4 - 1.2) + side * side_sign * 0.43;
-                    beam(
-                        &mut out,
-                        a - Vec3::Z * 0.25,
-                        a + Vec3::Z * 0.36,
-                        0.025,
-                        GOLD[0],
-                        size,
-                        rotation,
+                for y in [-0.43, 0.43] {
+                    tube(
+                        &mut body,
+                        Vec3::new(x, y, 0.06),
+                        Vec3::new(x, y, 0.36),
+                        0.013,
+                        GOLD,
                     );
-                    if row < 6 {
-                        beam(
-                            &mut out,
-                            a + Vec3::Z * 0.36,
-                            a + along * 0.4 + Vec3::Z * 0.36,
-                            0.032,
-                            GOLD[0],
-                            size,
-                            rotation,
-                        );
-                    }
                 }
             }
-            for end in [-1.0, 1.0] {
-                let bow = c + along * end * 1.26;
-                beam(
-                    &mut out,
-                    bow - Vec3::Z * 0.2,
-                    bow + Vec3::Z * 0.68,
-                    0.10,
-                    WOOD[0],
-                    size,
-                    rotation,
+            for sign in [-1.0, 1.0] {
+                for h in [0.36, 0.24] {
+                    tube(
+                        &mut body,
+                        Vec3::new(-1.20, sign * 0.43, h),
+                        Vec3::new(1.20, sign * 0.43, h),
+                        0.018,
+                        GOLD,
+                    );
+                }
+                tube(
+                    &mut body,
+                    Vec3::new(sign * 1.18, 0.0, 0.03),
+                    Vec3::new(sign * 1.46, 0.0, 0.66),
+                    0.035,
+                    WOOD,
                 );
-                beam(
-                    &mut out,
-                    bow + Vec3::Z * 0.68,
-                    bow + along * end * 0.28 + Vec3::Z * 0.80,
-                    0.06,
-                    GOLD[0],
-                    size,
-                    rotation,
+                tube(
+                    &mut body,
+                    Vec3::new(sign * 1.46, 0.0, 0.66),
+                    Vec3::new(sign * 1.57, 0.0, 0.77),
+                    0.025,
+                    GOLD,
+                );
+                for x in [-0.82, -0.27, 0.27, 0.82] {
+                    shell(
+                        &mut body,
+                        Vec3::new(x, sign * 0.40, -0.13),
+                        &[(0.055, 0.018, -0.035), (0.055, 0.018, 0.055)],
+                        0.01,
+                        GOLD,
+                    );
+                }
+            }
+            for face in &mut body {
+                for p in &mut face.surface.vertices {
+                    *p = c + along * p.x + side * p.y + Vec3::Z * p.z;
+                }
+            }
+            let pivot = Vec3::new(
+                ride.origin.x as f32
+                    + if ride.rotation.is_multiple_of(2) {
+                        2.0
+                    } else {
+                        1.0
+                    },
+                ride.origin.y as f32
+                    + if ride.rotation.is_multiple_of(2) {
+                        1.0
+                    } else {
+                        2.0
+                    },
+                ride.height as f32 + 5.3,
+            );
+            for sign in [-1.0, 1.0] {
+                tube(
+                    &mut body,
+                    pivot + along * sign * 1.15,
+                    c + along * sign * 1.15,
+                    0.035,
+                    RED,
                 );
             }
-            let pivot = Vec3::new(c.x, c.y, ride.height as f32 + 5.3);
-            beam(&mut out, pivot, c, 0.04, GOLD[0], size, rotation);
+            out.extend(ride_detail::project(body, size, rotation));
         }
         _ => {}
     }
@@ -749,4 +851,65 @@ pub(super) fn paint_static(
         }
     }
     faces
+}
+
+#[cfg(test)]
+mod detail_tests {
+    use super::*;
+
+    fn world_point(p: Vec3, size: u32, camera: u8) -> Vec3 {
+        let origin = at(Vec3::ZERO, size, camera);
+        Mat3::from_cols(
+            at(Vec3::X, size, camera) - origin,
+            at(Vec3::Y, size, camera) - origin,
+            at(Vec3::Z, size, camera) - origin,
+        )
+        .inverse()
+            * (p - origin)
+    }
+
+    #[test]
+    fn rounded_flat_ride_art_stays_inside_reserved_volume_in_every_orientation() {
+        // A lower path or neighbouring ride must not be covered by geometry
+        // outside the attraction's reserved construction cells.
+        for model in [
+            RideModel::FerrisWheel,
+            RideModel::TeaCups,
+            RideModel::ObservationTower,
+            RideModel::PirateShip,
+        ] {
+            for orientation in 0..4 {
+                let mut park = Park::new(32, 32);
+                let origin = TilePos { x: 10, y: 12 };
+                let id = park
+                    .build_catalogue_ride(model, origin, 2, orientation)
+                    .unwrap();
+                let ride = park.carousel(id).unwrap();
+                for camera in 0..4 {
+                    let mut faces = static_faces(model, origin, 2, orientation, 32, camera);
+                    faces.extend(dynamic_faces(&park, ride, camera));
+                    let (w, d) = model.dimensions();
+                    let (w, d) = if orientation % 2 == 1 { (d, w) } else { (w, d) };
+                    for p in faces.iter().flat_map(|f| f.surface.vertices) {
+                        let p = world_point(p, 32, camera);
+                        assert!(p.is_finite());
+                        assert!(
+                            p.x >= origin.x as f32 - 0.51
+                                && p.x <= origin.x as f32 + w as f32 - 0.49,
+                            "{model:?} {orientation} {camera} {p:?}"
+                        );
+                        assert!(
+                            p.y >= origin.y as f32 - 0.51
+                                && p.y <= origin.y as f32 + d as f32 - 0.49,
+                            "{model:?} {orientation} {camera} {p:?}"
+                        );
+                        assert!(
+                            (1.99..=2.01 + f32::from(model.clearance())).contains(&p.z),
+                            "{model:?} {p:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

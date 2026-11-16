@@ -1,5 +1,11 @@
 # Project status
 
+## Current work — Ride graphics, 0.93.0
+
+The ride graphics follow-up is implemented on `codex/ride-graphics-overhaul`, based on `69044094a68bad6d1f00cd07db4bcac1352efafa`. It improves ride bodies, moving vehicles, framing and track detail while preserving simulation and saves. See `docs/RIDE_GRAPHICS_GUIDE.md`. All 1,034 tests passed (570 game, 464 simulation), together with strict Clippy, formatting, fourteen ride captures, four wheel views and production demo/catalogue continuation. The extracted Windows package passed 166 payload hashes, 146 bundled guides, independent front/demo write/verify pairs and inspected title/demo captures. Runtime commit `dabbd2e6f99a6518a24e71ef2a78878103e375a3` is verified on GitHub in PR 85. The final documentation refresh preserves the same executable. No new external assets or dependencies.
+
+
+
 Project ID `railrust-tycoon`.
 
 ## Current work
@@ -18,7 +24,7 @@ The existing GitHub repository and project registration were verified on 2026-11
 
 The native Stop export `q-38bbf860d212ca6448ffe4344b56e24b` was uploaded and all 144 files verified through fresh downloads under `strijbosmh@gmail.com` on 2026-11-13. Its accepted receipt is in the local Softwareprojecten receipts directory. That evidence applies to PC1830 and its recorded snapshot.
 
-The later export `q-1981abefda07ea3b445a106c9e472de6` remains locally queued. Sixty-nine of 147 files have verified readback receipts. The next uploaded file's readback download failed, so its verification is pending. Export `q-e6c25399542a7d74945073bf34b4ff8f` is also queued. No acknowledgement was submitted for either incomplete export.
+The later export `q-1981abefda07ea3b445a106c9e472de6` remains locally queued. 124 of 147 files have verified readback receipts after an interrupted tool session. Exports `q-e6c25399542a7d74945073bf34b4ff8f` and `q-be73a30431959a9891e9a44ae8c33f28` are also queued. No acknowledgement was submitted for these incomplete exports.
 
 ## Remaining work
 

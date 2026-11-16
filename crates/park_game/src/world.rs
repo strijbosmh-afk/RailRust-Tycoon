@@ -20,6 +20,7 @@ mod guest_render;
 mod layout;
 mod path_preview;
 mod ride_colors;
+mod ride_detail;
 mod scene_lighting;
 mod service_render;
 mod static_chunks;
@@ -2650,6 +2651,35 @@ impl Painter {
         let shortest_edge = (0..4)
             .map(|index| points[index].distance(points[(index + 1) % 4]))
             .fold(f32::INFINITY, f32::min);
+        // Rounded caps include triangles represented by a repeated fourth
+        // vertex. Remove zero-length projected edges before making an inset.
+        if shortest_edge < 0.0001 {
+            let mut corners = Vec::with_capacity(4);
+            for point in points {
+                if corners.iter().all(|p: &Vec2| p.distance(point) > 0.0001) {
+                    corners.push(point);
+                }
+            }
+            if corners.len() < 3 {
+                return;
+            }
+            let center = corners.iter().copied().sum::<Vec2>() / corners.len() as f32;
+            let radius = corners
+                .iter()
+                .map(|p| p.distance(center))
+                .fold(0.0_f32, f32::max);
+            let fraction = (width / radius).clamp(0.0, 0.25);
+            for (index, &a) in corners.iter().enumerate() {
+                let b = corners[(index + 1) % corners.len()];
+                self.paint_on_surface(
+                    surface,
+                    &[a, b, b.lerp(center, fraction), a.lerp(center, fraction)],
+                    bias,
+                    ink,
+                );
+            }
+            return;
+        }
         let width = width.min(shortest_edge * 0.3);
         let center = points.iter().copied().sum::<Vec2>() / 4.0;
         let mut inner = [Vec2::ZERO; 4];
@@ -2665,7 +2695,12 @@ impl Painter {
             };
             let a = corner + inward(first) * width;
             let b = corner + inward(second) * width;
-            inner[index] = a + first * ((b - a).perp_dot(second) / first.perp_dot(second));
+            let determinant = first.perp_dot(second);
+            inner[index] = if determinant.abs() > 0.00001 {
+                a + first * ((b - a).perp_dot(second) / determinant)
+            } else {
+                corner.lerp(center, (width / corner.distance(center)).clamp(0.0, 0.25))
+            };
         }
         // The outline stays inside the face, rather than projecting a stroke
         // beyond a hidden tile and leaving a halo around its front occluder.
@@ -2717,6 +2752,43 @@ mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
     use park_sim::{MAX_TERRAIN_HEIGHT, ObjectId, TerrainProfile};
+
+    #[test]
+    fn triangular_and_collinear_detail_outlines_remain_finite_inside_the_face() {
+        for points in [
+            [
+                Vec3::new(0.0, 0.0, 2.0),
+                Vec3::new(8.0, 0.0, 2.8),
+                Vec3::new(4.0, 6.0, 3.0),
+                Vec3::new(0.0, 0.0, 2.0),
+            ],
+            [
+                Vec3::new(0.0, 0.0, 2.0),
+                Vec3::new(4.0, 0.0, 2.4),
+                Vec3::new(8.0, 0.0, 2.8),
+                Vec3::new(4.0, 6.0, 3.0),
+            ],
+        ] {
+            let surface = Surface {
+                vertices: points,
+                kind: SurfaceKind::Top,
+            };
+            let mut painter = Painter::default();
+            painter.surface_outline(surface, 1.1, SELECTION_BIAS, rgb(240, 180, 40));
+            let mesh = painter.finish();
+            let positions = mesh
+                .attribute(Mesh::ATTRIBUTE_POSITION)
+                .unwrap()
+                .as_float3()
+                .unwrap();
+            assert!(!positions.is_empty());
+            for position in positions {
+                let point = Vec3::from(*position);
+                assert!(point.is_finite());
+                assert!(surface.hit_depth(point.truncate()).is_some());
+            }
+        }
+    }
 
     #[test]
     fn every_tile_round_trips_through_every_rotation() {

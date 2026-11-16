@@ -235,6 +235,7 @@ fn swing_faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face
         size,
         rotation,
     );
+    ride_detail::legacy_trim(&mut result, center, RideKind::Swing, size, rotation);
     result
 }
 
@@ -326,6 +327,7 @@ fn drop_tower_faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec
             rotation,
         );
     }
+    ride_detail::legacy_trim(&mut result, center, RideKind::DropTower, size, rotation);
     result
 }
 
@@ -487,6 +489,7 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
         size,
         rotation,
     );
+    ride_detail::legacy_trim(&mut result, center, RideKind::Carousel, size, rotation);
     result
 }
 
@@ -622,85 +625,18 @@ pub(super) fn paint_dynamic(painter: &mut Painter, park: &Park, rotation: u8, mo
                     rotation,
                 );
             } else {
-                // Compact horse-like bench: legs, body, saddle and raised head.
-                for x in [-0.13, 0.10] {
-                    cuboid(
-                        &mut surfaces,
-                        p + Vec3::new(x, -0.065, -0.45),
-                        p + Vec3::new(x + 0.04, 0.065, -0.15),
-                        gold,
-                        park.width(),
-                        rotation,
-                    );
-                }
-                cuboid(
-                    &mut surfaces,
-                    p + Vec3::new(-0.20, -0.12, -0.24),
-                    p + Vec3::new(0.20, 0.12, -0.04),
-                    cream,
+                let center = Vec3::new(
+                    carousel.origin.x as f32 + 1.0,
+                    carousel.origin.y as f32 + 1.0,
+                    f32::from(carousel.height),
+                );
+                let radial = (p - center).truncate().normalize_or_zero();
+                let forward = Vec3::new(radial.y, -radial.x, 0.0);
+                surfaces.extend(ride_detail::project(
+                    ride_detail::horse(p, forward, cream, gold, teal),
                     park.width(),
                     rotation,
-                );
-                cuboid(
-                    &mut surfaces,
-                    p + Vec3::new(-0.07, -0.13, -0.04),
-                    p + Vec3::new(0.08, 0.13, 0.0),
-                    teal,
-                    park.width(),
-                    rotation,
-                );
-                cuboid(
-                    &mut surfaces,
-                    p + Vec3::new(0.13, -0.075, -0.12),
-                    p + Vec3::new(0.24, 0.075, 0.20),
-                    cream,
-                    park.width(),
-                    rotation,
-                );
-                cuboid(
-                    &mut surfaces,
-                    p + Vec3::new(-0.28, -0.035, -0.12),
-                    p + Vec3::new(-0.19, 0.035, 0.02),
-                    gold,
-                    park.width(),
-                    rotation,
-                );
-                cuboid(
-                    &mut surfaces,
-                    p + Vec3::new(0.17, -0.055, 0.10),
-                    p + Vec3::new(0.27, 0.055, 0.24),
-                    gold,
-                    park.width(),
-                    rotation,
-                );
-                for y in [-0.077, 0.068] {
-                    cuboid(
-                        &mut surfaces,
-                        p + Vec3::new(0.235, y, 0.11),
-                        p + Vec3::new(0.257, y + 0.012, 0.14),
-                        teal,
-                        park.width(),
-                        rotation,
-                    );
-                }
-                cuboid(
-                    &mut surfaces,
-                    p + Vec3::new(-0.014, -0.014, -0.40),
-                    p + Vec3::new(0.014, 0.014, 1.18),
-                    gold,
-                    park.width(),
-                    rotation,
-                );
-                for x in [0.15, 0.23] {
-                    cuboid(
-                        &mut surfaces,
-                        p + Vec3::new(x, -0.036, 0.22),
-                        p + Vec3::new(x + 0.03, 0.036, 0.33),
-                        cream,
-                        park.width(),
-                        rotation,
-                    );
-                }
+                ));
             }
             if let Some(passenger) = passengers.iter().find(|p| {
                 p.ride == carousel.ride.id
