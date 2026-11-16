@@ -9,6 +9,8 @@ pub(crate) enum Cue {
     Remove,
     Sale,
     Alert,
+    Cheer,
+    Staff,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct MixState {
@@ -24,6 +26,7 @@ pub(super) struct MixState {
     pub carousel: bool,
     pub carousel_pan: f32,
     pub carousel_presence: f32,
+    pub rain: bool,
 }
 impl Default for MixState {
     fn default() -> Self {
@@ -40,6 +43,7 @@ impl Default for MixState {
             carousel: false,
             carousel_pan: 0.0,
             carousel_presence: 1.0,
+            rain: false,
         }
     }
 }
@@ -52,7 +56,7 @@ pub(super) struct Mixer {
     sample: u64,
     noise: u32,
     wind: f32,
-    gain: [f32; 5],
+    gain: [f32; 6],
     ride_pan: [f32; 2],
     ride_presence: [f32; 2],
     voices: Vec<Voice>,
@@ -64,7 +68,7 @@ impl Default for Mixer {
             sample: 0,
             noise: 0x7331a945,
             wind: 0.0,
-            gain: [0.0; 5],
+            gain: [0.0; 6],
             ride_pan: [0.0; 2],
             ride_presence: [0.0; 2],
             voices: Vec::new(),
@@ -84,6 +88,9 @@ fn frequency(note: i32) -> f32 {
     440.0 * 2.0f32.powf((note - 69) as f32 / 12.0)
 }
 impl Mixer {
+    pub(super) fn skip_to_evening(&mut self) {
+        self.sample = u64::from(RATE) * 80;
+    }
     pub fn cue(&mut self, cue: Cue) {
         if self.voices.len() < 12 {
             self.voices.push(Voice { cue, age: 0 });
@@ -91,7 +98,11 @@ impl Mixer {
     }
     pub fn render(&mut self, frames: usize) -> Vec<i16> {
         let mut out = Vec::with_capacity(frames * 2);
-        let mut target = self.state.settings.levels.map(|v| f32::from(v) / 100.0);
+        let mut target = [0.0; 6];
+        for (gain, value) in target.iter_mut().zip(self.state.settings.levels) {
+            *gain = f32::from(value) / 100.0;
+        }
+        target[5] = f32::from(self.state.settings.reactions) / 100.0;
         if !self.state.focused || self.state.settings.muted {
             target[0] = 0.0;
         }
@@ -164,7 +175,23 @@ impl Mixer {
                 * (arpeggio_age * 80.0).min(1.0)
                 * (-arpeggio_age * 13.0).exp()
                 * (0.006 + self.state.crowd * 0.012);
-            let music = melody + bass_line + pad + arpeggio;
+            // A second original C-major / A-minor phrase alternates every 80 seconds.
+            let evening = ((clock / 80.0) as usize) % 2 == 1;
+            let second_notes = [
+                69, 72, 76, 79, 76, 72, 67, 64, 65, 69, 72, 76, 74, 72, 69, 67,
+            ];
+            let second_age = (clock % 0.75) as f32;
+            let second_theme = osc(
+                self.sample,
+                frequency(second_notes[((clock / 0.75) as usize) % 16]),
+            ) * (second_age * 50.0).min(1.0)
+                * (-second_age * 5.5).exp()
+                * 0.10;
+            let music = if evening {
+                second_theme + bass_line * 0.7 + pad + arpeggio * 0.5
+            } else {
+                melody + bass_line + pad + arpeggio
+            };
             // Quiet smoothed wind/crowd texture and spaced bird chirps.
             let bird_age = ((clock + 2.0) % 7.0) as f32;
             let bird = if bird_age < 0.27 {
@@ -174,7 +201,13 @@ impl Mixer {
             } else {
                 0.0
             };
-            let ambient = self.wind * (0.10 + self.state.crowd * 0.10)
+            let rain = if self.state.rain {
+                n * 0.028 + self.wind * 0.12
+            } else {
+                0.0
+            };
+            let ambient = rain
+                + self.wind * (0.10 + self.state.crowd * 0.10)
                 + osc(self.sample, 143.0) * osc(self.sample, 2.7) * self.state.crowd * 0.008
                 + bird;
             let moving = if self.state.paused {
@@ -235,6 +268,7 @@ impl Mixer {
                 _ => carousel,
             } * self.ride_presence[1];
             let mut effects = 0.0;
+            let mut reactions = 0.0;
             for v in &mut self.voices {
                 let age = v.age as f32 / RATE as f32;
                 let (f, duration, amp) = match v.cue {
@@ -242,6 +276,8 @@ impl Mixer {
                     Cue::Build => (420.0 + age * 1100.0, 0.18, 0.15),
                     Cue::Remove => (260.0 - age * 500.0, 0.16, 0.13),
                     Cue::Sale => (if age < 0.09 { 1046.5 } else { 1318.5 }, 0.22, 0.10),
+                    Cue::Cheer => (640.0 + 95.0 * sine(age, 7.0), 0.42, 0.08),
+                    Cue::Staff => (880.0 + 110.0 * sine(age, 5.0), 0.28, 0.06),
                     Cue::Alert => (if age < 0.15 { 440.0 } else { 349.2 }, 0.35, 0.13),
                 };
                 if age < duration {
@@ -250,7 +286,12 @@ impl Mixer {
                         Cue::Build | Cue::Remove => n * (1.0 - age * 25.0).max(0.0) * 0.22,
                         _ => 0.0,
                     };
-                    effects += (sine(age, f) + 0.18 * sine(age, f * 2.0) + transient) * env * amp;
+                    let voice = (sine(age, f) + 0.18 * sine(age, f * 2.0) + transient) * env * amp;
+                    if matches!(v.cue, Cue::Cheer | Cue::Staff) {
+                        reactions += voice;
+                    } else {
+                        effects += voice;
+                    }
                 }
                 v.age += 1;
             }
@@ -263,12 +304,14 @@ impl Mixer {
             let left = ((music + arpeggio * 0.18) * self.gain[1]
                 + (ambient + bird * 0.12) * self.gain[2]
                 + left_rides * self.gain[3]
-                + effects * self.gain[4])
+                + effects * self.gain[4]
+                + reactions * self.gain[5])
                 * self.gain[0];
             let right = ((music - arpeggio * 0.18) * self.gain[1]
                 + (ambient * 0.92 - bird * 0.08) * self.gain[2]
                 + right_rides * self.gain[3]
-                + effects * self.gain[4])
+                + effects * self.gain[4]
+                + reactions * self.gain[5])
                 * self.gain[0];
             out.extend([left, right].map(|s| (s.clamp(-0.9, 0.9) * 32767.0) as i16));
             self.sample += 1;
@@ -299,6 +342,23 @@ pub(super) fn wav(samples: &[i16]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn reactions_have_independent_volume_and_evening_theme_is_distinct() {
+        let mut a = Mixer::default();
+        a.state.settings.levels = [100, 0, 0, 0, 0];
+        a.state.settings.reactions = 0;
+        a.cue(Cue::Cheer);
+        assert!(a.render(RATE as usize).iter().all(|x| *x == 0));
+        let mut b = Mixer::default();
+        b.state.settings.levels = [100, 0, 0, 0, 0];
+        b.state.settings.reactions = 80;
+        b.cue(Cue::Staff);
+        assert!(b.render(RATE as usize).iter().any(|x| *x != 0));
+        let day = Mixer::default().render(5000);
+        let mut evening = Mixer::default();
+        evening.skip_to_evening();
+        assert_ne!(day, evening.render(5000));
+    }
     #[test]
     fn oscillator_retains_individual_sample_phase_after_two_days() {
         let base = u64::from(RATE) * 60 * 60 * 48;

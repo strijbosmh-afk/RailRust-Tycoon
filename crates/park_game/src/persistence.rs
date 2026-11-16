@@ -71,7 +71,8 @@ pub(super) fn apply_save_action(
     let Some(action) = view.save_pending.take() else {
         return;
     };
-    if view.help
+    if view.accessibility_open
+        || view.help
         || view.guests_open
         || view.services_open
         || view.finance_open

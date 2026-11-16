@@ -10,6 +10,7 @@ use crate::{FOOTER, HEADER, RIDE_PANEL_MARGIN, SIDEBAR, ViewState};
 #[derive(Component, Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ScrollLayer {
     Front,
+    Accessibility,
     Help,
     Finance,
     Guests,
@@ -67,7 +68,9 @@ pub(crate) fn scroll(
         return;
     };
     let scale = ui_scale.as_ref().map_or(1.0, |scale| scale.0);
-    let layer = if view.front_modal {
+    let layer = if view.accessibility_open {
+        Some(ScrollLayer::Accessibility)
+    } else if view.front_modal {
         Some(ScrollLayer::Front)
     } else if view.navigation_open {
         Some(ScrollLayer::Navigation)

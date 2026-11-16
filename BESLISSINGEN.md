@@ -9,3 +9,10 @@
 - Preserve the existing public GitHub repository and existing Drive project IDs. The registration rules for creating a new private repository apply when a new project is created.
 - Record correctness evidence from this PC and GitHub checks. Exclude this PC from performance recommendations.
 - The user requested the full build and codebase in Codex Cloud and explicitly approved a new cloud chat. Preserve this handoff request while completing Phase 9. Cloud provisioning requires recovery after the initial launch stalled and the command-line service reported an unavailable environment.
+
+## 2026-11-16 — Phase 10
+
+- Keep park schema/content 51/51. Store accessibility independently with unique bounded shortcut assignments. Migrate version-1 sound preferences into version 2 with an independent reactions level.
+- Guide users through the existing paid construction and access tools. A skipped guide preserves every park field. Completion checks inspect actual public paths, a newly built ride, connected access, completed visits and a successful save.
+- Keep physical vehicle and guest positions visible in reduced motion. Freeze decorative weather/water animation, guest walk poses and intro pulsing.
+- Retain original procedural assets and the locked dependency set. Add a second score and synthesized staff/guest responses with bounded voices, independent volume, focus fades and retryable Windows PCM output.

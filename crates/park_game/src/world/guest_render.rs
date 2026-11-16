@@ -43,6 +43,7 @@ struct Deck {
 /// state; ticks, IDs and object counts are never used as load identity.
 #[derive(Resource, Default)]
 pub struct GuestRenderer {
+    pub(crate) reduced_motion: bool,
     objects: Vec<SurfaceObject>,
     decks: Vec<Deck>,
     object_index: HashMap<ObjectId, usize>,
@@ -179,13 +180,17 @@ impl GuestRenderer {
                     {
                         writer.shadow(deck.roof, base.truncate(), &self.shadow, self.shadow_color);
                     }
-                    let pose = guest_walk_progress(guest).map_or_else(
-                        || match guest.state {
-                            GuestState::Lost => usize::from(WALK_TICKS) + 1,
-                            _ => usize::from(WALK_TICKS),
-                        },
-                        usize::from,
-                    );
+                    let pose = if self.reduced_motion {
+                        usize::from(WALK_TICKS)
+                    } else {
+                        guest_walk_progress(guest).map_or_else(
+                            || match guest.state {
+                                GuestState::Lost => usize::from(WALK_TICKS) + 1,
+                                _ => usize::from(WALK_TICKS),
+                            },
+                            usize::from,
+                        )
+                    };
                     // Guest progress is validated below WALK_TICKS by the
                     // simulation and save codec, including diagnostic inputs.
                     debug_assert!(

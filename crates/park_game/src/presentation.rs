@@ -71,6 +71,7 @@ pub(crate) fn animate(
     view: Res<ViewState>,
     time: Res<Time>,
     mut water: ResMut<Water>,
+    preferences: Option<Res<crate::accessibility::Preferences>>,
     resources: PresentationResources<'_>,
 ) {
     let (mut meshes, mut materials, world_material, display, mut background) = resources;
@@ -108,7 +109,16 @@ pub(crate) fn animate(
         background.0 = sky;
     }
     let old = water.phase;
-    if view.speed != Speed::Paused && !view.capture_active && view.diagnostic_case.is_none() {
+    let reduced = preferences.as_ref().is_some_and(|p| p.value.reduced_motion);
+    if reduced {
+        water.phase = 0;
+        water.elapsed = 0.0;
+    }
+    if !reduced
+        && view.speed != Speed::Paused
+        && !view.capture_active
+        && view.diagnostic_case.is_none()
+    {
         water.elapsed += time.delta_secs();
         if water.elapsed >= 0.15 {
             water.phase = (water.phase + 1) % 16;

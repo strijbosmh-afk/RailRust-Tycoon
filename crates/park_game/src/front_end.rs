@@ -83,6 +83,7 @@ pub(super) enum Action {
     ConfirmLoad,
     Resume,
     ToggleSound,
+    Accessibility,
     Volume(i8),
     Scale(i8),
     WindowMode(i8),
@@ -271,6 +272,7 @@ impl FrontEnd {
             }
             Err(error) => {
                 self.notice = format!("Save failed: {error}");
+                view.save_notice = self.notice.clone();
                 self.dirty_ui = true;
             }
         }
@@ -410,6 +412,7 @@ impl FrontEnd {
         self.paused_speed = Speed::Normal;
         self.notice = "New park started. Save from the menu or press F5.".into();
         self.show(Screen::Park, view);
+        view.tutorial_requested = true;
     }
 }
 
@@ -474,9 +477,16 @@ pub(super) fn input(
     resources: InputResources<'_>,
     keys: Res<ButtonInput<KeyCode>>,
     mut text: MessageReader<KeyboardInput>,
-    interactions: ChangedButtons<'_, '_>,
+    controls: (
+        ChangedButtons<'_, '_>,
+        Option<Res<crate::accessibility::Preferences>>,
+    ),
 ) {
+    let (interactions, preferences) = controls;
     let (campaign, session, mut exit, mut sound, mut display) = resources;
+    if view.accessibility_open {
+        return;
+    }
     if !front.enabled {
         return;
     }
@@ -590,11 +600,15 @@ pub(super) fn input(
     }
     let actions = keyboard_actions(&front);
     if !actions.is_empty() {
-        if keys.just_pressed(KeyCode::Tab) || keys.just_pressed(KeyCode::ArrowDown) {
+        let reverse_tab = keys.just_pressed(KeyCode::Tab)
+            && keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
+        if (keys.just_pressed(KeyCode::Tab) && !reverse_tab)
+            || keys.just_pressed(KeyCode::ArrowDown)
+        {
             front.focus = (front.focus + 1) % actions.len();
             front.dirty_ui = true;
         }
-        if keys.just_pressed(KeyCode::ArrowUp) {
+        if keys.just_pressed(KeyCode::ArrowUp) || reverse_tab {
             front.focus = (front.focus + actions.len() - 1) % actions.len();
             front.dirty_ui = true;
         }
@@ -677,7 +691,10 @@ pub(super) fn input(
                 front.show(target, &mut view);
             }
         }
-        Action::Start => front.new_park(&mut sim, &mut view, &campaign),
+        Action::Start => {
+            front.new_park(&mut sim, &mut view, &campaign);
+            view.tutorial_requested &= preferences.as_ref().is_none_or(|p| p.value.guided_start);
+        }
         Action::Mode(mode) => {
             front.mode = mode;
             front.dirty_ui = true;
@@ -865,6 +882,9 @@ pub(super) fn input(
             }
         }
         Action::Resume => front.resume(&mut view),
+        Action::Accessibility => {
+            view.accessibility_open = true;
+        }
         Action::ToggleSound => {
             if let Some(s) = sound.as_mut() {
                 s.value.muted = !s.value.muted;
@@ -1002,6 +1022,7 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
             Action::Lighting,
             Action::Weather,
             Action::ResetDisplay,
+            Action::Accessibility,
             Action::ToggleSound,
             Action::Volume(-10),
             Action::Volume(10),
@@ -1031,14 +1052,22 @@ pub(super) fn refresh(
     sound: Option<Res<SoundSettings>>,
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
-    display: Option<Res<DisplaySettings>>,
+    settings: (
+        Option<Res<DisplaySettings>>,
+        Option<Res<crate::accessibility::Preferences>>,
+    ),
 ) {
+    let (display, preferences) = settings;
     if front.screen == Screen::Settings && display.as_ref().is_some_and(|value| value.is_changed())
     {
         front.dirty_ui = true;
     }
     if front.screen == Screen::Intro {
-        let frame = (front.intro_started.elapsed().as_millis() / 250) as u8;
+        let frame = if preferences.as_ref().is_some_and(|p| p.value.reduced_motion) {
+            0
+        } else {
+            (front.intro_started.elapsed().as_millis() / 250) as u8
+        };
         if frame != front.intro_frame {
             front.intro_frame = frame;
             front.dirty_ui = true;
@@ -1150,6 +1179,7 @@ fn spawn_overlay(
                                 title(p, "F11 restores windowed Auto scale. --safe-windowed recovers startup.", 12.0, cream);
                                 if !display.notice.is_empty() { title(p, &display.notice, 12.0, gold); }
                             }
+                            button(p, "Controls & accessibility", Action::Accessibility);
                             button(p, if sound.muted { "Sound: Off" } else { "Sound: On" }, Action::ToggleSound);
                             title(p, &format!("Master volume: {}%", sound.levels[0]), 16.0, cream);
                             button(p, "Volume −", Action::Volume(-10)); button(p, "Volume +", Action::Volume(10));
@@ -1239,6 +1269,7 @@ fn action_name(action: Action) -> &'static str {
         Action::ImportBackup => "Import Backup",
         Action::ReturnTitle => "Return to Title",
         Action::Resume => "Resume",
+        Action::Accessibility => "Controls & accessibility",
         Action::ToggleSound => "Sound",
         Action::Volume(_) => "Volume",
         Action::Scale(_) => "Interface scale",
