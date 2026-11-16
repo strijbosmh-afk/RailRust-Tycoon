@@ -44,6 +44,7 @@ mod feedback_scenes;
 mod finance_scenes;
 mod guest_dashboard_scenes;
 mod journey_scenes;
+mod landscape_scenes;
 mod loan_scenes;
 mod name_scenery_scenes;
 mod opening_scenes;
@@ -112,6 +113,7 @@ enum Scene {
     Sound,
     SoundMuted,
     Garden,
+    Landscape,
     Water,
     Help,
     Selection,
@@ -815,6 +817,7 @@ pub(super) fn configure(app: &mut App) {
                 Some("sound") => Scene::Sound,
                 Some("sound-muted") => Scene::SoundMuted,
                 Some("garden") => Scene::Garden,
+                Some("landscape") => Scene::Landscape,
                 Some("water") => Scene::Water,
                 Some("selection") => Scene::Selection,
                 Some("path") => Scene::Path,
@@ -1806,6 +1809,9 @@ fn apply_preset(
         view.terrain_custom = true;
         view.scene_dirty = true;
     }
+    if matches!(capture.scene, Scene::Landscape) {
+        landscape_scenes::prepare(&mut sim.0, &mut view, capture.rotation);
+    }
     if capture.detail {
         let elevation = Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
         view.zoom = 3.5 * view.camera_span;
@@ -1852,6 +1858,9 @@ fn apply_preset(
                     - elevation;
             }
             Scene::Garden => {}
+            Scene::Landscape => {
+                view.zoom = 2.8;
+            }
             _ => panic!("--capture-detail requires a ride, service-needs or garden scene"),
         }
         view.scene_dirty = true;

@@ -86,6 +86,7 @@ pub(crate) fn foliage(park: &park_sim::Park, rotation: u8, mode: crate::world::V
     let mut positions = Vec::new();
     let mut uvs = Vec::new();
     let mut indices = Vec::new();
+    let mut colors = Vec::new();
     if mode == crate::world::ViewMode::Surface {
         for (pos, seed) in crate::world::scenery_trees(park) {
             if seed.is_multiple_of(3) {
@@ -96,16 +97,25 @@ pub(crate) fn foliage(park: &park_sim::Park, rotation: u8, mode: crate::world::V
             else {
                 continue;
             };
-            let scale = 0.85 + (seed % 6) as f32 * 0.055;
+            let scale = 0.88 + (seed % 7) as f32 * 0.04;
+            let width = 30.0 * scale * (0.94 + (seed % 3) as f32 * 0.06);
+            let height = 66.0 * scale;
             let depth = crate::world::tree_depth(park, pos, rotation);
             let start = positions.len() as u32;
             positions.extend([
-                [base.x - 30.0 * scale, base.y, depth],
-                [base.x + 30.0 * scale, base.y, depth],
-                [base.x + 30.0 * scale, base.y + 68.0 * scale, depth],
-                [base.x - 30.0 * scale, base.y + 68.0 * scale, depth],
+                [base.x - width, base.y, depth],
+                [base.x + width, base.y, depth],
+                [base.x + width, base.y + height, depth],
+                [base.x - width, base.y + height, depth],
             ]);
             uvs.extend([[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]);
+            let tint = match seed % 4 {
+                0 => [0.72, 0.94, 0.72, 1.0],
+                1 => [0.82, 1.0, 0.79, 1.0],
+                2 => [0.78, 0.93, 0.86, 1.0],
+                _ => [0.86, 0.98, 0.75, 1.0],
+            };
+            colors.extend([tint; 4]);
             indices.extend([start, start + 1, start + 2, start, start + 2, start + 3]);
         }
     }
@@ -117,7 +127,7 @@ pub(crate) fn foliage(park: &park_sim::Park, rotation: u8, mode: crate::world::V
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
     .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; count])
-    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, vec![[1.0, 1.0, 1.0, 1.0]; count])
+    .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
     .with_inserted_indices(Indices::U32(indices))
 }
 
