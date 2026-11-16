@@ -19,6 +19,7 @@ pub use coasters::{CoasterSelectionError, MAX_COASTER_RECORDS};
 mod construction_playthrough_tests;
 mod crowds;
 mod decorations;
+pub mod demo_park;
 mod path_economy;
 pub use appearance::{RideAppearance, RidePaint, RidePaintError, RidePalettePreset};
 pub use decorations::{

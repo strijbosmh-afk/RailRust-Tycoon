@@ -50,6 +50,7 @@ pub(super) enum Action {
     Skip,
     Continue,
     New,
+    Demo,
     Campaign,
     Library,
     Settings,
@@ -137,7 +138,11 @@ impl FrontEnd {
         }
     }
     pub fn capture_scene(&mut self, name: &str) -> Result<(), String> {
+        if name == "demo-park" {
+            self.draft = park_sim::demo_park::DEMO_PARK_NAME.into();
+        }
         self.screen = match name {
+            "demo-park" => Screen::Park,
             "intro" => Screen::Intro,
             "title" => Screen::Title,
             "new-park" => Screen::New,
@@ -396,6 +401,27 @@ impl FrontEnd {
             }
             let _ = park.set_visitor_arrivals(self.arrivals);
         }
+        self.start_park(park, sim, view);
+        view.tutorial_requested = true;
+    }
+
+    fn demo_park(&mut self, sim: &mut Simulation, view: &mut ViewState) {
+        match park_sim::demo_park::build_demo_park() {
+            Ok(park) => {
+                self.draft = park_sim::demo_park::DEMO_PARK_NAME.into();
+                self.start_park(park, sim, view);
+                view.tutorial_requested = false;
+                self.notice =
+                    "Welcome to Sunhaven Gardens. Explore, build and save your own park.".into();
+            }
+            Err(error) => {
+                self.notice = format!("Could not open Sunhaven Gardens. {error}");
+                self.dirty_ui = true;
+            }
+        }
+    }
+
+    fn start_park(&mut self, park: Park, sim: &mut Simulation, view: &mut ViewState) {
         let (terrain_profile, terrain_custom) = crate::persistence::terrain_style(&park);
         sim.0 = park;
         let generation = view.park_generation.wrapping_add(1);
@@ -413,7 +439,6 @@ impl FrontEnd {
         self.paused_speed = Speed::Normal;
         self.notice = "New park started. Save from the menu or press F5.".into();
         self.show(Screen::Park, view);
-        view.tutorial_requested = true;
     }
 }
 
@@ -696,6 +721,7 @@ pub(super) fn input(
             front.new_park(&mut sim, &mut view, &campaign);
             view.tutorial_requested &= preferences.as_ref().is_none_or(|p| p.value.guided_start);
         }
+        Action::Demo => front.demo_park(&mut sim, &mut view),
         Action::Mode(mode) => {
             front.mode = mode;
             front.dirty_ui = true;
@@ -961,6 +987,7 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
                 v.push(Action::Continue);
             }
             v.extend([
+                Action::Demo,
                 Action::New,
                 Action::Campaign,
                 Action::ScenarioLibrary,
@@ -1128,6 +1155,7 @@ fn spawn_overlay(
                         Screen::Intro => { title(p, &format!("{} Build a place worth remembering {}", "✦".repeat((front.intro_frame % 4 + 1) as usize), "✦".repeat((front.intro_frame % 4 + 1) as usize)), 24.0, cream); button(p, "Skip intro", Action::Skip); },
                         Screen::Title => { if front.continue_id().is_some() { button(p, "Continue latest park", Action::Continue); }
                             else { title(p, "Continue unavailable — no healthy saved park. Use Load Park for a backup.", 14.0, cream); }
+                            button(p, "Play Sunhaven Gardens · 7 rides", Action::Demo);
                             button(p, "New Park", Action::New); button(p, "Campaign", Action::Campaign); button(p, "Scenarios and editor", Action::ScenarioLibrary);
                             button(p, "Load Park", Action::Library); button(p, "Settings", Action::Settings);
                             button(p, "Credits", Action::Credits); button(p, "Quit", Action::Quit); },
@@ -1241,6 +1269,7 @@ fn action_name(action: Action) -> &'static str {
     match action {
         Action::Continue => "Continue",
         Action::New => "New Park",
+        Action::Demo => "Play Sunhaven Gardens",
         Action::Campaign => "Campaign",
         Action::Library => "Load Park",
         Action::Settings => "Settings",
@@ -1351,6 +1380,56 @@ mod tests {
         if root.exists() {
             fs::remove_dir_all(root).unwrap();
         }
+    }
+
+    #[test]
+    fn demo_starts_from_title_and_saves_as_an_independent_playable_park() {
+        let root = std::env::temp_dir().join(format!(
+            "parkbound-demo-front-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let session = SaveSession::from_arguments([
+            OsString::from("--save-dir"),
+            root.clone().into_os_string(),
+        ]);
+        let mut front = FrontEnd::new(true, &session);
+        let mut sim = Simulation(new_game_park());
+        let mut view = new_game_view();
+        front.draft = "Existing park".into();
+        front.save(&sim.0, &mut view);
+        let previous_id = front.active.unwrap();
+        let previous_park = sim.0.clone();
+        front.show(Screen::Title, &mut view);
+        assert!(
+            keyboard_actions(&front)
+                .iter()
+                .any(|a| matches!(a, Action::Demo))
+        );
+        front.demo_park(&mut sim, &mut view);
+        assert_eq!(front.screen, Screen::Park);
+        assert_eq!(front.current_name(), park_sim::demo_park::DEMO_PARK_NAME);
+        assert_eq!(sim.0.all_rides().count(), 7);
+        assert!(!view.front_modal);
+        assert!(!view.tutorial_requested);
+        assert_eq!(view.speed, Speed::Normal);
+        assert!(front.active.is_none());
+        assert!(front.unsaved(&sim.0));
+        front.save(&sim.0, &mut view);
+        let demo_id = front.active.unwrap();
+        assert_ne!(demo_id, previous_id);
+        let saved_demo = sim.0.clone();
+        front.load(previous_id, false, &mut sim, &mut view);
+        assert_eq!(sim.0, previous_park);
+        front.load(demo_id, false, &mut sim, &mut view);
+        assert_eq!(sim.0, saved_demo);
+        assert_eq!(view.speed, Speed::Paused);
+        assert_eq!(front.current_name(), park_sim::demo_park::DEMO_PARK_NAME);
+        assert!(root.parent() == Some(std::env::temp_dir().as_path()));
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

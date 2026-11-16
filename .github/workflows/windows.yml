@@ -30,6 +30,15 @@ jobs:
       - name: Build the Windows distribution
         shell: pwsh
         run: ./scripts/package-windows.ps1
+      - name: Verify playable demo park across fresh processes
+        shell: pwsh
+        run: |
+          $demoDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound demo park é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-demo-park --save-dir $demoDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Demo park writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-demo-park --save-dir $demoDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Demo park restart failed" }
+          Get-Content -LiteralPath (Join-Path $demoDirectory "verification-demo-park.txt")
       - name: Verify accessibility settings across processes
         shell: pwsh
         run: |

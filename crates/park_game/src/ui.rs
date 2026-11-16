@@ -1795,7 +1795,7 @@ pub(super) fn refresh(
                     if view.diagnostic_case.is_some() {
                         "Render preview"
                     } else {
-                        "Meadow Lake"
+                        front.as_ref().map_or("Meadow Lake", |front| front.current_name())
                     },
                     sim.0.width(),
                     sim.0.height()
