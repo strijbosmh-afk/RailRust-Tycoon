@@ -2,7 +2,9 @@
 
 ## Current work — Classic graphics, 0.92.0
 
-Continue on `codex/classic-graphics-overhaul` from baseline `2b0df01b22013e4a913a2f363b9963256efefcc7`. The user selected the detailed classic isometric direction and matching opening screen. The implementation and verification instructions are in `docs/CLASSIC_GRAPHICS_GUIDE.md`. Tests, visual inspection and packaging are in progress.
+Continue on `codex/classic-graphics-overhaul` from baseline `2b0df01b22013e4a913a2f363b9963256efefcc7`. The user selected the detailed classic isometric direction and matching opening screen. Runtime source `c767fa0d1360ba55ba93a351b04978306def1193` is verified on GitHub in PR 84. Read `docs/CLASSIC_GRAPHICS_GUIDE.md` and `docs/CLASSIC_GRAPHICS_VERIFICATION.md` for implementation and evidence. Strict checks, all 568 game tests, four-view inspection and extracted-package play/save verification pass. All 464 simulation tests also pass, completing 1,032 tests. The remote workflow is still running at this checkpoint.
+
+The new playable package is `dist/Parkbound-0.92.0-windows-x64.zip`. Extract it and run `Parkbound.exe`, then choose **Play Sunhaven Gardens**. The title and demo captures were checked at compact, Full HD and QHD sizes. The executable SHA256 is `eb4ccffd5b4284c24faa672440e1f3c752132c856f47404bc01eb2ce128cc9d5`. Final archive identity is stored in the adjacent `.sha256` file after documentation refresh.
 
 Shared OneDrive checkout `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Embedded original art and licensed fonts are included in the source and Windows package. Save schema remains 51/51. This PC remains excluded from performance acceptance.
 
