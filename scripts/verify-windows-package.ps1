@@ -85,7 +85,7 @@ foreach ($file in $files) {
 $guides = @('README.md', 'RESUME_DEVELOPMENT.md', 'DEVELOPMENT_PLAN.md') +
     @(Get-ChildItem -LiteralPath (Join-Path $workspaceDirectory 'docs') -Filter '*.md' -File -Recurse | ForEach-Object {
         [IO.Path]::GetRelativePath($workspaceDirectory, $_.FullName).Replace('\', '/')
-    })
+    }) + @('assets/art/PROVENANCE.md')
 if (@($files | Where-Object Extension -eq '.md').Count -ne $guides.Count) { throw 'Unexpected guide inventory.' }
 foreach ($guide in $guides) {
     if ((Get-FileHash -LiteralPath (Join-Path $package $guide)).Hash -ne
