@@ -6,7 +6,7 @@ Branch: `codex/landscape-graphics`. Runtime commit: `5488cf973ec5b4222fadd0c7d19
 
 - Strict release Clippy across the workspace and all targets, formatting and 17 original asset records passed.
 - GitHub Windows job 133377462467, run 43889760293, passed formatting, asset validation, strict Clippy and the complete workspace test step against the runtime commit. Its remaining gameplay checks were still running at this checkpoint.
-- The first local game suite passed 571 cases and exposed two old path-art expectations. The queue color and shallow detail bias assertions now match the new materials; the remote complete test step passed with those corrections. A local rebuild of that test binary is also being completed.
+- The first local game suite passed 571 cases and exposed two old path-art expectations. The queue color and shallow detail bias assertions now match the new materials; the remote complete test step passed with those corrections. The final local rebuild passed all eight path-preview tests, including both corrected regressions (artifacts/landscape-graphics/path-tests-complete.log).
 - All eight targeted landscape tests passed, including material clipping on height/rotation variants, sand and cliffs, static terrain and the production-built landscape fixture save roundtrip.
 - The release executable built successfully. Its standalone seven-ride demo write/verify processes passed from outside the checkout: paid visits on all seven rides and exact continuation after loading.
 - Inspected actual game captures: all four landscape rotations, landscape detail, demo, sloped paths, underground view, and the demo at 2560x1440. All retained in `artifacts/landscape-graphics/`.
