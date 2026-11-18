@@ -682,7 +682,7 @@ pub(super) fn faces(
             ride_detail::tube(
                 &mut detail,
                 Vec3::new(0.03, 0.0, 2.86),
-                Vec3::new(-0.01, 0.0, 2.99),
+                Vec3::new(0.03, 0.0, 2.99),
                 0.014,
                 ivory,
             );
@@ -906,7 +906,10 @@ mod tests {
                     let v = (sum - difference) * 0.5;
                     let h = (y + (sum - 11.0) * HALF_HEIGHT) / HEIGHT_STEP;
                     assert!((4.499..=5.501).contains(&u) && (4.499..=5.501).contains(&v));
-                    assert!((-0.001..f32::from(height) + 3.0).contains(&h));
+                    assert!(
+                        (-0.001..f32::from(height) + 3.0).contains(&h),
+                        "{kind:?} at {height}: ({x}, {y}, {z}), height {h}"
+                    );
                 }
                 kind_meshes.push(positions(&mesh).to_vec());
             }

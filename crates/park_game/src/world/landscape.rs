@@ -368,10 +368,10 @@ pub(super) fn flowerbed(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32)
     };
     for i in 0..24_u32 {
         let a = i as f32 * 2.399_963;
-        let r = 2.5 + (i % 6) as f32 * 2.4;
+        let r = 2.0 + (i % 6) as f32 * 1.9;
         let p = base + Vec2::new(a.cos() * r, a.sin() * r * 0.44);
         let depth = top.depth_at(p) + 0.03;
-        let height = 3.0 + ((i + seed) % 4) as f32 * 1.1;
+        let height = 2.5 + ((i + seed) % 4) as f32 * 0.8;
         let bloom = p + Vec2::new(a.sin() * 0.7, height);
         mesh.surface_ellipse(top, p, 3.6, 1.7, DETAIL_BIAS * 4.0, dark);
         mesh.line(p, bloom, 0.65, depth, rgb(56, 119, 43));
@@ -543,12 +543,14 @@ mod tests {
             let top = column_surfaces(&park, pos, rotation)[0].unwrap();
             let mut painter = Painter::default();
             ground(&mut painter, &park, pos, top);
-            flowerbed(
-                &mut painter,
-                elevated_tile_center(&park, pos, rotation).unwrap(),
-                top,
-                5,
-            );
+            for seed in 0..12 {
+                flowerbed(
+                    &mut painter,
+                    elevated_tile_center(&park, pos, rotation).unwrap(),
+                    top,
+                    seed,
+                );
+            }
             let mesh = painter.finish();
             for v in mesh
                 .attribute(Mesh::ATTRIBUTE_POSITION)
