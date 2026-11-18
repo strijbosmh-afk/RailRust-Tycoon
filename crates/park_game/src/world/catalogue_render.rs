@@ -1,6 +1,6 @@
 //! Original catalogue models. All surfaces participate in physical depth and picking.
 use super::carousel_render::{at, cuboid, face, nominal};
-use super::ride_detail::{lathe, shell, tube};
+use super::ride_detail::{lathe, panel, shell, tube};
 use super::*;
 use park_sim::{CarouselRide, RideModel};
 type Face = service_render::Face;
@@ -153,6 +153,61 @@ pub(super) fn static_faces(
                 }
             }
         }
+    }
+    // Inlaid paving and slender balusters give the operating platform scale.
+    for x in 0..w {
+        for y in 0..d {
+            let center = Vec3::new(x as f32, y as f32, z + 0.153);
+            local_panel(
+                &mut out,
+                [
+                    center + Vec3::new(-0.35, -0.30, 0.0),
+                    center + Vec3::new(0.30, -0.35, 0.0),
+                    center + Vec3::new(0.35, 0.30, 0.0),
+                    center + Vec3::new(-0.30, 0.35, 0.0),
+                ],
+                if (x + y) % 2 == 0 {
+                    rgb(218, 226, 193)
+                } else {
+                    rgb(158, 190, 166)
+                },
+            );
+        }
+    }
+    for step in 0..w * 4 {
+        let x = step as f32 * 0.25 - 0.25;
+        for y in [-0.31, d as f32 - 0.63] {
+            if y < 0.0 && x < 0.7 {
+                continue;
+            }
+            tube(
+                &mut out,
+                Vec3::new(x, y, z + 0.20),
+                Vec3::new(x, y, z + 0.69),
+                0.009,
+                GOLD,
+            );
+        }
+    }
+    for (x, y) in [
+        (w as f32 - 0.72, -0.30),
+        (w as f32 - 0.72, d as f32 - 0.72),
+        (-0.28, d as f32 - 0.72),
+    ] {
+        let p = Vec3::new(x, y, z);
+        tube(
+            &mut out,
+            p + Vec3::Z * 0.20,
+            p + Vec3::Z * 1.10,
+            0.018,
+            GOLD,
+        );
+        lathe(
+            &mut out,
+            p + Vec3::Z * 1.02,
+            &[(0.04, 0.0), (0.075, 0.08), (0.045, 0.16), (0.0, 0.18)],
+            [rgb(255, 243, 194), rgb(244, 200, 103), rgb(195, 139, 57)],
+        );
     }
     match model {
         RideModel::FerrisWheel => {
@@ -459,6 +514,27 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                     .normalize_or_zero()
                     .extend(0.0);
                 let axis = if axis == Vec3::ZERO { Vec3::X } else { axis };
+                for decoration in 0..6 {
+                    let angle =
+                        (decoration as f32 / 6.0) * std::f32::consts::TAU + axis.y.atan2(axis.x);
+                    let radial = Vec3::new(angle.cos(), angle.sin(), 0.0);
+                    let tangent = Vec3::new(-radial.y, radial.x, 0.0);
+                    let medallion = c + radial * 0.407 + Vec3::Z * 0.10;
+                    for petal in 0..5 {
+                        let a = petal as f32 * std::f32::consts::TAU / 5.0;
+                        let tip = tangent * a.cos() * 0.052 + Vec3::Z * a.sin() * 0.075;
+                        panel(
+                            &mut body,
+                            [
+                                medallion,
+                                medallion + tip - tangent * 0.018,
+                                medallion + tip * 1.32,
+                                medallion + tip + tangent * 0.018,
+                            ],
+                            GOLD[0],
+                        );
+                    }
+                }
                 for sign in [-1.0, 1.0] {
                     let handle = c + axis * sign * 0.40;
                     for j in 0..16 {
@@ -591,6 +667,20 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                     0.08,
                     GOLD,
                 );
+                for y in [-0.294, 0.294] {
+                    for x in [-0.24, 0.0, 0.24] {
+                        panel(
+                            &mut parts,
+                            [
+                                Vec3::new(x - 0.055, y, -0.03),
+                                Vec3::new(x, y, 0.10),
+                                Vec3::new(x + 0.055, y, -0.03),
+                                Vec3::new(x, y, -0.12),
+                            ],
+                            GOLD[0],
+                        );
+                    }
+                }
                 // Open windows retain the six real riders in the active gondola.
                 for x in [-0.30, 0.30] {
                     for y in [-0.23, 0.23] {
@@ -609,6 +699,12 @@ pub(super) fn dynamic_faces(park: &Park, ride: &CarouselRide, rotation: u8) -> V
                     &[(0.43, 0.34, 0.91), (0.34, 0.27, 1.06), (0.12, 0.12, 1.17)],
                     0.09,
                     cabin,
+                );
+                lathe(
+                    &mut parts,
+                    Vec3::Z * 1.16,
+                    &[(0.04, 0.0), (0.065, 0.05), (0.0, 0.12)],
+                    GOLD,
                 );
                 for face in &mut parts {
                     for p in &mut face.surface.vertices {

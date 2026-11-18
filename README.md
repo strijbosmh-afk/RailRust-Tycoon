@@ -1,5 +1,7 @@
 # Parkbound
 
+Version **0.96.0** adds raised flowers, fern undergrowth, needle clusters, detailed paving, rounded shop products, ride platform inlays, decorated gondolas and cups, round coaster wheels and varied visitor outfits. The camera can zoom twice as close. See [the detail graphics guide](docs/PARK_DETAIL_GRAPHICS.md).
+
 Version **0.95.0** adds a Windows installer, Start menu shortcuts, save-preserving upgrades and uninstall, plus versioned download checksums and release metadata. The portable ZIP is also available. This is the Windows test channel. [Installation and upgrade guide](docs/PHASE_12_WINDOWS_DISTRIBUTION.md)
 
 Version **0.94.0** refines the park landscape: staggered stone paving, timber bridges, layered terrain edges, calmer turf, stone-edged flower borders and varied tree crowns. See [the landscape guide](docs/LANDSCAPE_GRAPHICS_GUIDE.md). Saves stay 51/51.

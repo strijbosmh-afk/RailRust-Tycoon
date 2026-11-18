@@ -641,18 +641,31 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
             right,
         )
     };
-    // Four solid black wheel blocks sit exactly on the rail heads.
-    for (start, end) in [(0.05, 0.25), (0.75, 0.95)] {
-        for (lo, hi) in [(-0.205, -0.135), (0.135, 0.205)] {
-            vehicle_slab(
-                &mut faces,
-                footprint(start, end, lo, hi),
-                0.25,
-                0.39,
-                [rgb(46, 53, 54), rgb(26, 34, 39), rgb(20, 28, 32)],
-                size,
-                rotation,
-            );
+    // Round wheel faces and recessed hubs follow each car's banked bogies.
+    for along in [0.15, 0.85] {
+        for across in [-0.20, 0.20] {
+            let center = rear.lerp(front, along) + normal * across + Vec3::Z * 0.32;
+            for (radius, vertical, offset, ink) in [
+                (0.073, 0.13, 0.0, rgb(27, 39, 45)),
+                (0.037, 0.065, 0.002, rgb(163, 182, 181)),
+            ] {
+                let center = center + normal * across.signum() * offset;
+                for segment in 0..12 {
+                    let point = |i: usize| {
+                        let angle = i as f32 * std::f32::consts::TAU / 12.0;
+                        center
+                            + direction.extend(0.0) * (angle.cos() * radius)
+                            + Vec3::Z * (angle.sin() * vertical)
+                    };
+                    face(
+                        &mut faces,
+                        [center, point(segment), point(segment + 1), center],
+                        ink,
+                        size,
+                        rotation,
+                    );
+                }
+            }
         }
     }
     // Angled body sides meet a narrower underframe. The deck retains the

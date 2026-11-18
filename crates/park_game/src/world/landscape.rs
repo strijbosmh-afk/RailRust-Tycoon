@@ -210,11 +210,28 @@ pub(super) fn path(
                 if detail {
                     mesh.surface_line(
                         top,
+                        p(start, y + 0.018),
+                        p(start, y + h - 0.018),
+                        0.6,
+                        DETAIL_BIAS * 2.0,
+                        rgb(162, 151, 123),
+                    );
+                    mesh.surface_line(
+                        top,
                         p(start, y + h - 0.018),
                         p(end, y + h - 0.018),
                         0.55,
                         DETAIL_BIAS * 2.0,
                         rgb(243, 232, 197),
+                    );
+                    let grain = (start + end) * 0.5;
+                    mesh.surface_line(
+                        top,
+                        p(grain - 0.025, y + h * 0.45),
+                        p(grain + 0.035, y + h * 0.52),
+                        0.45,
+                        DETAIL_BIAS * 2.0,
+                        varied(191, 183, 153, (n % 9) as i16),
                     );
                 }
             }
@@ -243,6 +260,16 @@ pub(super) fn path(
                         0.45,
                         DETAIL_BIAS * 2.0,
                         rgb(227, 193, 127),
+                    );
+                }
+                for b in [across_lo + 0.055, across_hi - 0.055] {
+                    mesh.surface_ellipse(
+                        top,
+                        p(a + 0.075, b),
+                        0.7,
+                        0.4,
+                        DETAIL_BIAS * 3.0,
+                        rgb(86, 83, 67),
                     );
                 }
             }
@@ -289,6 +316,18 @@ pub(super) fn path(
         }
     }
     if queue {
+        if detail {
+            for across in [-0.16, 0.16] {
+                mesh.surface_line(
+                    top,
+                    p(lo + 0.025, across),
+                    p(hi - 0.025, across),
+                    0.7,
+                    DETAIL_BIAS * 2.0,
+                    rgb(143, 205, 204),
+                );
+            }
+        }
         for along in [-0.30, 0.0, 0.30] {
             mesh.surface_line(
                 top,
@@ -327,35 +366,46 @@ pub(super) fn flowerbed(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32)
         1 => [rgb(167, 101, 206), rgb(238, 149, 199), rgb(250, 232, 152)],
         _ => [rgb(239, 108, 59), rgb(255, 194, 44), rgb(243, 225, 172)],
     };
-    for i in 0..22_u32 {
+    for i in 0..24_u32 {
         let a = i as f32 * 2.399_963;
-        let r = 3.0 + (i % 6) as f32 * 2.8;
+        let r = 2.0 + (i % 6) as f32 * 1.9;
         let p = base + Vec2::new(a.cos() * r, a.sin() * r * 0.44);
-        mesh.surface_ellipse(top, p, 4.0, 2.4, DETAIL_BIAS * 4.0, dark);
-        mesh.surface_ellipse(
-            top,
-            p + Vec2::new(-0.6, 0.8),
-            3.0,
-            1.7,
-            DETAIL_BIAS * 5.0,
-            rgb(78, 137, 53),
-        );
-        for offset in [
-            Vec2::new(-1.2, 0.0),
-            Vec2::new(1.2, 0.0),
-            Vec2::new(0.0, -0.8),
-            Vec2::new(0.0, 0.8),
-        ] {
-            mesh.surface_ellipse(
-                top,
-                p + offset,
-                1.3,
-                0.9,
-                DETAIL_BIAS * 6.0,
-                palette[(i % 3) as usize],
+        let depth = top.depth_at(p) + 0.03;
+        let height = 2.5 + ((i + seed) % 4) as f32 * 0.8;
+        let bloom = p + Vec2::new(a.sin() * 0.7, height);
+        mesh.surface_ellipse(top, p, 3.6, 1.7, DETAIL_BIAS * 4.0, dark);
+        mesh.line(p, bloom, 0.65, depth, rgb(56, 119, 43));
+        for side in [-1.0, 1.0] {
+            let leaf = p + Vec2::new(side * 2.7, height * 0.45);
+            mesh.polygon(
+                &[p + Vec2::Y, leaf, leaf + Vec2::Y * 1.2, p + Vec2::Y * 2.2],
+                depth + 0.001,
+                if side < 0.0 {
+                    rgb(109, 176, 57)
+                } else {
+                    rgb(57, 131, 46)
+                },
             );
         }
-        mesh.surface_ellipse(top, p, 0.65, 0.45, DETAIL_BIAS * 7.0, rgb(255, 224, 99));
+        let color = palette[(i % 3) as usize];
+        let mut shade = color;
+        for channel in &mut shade[..3] {
+            *channel *= 0.72;
+        }
+        mesh.ellipse(bloom + Vec2::new(0.4, -0.5), 2.7, 1.9, depth + 0.002, shade);
+        for petal in 0..5 {
+            let angle = petal as f32 * std::f32::consts::TAU / 5.0 + a;
+            let offset = Vec2::new(angle.cos() * 1.6, angle.sin() * 1.05);
+            mesh.ellipse(bloom + offset, 1.5, 1.05, depth + 0.003, color);
+        }
+        mesh.ellipse(bloom, 0.85, 0.62, depth + 0.004, rgb(126, 79, 25));
+        mesh.ellipse(
+            bloom + Vec2::new(-0.2, 0.3),
+            0.55,
+            0.4,
+            depth + 0.005,
+            rgb(255, 226, 105),
+        );
     }
 }
 
@@ -392,6 +442,27 @@ pub(super) fn pine(mesh: &mut Painter, base: Vec2, depth: f32, scale: f32, seed:
                 depth + 0.007 + level as f32 * 0.001,
                 rgb(101, 164, 91),
             );
+            for side in [-1.0, 1.0] {
+                let tip = base + Vec2::new(side * bw * 0.8, by) * scale;
+                mesh.ellipse(
+                    tip,
+                    (3.5 + bw * 0.12) * scale,
+                    2.2 * scale,
+                    depth + 0.008 + level as f32 * 0.001,
+                    if side < 0.0 {
+                        rgb(68, 146, 77)
+                    } else {
+                        rgb(29, 98, 66)
+                    },
+                );
+                mesh.line(
+                    tip + Vec2::new(-1.2, 0.5) * scale,
+                    tip + Vec2::new(1.0, 1.3) * scale,
+                    0.55 * scale,
+                    depth + 0.009 + level as f32 * 0.001,
+                    rgb(129, 185, 95),
+                );
+            }
         }
     }
 }
@@ -472,12 +543,14 @@ mod tests {
             let top = column_surfaces(&park, pos, rotation)[0].unwrap();
             let mut painter = Painter::default();
             ground(&mut painter, &park, pos, top);
-            flowerbed(
-                &mut painter,
-                elevated_tile_center(&park, pos, rotation).unwrap(),
-                top,
-                5,
-            );
+            for seed in 0..12 {
+                flowerbed(
+                    &mut painter,
+                    elevated_tile_center(&park, pos, rotation).unwrap(),
+                    top,
+                    seed,
+                );
+            }
             let mesh = painter.finish();
             for v in mesh
                 .attribute(Mesh::ATTRIBUTE_POSITION)

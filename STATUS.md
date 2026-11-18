@@ -1,5 +1,11 @@
 # Project status
 
+## Current work — Detailed park graphics, 0.96.0
+
+Branch `codex/park-detail-overhaul` starts at `886aa7c318b3cd11c399c7b9033aa7586f0ed579`. Graphics source `202a9bdb039a45140f5d0d83aa161df54b37421f` is published in PR 88. Physical flower heads and stems, fern fronds and pine clusters, paving bevels and timber fixings, rounded shop signs/products, platform inlays, ride ornaments, round coaster wheels and varied clothing are implemented. The maximum camera zoom is doubled. All 1,038 local tests, strict Clippy, formatting and the release build passed. Twenty after-captures, production demo continuation and the full catalogue continuation were checked. Read `docs/PARK_DETAIL_GRAPHICS.md`. The current GitHub run passed workspace tests and was continuing integration checks at this checkpoint.
+
+The source and original artwork remain in the shared OneDrive checkout. Saves remain 51/51. The previous native Drive export `q-3786d3de32c0aa387b5c1a4f74ae4c1a` has 171 verified files and an accepted receipt. Three older exports remain queued.
+
 ## Current work — Windows distribution, 0.95.0
 
 Branch `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. Runtime `c55c0b7894771e58813277f8c2453ecb7b94fef5` is in PR 87. The per-user installer, running-game guard, version query and download identity records are implemented. Formatting, strict Clippy, the mutex regression, release build, title capture and 14-process installation lifecycle passed. The real 0.94.0 payload upgrades to 0.95.0 while retaining 21 park, campaign and settings files. Read `docs/PHASE_12_WINDOWS_DISTRIBUTION.md` and `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md`.

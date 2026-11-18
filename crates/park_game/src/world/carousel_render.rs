@@ -453,6 +453,28 @@ fn faces(origin: TilePos, height: u8, size: u32, rotation: u8) -> Vec<Face> {
             size,
             rotation,
         );
+        let radial = Vec3::new(angle.cos(), angle.sin(), 0.0);
+        let tangent = Vec3::new(-radial.y, radial.x, 0.0);
+        let medallion = canopy(angle, 1.439, 2.005);
+        let mut ornament = Vec::new();
+        ride_detail::panel(
+            &mut ornament,
+            [
+                medallion - tangent * 0.06,
+                medallion + Vec3::Z * 0.075,
+                medallion + tangent * 0.06,
+                medallion - Vec3::Z * 0.075,
+            ],
+            festival[i % festival.len()],
+        );
+        ride_detail::tube(
+            &mut ornament,
+            medallion - Vec3::Z * 0.08,
+            medallion - Vec3::Z * 0.17,
+            0.012,
+            gold,
+        );
+        result.extend(ride_detail::project(ornament, size, rotation));
         if i % 3 == 0 {
             let foot = canopy(angle, 1.35, 0.37);
             cuboid(

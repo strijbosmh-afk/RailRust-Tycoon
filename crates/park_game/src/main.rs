@@ -344,7 +344,7 @@ impl ViewState {
     }
 
     fn zoom_by(&mut self, factor: f32) {
-        self.zoom = (self.zoom * factor).clamp(0.6, 3.5 * self.camera_span);
+        self.zoom = (self.zoom * factor).clamp(0.6, 7.0 * self.camera_span);
     }
 
     fn reset_camera(&mut self) {
@@ -2186,7 +2186,7 @@ mod tests {
             ..default()
         };
         view.zoom_by(1000.0);
-        assert_eq!(view.zoom, 3.5);
+        assert_eq!(view.zoom, 7.0);
         view.zoom_by(0.0001);
         assert_eq!(view.zoom, 0.6);
         for _ in 0..4 {

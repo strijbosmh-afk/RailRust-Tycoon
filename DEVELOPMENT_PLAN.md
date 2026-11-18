@@ -1,5 +1,7 @@
 # Theme Park Simulation Development Plan
 
+The 0.96.0 graphics pass adds detail across rides, planting, paths, facilities and visitors, with closer inspection zoom. Local tests and visual checks passed. [Detail graphics guide](docs/PARK_DETAIL_GRAPHICS.md)
+
 Phase 12 introduces the 0.95.0 Windows test installer, per-user installation, save-preserving upgrades and removal, release metadata and lifecycle verification. The owner deferred the original source-code license decision. Independent clean-PC, player and representative-hardware acceptance remain in the 1.0 roadmap. [Windows distribution guide](docs/PHASE_12_WINDOWS_DISTRIBUTION.md)
 
 For the current, stepwise path from the 0.88.0 build to a full Windows 1.0 game, use [the full-game roadmap](docs/FULL_GAME_ROADMAP.md). It gives the intro/title flow, higher-resolution interface, original graphics, world/ride/guest/management coverage, editors, beta and distribution their own completion gates. The historical milestone sequence below remains background; the current phase order and immediate next slices are in that roadmap.
