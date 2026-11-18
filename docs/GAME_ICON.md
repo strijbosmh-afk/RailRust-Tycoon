@@ -48,10 +48,29 @@ the package contains the ICO.
 
 ## Verification checkpoint
 
-The implementation is under verification. Final local build, test, package,
-installation and Git publication results are recorded in the icon session
-report and the current status/resume checkpoint. The 32- and 256-pixel frames
-were visually inspected and transparent corner pixels were confirmed.
+Runtime source `c18174696b34460eb48db76d4f015c5876a1c483` is published in
+PR 89. All 574 game tests and 464 simulation tests passed, with formatting,
+strict release Clippy and the release build. The ICO regenerates byte-for-byte
+on PC1830. Asset validation covers 19 families. The 32- and 256-pixel frames
+were visually inspected, with transparent corner pixels confirmed.
+
+All seven embedded resource payloads match the ICO. Both large and small
+native window icons were verified on the release build and installed game.
+The extracted ZIP passed 185 payload hashes and 161 bundled-guide checks,
+independent demo/front save continuation and an inspected title capture.
+
+The existing 0.96.0 installation was upgraded to 0.96.1. Its 185 payload files
+match the package, and both existing player files retain their hashes.
+Start menu and desktop shortcuts and Installed apps reference the new ICO.
+Icons extracted from the game, setup and uninstaller are pixel-identical.
+Evidence is under `artifacts/icon-*`. The executable SHA256 is
+`4cb731db5641fb677be3fb6781863d577fb4d87ad306d61ee70df60645c9052c`.
+Current ZIP and installer hashes accompany those files in `dist/`.
+
+At 2026-11-18 14:48 UTC, the remote workflow had passed workspace tests,
+packaging and the embedded-icon check and was continuing integration checks.
+The first lint run caught the integer-resource pointer spelling. The corrected
+implementation passed strict Clippy. [Windows verification run](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/44325579555)
 
 This presentation change keeps park saves at schema/content 51/51. The current
 PC supplies correctness evidence. Representative-hardware performance remains

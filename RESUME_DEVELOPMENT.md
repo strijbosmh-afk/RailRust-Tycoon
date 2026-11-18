@@ -2,7 +2,9 @@
 
 ## Current work — Game icon, 0.96.1
 
-Continue on `codex/game-icon`, based on `589a09b6da98131ffb729499c41f895880755aab`. The user-approved icon is saved as `assets/art/parkbound-icon.png` and `assets/art/parkbound.ico`. Windows executable/window icons, version properties and installer/shortcut integration are implemented. Verification and publication are in progress. Follow `docs/GAME_ICON.md` for regeneration and checks, and `docs/sessions/2026-11-18-game-icon.md` for the latest evidence.
+Continue on `codex/game-icon`, based on `589a09b6da98131ffb729499c41f895880755aab`. Runtime source `c18174696b34460eb48db76d4f015c5876a1c483` is published in PR 89. The user-approved icon is saved as `assets/art/parkbound-icon.png` and `assets/art/parkbound.ico`. Windows executable/window icons, version properties and installer/shortcut integration are complete. All 1,038 tests, strict Clippy, formatting, release build, seven embedded sizes, native-window icons and extracted-package demo/front continuation passed. Follow `docs/GAME_ICON.md` for regeneration and `docs/sessions/2026-11-18-game-icon.md` for evidence.
+
+PC1830's installation was upgraded to 0.96.1. All 185 installed payload files matched the package, both existing player files were preserved and both shortcuts use the ICO. Executable SHA256 is `4cb731db5641fb677be3fb6781863d577fb4d87ad306d61ee70df60645c9052c`. ZIP and installer hashes are in adjacent `dist/` checksum files. GitHub run `44325579555` passed tests, packaging and the icon check and was continuing gameplay integration at 2026-11-18 14:48 UTC. Check its final status when resuming.
 
 The shared OneDrive Git root is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Rust 1.93.1, Windows C++ tools/SDK, PowerShell 7 and Inno Setup 6.7.4 remain the development requirements. The new `embed-resource` build dependency is pinned in Cargo.lock. Saves remain 51/51. The preceding native Drive export `q-2cd0c0a02dc9bcfa808be6b1fb4b7a64` has 173 verified files and an accepted receipt. Three older exports remain queued. This PC is excluded from performance acceptance.
 
