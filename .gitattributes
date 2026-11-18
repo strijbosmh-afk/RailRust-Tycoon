@@ -11,6 +11,8 @@
 *.json text eol=lf
 *.png binary
 *.ico binary
+*.wav binary
+*.ogg binary
 *.docx binary
 # These exact upstream bytes are checked against scripts/notices/sources.json.
 scripts/notices/** -text -whitespace

@@ -18,7 +18,7 @@ foreach ($asset in $assetCatalog.assets) {
     if ($asset.id -cnotmatch '^[a-z][a-z0-9.-]{2,63}$' -or -not $seen.Add($asset.id)) {
         throw "Invalid or duplicate asset ID: $($asset.id)"
     }
-    if ($asset.type -cnotin @('procedural', 'authored', 'hybrid', 'font')) { throw "Unknown asset type: $($asset.id)" }
+    if ($asset.type -cnotin @('procedural', 'authored', 'hybrid', 'font', 'audio')) { throw "Unknown asset type: $($asset.id)" }
     if ($asset.rights -ne 'Parkbound original' -and $asset.rights -notmatch '^Licensed: .+') {
         throw "Missing redistribution rights: $($asset.id)"
     }
@@ -31,14 +31,17 @@ foreach ($asset in $assetCatalog.assets) {
     if (@($asset.variants).Count -eq 0 -or @($asset.variants).Count -gt 32) { throw "Invalid variants: $($asset.id)" }
     if ($asset.type -ne 'procedural') {
         if ($asset.sha256 -notmatch '^[a-fA-F0-9]{64}$' -or
-            ($asset.type -ne 'font' -and ($asset.width -lt 1 -or $asset.height -lt 1))) {
+            ($asset.type -notin @('font', 'audio') -and ($asset.width -lt 1 -or $asset.height -lt 1))) {
             throw "Authored asset needs a hash and positive dimensions: $($asset.id)"
         }
         if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $asset.sha256) {
             throw "Authored asset hash mismatch: $($asset.id)"
         }
-        if ($asset.type -eq 'font' -and -not (Test-Path -LiteralPath (Join-Path $root $asset.license) -PathType Leaf)) {
-            throw "Font license is missing: $($asset.id)"
+        if ($asset.type -in @('font', 'audio') -and -not (Test-Path -LiteralPath (Join-Path $root $asset.license) -PathType Leaf)) {
+            throw "Asset license is missing: $($asset.id)"
+        }
+        if ($asset.type -eq 'audio' -and ($asset.sampleRate -lt 8000 -or $asset.channels -notin @(1, 2) -or $asset.frames -lt 1)) {
+            throw "Invalid audio format record: $($asset.id)"
         }
     }
 }

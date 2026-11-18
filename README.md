@@ -1,5 +1,7 @@
 # Parkbound
 
+Version **0.97.0** adds three arranged original soundtracks, attraction-specific sound that follows camera zoom, water and lift chains, and recorded cheering visitors. **F10** controls the mix. Google Drive synchronization is disabled at the owner's request. See [the audio guide](docs/AUDIO_OVERHAUL.md).
+
 Version **0.96.1** adds the approved red-and-gold coaster icon to the Windows executable, game window, taskbar, shortcuts and installer. The original transparent artwork and seven-size ICO are included. See [the icon guide](docs/GAME_ICON.md).
 
 Version **0.96.0** adds raised flowers, fern undergrowth, needle clusters, detailed paving, rounded shop products, ride platform inlays, decorated gondolas and cups, round coaster wheels and varied visitor outfits. The camera can zoom twice as close. See [the detail graphics guide](docs/PARK_DETAIL_GRAPHICS.md).

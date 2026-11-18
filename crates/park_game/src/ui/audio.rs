@@ -42,7 +42,7 @@ pub(crate) fn setup(commands: &mut Commands) {
         .with_children(|p|{p.spawn((layout::ScrollLayer::Help,ScrollPosition::default(),layout::dialog(94.0,650.0,None),BackgroundColor(PAPER),BorderRadius::all(px(12))))
             .with_children(|p|{
                 label(p,"The sounds of your park",23.0,INK);
-                label(p,"Two original themes, weather ambience, camera-aware rides and guest/staff reactions.\nF10 opens/closes this window. Sound fades out when focus is lost.",12.0,MUTED);
+                label(p,"Three original soundtracks, nearby rides, water, lift chains and cheering visitors.\nF10 opens/closes this window. Sound fades out when focus is lost.",12.0,MUTED);
                 for (i,name) in ["Master","Music","Ambience","Rides","Alerts & interface"].iter().enumerate(){
                     p.spawn(Node{justify_content:JustifyContent::SpaceBetween,..row()}).with_children(|p|{
                         p.spawn((Text::new(format!("{name}: --%")),TextFont{font_size:14.0,..default()},TextColor(INK),AudioLabel::Level(i)));

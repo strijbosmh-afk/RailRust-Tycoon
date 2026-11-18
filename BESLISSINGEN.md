@@ -1,5 +1,13 @@
 # Project decisions
 
+## 2026-11-18 — Soundtrack, spatial sound and Drive synchronization
+
+- Disable Google Drive synchronization for Parkbound at the owner's request. Retain local exports and existing destination IDs. Keep the project flag in Git so another PC can respect the choice.
+- Write three original instrumental arrangements with percussion, bass, harmony and contrasting sections. Crossfade between tracks and retain the existing independent volume controls.
+- Use the real rendering camera and moving ride positions for four nearby sound sources. Water and lift-chain effects follow the ride model and motion state.
+- Add AuraVoice's CC0 group cheer, retaining the original recording, converted WAV, provenance and full terms. Keep remaining music and effects original.
+- Preserve save schema/content 51/51 and audio settings version 2. Keep the Windows toolchain and runtime dependencies unchanged.
+
 ## 2026-11-18 — Parkbound application icon
 
 - Use the user-approved original red coaster, golden loop and green badge for the Windows application identity.

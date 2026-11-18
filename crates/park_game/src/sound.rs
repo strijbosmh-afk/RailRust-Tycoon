@@ -1,5 +1,5 @@
 //! Presentation-only sound. Park simulation, saves and RNG are never mutated.
-use crate::{Simulation, ViewState, persistence::SaveSession, world};
+use crate::{Simulation, ViewState, persistence::SaveSession};
 use bevy::prelude::*;
 use std::{
     path::{Path, PathBuf},
@@ -12,6 +12,8 @@ use std::{
 #[cfg(windows)]
 mod native;
 mod proof;
+mod score;
+mod spatial;
 mod synth;
 pub(crate) use synth::Cue;
 use synth::{MixState, Mixer};
@@ -121,7 +123,7 @@ impl SoundSettings {
     }
 }
 enum Message {
-    State(MixState),
+    State(Box<MixState>),
     Cue(Cue),
     Quit,
     Restart,
@@ -132,6 +134,7 @@ struct Output {
     worker: Option<JoinHandle<()>>,
     last: Option<MixState>,
     cooldown: f32,
+    scene_cooldown: f32,
 }
 impl Drop for Output {
     fn drop(&mut self) {
@@ -181,6 +184,7 @@ pub(crate) fn configure(app: &mut App, args: &[std::ffi::OsString]) {
                     worker: Some(worker),
                     last: None,
                     cooldown: 0.0,
+                    scene_cooldown: 0.0,
                 });
             }
             Err(e) => {
@@ -203,6 +207,7 @@ type FeedbackResources<'w, 's> = (
 type DeviceInputs<'w, 's> = (
     Query<'w, 's, &'static Window, With<bevy::window::PrimaryWindow>>,
     Query<'w, 's, &'static Interaction, (Changed<Interaction>, With<Button>)>,
+    Option<Res<'w, UiScale>>,
 );
 fn update(
     sim: Res<Simulation>,
@@ -213,7 +218,7 @@ fn update(
     output: Option<ResMut<Output>>,
     feedback_resources: FeedbackResources<'_, '_>,
 ) {
-    let (window, buttons) = inputs;
+    let (window, buttons, ui_scale) = inputs;
     let (mut feedback, preferences, mut captions) = feedback_resources;
     let test = std::mem::take(&mut settings.test_requested);
     feedback.remaining = (feedback.remaining - time.delta_secs()).max(0.0);
@@ -287,84 +292,31 @@ fn update(
     {
         let _ = sender.try_send(Message::Cue(cue));
     }
-    let focused = window.iter().next().is_none_or(|w| w.focused);
-    let camera =
-        view.pan + Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
-    let spatial = |point: Option<Vec2>| {
-        point.map_or((0.0, 0.0), |point| {
-            let delta = (point - camera) * view.zoom;
-            let pan = (delta.x / 440.0).clamp(-1.0, 1.0);
-            let distance = delta.length() / 660.0;
-            (pan, 1.0 / (1.0 + distance * distance))
-        })
-    };
-    let (coaster, coaster_pan, coaster_presence, ride_model) = sim
-        .0
-        .coaster_ids()
-        .into_iter()
-        .flat_map(|id| {
-            sim.0
-                .coaster_trains(id)
-                .into_iter()
-                .map(move |train| (id, train))
-        })
-        .filter_map(|(id, train)| {
-            if matches!(
-                train.phase,
-                park_sim::TrainPhase::Station
-                    | park_sim::TrainPhase::Closed
-                    | park_sim::TrainPhase::Fault
-            ) {
-                return None;
-            }
-            let (pan, presence) = spatial(world::leading_train_focus(
-                &sim.0,
-                id,
-                train.number,
-                view.rotation,
-            ));
-            Some((
-                train.speed as f32 / 96.0,
-                pan,
-                presence,
-                sim.0.ride_model(id),
-            ))
-        })
-        .max_by(|a, b| (a.0 * a.2).total_cmp(&(b.0 * b.2)))
-        .unwrap_or((0.0, 0.0, 0.0, None));
-    let running_carousel = sim
-        .0
-        .carousels()
-        .iter()
-        .find(|ride| ride.phase == park_sim::CarouselPhase::Running);
-    let (carousel_pan, carousel_presence) = spatial(
-        running_carousel.and_then(|ride| world::ride_focus(&sim.0, ride.ride.id, view.rotation)),
-    );
-    let state = MixState {
-        settings: settings.value,
-        focused,
-        paused: view.speed == park_sim::Speed::Paused,
-        crowd: (sim.0.guests().len() as f32 / 64.0).min(1.0),
-        coaster,
-        ride_model,
-        flat_model: running_carousel.and_then(|r| sim.0.ride_model(r.ride.id)),
-        coaster_pan,
-        coaster_presence,
-        carousel: running_carousel.is_some(),
-        carousel_pan,
-        carousel_presence,
-        rain: sim.0.park_life_status().weather == park_sim::Weather::Rain,
-    };
+    out.scene_cooldown -= time.delta_secs();
+    let mut state = out.last.unwrap_or_default();
+    if out.scene_cooldown <= 0.0 || out.last.is_none() {
+        let default_window = Window::default();
+        state = spatial::scene(
+            &sim.0,
+            &view,
+            window.iter().next().unwrap_or(&default_window),
+            ui_scale.as_ref().map_or(1.0, |s| s.0),
+        );
+        out.scene_cooldown = 0.05;
+    }
+    state.settings = settings.value;
+    state.focused = window.iter().next().is_none_or(|w| w.focused);
+    state.paused = view.speed == park_sim::Speed::Paused;
     if out.last != Some(state)
         && out
             .sender
             .as_ref()
-            .is_some_and(|s| s.try_send(Message::State(state)).is_ok())
+            .is_some_and(|s| s.try_send(Message::State(Box::new(state))).is_ok())
     {
         out.last = Some(state);
     }
     out.cooldown = (out.cooldown - time.delta_secs()).max(0.0);
-    if focused && !view.capture_active && cue.is_none() {
+    if state.focused && !view.capture_active && cue.is_none() {
         let cue = if test {
             Some(Cue::Build)
         } else if buttons.iter().any(|i| *i == Interaction::Pressed) && out.cooldown == 0.0 {

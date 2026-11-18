@@ -1,4 +1,16 @@
-# Parkbound 0.96.1 game icon
+# Parkbound 0.97.0 soundtrack and spatial audio
+
+Three original instrumental tracks have fuller arrangements, rhythmic and
+melodic variations and crossfaded transitions. Zooming toward rides brings
+their actual water, lift, rail and mechanical sounds forward. Nearby visitors
+cheer with a retained CC0 recording. Music, rides, ambience and reactions keep
+their independent F10 controls. Existing sound settings and park saves remain
+compatible.
+
+The owner disabled the project's Google Drive synchronization. Local source
+and GitHub publication remain in use.
+
+## Parkbound 0.96.1 game icon
 
 An original red coaster and golden loop on a forest-green badge now identify
 Parkbound in Explorer, the game window, taskbar, Start menu, desktop shortcut
