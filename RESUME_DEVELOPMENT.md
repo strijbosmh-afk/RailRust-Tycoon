@@ -2,9 +2,9 @@
 
 ## Current work — Detailed park graphics, 0.96.0
 
-Continue on `codex/park-detail-overhaul`, based on `886aa7c318b3cd11c399c7b9033aa7586f0ed579`. Rides, paths, planting, facilities and visitor outfits receive another original geometry pass. The camera permits twice the previous close zoom through its normal controls. Read `docs/PARK_DETAIL_GRAPHICS.md` for changes and validation. Checks and after-captures are in progress.
+Continue on `codex/park-detail-overhaul`, based on `886aa7c318b3cd11c399c7b9033aa7586f0ed579`. Graphics source `202a9bdb039a45140f5d0d83aa161df54b37421f` is in PR 88. Rides, paths, planting, facilities and visitor outfits have another original geometry pass, with twice the previous close zoom. All 1,038 local tests, strict Clippy, formatting, the release build, twenty after-captures and production demo/catalogue continuation passed. GitHub run `44317138613` passed workspace tests and was continuing integration checks. Read `docs/PARK_DETAIL_GRAPHICS.md` for details. The executable SHA256 is `cc518a4c0eff64d5456d7c36bb7a4e1875a93710079cf452da720ad65d36544f`; ZIP and installer identities are in their adjacent checksum files.
 
-Shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the pinned Rust toolchain and existing Windows packaging instructions. Park saves remain schema/content 51/51. This PC supplies correctness checks and visual inspection. The prior native Drive snapshot `q-3786d3de32c0aa387b5c1a4f74ae4c1a` was acknowledged with 171 verified downloads; three earlier exports remain queued.
+Shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the pinned Rust toolchain and existing Windows packaging instructions. Park saves remain schema/content 51/51. This PC supplies correctness checks and visual inspection. The prior native Drive snapshot `q-3786d3de32c0aa387b5c1a4f74ae4c1a` was acknowledged with 171 verified downloads. Three earlier exports remain queued.
 
 ## Current work — Windows distribution, 0.95.0
 

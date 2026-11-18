@@ -28,9 +28,35 @@ direction and camera transform. The same faces support inspection and previews.
 
 ## Validation checkpoint
 
-Before-captures of the landscape, wheel, services, visitors and playable demo are
-retained under `artifacts/park-detail/`. Formatting, strict lints, workspace
-tests, the release build, after-captures and package verification are in progress.
+All 1,038 workspace tests passed locally, comprising 574 game tests and 464
+simulation tests. Formatting, strict release Clippy and the release build
+passed. GitHub run `44317138613` also passed its formatting, lints and workspace
+tests and was running the remaining integration checks at this checkpoint.
+
+The graphics implementation is published through
+`202a9bdb039a45140f5d0d83aa161df54b37421f` in PR 88. The release executable SHA256 is
+`cc518a4c0eff64d5456d7c36bb7a4e1875a93710079cf452da720ad65d36544f`.
+
+Five before-captures and twenty after-captures are retained under
+`artifacts/park-detail/`. The inspected views cover four landscape directions,
+ride/service/visitor close-ups and 1024×680 and 1920×1080 windows. The first
+validation caught flower petals extending beyond their tile and a slanted
+straw extending above facility clearance. Both were corrected. Flower bounds
+now exercise twelve seeds in all four camera directions.
+
+The production demo proof completed paid visits on all seven rides and exact
+18,000-tick continuation. The catalogue proof reopened all fourteen rides and
+eight facilities in a separate process with exact 2,400-tick continuation.
+Both preserved the original save slot. Logs and Windows delivery identities
+are retained with the local evidence and adjacent distribution checksums.
+
+For close-up inspection, combine an absolute `--capture-frame` path with
+`--capture-scene landscape --capture-detail`,
+`--capture-scene visitor-looks --capture-detail`, or
+`--capture-scene catalogue --capture-ride FerrisWheel --capture-detail`.
+Ride captures select the matching ride panel. These isolated fixtures use the
+production meshes and preserve the player's park.
+
 This PC supplies correctness and visual evidence. Representative performance
 and independent player/hardware acceptance remain open.
 
