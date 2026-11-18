@@ -132,6 +132,19 @@ fn attenuation(point: Vec2, center: Vec2, scale: f32, radius: f32, detail: f32) 
 mod tests {
     use super::*;
 
+    fn running_park() -> Park {
+        let mut park = crate::demonstration_park();
+        for _ in 0..900 {
+            if park.train().is_some_and(|train| {
+                !matches!(train.phase, TrainPhase::Station | TrainPhase::Closed)
+            }) {
+                return park;
+            }
+            park.advance(park_sim::Speed::Normal);
+        }
+        panic!("The real demonstration train should leave its station");
+    }
+
     #[test]
     fn zoom_focus_increases_presence_and_offscreen_sources_fade() {
         let (_, overview) = attenuation(Vec2::ZERO, Vec2::ZERO, 3.0, 250.0, 0.2);
@@ -144,7 +157,7 @@ mod tests {
 
     #[test]
     fn camera_scene_is_pure_bounded_and_title_mutes_park_sources() {
-        let park = crate::demonstration_park();
+        let park = running_park();
         let before = park.to_save_bytes().unwrap();
         let mut view = ViewState {
             zoom: 4.0,
@@ -170,7 +183,7 @@ mod tests {
 
     #[test]
     fn real_camera_zoom_and_rotations_keep_the_focused_ride_audible() {
-        let park = crate::demonstration_park();
+        let park = running_park();
         let window = Window::default();
         let initial = scene(&park, &ViewState::default(), &window, 1.0);
         let id = initial.rides.iter().flatten().next().unwrap().id;
