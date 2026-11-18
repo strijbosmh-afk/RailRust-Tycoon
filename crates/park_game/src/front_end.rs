@@ -1232,7 +1232,9 @@ fn spawn_overlay(
                             button(p, "Volume −", Action::Volume(-10)); button(p, "Volume +", Action::Volume(10));
                             button(p, "Back", Action::Back); },
                         Screen::Credits => { title(p, "An original park simulation built in Rust.", 17.0, cream);
-                            title(p, "Design, code, art and sound: Parkbound project.", 15.0, cream); button(p, "Back", Action::Back); },
+                            title(p, "Design, code, art and sound: Parkbound project.", 15.0, cream);
+                            title(p, "Visitor cheer by AuraVoice · CC0 1.0", 13.0, cream);
+                            button(p, "Back", Action::Back); },
                         Screen::Pause => { title(p, if front.unsaved(park) { "Paused • Unsaved changes" } else { "Paused • All changes saved" }, 14.0, cream);
                             button(p, "Resume Park", Action::Resume); button(p, "Save", Action::Save);
                             button(p, "Save As New Park", Action::SaveAs); button(p, "Load Park", Action::Library);

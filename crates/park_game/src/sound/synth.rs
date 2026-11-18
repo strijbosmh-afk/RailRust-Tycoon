@@ -330,11 +330,14 @@ fn ride_sound(sample: u64, noise: f32, water: f32, ride: RideEmitter, voice: &Ri
             (osc(sample, 145.0) + osc(sample, 290.0) * 0.25) * voice.speed * 0.04
         }
         RideModel::Carousel => {
-            let note = [72, 76, 79, 84, 81, 79, 76, 74][(clock / 0.33) as usize % 8];
-            let f = 440.0 * 2.0f32.powf((note as f32 - 69.0) / 12.0);
+            let f = [
+                523.251, 659.255, 783.991, 1046.502, 880.0, 783.991, 659.255, 587.33,
+            ][(clock / 0.33) as usize % 8];
+            let age = (clock / 0.33).fract() as f32 * 0.33;
             (osc(sample, f) + osc(sample, f * 2.0) * 0.35)
                 * 0.035
-                * (1.0 - (clock / 0.33).fract() as f32)
+                * (age / 0.008).min(1.0)
+                * (1.0 - age / 0.33)
                 + osc(sample, 58.0) * 0.009
         }
         RideModel::FerrisWheel | RideModel::ObservationTower => {
