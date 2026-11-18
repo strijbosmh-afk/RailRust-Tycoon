@@ -2,7 +2,7 @@
 
 ## Current work — Windows distribution, 0.95.0
 
-Branch `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. The per-user installer, running-game guard, version query, download identity records and installer lifecycle checks are implemented. Verification is in progress. Read `docs/PHASE_12_WINDOWS_DISTRIBUTION.md` and `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md`.
+Branch `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. Runtime `c55c0b7894771e58813277f8c2453ecb7b94fef5` is in PR 87. The per-user installer, running-game guard, version query and download identity records are implemented. Formatting, strict Clippy, the mutex regression, release build, title capture and 14-process installation lifecycle passed. The real 0.94.0 payload upgrades to 0.95.0 while retaining 21 park, campaign and settings files. Read `docs/PHASE_12_WINDOWS_DISTRIBUTION.md` and `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md`.
 
 The owner deferred the open-source license choice while the Windows test version is completed. Phase 12's public 1.0 gate retains the independent clean-PC, hardware and player checks. Save schema/content is 51/51. Shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
 

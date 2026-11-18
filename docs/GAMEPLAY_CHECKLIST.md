@@ -244,8 +244,8 @@ These are behavior families, not final catalogue counts or a promise to reuse or
 | QA-01 | 8 | P | Long mixed-park simulations and repeated construction/save cycles pass invariants, balance checks, performance targets, and release-blocker review. |
 | REL-01 | 1 | I | Produce a versioned ZIP containing executable and required resources, launch instructions, and known limitations. |
 | REL-02 | 9 | P | A clean supported Windows system installs/unpacks and plays offline without development tools, an account, or original RCT files. |
-| REL-03 | 9 | P | Installer and ZIP upgrades preserve saves/settings; standard-user use, spaces/non-ASCII paths, and uninstall behavior pass verification. |
-| REL-04 | 9 | P | Publish the free full-function download with checksums, credits/notices, license decisions, support instructions, and save-compatibility notes. |
+| REL-03 | 12 | P | 0.95 adds per-user setup, running-game protection and automated install/upgrade/uninstall verification with Unicode paths and preserved park/campaign/settings data. Record completed results in PHASE_12_DISTRIBUTION_VERIFICATION.md; independent clean-PC acceptance remains. |
+| REL-04 | 12 | P | 0.95 adds installer/ZIP checksums, release identity, privacy, rights, support and compatibility notes. The owner deferred the original source-code license and the public 1.0 publication decision. |
 
 ## Scope decisions still required
 

@@ -12,6 +12,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Installer = (Resolve-Path -LiteralPath $Installer).Path
 $PackageDirectory = (Resolve-Path -LiteralPath $PackageDirectory).Path
+if ((Split-Path -Leaf $PackageDirectory) -notmatch '^Parkbound-(\d+\.\d+\.\d+)-windows-x64$') {
+    throw 'Select the versioned Windows package being tested.'
+}
+$expectedVersion = $Matches[1]
 if (-not [IO.Path]::IsPathFullyQualified($OutputDirectory) -or (Test-Path -LiteralPath $OutputDirectory)) {
     throw 'Choose a new absolute evidence directory.'
 }
@@ -64,7 +68,7 @@ function Run-Process([string]$File, [string]$Arguments, [string]$Name, [switch]$
 }
 
 function Run-Setup([string]$File, [string]$Name, [switch]$ExpectFailure) {
-    $arguments = '/VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /DIR="{0}" /GROUP="{1}" /LOG="{2}"' -f $installed, $groupName, (Join-Path $OutputDirectory "$Name.setup.log")
+    $arguments = '/VERYSILENT /SUPPRESSMSGBOXES /SP- /NORESTART /LANG=english /DIR="{0}" /GROUP="{1}" /LOG="{2}"' -f $installed, $groupName, (Join-Path $OutputDirectory "$Name.setup.log")
     Run-Process $File $arguments $Name -ExpectFailure:$ExpectFailure
 }
 
@@ -89,6 +93,7 @@ function Assert-Installed {
     }
     $entry = Get-ItemProperty -LiteralPath $registryPath
     if ($entry.InstallLocation.TrimEnd('\') -ne $installed) { throw 'Unexpected installed location.' }
+    if ($entry.DisplayVersion -ne $expectedVersion) { throw 'Unexpected version in Installed apps.' }
     $shortcut = Join-Path $groupDirectory 'Parkbound.lnk'
     if (-not (Test-Path -LiteralPath $shortcut)) { throw 'Missing Start menu shortcut.' }
     $shell = New-Object -ComObject WScript.Shell

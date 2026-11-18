@@ -2,7 +2,7 @@
 
 ## Current work — Windows distribution, 0.95.0
 
-Continue on `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. The new Inno Setup installer supports per-user installation, Start menu entries, save-preserving upgrades and uninstall. The game holds a named Windows mutex while running so setup can ask the player to close it. A version query and release metadata identify the packaged game. Installer acceptance is in progress in `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md`.
+Continue on `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. Runtime `c55c0b7894771e58813277f8c2453ecb7b94fef5` is in PR 87. The Inno Setup installer supports per-user installation, Start menu entries, save-preserving upgrades and uninstall. The game holds a named Windows mutex while running so setup can ask the player to close it. A version query and release metadata identify the packaged game. Strict checks, the release build, mutex regression, title capture and 14-process installer lifecycle passed. The old 0.94.0 executable and real park/campaign/settings data were retained and verified after upgrading to 0.95.0. Read `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md` for exact identities and limits.
 
 Use `scripts/package-windows.ps1`, then `scripts/package-installer.ps1`. The additional developer tool is Inno Setup 6.7.4, documented in `INSTALLATIE.md`. `scripts/verify-installer.ps1` exercises installation, previous-version upgrade when provided, park/campaign/settings continuation, repair, running-game refusal, uninstall and reinstall in isolated directories. Follow `docs/PHASE_12_WINDOWS_DISTRIBUTION.md`.
 
