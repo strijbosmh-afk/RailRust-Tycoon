@@ -1,0 +1,28 @@
+PARKBOUND
+
+Launch Parkbound.exe, then choose Play Sunhaven Gardens to start the seven-ride
+demo. New Park offers a sandbox and the original campaign. Use the park menu to
+save, load, return to the title screen or quit. Help opens the first-park guide.
+
+The game runs offline. Rust and development tools are only needed to build its
+source code. The Windows package includes the required runtime DLLs, artwork,
+fonts and their notices.
+
+INSTALL OR UPDATE
+Run the versioned Parkbound setup executable. It installs for the current user.
+Close Parkbound before updating and keep the same program folder. The ZIP can
+also be extracted to a writable folder and played directly.
+
+SAVES AND SETTINGS
+Open %LOCALAPPDATA%\Parkbound\saves in File Explorer. Copy that complete folder
+while Parkbound is closed to back up or transfer parks, campaign progress,
+designs, scenarios and settings. Updating or uninstalling preserves this folder.
+
+HELP AND REPORTS
+Read RELEASE_NOTES.md for compatibility and test coverage, PRIVACY.md for local
+data use, and SUPPORT.md for reporting a problem. The in-game title and Credits
+show the game version. Include that version when requesting help.
+
+Project and issue tracker
+https://github.com/strijbosmh-afk/RailRust-Tycoon
+https://github.com/strijbosmh-afk/RailRust-Tycoon/issues

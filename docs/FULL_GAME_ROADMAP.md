@@ -176,6 +176,8 @@ Version 0.90.0 supplies the [beta runner and Operations page](PHASE_11_BETA_GUID
 
 ## 12. Distribute the free Windows game
 
+The 0.95.0 Windows test distribution implements the per-user installer, runtime identity, save-preserving lifecycle and reproducible packaging checks. See [the Phase 12 guide](PHASE_12_WINDOWS_DISTRIBUTION.md) and [its verification record](PHASE_12_DISTRIBUTION_VERIFICATION.md). The owner deferred the original source-code license decision. Public 1.0 release acceptance remains subject to the recorded clean-PC, hardware and player gates.
+
 1. Publish a versioned ZIP and installer that work offline as a standard user, with program files separate from saves/settings. Preserve saves and campaign awards across upgrades and uninstall unless the player explicitly chooses removal.
 2. Settle source and asset licenses; include notices, original credits, a privacy statement appropriate for an offline game, release notes, known limitations, save compatibility and support instructions.
 3. Verify the exact downloadable bytes and checksum on a clean supported Windows PC: install/unpack, launch intro, play, save, upgrade, load, close, uninstall. Test spaces and non-ASCII paths.

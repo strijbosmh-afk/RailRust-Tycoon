@@ -1,5 +1,7 @@
 # Parkbound
 
+Version **0.95.0** adds a Windows installer, Start menu shortcuts, save-preserving upgrades and uninstall, plus versioned download checksums and release metadata. The portable ZIP is also available. This is the Windows test channel. [Installation and upgrade guide](docs/PHASE_12_WINDOWS_DISTRIBUTION.md)
+
 Version **0.94.0** refines the park landscape: staggered stone paving, timber bridges, layered terrain edges, calmer turf, stone-edged flower borders and varied tree crowns. See [the landscape guide](docs/LANDSCAPE_GRAPHICS_GUIDE.md). Saves stay 51/51.
 
 Version **0.93.0** improves the rides' classic isometric graphics: shaped gondolas, open cups, wooden ship hull, carousel horses, structural bracing, train details and station/track trim. See [the ride graphics guide](docs/RIDE_GRAPHICS_GUIDE.md). Saves remain 51/51.
