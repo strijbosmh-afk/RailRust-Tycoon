@@ -1,5 +1,15 @@
 # Project status
 
+## Current work — Windows distribution, 0.95.0
+
+Branch `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. Runtime `c55c0b7894771e58813277f8c2453ecb7b94fef5` is in PR 87. The per-user installer, running-game guard, version query and download identity records are implemented. Formatting, strict Clippy, the mutex regression, release build, title capture and 14-process installation lifecycle passed. The real 0.94.0 payload upgrades to 0.95.0 while retaining 21 park, campaign and settings files. Read `docs/PHASE_12_WINDOWS_DISTRIBUTION.md` and `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md`.
+
+The owner deferred the open-source license choice while the Windows test version is completed. Phase 12's public 1.0 gate retains the independent clean-PC, hardware and player checks. Save schema/content is 51/51. Shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+
+Corrected source `10f5215aeb39ddf460936c2b3e80dddc0d1da9a2` passed the Windows build, all 1,038 tests, production continuation checks and the complete installer lifecycle in GitHub run `44298610393`. The verifier resolves the registered uninstaller after rapid reinstall. The local ZIP's seven-ride demo continuation and title capture also passed. The starter endurance case passed; three longer cases were still running at the closing checkpoint. Installer evidence is retained under `artifacts/phase12/ci-corrected-installer`.
+
+The 0.94.0 DropSync transfer has eight files verified through independent downloads. Native Drive export `q-d4882dccb560c1de91b9a01c5d681d98` has an accepted receipt for 164 files. Three earlier exports remain queued.
+
 ## Current work — Landscape graphics, 0.94.0
 
 Branch `codex/landscape-graphics`, runtime `5488cf973ec5b4222fadd0c7d192036f24db3ac1`, in [PR 86](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/86). Terrain materials, stone promenades, timber paths, flower borders, conifers and oak variation are implemented. Strict checks, GitHub workspace tests, actual landscape/height/rotation captures and extracted-package demo continuation passed. Read `docs/LANDSCAPE_GRAPHICS_GUIDE.md` and `docs/LANDSCAPE_GRAPHICS_VERIFICATION.md`. Shared OneDrive checkout: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Save schema/content stays 51/51; this PC is not a performance reference. DropSync handoff: `Rust builds/Parkbound`; see `docs/DROPSYNC_HANDOFF.md` for contents and verification status.

@@ -1,5 +1,17 @@
 # Resume development on another Windows PC
 
+## Current work — Windows distribution, 0.95.0
+
+Continue on `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. Runtime `c55c0b7894771e58813277f8c2453ecb7b94fef5` is in PR 87. The Inno Setup installer supports per-user installation, Start menu entries, save-preserving upgrades and uninstall. The game holds a named Windows mutex while running so setup can ask the player to close it. A version query and release metadata identify the packaged game. Strict checks, the release build, mutex regression, title capture and 14-process installer lifecycle passed. The old 0.94.0 executable and real park/campaign/settings data were retained and verified after upgrading to 0.95.0. Read `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md` for exact identities and limits.
+
+Use `scripts/package-windows.ps1`, then `scripts/package-installer.ps1`. The additional developer tool is Inno Setup 6.7.4, documented in `INSTALLATIE.md`. `scripts/verify-installer.ps1` exercises installation, previous-version upgrade when provided, park/campaign/settings continuation, repair, running-game refusal, uninstall and reinstall in isolated directories. Follow `docs/PHASE_12_WINDOWS_DISTRIBUTION.md`.
+
+Corrected source `10f5215aeb39ddf460936c2b3e80dddc0d1da9a2` passed all 1,038 tests, the complete Windows build/continuation job and the installer lifecycle in GitHub run `44298610393`. The verifier rereads the registered uninstall path after rapid reinstall. The local ZIP also passed seven-ride demo continuation and an inspected title capture. Three longer endurance cases were still running at this checkpoint; the starter case passed.
+
+The shared local source path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. The source-code license decision is deferred by the owner. Saves remain 51/51. Representative performance and independent clean-PC/player acceptance remain open.
+
+The 0.94.0 copy in `DropSync/Rust builds/Parkbound` was verified through eight full downloads. Native Drive export `q-d4882dccb560c1de91b9a01c5d681d98` was acknowledged after 164 verified downloads. Three older exports are queued. The next native Stop export records this new phase separately.
+
 ## Current work — Landscape graphics, 0.94.0
 
 Branch `codex/landscape-graphics`, runtime `5488cf973ec5b4222fadd0c7d192036f24db3ac1`, in [PR 86](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/86). Terrain materials, stone promenades, timber paths, flower borders, conifers and oak variation are implemented. Strict checks, GitHub workspace tests, actual landscape/height/rotation captures and extracted-package demo continuation passed. Read `docs/LANDSCAPE_GRAPHICS_GUIDE.md` and `docs/LANDSCAPE_GRAPHICS_VERIFICATION.md`. Shared OneDrive checkout: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Save schema/content stays 51/51; this PC is not a performance reference. DropSync handoff: `Rust builds/Parkbound`; see `docs/DROPSYNC_HANDOFF.md` for contents and verification status.

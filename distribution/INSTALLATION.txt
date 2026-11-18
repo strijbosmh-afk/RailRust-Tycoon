@@ -1,0 +1,18 @@
+PARKBOUND WINDOWS TEST VERSION
+
+Install Parkbound for your current Windows account. Administrator permission is
+not required. The complete game and its runtime files are included for offline
+play. Start Parkbound from the Start menu after installation.
+
+The default program folder is
+%LOCALAPPDATA%\Programs\Parkbound
+
+Your parks, campaign progress, designs and settings are stored separately in
+%LOCALAPPDATA%\Parkbound\saves
+
+Close every running Parkbound instance before updating or uninstalling. Keep the
+same installation folder when updating. Updates and uninstall preserve player
+data. Back up the saves folder with the game closed when moving to another PC.
+
+This test release supports Windows x64. See START_HERE.txt and RELEASE_NOTES.md
+for play instructions and the current testing status.

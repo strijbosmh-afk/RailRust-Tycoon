@@ -1,5 +1,14 @@
 # Project decisions
 
+## 2026-11-18 — Windows test distribution
+
+- Build the Phase 12 Windows installer using Inno Setup 6.7.4 and the same verified payload as the portable ZIP.
+- Install per user under LocalAppData/Programs with a stable application identity. Keep player data in its existing separate directory.
+- Hold a shared named Windows mutex for running game instances. Setup requires them to close before replacing or removing program files.
+- Use the installer's recorded file ownership for removal so player-created files and save data survive.
+- Record executable, package and compiler hashes. Exercise prior-version upgrade and save/settings continuation using isolated Unicode paths.
+- The owner explicitly deferred the open-source license decision while finishing the Windows test version. Keep independent clean-PC, player and hardware acceptance visible in the release record.
+
 ## 2026-11-16 — Landscape graphics
 
 - Use original procedural material geometry and the existing oak image. Keep saved terrain, paths, scenery and construction prices unchanged.

@@ -82,7 +82,7 @@ if ($files.Count -ne $payloads.Count + 1) { throw 'Unexpected payload count.' }
 foreach ($file in $files) {
     if ($file.FullName -ne $manifest -and -not $payloads.Contains($file.FullName)) { throw 'Unmanifested payload.' }
 }
-$guides = @('README.md', 'RESUME_DEVELOPMENT.md', 'DEVELOPMENT_PLAN.md') +
+$guides = @('README.md', 'RESUME_DEVELOPMENT.md', 'DEVELOPMENT_PLAN.md', 'PRIVACY.md', 'RELEASE_NOTES.md', 'SUPPORT.md', 'RIGHTS.md') +
     @(Get-ChildItem -LiteralPath (Join-Path $workspaceDirectory 'docs') -Filter '*.md' -File -Recurse | ForEach-Object {
         [IO.Path]::GetRelativePath($workspaceDirectory, $_.FullName).Replace('\', '/')
     }) + @('assets/art/PROVENANCE.md')
@@ -97,6 +97,11 @@ if ((Get-FileHash -LiteralPath (Join-Path $package $assetManifest)).Hash -ne
     throw 'Missing or stale original asset manifest.'
 }
 $executable = Join-Path $package 'Parkbound.exe'
+$release = Get-Content -LiteralPath (Join-Path $package 'release.json') -Raw | ConvertFrom-Json
+if ($release.executableSha256 -ne $ExpectedExecutableSha256.ToLowerInvariant() -or
+    "Parkbound-$($release.version)-windows-x64" -ne $packageName) { throw 'Release metadata differs from the package.' }
+if ((Get-FileHash -LiteralPath (Join-Path $package 'START_HERE.txt')).Hash -ne
+    (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory 'distribution/START_HERE.txt')).Hash) { throw 'Stale start guide.' }
 foreach ($name in @('pocket-oval.parktrack.json','meadow-winder.parktrack.json','meadow-climb.parktrack.json')) {
     $relative = 'designs/' + $name
     if ((Get-FileHash -LiteralPath (Join-Path $package $relative)).Hash -ne

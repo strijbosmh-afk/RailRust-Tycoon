@@ -41,6 +41,20 @@ try {
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
         throw "Release executable was not found: $executable. Run without -SkipBuild."
     }
+    $versionOutput = [IO.Path]::GetTempFileName()
+    try {
+        $versionProcess = Start-Process -FilePath $executable -ArgumentList '--version' -WindowStyle Hidden -PassThru -RedirectStandardOutput $versionOutput
+        if (-not $versionProcess.WaitForExit(10000)) {
+            Stop-Process -Id $versionProcess.Id -Force
+            throw 'The executable did not report its version. Build the current game before packaging.'
+        }
+        $versionProcess.WaitForExit()
+        if ($versionProcess.ExitCode -ne 0 -or (Get-Content -LiteralPath $versionOutput -Raw).Trim() -ne "Parkbound $version") {
+            throw 'Build the current game version before packaging.'
+        }
+    } finally {
+        Remove-Item -LiteralPath $versionOutput
+    }
     $readme = Join-Path $workspaceDirectory 'README.md'
     if (-not (Test-Path -LiteralPath $readme -PathType Leaf)) { throw 'README.md is required for distribution.' }
 
@@ -58,6 +72,26 @@ try {
         throw 'RESUME_DEVELOPMENT.md is required for distribution.'
     }
     Copy-Item -LiteralPath $resumeGuide -Destination (Join-Path $stagedPackage 'RESUME_DEVELOPMENT.md')
+    foreach ($guide in @('PRIVACY.md', 'RELEASE_NOTES.md', 'SUPPORT.md', 'RIGHTS.md')) {
+        Copy-Item -LiteralPath (Join-Path $workspaceDirectory $guide) -Destination $stagedPackage
+    }
+    Copy-Item -LiteralPath (Join-Path $workspaceDirectory 'distribution/START_HERE.txt') -Destination $stagedPackage
+    $sourceCommit = (& git rev-parse HEAD | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot record the source checkout.' }
+    $sourceChanges = @(& git status --porcelain --untracked-files=no)
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the source checkout.' }
+    [ordered]@{
+        product = 'Parkbound'
+        version = $version
+        platform = $targetTriple
+        sourceCommitAtPackaging = $sourceCommit
+        sourceTreeDirty = $sourceChanges.Count -ne 0
+        executableSha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
+        parkSchema = 51
+        parkContent = 51
+        playerData = '%LOCALAPPDATA%\Parkbound\saves'
+        channel = 'windows-test'
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stagedPackage 'release.json') -Encoding utf8
     & (Join-Path $PSScriptRoot 'validate-assets.ps1')
     $assetDirectory = Join-Path $stagedPackage 'assets'
     [void](New-Item -ItemType Directory -Path $assetDirectory)

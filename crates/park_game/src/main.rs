@@ -32,6 +32,7 @@ mod gpu_probe;
 mod history_shortcuts;
 #[cfg(test)]
 mod input_tests;
+mod installation_guard;
 mod measurement;
 mod park_library;
 mod path_tools;
@@ -568,6 +569,18 @@ struct SceneMeshes {
 
 fn main() -> AppExit {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments.len() == 1 && arguments[0] == "--version" {
+        println!("Parkbound {}", env!("CARGO_PKG_VERSION"));
+        return AppExit::Success;
+    }
+    #[cfg(windows)]
+    let _installation_guard = match installation_guard::InstallationGuard::acquire() {
+        Ok(guard) => guard,
+        Err(error) => {
+            eprintln!("Could not register the running game with Windows: {error}");
+            return AppExit::error();
+        }
+    };
     if let Err(error) = measurement::validate_modes(&arguments) {
         eprintln!("{error}");
         return AppExit::error();

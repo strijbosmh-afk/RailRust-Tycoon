@@ -558,6 +558,50 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  windows_installer:
+    needs: windows
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Parkbound-windows-x64
+          path: installer-package
+      - name: Verify and extract the tested package
+        shell: pwsh
+        run: |
+          $archive = @(Get-ChildItem installer-package -Filter '*.zip')
+          if ($archive.Count -ne 1) { throw 'Expected one tested Windows package' }
+          $expected = ((Get-Content ($archive[0].FullName + '.sha256') -Raw) -split '\s+')[0]
+          if ((Get-FileHash $archive[0].FullName).Hash -ne $expected) { throw 'Package checksum mismatch' }
+          Expand-Archive $archive[0].FullName -DestinationPath installer-unpacked
+      - name: Prepare the pinned installer compiler
+        shell: pwsh
+        run: ./scripts/install-inno-setup.ps1 -InstallDirectory (Join-Path $env:RUNNER_TEMP 'Parkbound Inno 6.7.4')
+      - name: Build and exercise the Windows installer
+        shell: pwsh
+        run: |
+          $package = @(Get-ChildItem installer-unpacked -Directory)
+          if ($package.Count -ne 1) { throw 'Expected one package directory' }
+          ./scripts/package-installer.ps1 -PackageDirectory $package[0].FullName -IsccPath (Join-Path $env:RUNNER_TEMP 'Parkbound Inno 6.7.4/ISCC.exe')
+          $installer = @(Get-ChildItem dist -Filter '*-setup-x64.exe')
+          if ($installer.Count -ne 1) { throw 'Expected one installer' }
+          ./scripts/verify-installer.ps1 -Installer $installer[0].FullName -PackageDirectory $package[0].FullName -OutputDirectory (Join-Path $env:RUNNER_TEMP 'Parkbound installer acceptance é')
+      - name: Store installer and installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parkbound-windows-installer
+          path: |
+            dist/*-setup-x64.exe
+            dist/*-setup-x64.exe.sha256
+            dist/*-setup-x64.exe.build.json
+            ${{ runner.temp }}/Parkbound installer acceptance é/*.txt
+            ${{ runner.temp }}/Parkbound installer acceptance é/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
   beta_endurance:
     needs: windows
     runs-on: windows-2022
