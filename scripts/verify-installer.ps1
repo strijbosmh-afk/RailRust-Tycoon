@@ -102,6 +102,10 @@ function Assert-Installed {
         if ($link.TargetPath -ne $executable -or $link.WorkingDirectory -ne $installed) {
             throw 'Start menu shortcut points outside the installed game.'
         }
+        $iconPath = Join-Path $installed 'assets/art/parkbound.ico'
+        if ((Test-Path -LiteralPath $iconPath) -and $link.IconLocation -ne "$iconPath,0") {
+            throw 'Start menu shortcut does not use the installed Parkbound icon.'
+        }
     } finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
     Record 'Installed files, current-user registration and Start menu target PASS'
 }

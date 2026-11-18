@@ -1,5 +1,12 @@
 # Project decisions
 
+## 2026-11-18 — Parkbound application icon
+
+- Use the user-approved original red coaster, golden loop and green badge for the Windows application identity.
+- Retain the transparent PNG master and a reproducible seven-size ICO in Git. Record ImageGen provenance and hashes with the other artwork.
+- Embed the ICO and version properties using the existing Windows SDK. Assign large and small native window icons on Bevy's main thread, with dimensions selected for the window DPI.
+- Use the installed ICO explicitly for Start menu and optional desktop shortcuts, setup and uninstall. Keep version 0.96.1 on the current Windows test channel and retain save schema/content 51/51.
+
 ## 2026-11-18 — Park detail graphics
 
 - Extend the existing original geometry for rides, paths, planting, services and visitor clothing. Reuse the physical transforms and surface clipping.

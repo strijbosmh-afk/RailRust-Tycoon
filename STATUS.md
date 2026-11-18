@@ -1,5 +1,13 @@
 # Project status
 
+## Current work — Game icon, 0.96.1
+
+Branch `codex/game-icon` starts at `589a09b6da98131ffb729499c41f895880755aab`. Runtime source `c18174696b34460eb48db76d4f015c5876a1c483` is published in PR 89. The approved original icon is integrated into the executable, native window/taskbar, setup, uninstall and both shortcuts. All 1,038 tests, strict Clippy, formatting, resource-byte checks, native-window checks and extracted-package demo/front continuation passed. The 0.96.0 installation was upgraded to 0.96.1 with all 185 payload files verified and both player files preserved. Read `docs/GAME_ICON.md` and `docs/sessions/2026-11-18-game-icon.md`.
+
+The executable SHA256 is `4cb731db5641fb677be3fb6781863d577fb4d87ad306d61ee70df60645c9052c`. ZIP and installer checksums accompany the local files in `dist/`. At the 2026-11-18 14:48 UTC checkpoint, GitHub run `44325579555` had passed tests, packaging and embedded-icon verification and was continuing gameplay integration checks.
+
+The shared checkout remains `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Saves remain 51/51. The preceding native Drive export `q-2cd0c0a02dc9bcfa808be6b1fb4b7a64` has an accepted receipt for 173 verified files. Three older exports remain queued. This PC supplies correctness evidence only.
+
 ## Current work — Detailed park graphics, 0.96.0
 
 Branch `codex/park-detail-overhaul` starts at `886aa7c318b3cd11c399c7b9033aa7586f0ed579`. Graphics source `202a9bdb039a45140f5d0d83aa161df54b37421f` is published in PR 88. Physical flower heads and stems, fern fronds and pine clusters, paving bevels and timber fixings, rounded shop signs/products, platform inlays, ride ornaments, round coaster wheels and varied clothing are implemented. The maximum camera zoom is doubled. All 1,038 local tests, strict Clippy, formatting and the release build passed. Twenty after-captures, production demo continuation and the full catalogue continuation were checked. Read `docs/PARK_DETAIL_GRAPHICS.md`. The current GitHub run passed workspace tests and was continuing integration checks at this checkpoint.
