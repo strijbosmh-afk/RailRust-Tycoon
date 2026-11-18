@@ -38,7 +38,12 @@ release retains independent clean-PC, display/hardware and player acceptance.
 The Windows job of CI run 44294574454 passed all 1,038 tests and its production
 continuation checks. Its installer job exposed a rapid-reinstall test assumption
 when Inno Setup chose `unins001.exe`. The verifier now resolves the registered
-uninstaller before each removal. Corrected CI confirmation is pending. The final
+uninstaller before each removal. Corrected source
+`10f5215aeb39ddf460936c2b3e80dddc0d1da9a2` passed both the complete Windows
+build/continuation job and the installer lifecycle in run `44298610393` at
+2026-11-18 12:11 UTC. The starter endurance case passed; the three longer cases
+were still running at this checkpoint. Downloaded installer evidence is under
+`artifacts/phase12/ci-corrected-installer/`. The final
 local ZIP additionally passed production demo write/verify across processes,
 18,000-tick continuation and an inspected title capture. The final installer also
 rejected the player-data directory without changing the personal installation.

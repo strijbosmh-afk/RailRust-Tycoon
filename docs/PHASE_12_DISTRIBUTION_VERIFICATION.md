@@ -55,8 +55,14 @@ The Windows job in CI run 44294574454 passed all 1,038 tests and its complete
 build/continuation checks. Its dependent installer job reached the final removal
 after a successful reinstall, then exposed a test-script assumption. Inno Setup
 can allocate `unins001.exe` while the previous uninstaller finishes cleaning up.
-The verifier now reads the registered uninstaller after each installation instead
-of retaining the original filename. A corrected CI run must confirm final removal.
+The verifier now reads the current registered uninstaller before each removal.
+Corrected source `10f5215aeb39ddf460936c2b3e80dddc0d1da9a2` passed the full
+Windows build/continuation job and installer lifecycle in run `44298610393`,
+including final removal after reinstall. The starter endurance case passed;
+three longer cases were still running at the closing checkpoint. See the
+[GitHub run](https://github.com/strijbosmh-afk/RailRust-Tycoon/actions/runs/44298610393).
+Downloaded installer logs and build identities are retained under
+`artifacts/phase12/ci-corrected-installer/`.
 
 The final ZIP also passed production demo write/verify in separate processes.
 All seven rides completed paid visits, facilities served guests and 18,000 ticks

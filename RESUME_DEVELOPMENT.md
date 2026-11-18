@@ -6,7 +6,7 @@ Continue on `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7
 
 Use `scripts/package-windows.ps1`, then `scripts/package-installer.ps1`. The additional developer tool is Inno Setup 6.7.4, documented in `INSTALLATIE.md`. `scripts/verify-installer.ps1` exercises installation, previous-version upgrade when provided, park/campaign/settings continuation, repair, running-game refusal, uninstall and reinstall in isolated directories. Follow `docs/PHASE_12_WINDOWS_DISTRIBUTION.md`.
 
-The Windows CI job passed all 1,038 tests and build/continuation checks. Its installer check reached reinstall and exposed a changed uninstaller filename. The verifier now rereads the registered uninstall path before removal; corrected CI confirmation is pending. The final ZIP also passed seven-ride demo continuation and an inspected title capture.
+Corrected source `10f5215aeb39ddf460936c2b3e80dddc0d1da9a2` passed all 1,038 tests, the complete Windows build/continuation job and the installer lifecycle in GitHub run `44298610393`. The verifier rereads the registered uninstall path after rapid reinstall. The local ZIP also passed seven-ride demo continuation and an inspected title capture. Three longer endurance cases were still running at this checkpoint; the starter case passed.
 
 The shared local source path is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. The source-code license decision is deferred by the owner. Saves remain 51/51. Representative performance and independent clean-PC/player acceptance remain open.
 

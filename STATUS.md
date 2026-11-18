@@ -6,7 +6,7 @@ Branch `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfc
 
 The owner deferred the open-source license choice while the Windows test version is completed. Phase 12's public 1.0 gate retains the independent clean-PC, hardware and player checks. Save schema/content is 51/51. Shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
 
-The Windows CI job passed all 1,038 tests and build/continuation checks. Its installer check exposed a changed uninstaller filename after rapid reinstall. The verifier now resolves the registered path again before final removal. Corrected CI confirmation is pending. The final ZIP's seven-ride demo continuation and title capture also passed.
+Corrected source `10f5215aeb39ddf460936c2b3e80dddc0d1da9a2` passed the Windows build, all 1,038 tests, production continuation checks and the complete installer lifecycle in GitHub run `44298610393`. The verifier resolves the registered uninstaller after rapid reinstall. The local ZIP's seven-ride demo continuation and title capture also passed. The starter endurance case passed; three longer cases were still running at the closing checkpoint. Installer evidence is retained under `artifacts/phase12/ci-corrected-installer`.
 
 The 0.94.0 DropSync transfer has eight files verified through independent downloads. Native Drive export `q-d4882dccb560c1de91b9a01c5d681d98` has an accepted receipt for 164 files. Three earlier exports remain queued.
 
