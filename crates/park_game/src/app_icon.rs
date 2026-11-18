@@ -53,7 +53,8 @@ fn set_icons(window: windows::Win32::Foundation::HWND) -> windows::core::Result<
             let size = GetSystemMetricsForDpi(metric, dpi);
             let icon = LoadImageW(
                 Some(module),
-                PCWSTR(1_usize as *const u16),
+                // Win32 represents integer resource IDs as low-valued pointers.
+                PCWSTR(std::ptr::without_provenance(1)),
                 IMAGE_ICON,
                 size,
                 size,
