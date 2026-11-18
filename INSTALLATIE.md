@@ -1,12 +1,14 @@
 # Installation and development
 
-## Windows installer in 0.96.0
+## Windows installer in 0.96.1
 
-Run `Parkbound-0.96.0-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
+Run `Parkbound-0.96.1-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
 
 To build the installer, use PowerShell 7 and Inno Setup 6.7.4 alongside the existing Rust 1.93.1 and Visual Studio C++ tools. Run `scripts/package-windows.ps1`, then `scripts/package-installer.ps1 -PackageDirectory ABSOLUTE_PACKAGE_DIRECTORY -IsccPath ABSOLUTE_ISCC_PATH`. The compiler bootstrap helper is `scripts/install-inno-setup.ps1 -InstallDirectory ABSOLUTE_NEW_DIRECTORY`. It verifies the pinned upstream download before installing the build tool for the current user.
 
 The installer lifecycle and previous-version upgrade commands are documented in `docs/PHASE_12_WINDOWS_DISTRIBUTION.md`. The owner has deferred the original source-code license decision for this Windows test release.
+
+Version 0.96.1 adds the locked build dependency `embed-resource` 3.0.12. It embeds the application icon and version properties through the existing Windows SDK resource compiler. Regenerate the ICO with `scripts/make-icon.ps1` on Windows PowerShell 7. See `docs/GAME_ICON.md` for resource and window verification commands. [Resource compiler integration](https://docs.rs/embed-resource/3.0.12/embed_resource/)
 
 Version 0.94.0 uses the same Rust toolchain, dependencies and embedded assets as 0.93.0. Extract the verified `Parkbound-0.94.0-windows-x64.zip` and run `Parkbound.exe`. Existing parks automatically use the updated landscape materials.
 

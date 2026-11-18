@@ -25,6 +25,7 @@ DisableProgramGroupPage=auto
 AllowNoIcons=yes
 WizardStyle=modern
 WizardSizePercent=110
+SetupIconFile={#SourcePath}\..\assets\art\parkbound.ico
 InfoBeforeFile={#SourcePath}\INSTALLATION.txt
 OutputDir={#ReleaseOutput}
 OutputBaseFilename=Parkbound-{#ReleaseVersion}-setup-x64
@@ -34,7 +35,7 @@ SetupMutex=Local\Parkbound.Setup.34245805-94B2-4E62-9306-1B56003A3F55
 AppMutex=Local\Parkbound.Game.34245805-94B2-4E62-9306-1B56003A3F55
 CloseApplications=no
 RestartApplications=no
-UninstallDisplayIcon={app}\Parkbound.exe
+UninstallDisplayIcon={app}\assets\art\parkbound.ico
 UninstallDisplayName=Parkbound
 VersionInfoVersion={#ReleaseVersion}
 VersionInfoDescription=Parkbound Windows setup
@@ -51,12 +52,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#PackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Parkbound"; Filename: "{app}\Parkbound.exe"; WorkingDir: "{app}"
+Name: "{group}\Parkbound"; Filename: "{app}\Parkbound.exe"; WorkingDir: "{app}"; IconFilename: "{app}\assets\art\parkbound.ico"
 #if FileExists(PackageDir + "\START_HERE.txt")
 Name: "{group}\Parkbound guide"; Filename: "{app}\START_HERE.txt"
 #endif
 Name: "{group}\{cm:UninstallProgram,Parkbound}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Parkbound"; Filename: "{app}\Parkbound.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\Parkbound"; Filename: "{app}\Parkbound.exe"; WorkingDir: "{app}"; IconFilename: "{app}\assets\art\parkbound.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Parkbound.exe"; Description: "{cm:LaunchProgram,Parkbound}"; Flags: nowait postinstall skipifsilent

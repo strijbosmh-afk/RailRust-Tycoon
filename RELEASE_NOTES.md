@@ -1,4 +1,12 @@
-# Parkbound 0.96.0 detailed park graphics
+# Parkbound 0.96.1 game icon
+
+An original red coaster and golden loop on a forest-green badge now identify
+Parkbound in Explorer, the game window, taskbar, Start menu, desktop shortcut
+and installer. Seven icon sizes cover 16 through 256 pixels. Executable file
+properties include the Parkbound name and release version. Source artwork and
+reproduction instructions are included. Park saves remain 51/51.
+
+## Parkbound 0.96.0 detailed park graphics
 
 Rides have inlaid platforms, fine balusters, globe lamps, gondola decoration,
 painted cups and round coaster wheels. Facilities gain rounded products and

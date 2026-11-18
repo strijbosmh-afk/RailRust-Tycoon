@@ -1,5 +1,11 @@
 # Resume development on another Windows PC
 
+## Current work — Game icon, 0.96.1
+
+Continue on `codex/game-icon`, based on `589a09b6da98131ffb729499c41f895880755aab`. The user-approved icon is saved as `assets/art/parkbound-icon.png` and `assets/art/parkbound.ico`. Windows executable/window icons, version properties and installer/shortcut integration are implemented. Verification and publication are in progress. Follow `docs/GAME_ICON.md` for regeneration and checks, and `docs/sessions/2026-11-18-game-icon.md` for the latest evidence.
+
+The shared OneDrive Git root is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Rust 1.93.1, Windows C++ tools/SDK, PowerShell 7 and Inno Setup 6.7.4 remain the development requirements. The new `embed-resource` build dependency is pinned in Cargo.lock. Saves remain 51/51. The preceding native Drive export `q-2cd0c0a02dc9bcfa808be6b1fb4b7a64` has 173 verified files and an accepted receipt. Three older exports remain queued. This PC is excluded from performance acceptance.
+
 ## Current work — Detailed park graphics, 0.96.0
 
 Continue on `codex/park-detail-overhaul`, based on `886aa7c318b3cd11c399c7b9033aa7586f0ed579`. Graphics source `202a9bdb039a45140f5d0d83aa161df54b37421f` is in PR 88. Rides, paths, planting, facilities and visitor outfits have another original geometry pass, with twice the previous close zoom. All 1,038 local tests, strict Clippy, formatting, the release build, twenty after-captures and production demo/catalogue continuation passed. GitHub run `44317138613` passed workspace tests and was continuing integration checks. Read `docs/PARK_DETAIL_GRAPHICS.md` for details. The executable SHA256 is `cc518a4c0eff64d5456d7c36bb7a4e1875a93710079cf452da720ad65d36544f`; ZIP and installer identities are in their adjacent checksum files.

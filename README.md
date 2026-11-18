@@ -1,5 +1,7 @@
 # Parkbound
 
+Version **0.96.1** adds the approved red-and-gold coaster icon to the Windows executable, game window, taskbar, shortcuts and installer. The original transparent artwork and seven-size ICO are included. See [the icon guide](docs/GAME_ICON.md).
+
 Version **0.96.0** adds raised flowers, fern undergrowth, needle clusters, detailed paving, rounded shop products, ride platform inlays, decorated gondolas and cups, round coaster wheels and varied visitor outfits. The camera can zoom twice as close. See [the detail graphics guide](docs/PARK_DETAIL_GRAPHICS.md).
 
 Version **0.95.0** adds a Windows installer, Start menu shortcuts, save-preserving upgrades and uninstall, plus versioned download checksums and release metadata. The portable ZIP is also available. This is the Windows test channel. [Installation and upgrade guide](docs/PHASE_12_WINDOWS_DISTRIBUTION.md)

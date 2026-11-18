@@ -2,6 +2,7 @@
 
 mod access_planning;
 mod accessibility;
+mod app_icon;
 mod benchmark;
 mod beta_check;
 mod capture;
@@ -857,6 +858,7 @@ fn main() -> AppExit {
     if let Some(scene) = render_scene {
         app.insert_resource(scene);
     }
+    app_icon::configure(&mut app);
     accessibility::configure(&mut app, &arguments);
     onboarding::configure(&mut app);
     capture::configure(&mut app);
