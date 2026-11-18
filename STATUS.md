@@ -2,7 +2,9 @@
 
 ## Current work — Soundtrack and spatial audio, 0.97.0
 
-Branch `codex/soundtrack-and-spatial-audio` starts at `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Three arranged original tracks, zoom-aware nearby ride sound and recorded visitor cheering are implemented. Verification is in progress. See `docs/AUDIO_OVERHAUL.md` and `docs/sessions/2026-11-18-soundtrack.md`.
+Branch `codex/soundtrack-and-spatial-audio` starts at `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Runtime `44c25003d7bb7172175ec85f385c2c2394c9e56c` is published in PR 90. Three arranged original tracks, zoom-aware ride sound and recorded visitor cheering are complete. All 1,045 tests, strict Clippy, formatting, eleven independent WAV re-renders, Windows audio output and extracted-package demo/front/audio continuation passed. See `docs/AUDIO_OVERHAUL.md` and `docs/sessions/2026-11-18-soundtrack.md`.
+
+Version 0.97.0 is installed on PC1830. All 191 payload hashes and 164 bundled guides were checked. Both existing player files were preserved. Executable SHA256 is `e86078439abe0730613dfc7cc7682043fcac8075ecaba6b11cdd5ccddabd75f4`. ZIP and installer hashes accompany the files in `dist/`. At 2026-11-18 15:35 UTC, GitHub run `44333819884` had passed tests and packaging and was continuing integration checks. Physical speaker/headphone listening remains separate from the verified PCM/device checks.
 
 Google Drive synchronization is disabled at the owner's request. The project flag and local registration are set to false, and the archive helper suppresses Drive continuations. Local files and GitHub remain in use. Existing exports are retained locally. The cached standard prompt is 2.1.0. Saves remain 51/51 and audio settings remain version 2.
 

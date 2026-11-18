@@ -124,7 +124,7 @@ try {
     }
     [System.IO.File]::AppendAllText(
         (Join-Path $stagedPackage 'THIRD_PARTY_NOTICES.txt'),
-        "`nCrowd cheer by AuraVoice, CC0 1.0. Source: https://opengameart.org/content/cheers-0`n" + [System.IO.File]::ReadAllText((Join-Path $workspaceDirectory 'assets/audio/CC0-1.0.txt')),
+        "`nCrowd cheer by AuraVoice, CC0 1.0. Published at https://opengameart.org/content/cheers-0`n" + [System.IO.File]::ReadAllText((Join-Path $workspaceDirectory 'assets/audio/CC0-1.0.txt')),
         [System.Text.UTF8Encoding]::new($false)
     )
     & (Join-Path $PSScriptRoot 'copy-windows-runtime.ps1') -Executable $executable -OutputDirectory $stagedPackage

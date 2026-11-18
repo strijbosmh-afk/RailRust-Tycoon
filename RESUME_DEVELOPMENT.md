@@ -2,7 +2,9 @@
 
 ## Current work — Soundtrack and spatial audio, 0.97.0
 
-Continue on `codex/soundtrack-and-spatial-audio`, based on `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Three original arranged tracks, spatial ride effects and recorded cheering are implemented and under verification. Follow `docs/AUDIO_OVERHAUL.md` and the current session report.
+Continue on `codex/soundtrack-and-spatial-audio`, based on `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Runtime `44c25003d7bb7172175ec85f385c2c2394c9e56c` is in PR 90. Three original arranged tracks, spatial ride effects and recorded cheering are complete. All 1,045 tests, formatting, strict Clippy, release build, eleven exact WAV re-renders, Windows audio output and extracted-package continuation passed. Follow `docs/AUDIO_OVERHAUL.md` and the current session report.
+
+PC1830 is upgraded to 0.97.0. The package has 191 verified payloads and 164 current guides. Both existing player files retain their hashes. Executable SHA256 is `e86078439abe0730613dfc7cc7682043fcac8075ecaba6b11cdd5ccddabd75f4`. ZIP and installer checksums are next to the files in `dist/`. GitHub run `44333819884` was continuing integration checks at 2026-11-18 15:35 UTC. The remaining audio acceptance work is listening on speakers and headphones.
 
 Google Drive synchronization is disabled by the owner. Honor `PROJECT.json` → `drive.syncEnabled = false` on every PC. This PC's registration also has `driveSyncEnabled = false`, and its archive helper suppresses Drive requests. Preserve local queued exports. Use the cached standard prompt and GitHub for source transfer.
 
