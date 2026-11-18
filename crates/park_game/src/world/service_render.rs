@@ -62,6 +62,17 @@ pub(super) fn faces(
         ServiceKind::Information => [rgb(51, 162, 245), rgb(24, 97, 192), rgb(17, 57, 116)],
         ServiceKind::FirstAid => [rgb(239, 67, 73), rgb(178, 35, 42), rgb(119, 25, 31)],
     };
+    let roof_height = if matches!(
+        kind,
+        ServiceKind::IceCream
+            | ServiceKind::Souvenir
+            | ServiceKind::Information
+            | ServiceKind::FirstAid
+    ) {
+        2.40
+    } else {
+        2.72
+    };
     let mut cuboid = |min: Vec3, max: Vec3, colors: [Ink; 3]| {
         let upper = [
             Vec3::new(min.x, min.y, max.z),
@@ -417,8 +428,8 @@ pub(super) fn faces(
         }
     }
     cuboid(
-        Vec3::new(-0.065, -0.065, 2.72),
-        Vec3::new(0.065, 0.065, 2.85),
+        Vec3::new(-0.065, -0.065, roof_height + 0.02),
+        Vec3::new(0.065, 0.065, roof_height + 0.13),
         accent,
     );
     // Layered plinths, cornices and corner pilasters make the small facades
@@ -527,8 +538,8 @@ pub(super) fn faces(
             let x = -0.43 + row as f32 * 0.205;
             let y = -0.43 + column as f32 * 0.143;
             cuboid(
-                Vec3::new(x, y, 2.733),
-                Vec3::new(x + 0.19, y + 0.128, 2.745),
+                Vec3::new(x, y, roof_height + 0.013),
+                Vec3::new(x + 0.19, y + 0.128, roof_height + 0.025),
                 if (row + column) % 3 == 0 {
                     [rgb(69, 145, 125), rgb(39, 102, 89), rgb(26, 76, 70)]
                 } else {

@@ -1786,21 +1786,21 @@ fn paint_visitor_details(mesh: &mut Painter, point: Vec2, depth: f32, id: park_s
                 point + Vec2::new(0.0, 22.9),
                 4.7,
                 1.25,
-                depth + 0.0054,
+                depth + 0.0048,
                 rgb(241, 208, 135),
             );
             mesh.ellipse(
                 point + Vec2::new(-0.2, 24.0),
                 2.6,
                 1.9,
-                depth + 0.0055,
+                depth + 0.0049,
                 rgb(250, 226, 169),
             );
             mesh.line(
                 point + Vec2::new(-2.5, 23.1),
                 point + Vec2::new(2.4, 23.1),
                 0.8,
-                depth + 0.0056,
+                depth + 0.00495,
                 fabric,
             );
         }
