@@ -1,5 +1,12 @@
 # Project decisions
 
+## 2026-11-18 — Park detail graphics
+
+- Extend the existing original geometry for rides, paths, planting, services and visitor clothing. Reuse the physical transforms and surface clipping.
+- Keep visitor appearance deterministic with the existing 48-look cache cycle. Keep static additions in the existing chunk renderer.
+- Allow twice the previous close zoom through normal camera controls so players can inspect the new detail.
+- Retain park schema/content 51/51 and the Windows test distribution. Use this PC for correctness and visual inspection.
+
 ## 2026-11-18 — Windows test distribution
 
 - Build the Phase 12 Windows installer using Inno Setup 6.7.4 and the same verified payload as the portable ZIP.

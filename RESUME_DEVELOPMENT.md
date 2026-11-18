@@ -1,5 +1,11 @@
 # Resume development on another Windows PC
 
+## Current work — Detailed park graphics, 0.96.0
+
+Continue on `codex/park-detail-overhaul`, based on `886aa7c318b3cd11c399c7b9033aa7586f0ed579`. Rides, paths, planting, facilities and visitor outfits receive another original geometry pass. The camera permits twice the previous close zoom through its normal controls. Read `docs/PARK_DETAIL_GRAPHICS.md` for changes and validation. Checks and after-captures are in progress.
+
+Shared checkout is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the pinned Rust toolchain and existing Windows packaging instructions. Park saves remain schema/content 51/51. This PC supplies correctness checks and visual inspection. The prior native Drive snapshot `q-3786d3de32c0aa387b5c1a4f74ae4c1a` was acknowledged with 171 verified downloads; three earlier exports remain queued.
+
 ## Current work — Windows distribution, 0.95.0
 
 Continue on `codex/phase-12-windows-distribution`, based on `b84dd85ba2296715fc7d8cfcf3108be0d288d7f0`. Runtime `c55c0b7894771e58813277f8c2453ecb7b94fef5` is in PR 87. The Inno Setup installer supports per-user installation, Start menu entries, save-preserving upgrades and uninstall. The game holds a named Windows mutex while running so setup can ask the player to close it. A version query and release metadata identify the packaged game. Strict checks, the release build, mutex regression, title capture and 14-process installer lifecycle passed. The old 0.94.0 executable and real park/campaign/settings data were retained and verified after upgrading to 0.95.0. Read `docs/PHASE_12_DISTRIBUTION_VERIFICATION.md` for exact identities and limits.

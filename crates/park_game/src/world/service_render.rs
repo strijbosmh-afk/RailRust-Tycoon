@@ -162,16 +162,6 @@ pub(super) fn faces(
                         color,
                     );
                 }
-                cuboid(
-                    Vec3::new(-0.10, -0.10, 2.40),
-                    Vec3::new(0.10, 0.10, 2.65),
-                    [rgb(213, 150, 67); 3],
-                );
-                cuboid(
-                    Vec3::new(-0.16, -0.16, 2.65),
-                    Vec3::new(0.16, 0.16, 2.92),
-                    [rgb(255, 210, 228); 3],
-                );
             }
             ServiceKind::Souvenir => {
                 for (i, y) in [-0.23, 0.0, 0.23].iter().enumerate() {
@@ -495,11 +485,6 @@ pub(super) fn faces(
             accent,
         );
         cuboid(
-            Vec3::new(-0.09, -0.07, 1.58),
-            Vec3::new(0.02, 0.07, 1.84),
-            [rgb(221, 163, 114); 3],
-        );
-        cuboid(
             Vec3::new(-0.11, -0.10, 1.83),
             Vec3::new(0.04, 0.10, 1.89),
             ivory,
@@ -550,6 +535,208 @@ pub(super) fn faces(
                     [rgb(48, 118, 102), rgb(31, 86, 76), rgb(20, 63, 58)]
                 },
             );
+        }
+    }
+    let mut detail = Vec::new();
+    let glass = [rgb(159, 223, 224), rgb(65, 151, 169), rgb(36, 101, 130)];
+    for side in [-1.0, 1.0] {
+        let y = side * 0.43;
+        for row in 0..3 {
+            let z = 1.22 + row as f32 * 0.21;
+            ride_detail::panel(
+                &mut detail,
+                [
+                    Vec3::new(-0.34, y, z),
+                    Vec3::new(-0.23, y, z),
+                    Vec3::new(-0.23, y, z + 0.17),
+                    Vec3::new(-0.34, y, z + 0.17),
+                ],
+                glass[1],
+            );
+            ride_detail::panel(
+                &mut detail,
+                [
+                    Vec3::new(-0.18, y, z),
+                    Vec3::new(-0.07, y, z),
+                    Vec3::new(-0.07, y, z + 0.17),
+                    Vec3::new(-0.18, y, z + 0.17),
+                ],
+                glass[0],
+            );
+        }
+        // Narrow brass sill and a pair of leafy window-box plants.
+        ride_detail::tube(
+            &mut detail,
+            Vec3::new(-0.36, y, 1.16),
+            Vec3::new(-0.02, y, 1.16),
+            0.014,
+            brass,
+        );
+        for x in [-0.29, -0.10] {
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(x, side * 0.45, 0.49),
+                &[(0.026, 0.0), (0.036, 0.13), (0.037, 0.16)],
+                accent,
+            );
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(x, side * 0.45, 0.65),
+                &[(0.0, 0.0), (0.043, 0.035), (0.035, 0.11), (0.0, 0.15)],
+                [rgb(125, 185, 75), rgb(59, 139, 63), rgb(35, 92, 51)],
+            );
+        }
+    }
+    if !matches!(kind, ServiceKind::Rest | ServiceKind::Toilet) {
+        ride_detail::lathe(
+            &mut detail,
+            Vec3::new(-0.035, 0.0, 1.58),
+            &[
+                (0.045, 0.0),
+                (0.076, 0.06),
+                (0.073, 0.18),
+                (0.04, 0.26),
+                (0.0, 0.27),
+            ],
+            [rgb(247, 199, 150), rgb(221, 163, 114), rgb(176, 113, 79)],
+        );
+        for y in [-0.068, 0.055] {
+            ride_detail::tube(
+                &mut detail,
+                Vec3::new(0.02, y, 1.48),
+                Vec3::new(0.22, y, 1.25),
+                0.025,
+                ivory,
+            );
+        }
+        for y in [-0.29, 0.25] {
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(0.395, y, 2.02),
+                &[
+                    (0.0, 0.0),
+                    (0.045, 0.015),
+                    (0.05, 0.09),
+                    (0.035, 0.14),
+                    (0.0, 0.14),
+                ],
+                ivory,
+            );
+        }
+    }
+    match kind {
+        ServiceKind::Food => {
+            for (z, radius, colors) in [
+                (
+                    2.73,
+                    0.16,
+                    [rgb(250, 191, 77), rgb(203, 126, 43), rgb(155, 81, 33)],
+                ),
+                (
+                    2.80,
+                    0.17,
+                    [rgb(131, 184, 65), rgb(77, 133, 46), rgb(48, 96, 41)],
+                ),
+                (
+                    2.84,
+                    0.16,
+                    [rgb(126, 68, 37), rgb(87, 47, 29), rgb(68, 37, 26)],
+                ),
+                (
+                    2.88,
+                    0.16,
+                    [rgb(255, 205, 82), rgb(218, 146, 48), rgb(165, 91, 29)],
+                ),
+            ] {
+                ride_detail::lathe(
+                    &mut detail,
+                    Vec3::new(0.0, 0.0, z),
+                    &[
+                        (radius, 0.0),
+                        (radius, 0.035),
+                        (radius * 0.7, 0.07),
+                        (0.0, 0.08),
+                    ],
+                    colors,
+                );
+            }
+        }
+        ServiceKind::Drink => {
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(0.0, 0.0, 2.73),
+                &[(0.08, 0.0), (0.12, 0.20), (0.13, 0.22), (0.0, 0.22)],
+                accent,
+            );
+            ride_detail::tube(
+                &mut detail,
+                Vec3::new(0.03, 0.0, 2.86),
+                Vec3::new(-0.01, 0.0, 2.99),
+                0.014,
+                ivory,
+            );
+        }
+        ServiceKind::IceCream => {
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(0.0, 0.0, 2.4),
+                &[(0.035, 0.0), (0.12, 0.27), (0.13, 0.29)],
+                [rgb(247, 195, 109), rgb(205, 142, 62), rgb(152, 92, 37)],
+            );
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(0.0, 0.0, 2.64),
+                &[
+                    (0.08, 0.0),
+                    (0.17, 0.06),
+                    (0.17, 0.16),
+                    (0.12, 0.26),
+                    (0.0, 0.33),
+                ],
+                [rgb(255, 231, 237), rgb(255, 175, 208), rgb(219, 112, 164)],
+            );
+        }
+        ServiceKind::Rest => {
+            for y in [-0.25, -0.12, 0.01, 0.14, 0.27] {
+                ride_detail::tube(
+                    &mut detail,
+                    Vec3::new(-0.14, y, 0.75),
+                    Vec3::new(0.22, y, 0.75),
+                    0.015,
+                    brass,
+                );
+            }
+        }
+        ServiceKind::Toilet => {
+            ride_detail::lathe(
+                &mut detail,
+                Vec3::new(-0.21, 0.0, 2.89),
+                &[(0.11, 0.0), (0.12, 0.03), (0.08, 0.075), (0.0, 0.075)],
+                ivory,
+            );
+        }
+        ServiceKind::Souvenir | ServiceKind::Information | ServiceKind::FirstAid => {
+            for y in [-0.19, 0.0, 0.19] {
+                ride_detail::lathe(
+                    &mut detail,
+                    Vec3::new(0.375, y, 1.14),
+                    &[(0.032, 0.0), (0.044, 0.08), (0.035, 0.16), (0.0, 0.19)],
+                    if kind == ServiceKind::FirstAid {
+                        ivory
+                    } else {
+                        accent
+                    },
+                );
+            }
+        }
+    }
+    for mut face in detail {
+        face.surface.vertices = face
+            .surface
+            .vertices
+            .map(|p| projected(object, facing, p, size, rotation));
+        if face.surface.has_area() {
+            result.push(face);
         }
     }
     result

@@ -1726,6 +1726,101 @@ fn paint_visitor_details(mesh: &mut Painter, point: Vec2, depth: f32, id: park_s
     let look = crate::visitor_look::look(id);
     let light = rgb(255, 240, 204);
     let hair = rgb_from(look.hair);
+    let fabric = rgb_from(look.bag);
+    match id.0 % 6 {
+        0 => {
+            for y in [9.6, 12.3, 15.0] {
+                mesh.line(
+                    point + Vec2::new(-2.8, y),
+                    point + Vec2::new(2.6, y),
+                    0.65,
+                    depth + 0.0054,
+                    light,
+                );
+            }
+        }
+        1 => {
+            for side in [-1.0, 1.0] {
+                mesh.quad(
+                    [
+                        point + Vec2::new(side * 1.3, 8.2),
+                        point + Vec2::new(side * 3.0, 8.2),
+                        point + Vec2::new(side * 3.2, 15.8),
+                        point + Vec2::new(side * 1.8, 16.1),
+                    ],
+                    depth + 0.0054,
+                    fabric,
+                );
+            }
+        }
+        2 => {
+            for y in [12.7, 14.1, 15.5] {
+                mesh.ellipse(point + Vec2::new(0.0, y), 0.3, 0.3, depth + 0.0054, light);
+            }
+        }
+        3 => {
+            mesh.ellipse(
+                point + Vec2::new(-4.0, 10.0),
+                2.4,
+                3.4,
+                depth + 0.0054,
+                fabric,
+            );
+            mesh.line(
+                point + Vec2::new(-5.4, 10.6),
+                point + Vec2::new(-2.7, 10.6),
+                0.55,
+                depth + 0.0055,
+                light,
+            );
+            mesh.line(
+                point + Vec2::new(-4.0, 9.1),
+                point + Vec2::new(-4.0, 11.5),
+                0.45,
+                depth + 0.0056,
+                light,
+            );
+        }
+        4 if !look.cap => {
+            mesh.ellipse(
+                point + Vec2::new(0.0, 22.9),
+                4.7,
+                1.25,
+                depth + 0.0054,
+                rgb(241, 208, 135),
+            );
+            mesh.ellipse(
+                point + Vec2::new(-0.2, 24.0),
+                2.6,
+                1.9,
+                depth + 0.0055,
+                rgb(250, 226, 169),
+            );
+            mesh.line(
+                point + Vec2::new(-2.5, 23.1),
+                point + Vec2::new(2.4, 23.1),
+                0.8,
+                depth + 0.0056,
+                fabric,
+            );
+        }
+        _ => {
+            mesh.line(
+                point + Vec2::new(-1.8, 16.8),
+                point + Vec2::new(1.7, 16.8),
+                1.2,
+                depth + 0.0054,
+                fabric,
+            );
+            mesh.line(
+                point + Vec2::new(1.1, 16.3),
+                point + Vec2::new(2.2, 12.8),
+                1.2,
+                depth + 0.0055,
+                fabric,
+            );
+        }
+    }
     // Open collar, sleeve hems, pocket, belt and backpack buckle stay readable
     // when zoomed in. Shared by the cached and independent character renderers.
     mesh.triangle(
@@ -2076,6 +2171,33 @@ fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
             DETAIL_BIAS * 3.0,
             rgb(92, 151, 65),
         );
+    }
+    // Fern fronds give the planted trunk a layered, shaded understorey.
+    for side in [-1.0, 1.0] {
+        let root = base + Vec2::new(side * 9.0, -1.5);
+        for frond in 0..3 {
+            let tip = root + Vec2::new(side * (4.0 + frond as f32 * 1.4), 3.8 + frond as f32 * 1.5);
+            let stem_depth = top.depth_at(root) + 0.031;
+            mesh.line(root, tip, 0.55, stem_depth, rgb(102, 159, 63));
+            for leaf in 1..5 {
+                let p = root.lerp(tip, leaf as f32 / 5.0);
+                for direction in [-1.0, 1.0] {
+                    mesh.triangle(
+                        [
+                            p,
+                            p + Vec2::new(direction * 2.8, 1.5),
+                            p + Vec2::new(direction * 0.5, 1.6),
+                        ],
+                        stem_depth + 0.001,
+                        if direction < 0.0 {
+                            rgb(91, 155, 59)
+                        } else {
+                            rgb(43, 111, 49)
+                        },
+                    );
+                }
+            }
+        }
     }
 }
 

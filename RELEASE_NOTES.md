@@ -1,4 +1,17 @@
-# Parkbound 0.95.0 Windows test release
+# Parkbound 0.96.0 detailed park graphics
+
+Rides have inlaid platforms, fine balusters, globe lamps, gondola decoration,
+painted cups and round coaster wheels. Facilities gain rounded products and
+roof signs, glazing, window-box plants and shaped attendants. Flowers now have
+stems, leaves and raised petals. Ferns, pine clusters, stone edges and timber
+fixings enrich the landscape. Visitor outfits include stripes, vests, bags,
+scarves and sun hats. The normal zoom controls support twice the previous close
+view. Original geometry is embedded in the game. Park saves remain 51/51.
+
+This continues the unsigned Windows test distribution. The source-license
+decision remains deferred. See `docs/PARK_DETAIL_GRAPHICS.md` for validation.
+
+## Parkbound 0.95.0 Windows test release
 
 This release adds a per-user Windows installer, Start menu entries, an optional
 desktop shortcut, program removal, package identity metadata and distribution

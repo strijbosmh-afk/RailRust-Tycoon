@@ -1,8 +1,8 @@
 # Installation and development
 
-## Windows installer in 0.95.0
+## Windows installer in 0.96.0
 
-Run `Parkbound-0.95.0-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
+Run `Parkbound-0.96.0-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
 
 To build the installer, use PowerShell 7 and Inno Setup 6.7.4 alongside the existing Rust 1.93.1 and Visual Studio C++ tools. Run `scripts/package-windows.ps1`, then `scripts/package-installer.ps1 -PackageDirectory ABSOLUTE_PACKAGE_DIRECTORY -IsccPath ABSOLUTE_ISCC_PATH`. The compiler bootstrap helper is `scripts/install-inno-setup.ps1 -InstallDirectory ABSOLUTE_NEW_DIRECTORY`. It verifies the pinned upstream download before installing the build tool for the current user.
 

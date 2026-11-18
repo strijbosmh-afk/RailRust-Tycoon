@@ -1847,6 +1847,7 @@ fn apply_preset(
                     - elevation;
             }
             Scene::ServiceNeeds => {
+                view.zoom = 7.0;
                 let service = sim.0.services().first().expect("detail capture service");
                 let pos = sim
                     .0
@@ -1858,6 +1859,15 @@ fn apply_preset(
                     - elevation;
             }
             Scene::Garden => {}
+            Scene::Catalogue => {}
+            Scene::VisitorLooks => {
+                view.zoom = 7.0;
+                if let Some(guest) = sim.0.guests().get(sim.0.guests().len() / 2)
+                    && let Some(point) = world::guest_anchor(&sim.0, guest.id, view.rotation)
+                {
+                    view.pan = point.truncate() + Vec2::Y * 10.0;
+                }
+            }
             Scene::Landscape => {
                 view.zoom = 2.8;
             }
@@ -1874,6 +1884,9 @@ fn apply_preset(
         view.pan = world::ride_focus(&sim.0, ride.id, view.rotation).expect("ride capture focus")
             - Vec2::Y * f32::from(sim.0.max_surface_height()) * world::HEIGHT_STEP * 0.5;
         view.zoom = if model.tracked() { 4.2 } else { 7.0 };
+        if capture.detail {
+            view.zoom *= 2.0;
+        }
         view.grid = false;
         view.selected = None;
         view.hovered = None;
