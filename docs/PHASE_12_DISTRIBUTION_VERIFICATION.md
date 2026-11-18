@@ -51,9 +51,17 @@ each have an adjacent `.sha256` file, and the setup has a `.build.json` record
 containing its compiler and payload identities. Local logs, title capture and
 saved-data hashes are retained under `artifacts/phase12/`.
 
-The Windows CI run 44294574454 was still completing its workspace tests at this
-checkpoint. The new dependent installer job builds from the verified ZIP and
-exercises the current-version lifecycle on its Windows runner.
+The Windows job in CI run 44294574454 passed all 1,038 tests and its complete
+build/continuation checks. Its dependent installer job reached the final removal
+after a successful reinstall, then exposed a test-script assumption. Inno Setup
+can allocate `unins001.exe` while the previous uninstaller finishes cleaning up.
+The verifier now reads the registered uninstaller after each installation instead
+of retaining the original filename. A corrected CI run must confirm final removal.
+
+The final ZIP also passed production demo write/verify in separate processes.
+All seven rides completed paid visits, facilities served guests and 18,000 ticks
+continued exactly. Its title capture was inspected. The final installer rejected
+a player-data destination while preserving the existing personal installation.
 
 Independent clean-PC, representative hardware and player acceptance remain open.
 The owner deferred the original source-code license decision for this Windows

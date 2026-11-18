@@ -110,6 +110,14 @@ function Run-Game([string]$Mode, [string]$Folder, [string]$Name) {
     Run-Process $executable ('--save-check {0} --save-dir "{1}"' -f $Mode, $Folder) $Name
 }
 
+function Installed-Uninstaller {
+    $path = (Get-ItemProperty -LiteralPath $registryPath).UninstallString.Trim('"')
+    if ([IO.Path]::GetDirectoryName($path) -ne $installed -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw 'The registered uninstaller is missing or outside the test installation.'
+    }
+    return $path
+}
+
 $initialInstaller = $Installer
 if ($PreviousInstaller) { $initialInstaller = (Resolve-Path -LiteralPath $PreviousInstaller).Path }
 Record "Installer SHA256 $((Get-FileHash -LiteralPath $Installer).Hash.ToLowerInvariant())"
@@ -145,7 +153,7 @@ Assert-Profiles $baseline
 
 $userFile = Join-Path $installed 'player-note.txt'
 [IO.File]::WriteAllText($userFile, 'A player-created file must survive uninstall.')
-$uninstaller = Join-Path $installed 'unins000.exe'
+$uninstaller = Installed-Uninstaller
 $mutex = [Threading.Mutex]::new($false, $mutexName)
 try { Run-Process $uninstaller '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' 'running-game-uninstall-refused' -ExpectFailure }
 finally { $mutex.Dispose() }
@@ -161,6 +169,7 @@ Record 'Uninstall preserved all park, campaign, settings and player-created file
 Run-Setup $Installer 'reinstall'
 Assert-Installed
 Assert-Profiles $baseline
+$uninstaller = Installed-Uninstaller
 Run-Process $uninstaller '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' 'final-uninstall'
 Assert-Profiles $baseline
 if (Test-Path -LiteralPath $registryPath) { throw 'Final uninstall retained its registration.' }

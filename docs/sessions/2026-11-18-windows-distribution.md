@@ -34,3 +34,11 @@ handoff for its next archive. No manual snapshot was created.
 
 The development PC is excluded from product performance acceptance. The full
 release retains independent clean-PC, display/hardware and player acceptance.
+
+The Windows job of CI run 44294574454 passed all 1,038 tests and its production
+continuation checks. Its installer job exposed a rapid-reinstall test assumption
+when Inno Setup chose `unins001.exe`. The verifier now resolves the registered
+uninstaller before each removal. Corrected CI confirmation is pending. The final
+local ZIP additionally passed production demo write/verify across processes,
+18,000-tick continuation and an inspected title capture. The final installer also
+rejected the player-data directory without changing the personal installation.
