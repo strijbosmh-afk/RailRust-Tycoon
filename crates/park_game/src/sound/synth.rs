@@ -281,9 +281,9 @@ impl Mixer {
                         voice.age < RATE / 2
                     }
             });
-            let music_duck = 1.0 - close_ride * 0.42;
+            let music_duck = 1.0 - close_ride * self.gain[3] * 0.42;
             for channel in 0..2 {
-                let mixed = (music[channel] * self.gain[1] * music_duck
+                let mixed = (music[channel] * 2.0 * self.gain[1] * music_duck
                     + (ambient[channel] + rain + bird) * self.gain[2]
                     + rides[channel] * self.gain[3]
                     + effects[channel] * self.gain[4]
