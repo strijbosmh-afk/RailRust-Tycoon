@@ -1,23 +1,57 @@
 //! Production export/restart proof. Audio checks never touch player park slots.
 use super::*;
 use std::{ffi::OsString, fs, io::Read};
-const CLIPS: [(&str, usize, Option<usize>); 6] = [
-    ("parkbound-mix.wav", 40, None),
-    ("meadow-theme.wav", 8, Some(1)),
-    ("park-ambience.wav", 8, Some(2)),
-    ("ride-effects.wav", 8, Some(3)),
-    ("interface-cues.wav", 3, Some(4)),
-    ("evening-and-reactions.wav", 8, Some(5)),
+#[derive(Clone, Copy)]
+enum Excerpt {
+    Park,
+    Lakeside,
+    Starlight,
+    Water,
+    Chain,
+    Crowd,
+}
+const CLIPS: [(&str, usize, Option<usize>, Excerpt); 11] = [
+    ("parkbound-mix.wav", 40, None, Excerpt::Park),
+    ("meadow-theme.wav", 8, Some(1), Excerpt::Park),
+    ("park-ambience.wav", 8, Some(2), Excerpt::Park),
+    ("ride-effects.wav", 8, Some(3), Excerpt::Park),
+    ("interface-cues.wav", 3, Some(4), Excerpt::Park),
+    ("evening-and-reactions.wav", 8, Some(5), Excerpt::Lakeside),
+    ("lakeside-swing.wav", 12, Some(1), Excerpt::Lakeside),
+    ("starlight-carnival.wav", 12, Some(1), Excerpt::Starlight),
+    ("water-slide.wav", 8, Some(3), Excerpt::Water),
+    ("coaster-chain.wav", 8, Some(3), Excerpt::Chain),
+    ("enthusiastic-visitors.wav", 5, Some(5), Excerpt::Crowd),
 ];
-fn demo(seconds: usize, bus: Option<usize>) -> Vec<u8> {
+fn demo(seconds: usize, bus: Option<usize>, excerpt: Excerpt) -> Vec<u8> {
     let mut mixer = Mixer::default();
-    mixer.state.coaster = 0.85;
-    mixer.state.coaster_pan = -0.7;
-    mixer.state.carousel = true;
-    mixer.state.carousel_pan = 0.7;
+    mixer.state.crowd = 0.7;
+    mixer.state.rides[0] = Some(synth::RideEmitter {
+        id: (park_sim::RideId(1), 0),
+        model: park_sim::RideModel::SteelCoaster,
+        speed: 0.85,
+        lift: 0.0,
+        drop: 0.0,
+        cycle: 0.0,
+        pan: -0.7,
+        presence: 0.9,
+        occupied: true,
+    });
+    mixer.state.rides[1] = Some(synth::RideEmitter {
+        id: (park_sim::RideId(2), 3),
+        model: park_sim::RideModel::Carousel,
+        speed: 0.6,
+        lift: 0.0,
+        drop: 0.0,
+        cycle: 0.4,
+        pan: 0.7,
+        presence: 0.8,
+        occupied: true,
+    });
     if let Some(bus) = bus {
         mixer.state.settings.levels = [0; 5];
         mixer.state.settings.levels[0] = 50;
+        mixer.state.settings.reactions = 0;
         if bus < 5 {
             mixer.state.settings.levels[bus] = 70;
         } else {
@@ -26,8 +60,21 @@ fn demo(seconds: usize, bus: Option<usize>) -> Vec<u8> {
         }
     }
     let mut pcm = Vec::new();
-    if bus == Some(5) {
-        mixer.skip_to_evening();
+    match excerpt {
+        Excerpt::Lakeside => mixer.start_track(1),
+        Excerpt::Starlight => mixer.start_track(2),
+        Excerpt::Water | Excerpt::Chain => {
+            mixer.state.rides[1] = None;
+            let ride = mixer.state.rides[0].as_mut().unwrap();
+            ride.pan = 0.0;
+            ride.lift = 1.0;
+            if matches!(excerpt, Excerpt::Water) {
+                ride.model = park_sim::RideModel::LogFlume;
+                ride.drop = 1.0;
+            }
+        }
+        Excerpt::Crowd => mixer.state.settings.levels[1] = 0,
+        Excerpt::Park => {}
     }
     for second in 0..seconds {
         mixer.cue(if bus == Some(5) {
@@ -113,9 +160,11 @@ fn write(directory: &Path) -> Result<(), String> {
     if settings.levels != [50, 40, 45, 75, 60] || settings.muted {
         return Err("Actual controls did not persist expected levels".into());
     }
-    for (name, seconds, bus) in CLIPS {
-        fs::write(directory.join(name), demo(seconds, bus)).map_err(|e| e.to_string())?;
+    for (name, seconds, bus, excerpt) in CLIPS {
+        fs::write(directory.join(name), demo(seconds, bus, excerpt)).map_err(|e| e.to_string())?;
     }
+    fs::write(directory.join("playlist.txt"), score::TITLES.join("\n"))
+        .map_err(|e| e.to_string())?;
     fs::write(directory.join("verification-written.txt"),"Actual sound controls persisted independently; park bytes unchanged. Original deterministic WAVs exported.\n").map_err(|e|e.to_string())
 }
 fn verify(directory: &Path) -> Result<(), String> {
@@ -141,18 +190,18 @@ fn verify(directory: &Path) -> Result<(), String> {
     {
         return Err("Sound refresh changed park bytes".into());
     }
-    for (name, seconds, bus) in CLIPS {
+    for (name, seconds, bus, excerpt) in CLIPS {
         let mut actual = Vec::new();
         fs::File::open(directory.join(name))
             .map_err(|e| e.to_string())?
             .take(8 * 1024 * 1024 + 1)
             .read_to_end(&mut actual)
             .map_err(|e| e.to_string())?;
-        if actual != demo(seconds, bus) {
+        if actual != demo(seconds, bus, excerpt) {
             return Err(format!("Original PCM restart differs: {name}"));
         }
     }
-    fs::write(directory.join("verification-sound.txt"),"PASS: actual UI levels/mute, bounded strict settings, independent park bytes, six exact original WAV re-renders after fresh restart.\n").map_err(|e|e.to_string())
+    fs::write(directory.join("verification-sound.txt"),"PASS: actual UI levels/mute, bounded strict settings, independent park bytes, eleven exact soundtrack/effect WAV re-renders after fresh restart.\n").map_err(|e|e.to_string())
 }
 pub(super) fn run(args: &[OsString]) -> Option<AppExit> {
     let flags: Vec<_> = args
@@ -272,7 +321,7 @@ mod tests {
         assert!(m.render(4096).iter().all(|v| *v == 0));
         let mut moving = Mixer::default();
         moving.state.settings.levels = [80, 0, 0, 80, 0];
-        moving.state.coaster = 1.0;
+        moving.state.rides[0] = Some(synth::test_ride(park_sim::RideModel::SteelCoaster));
         assert!(moving.render(4096).iter().any(|v| *v != 0));
         let mut paused = Mixer::default();
         paused.state = moving.state;

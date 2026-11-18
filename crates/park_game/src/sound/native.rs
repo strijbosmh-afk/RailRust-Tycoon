@@ -148,7 +148,7 @@ pub(super) fn stream(receiver: Receiver<Message>, status: Arc<Mutex<String>>) {
         while std::time::Instant::now() < until {
             match receiver.recv_timeout(Duration::from_millis(50)) {
                 Ok(Message::Quit) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
-                Ok(Message::State(state)) => mixer.state = state,
+                Ok(Message::State(state)) => mixer.state = *state,
                 Ok(Message::Cue(_))
                 | Ok(Message::Restart)
                 | Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -180,7 +180,7 @@ fn play(
             return Err("Audio device stopped returning buffers.".into());
         }
         match receiver.recv_timeout(Duration::from_millis(5)) {
-            Ok(Message::State(state)) => mixer.state = state,
+            Ok(Message::State(state)) => mixer.state = *state,
             Ok(Message::Cue(cue)) => mixer.cue(cue),
             Ok(Message::Restart) => return Ok(false),
             Ok(Message::Quit) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {

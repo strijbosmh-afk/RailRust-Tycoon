@@ -1,5 +1,13 @@
 # Resume development on another Windows PC
 
+## Current work — Soundtrack and spatial audio, 0.97.0
+
+Continue on `codex/soundtrack-and-spatial-audio`, based on `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Three original arranged tracks, spatial ride effects and recorded cheering are implemented and under verification. Follow `docs/AUDIO_OVERHAUL.md` and the current session report.
+
+Google Drive synchronization is disabled by the owner. Honor `PROJECT.json` → `drive.syncEnabled = false` on every PC. This PC's registration also has `driveSyncEnabled = false`, and its archive helper suppresses Drive requests. Preserve local queued exports. Use the cached standard prompt and GitHub for source transfer.
+
+The shared Git root is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Existing Rust/Windows build requirements apply. The new crowd WAV is embedded with retained CC0 terms. Sound settings remain version 2 and park saves remain 51/51. This PC supplies correctness evidence.
+
 ## Current work — Game icon, 0.96.1
 
 Continue on `codex/game-icon`, based on `589a09b6da98131ffb729499c41f895880755aab`. Runtime source `c18174696b34460eb48db76d4f015c5876a1c483` is published in PR 89. The user-approved icon is saved as `assets/art/parkbound-icon.png` and `assets/art/parkbound.ico`. Windows executable/window icons, version properties and installer/shortcut integration are complete. All 1,038 tests, strict Clippy, formatting, release build, seven embedded sizes, native-window icons and extracted-package demo/front continuation passed. Follow `docs/GAME_ICON.md` for regeneration and `docs/sessions/2026-11-18-game-icon.md` for evidence.

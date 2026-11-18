@@ -1,5 +1,11 @@
 # Project status
 
+## Current work — Soundtrack and spatial audio, 0.97.0
+
+Branch `codex/soundtrack-and-spatial-audio` starts at `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Three arranged original tracks, zoom-aware nearby ride sound and recorded visitor cheering are implemented. Verification is in progress. See `docs/AUDIO_OVERHAUL.md` and `docs/sessions/2026-11-18-soundtrack.md`.
+
+Google Drive synchronization is disabled at the owner's request. The project flag and local registration are set to false, and the archive helper suppresses Drive continuations. Local files and GitHub remain in use. Existing exports are retained locally. The cached standard prompt is 2.1.0. Saves remain 51/51 and audio settings remain version 2.
+
 ## Current work — Game icon, 0.96.1
 
 Branch `codex/game-icon` starts at `589a09b6da98131ffb729499c41f895880755aab`. Runtime source `c18174696b34460eb48db76d4f015c5876a1c483` is published in PR 89. The approved original icon is integrated into the executable, native window/taskbar, setup, uninstall and both shortcuts. All 1,038 tests, strict Clippy, formatting, resource-byte checks, native-window checks and extracted-package demo/front continuation passed. The 0.96.0 installation was upgraded to 0.96.1 with all 185 payload files verified and both player files preserved. Read `docs/GAME_ICON.md` and `docs/sessions/2026-11-18-game-icon.md`.
