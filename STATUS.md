@@ -1,5 +1,45 @@
 # Project status
 
+## Current checkpoint — Native guide and English Help verified, 0.99.3
+
+On PC1830, the installed game passed the complete seven-step first-park guide.
+A fresh Sandbox used an isolated profile, and Next advanced through steps 1–7
+without requiring construction, a guest trip or a save. The last Next closed
+the guide. During navigation, the park stayed paused at 00:11 with $1,000.00.
+The test park was saved separately after these checks and closed normally.
+
+Help (H) → the document icon opened the installed
+`docs/PLAYER_MANUAL.html` in Microsoft Edge. The browser showed the English
+“Parkbound — complete player manual”, version 0.99.3, its contents panel and
+English chapters. The game also displayed its successful manual-launch
+notice. This resolves the earlier outstanding native opener check. A browser
+translation offer is browser UI; the shipped manual remains English.
+
+No code fix or save migration was needed in this acceptance pass. Runtime
+source remains `16292a10ce2bb7f1bb2467c2398078c93eb2a0db`; tested documentation
+baseline was `11949ddabbfa640837ce93d31a40f1ddd27f870c`. Continue from the latest
+`codex/right-click-settings` commit / PR #93. Installed/runtime SHA256:
+`f3c847f4927fec5f5485f212db4f571eaa341a5866a16a0ae11453fb2006f2f7`.
+
+GitHub CI run `44533828792` was inspected on 2026-11-19: formatting, manual
+freshness, asset validation, strict lints, workspace tests, Windows packaging,
+embedded icons, persistent Tips and the demo-park check passed. Remaining
+continuation/installer/endurance jobs were still running at this checkpoint;
+this is not a claim that the entire workflow is green. Check the latest
+[PR #93 checks](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/93/checks)
+and local `artifacts/native-guide-ci-*.json` receipts before release.
+
+The refreshed documentation uses the same 0.99.3 executable. Distribution and
+installed-payload verification receipts are retained under
+`artifacts/native-guide-*`; package checksums remain beside the files in `dist`.
+See `docs/sessions/2026-11-19-native-guide-manual-acceptance.md` for the test
+sequence. Further browser search/filter interaction is not claimed by this
+pass; the requested Help-to-English-manual launch is verified.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Drive remains
+disabled and existing exports stay local. This PC is not a performance reference.
+
 ## Current checkpoint — First-park guide navigation fixed, 0.99.3
 
 Runtime source: `16292a10ce2bb7f1bb2467c2398078c93eb2a0db`, branch
