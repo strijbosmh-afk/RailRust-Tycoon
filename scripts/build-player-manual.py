@@ -13,8 +13,9 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "docs" / "HANDLEIDING_NL.md"
+SOURCE = ROOT / "docs" / "PLAYER_MANUAL.md"
 OUTPUT = SOURCE.with_suffix(".html")
+LEGACY_OUTPUT = ROOT / "docs" / "HANDLEIDING_NL.html"
 
 
 def slug(text: str) -> str:
@@ -49,7 +50,7 @@ def render(source: str) -> tuple[str, list[tuple[int, str, str]]]:
             i += 1
             continue
         if line.startswith("# "):
-            out.append(f"<header class=hero><p class=eyebrow>SPELEN · BOUWEN · BEHEREN</p><h1>{inline(line[2:])}</h1></header>")
+            out.append(f"<header class=hero><p class=eyebrow>PLAY · BUILD · MANAGE</p><h1>{inline(line[2:])}</h1></header>")
             i += 1
         elif line.startswith("## ") or line.startswith("### "):
             level = 3 if line.startswith("### ") else 2
@@ -60,7 +61,7 @@ def render(source: str) -> tuple[str, list[tuple[int, str, str]]]:
             headings.append((level, anchor, title))
             if level == 2:
                 if section_open:
-                    out.append('<a class="back" href="#top">↑ Inhoud en begin</a></section>')
+                    out.append('<a class="back" href="#top">↑ Contents and top</a></section>')
                 out.append(f'<section aria-labelledby="{anchor}">')
                 section_open = True
             out.append(f'<h{level} id="{anchor}" tabindex="-1">{inline(title)}</h{level}>')
@@ -84,7 +85,7 @@ def render(source: str) -> tuple[str, list[tuple[int, str, str]]]:
                 raise ValueError("Table needs a header separator")
             if any(len(row) != len(rows[0]) for row in rows):
                 raise ValueError("Inconsistent table columns")
-            out.append('<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>')
+            out.append('<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>')
             out.extend(f'<th scope="col">{inline(c)}</th>' for c in rows[0])
             out.append("</tr></thead><tbody>")
             for row in rows[2:]:
@@ -107,7 +108,7 @@ def render(source: str) -> tuple[str, list[tuple[int, str, str]]]:
                 i += 1
             out.append("<p>" + inline(" ".join(paragraph)) + "</p>")
     if section_open:
-        out.append('<a class="back" href="#top">↑ Inhoud en begin</a></section>')
+        out.append('<a class="back" href="#top">↑ Contents and top</a></section>')
     anchors = {anchor for _, anchor, _ in headings} | {"top"}
     for anchor in re.findall(r'href="#([a-z0-9-]+)"', "".join(out)):
         if anchor not in anchors:
@@ -144,14 +145,14 @@ SCRIPT = """
 'use strict';
 const search=document.querySelector('#search'),status=document.querySelector('#status');
 const sections=[...document.querySelectorAll('main section')],links=[...document.querySelectorAll('nav a')];
-const normalize=s=>s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLocaleLowerCase('nl');
+const normalize=s=>s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLocaleLowerCase('en');
 const index=sections.map(el=>normalize(el.textContent));
 function unmark(){document.querySelectorAll('mark').forEach(m=>m.replaceWith(document.createTextNode(m.textContent)));sections.forEach(s=>s.normalize());}
 function highlight(section,query){
   if(!query)return;const walk=document.createTreeWalker(section,NodeFilter.SHOW_TEXT);const nodes=[];
   while(walk.nextNode())nodes.push(walk.currentNode);
   for(const node of nodes){const text=node.textContent,lower=normalize(text),at=lower.indexOf(query);if(at<0)continue;
-    // Highlight only equal-length normalized text (Dutch diacritics); never inject a search string as HTML.
+    // Highlight only equal-length normalized text (diacritics); never inject a search string as HTML.
     if(lower.length!==text.length)continue;
     const fragment=document.createDocumentFragment();let start=0,pos=at;
     while(pos>=0){fragment.append(document.createTextNode(text.slice(start,pos)));const mark=document.createElement('mark');mark.textContent=text.slice(pos,pos+query.length);fragment.append(mark);start=pos+query.length;pos=lower.indexOf(query,start);}
@@ -161,7 +162,7 @@ function highlight(section,query){
 function filter(){unmark();const query=normalize(search.value.trim()).slice(0,100),terms=query.split(/\\s+/).filter(Boolean);let count=0;
   sections.forEach((s,i)=>{s.hidden=!terms.every(t=>index[i].includes(t));if(!s.hidden){count++;terms.forEach(t=>highlight(s,t));}});
   links.forEach(a=>{const target=document.getElementById(a.hash.slice(1));a.closest('li').hidden=target.closest('section').hidden;});
-  status.textContent=query?`${count} van ${sections.length} hoofdstukken gevonden`:`${sections.length} hoofdstukken · offline`;
+  status.textContent=query?`${count} of ${sections.length} chapters found`:`${sections.length} chapters · offline`;
   document.querySelector('#no-results').hidden=count!==0;
 }
 search.addEventListener('input',filter);document.querySelector('#clear').addEventListener('click',()=>{search.value='';filter();search.focus();});
@@ -182,13 +183,13 @@ def build() -> str:
         for level, anchor, title in headings
     )
     return f'''<!doctype html>
-<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<meta name="description" content="Parkbound: volledige offline spelershandleiding met stappenplannen, bouwen, beheer, campagnes en probleemoplossing.">
-<title>Parkbound — spelershandleiding 0.99.1</title><style>{STYLE}</style></head>
-<body id="top"><a class="skip" href="#content">Naar de handleiding</a><div id="position" aria-hidden="true"></div><div class="layout">
-<aside><details open><summary>Inhoud &amp; zoeken</summary><div class="search"><label for="search">Zoek een onderwerp</label><input id="search" type="search" maxlength="100" placeholder="Bijv. wachtrij of budget" autocomplete="off" aria-controls="content"><div class="controls"><button id="clear" type="button">Wis zoekopdracht</button><button id="print" type="button">Afdrukken / PDF</button></div><p class="status" id="status" role="status" aria-live="polite">25 hoofdstukken · offline</p></div><nav aria-label="Hoofdstukken"><ul>{toc}</ul></nav></details></aside>
-<main id="content"><noscript><p>Zoeken vraagt JavaScript. Alle hoofdstukken, links en afdrukken via de browser blijven zonder JavaScript beschikbaar.</p></noscript>{body}<div class="no-results" id="no-results" hidden>Geen hoofdstuk gevonden. Gebruik een korter woord, bijvoorbeeld pad, prijs of voorraad.</div><footer>Parkbound 0.99.1 · Gegenereerd uit HANDLEIDING_NL.md · Geen internet of account nodig.</footer></main></div><script>{SCRIPT}</script></body></html>
+<meta name="description" content="Parkbound: complete offline player manual with step-by-step building, management, campaigns and troubleshooting.">
+<title>Parkbound — player manual 0.99.2</title><style>{STYLE}</style></head>
+<body id="top"><a class="skip" href="#content">Skip to the manual</a><div id="position" aria-hidden="true"></div><div class="layout">
+<aside><details open><summary>Contents &amp; search</summary><div class="search"><label for="search">Find a topic</label><input id="search" type="search" maxlength="100" placeholder="Try queue or budget" autocomplete="off" aria-controls="content"><div class="controls"><button id="clear" type="button">Clear search</button><button id="print" type="button">Print / PDF</button></div><p class="status" id="status" role="status" aria-live="polite">25 chapters · offline</p></div><nav aria-label="Chapters"><ul>{toc}</ul></nav></details></aside>
+<main id="content"><noscript><p>Search requires JavaScript. All chapters, links and browser printing remain available without it.</p></noscript>{body}<div class="no-results" id="no-results" hidden>No chapters found. Try a shorter term, such as path, price or stock.</div><footer>Parkbound 0.99.2 · Generated from PLAYER_MANUAL.md · No internet or account required.</footer></main></div><script>{SCRIPT}</script></body></html>
 '''
 
 
@@ -198,11 +199,13 @@ def main() -> None:
     args = parser.parse_args()
     expected = build()
     if args.check:
-        if not OUTPUT.is_file() or OUTPUT.read_text(encoding="utf-8") != expected:
+        if any(not path.is_file() or path.read_text(encoding="utf-8") != expected
+               for path in (OUTPUT, LEGACY_OUTPUT)):
             raise SystemExit("Player manual is stale. Run python scripts/build-player-manual.py")
         print("Player manual: 25 chapters, anchors valid, offline HTML up to date.")
     else:
-        OUTPUT.write_text(expected, encoding="utf-8", newline="\n")
+        for path in (OUTPUT, LEGACY_OUTPUT):
+            path.write_text(expected, encoding="utf-8", newline="\n")
         print(f"Built {OUTPUT}")
 
 

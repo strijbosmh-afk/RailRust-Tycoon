@@ -1,10 +1,13 @@
 # Parkbound
 
-Lees de [uitgebreide Nederlandse spelershandleiding](docs/HANDLEIDING_NL.md),
-of open `docs/HANDLEIDING_NL.html` voor zoeken en een inhoudsopgave. In het spel:
-**H/F1 → Handleiding (NL)**. De 25 hoofdstukken behandelen starten, bouwen,
-individuele instellingen, alle attracties en services, financiën, personeel,
-onderzoek, reclame, campagne en scenario-editor.
+Read the [complete English player manual](docs/PLAYER_MANUAL.md), or open
+`docs/PLAYER_MANUAL.html` for search and a contents panel. In the game:
+**H/F1 → Player manual**. Its 25 chapters cover starting, construction,
+individual settings, every ride and facility, finance, staff, research,
+advertising, the campaign and scenario editor.
+
+Version **0.99.2** makes the complete manual, its navigation and all related
+Help messages English. Existing manual bookmarks still show the current guide.
 
 Version **0.99.1** opens individual ride and facility settings with a short **right-click**. Right-drag and middle-drag keep panning the map. The selected object is resolved from its visible surface, including coaster rails, gates and owned queues. See [individual settings](docs/OBJECT_SETTINGS.md).
 

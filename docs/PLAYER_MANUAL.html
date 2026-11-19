@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="description" content="Parkbound: complete offline player manual with step-by-step building, management, campaigns and troubleshooting.">
+<title>Parkbound — player manual 0.99.2</title><style>
+:root{color-scheme:light;--ink:#163b31;--green:#123c31;--gold:#f5ce68;--paper:#fffdf4;--line:#d9e2d5}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:1.5rem}
+body{margin:0;background:#eaf0e7;color:var(--ink);font:17px/1.7 system-ui,Segoe UI,sans-serif}
+a{color:#116a50;text-underline-offset:.2em}a:hover{color:#854d05}a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:3px solid #cd8c09;outline-offset:4px}
+.skip{position:fixed;top:-100px;background:var(--gold);z-index:10;padding:10px}.skip:focus{top:0}
+.layout{max-width:1580px;margin:auto;display:grid;grid-template-columns:310px minmax(0,1fr);gap:28px;padding:28px}
+aside{position:sticky;top:20px;height:calc(100vh - 40px);overflow:auto;padding:22px;background:var(--green);color:#fff9df;border-radius:18px;scrollbar-color:#9cb7a8 var(--green)}
+summary{font-size:1.3rem;font-weight:750;cursor:pointer}.search{margin:18px 0}label{display:block;font-weight:650}input{display:block;width:100%;font:inherit;padding:10px;border:2px solid #e3c572;border-radius:8px;background:#fffdf5;color:#163b31;margin:6px 0}
+button{font:inherit;cursor:pointer;padding:6px 12px;border:1px solid #e5cc8b;border-radius:7px;background:#f5ce68;color:#203b2e}
+.controls{display:flex;flex-wrap:wrap;gap:8px}.status{font-size:.83rem;color:#e1e8d9;margin:8px 0;min-height:1.6em}
+nav ul{list-style:none;padding:0;margin:12px 0}nav li{margin:3px 0}nav a{display:block;color:#fff7d4;text-decoration:none;font-size:.88rem;line-height:1.4;padding:8px;border-radius:5px;border-left:3px solid transparent}
+nav .sub a{font-size:.79rem;color:#c4dbcc;padding:4px 8px 4px 21px}nav a:hover,nav a[aria-current]{background:#285344;border-color:var(--gold);color:#fff}
+main{min-width:0;max-width:1050px}.hero{background:var(--green);color:#fff8dd;border:1px solid #426a55;padding:34px;border-radius:18px}.eyebrow{font-size:.8rem;letter-spacing:.16em;color:var(--gold);font-weight:700}h1{font-size:clamp(1.8rem,3vw,2.8rem);line-height:1.2;margin:10px 0}
+section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:28px 34px;margin:24px 0;box-shadow:0 3px 12px #183e3006}
+h2{font-size:1.6rem;line-height:1.3;margin:0 0 22px;border-bottom:3px solid #e4b747;padding-bottom:16px}h3{font-size:1.16rem;margin:32px 0 12px;color:#17674d}p{margin:15px 0}li{padding:4px 0 4px 6px}ol li::marker{font-weight:800;color:#126a4d}strong{color:#174e39}code{background:#edf1e7;border-radius:4px;padding:.1em .25em;font-size:.86em;overflow-wrap:anywhere}
+pre{overflow:auto;background:#e9f0e6;padding:18px;border-radius:10px;line-height:1.6}pre code{background:none;white-space:pre;overflow-wrap:normal;padding:0}.table-scroll{overflow-x:auto;margin:18px 0}table{border-collapse:collapse;width:100%;font-size:.9rem}th{text-align:left;background:#dae8d6;color:#153e2c}th,td{padding:12px;border:1px solid #d8e0d2;vertical-align:top}tbody tr:nth-child(even){background:#f1f4e9}
+.back{display:inline-block;margin-top:18px;font-size:.85rem}mark{background:#ffe28b;color:#173d30;border-radius:2px}.no-results{background:#fff5d5;border:1px solid #cea336;border-radius:10px;padding:24px;margin-top:24px}[hidden]{display:none!important}footer{padding:24px;font-size:.85rem}#position{position:fixed;top:0;left:0;height:4px;background:#c48b12;width:0;z-index:9}
+@media(max-width:950px){.layout{display:block;padding:12px}aside{position:static;height:auto;margin-bottom:18px;padding:18px}nav{max-height:38vh;overflow:auto}.hero{padding:24px}section{padding:24px 20px}body{font-size:16px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{body{background:white;color:black;font:11pt/1.5 sans-serif}.layout{display:block;padding:0}aside,.back,.no-results,#position,.skip{display:none!important}main{max-width:none}.hero{background:white;color:black;border:0;padding:0}.eyebrow{color:black}section{display:block!important;border:0;box-shadow:none;padding:0;margin:20pt 0;break-before:page}table{font-size:9pt}tr{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}mark{background:none}}
+</style></head>
+<body id="top"><a class="skip" href="#content">Skip to the manual</a><div id="position" aria-hidden="true"></div><div class="layout">
+<aside><details open><summary>Contents &amp; search</summary><div class="search"><label for="search">Find a topic</label><input id="search" type="search" maxlength="100" placeholder="Try queue or budget" autocomplete="off" aria-controls="content"><div class="controls"><button id="clear" type="button">Clear search</button><button id="print" type="button">Print / PDF</button></div><p class="status" id="status" role="status" aria-live="polite">25 chapters · offline</p></div><nav aria-label="Chapters"><ul><li class="chapter"><a href="#1-finding-your-way-around-this-manual">1. Finding your way around this manual</a></li>
+<li class="chapter"><a href="#2-installing-starting-and-choosing-a-game">2. Installing, starting and choosing a game</a></li>
+<li class="sub"><a href="#install-on-windows-or-use-the-portable-package">Install on Windows or use the portable package</a></li>
+<li class="sub"><a href="#what-the-main-menu-choices-do">What the main-menu choices do</a></li>
+<li class="sub"><a href="#configure-a-sandbox">Configure a Sandbox</a></li>
+<li class="chapter"><a href="#3-your-first-playable-park-step-by-step">3. Your first playable park step by step</a></li>
+<li class="sub"><a href="#route-a-learn-in-sunhaven-gardens">Route A: learn in Sunhaven Gardens</a></li>
+<li class="sub"><a href="#route-b-build-your-own-first-park">Route B: build your own first park</a></li>
+<li class="sub"><a href="#a-useful-first-play-routine">A useful first-play routine</a></li>
+<li class="chapter"><a href="#4-objectives-and-the-simulation-clock">4. Objectives and the simulation clock</a></li>
+<li class="chapter"><a href="#5-screen-layout-and-menus">5. Screen layout and menus</a></li>
+<li class="sub"><a href="#header-sidebar-and-explore">Header, sidebar and Explore</a></li>
+<li class="sub"><a href="#reading-icons">Reading icons</a></li>
+<li class="chapter"><a href="#6-camera-display-sound-and-accessibility">6. Camera, display, sound and accessibility</a></li>
+<li class="sub"><a href="#inspect-the-map">Inspect the map</a></li>
+<li class="sub"><a href="#use-a-higher-resolution-display">Use a higher-resolution display</a></li>
+<li class="sub"><a href="#music-ride-sounds-and-reactions">Music, ride sounds and reactions</a></li>
+<li class="sub"><a href="#accessibility-and-custom-keys">Accessibility and custom keys</a></li>
+<li class="chapter"><a href="#7-terrain-ownership-and-gardens">7. Terrain, ownership and gardens</a></li>
+<li class="sub"><a href="#owned-land-and-terrain-height">Owned land and terrain height</a></li>
+<li class="sub"><a href="#water-bridges-and-tunnels">Water, bridges and tunnels</a></li>
+<li class="sub"><a href="#trees-flowers-and-path-furniture">Trees, flowers and path furniture</a></li>
+<li class="chapter"><a href="#8-paths-queues-gates-and-heights">8. Paths, queues, gates and heights</a></li>
+<li class="sub"><a href="#four-different-pieces-of-infrastructure">Four different pieces of infrastructure</a></li>
+<li class="sub"><a href="#build-a-connection-step-by-step">Build a connection step by step</a></li>
+<li class="sub"><a href="#demolition-and-undo">Demolition and undo</a></li>
+<li class="chapter"><a href="#9-managing-one-ride">9. Managing one ride</a></li>
+<li class="sub"><a href="#open-the-correct-settings-with-a-right-click">Open the correct settings with a right-click</a></li>
+<li class="sub"><a href="#operations-names-and-colours">Operations, names and colours</a></li>
+<li class="sub"><a href="#tickets-and-the-selected-ride-inspector">Tickets and the selected ride inspector</a></li>
+<li class="sub"><a href="#access-testing-and-maintenance">Access, testing and maintenance</a></li>
+<li class="chapter"><a href="#10-the-full-ride-catalogue">10. The full ride catalogue</a></li>
+<li class="chapter"><a href="#11-building-a-coaster-from-station-to-first-ride">11. Building a coaster from station to first ride</a></li>
+<li class="sub"><a href="#start-with-a-short-working-circuit">Start with a short working circuit</a></li>
+<li class="sub"><a href="#climbs-descents-and-the-next-pieces-height">Climbs, descents and the next piece&#x27;s height</a></li>
+<li class="sub"><a href="#trains-blocks-and-tests">Trains, blocks and tests</a></li>
+<li class="sub"><a href="#safely-modify-an-existing-ride">Safely modify an existing ride</a></li>
+<li class="chapter"><a href="#12-saving-and-sharing-coaster-designs">12. Saving and sharing coaster designs</a></li>
+<li class="chapter"><a href="#13-facilities-prices-and-stock">13. Facilities, prices and stock</a></li>
+<li class="sub"><a href="#eight-services-with-different-purposes">Eight services with different purposes</a></li>
+<li class="sub"><a href="#configure-one-facility">Configure one facility</a></li>
+<li class="sub"><a href="#how-inventory-works">How inventory works</a></li>
+<li class="chapter"><a href="#14-understanding-and-helping-guests">14. Understanding and helping guests</a></li>
+<li class="sub"><a href="#individual-visitors-and-parties">Individual visitors and parties</a></li>
+<li class="sub"><a href="#set-the-park-entrance-and-admission-policy">Set the park entrance and admission policy</a></li>
+<li class="sub"><a href="#needs-satisfaction-and-ride-ratings">Needs, satisfaction and ride ratings</a></li>
+<li class="sub"><a href="#use-filters-and-trend-charts">Use filters and trend charts</a></li>
+<li class="chapter"><a href="#15-finances-and-profit">15. Finances and profit</a></li>
+<li class="sub"><a href="#four-different-figures">Four different figures</a></li>
+<li class="sub"><a href="#reconcile-sales-with-available-cash">Reconcile sales with available cash</a></li>
+<li class="sub"><a href="#make-the-park-more-profitable">Make the park more profitable</a></li>
+<li class="sub"><a href="#use-loans-deliberately">Use loans deliberately</a></li>
+<li class="chapter"><a href="#16-staff-maintenance-weather-and-incidents">16. Staff, maintenance, weather and incidents</a></li>
+<li class="sub"><a href="#put-your-team-to-work">Put your team to work</a></li>
+<li class="sub"><a href="#weather-and-shelter">Weather and shelter</a></li>
+<li class="sub"><a href="#resolve-incidents">Resolve incidents</a></li>
+<li class="chapter"><a href="#17-research-and-economic-controls">17. Research and economic controls</a></li>
+<li class="chapter"><a href="#18-marketing-campaigns">18. Marketing campaigns</a></li>
+<li class="sub"><a href="#evaluate-a-campaign">Evaluate a campaign</a></li>
+<li class="chapter"><a href="#19-the-six-scenario-campaign">19. The six-scenario campaign</a></li>
+<li class="sub"><a href="#approach-meadow-and-boardwalk">Approach Meadow and Boardwalk</a></li>
+<li class="sub"><a href="#approach-the-four-later-challenges">Approach the four later challenges</a></li>
+<li class="chapter"><a href="#20-custom-scenarios-and-the-editor">20. Custom scenarios and the editor</a></li>
+<li class="sub"><a href="#design-a-challenge">Design a challenge</a></li>
+<li class="sub"><a href="#set-fair-financial-objectives">Set fair financial objectives</a></li>
+<li class="sub"><a href="#share-scenarios">Share scenarios</a></li>
+<li class="chapter"><a href="#21-tips-three-uses-per-park">21. Tips: three uses per park</a></li>
+<li class="chapter"><a href="#22-saves-backups-and-another-pc">22. Saves, backups and another PC</a></li>
+<li class="sub"><a href="#preserve-your-park">Preserve your park</a></li>
+<li class="sub"><a href="#where-files-live">Where files live</a></li>
+<li class="chapter"><a href="#23-troubleshooting">23. Troubleshooting</a></li>
+<li class="sub"><a href="#no-visitors-are-entering">No visitors are entering</a></li>
+<li class="sub"><a href="#a-ride-will-not-open-or-has-no-passengers">A ride will not open or has no passengers</a></li>
+<li class="sub"><a href="#guests-or-queues-appear-stuck">Guests or queues appear stuck</a></li>
+<li class="sub"><a href="#a-facility-makes-no-sales">A facility makes no sales</a></li>
+<li class="sub"><a href="#a-busy-park-keeps-losing-cash">A busy park keeps losing cash</a></li>
+<li class="sub"><a href="#research-or-staff-seem-inactive">Research or staff seem inactive</a></li>
+<li class="sub"><a href="#controls-heights-or-windows-behave-unexpectedly">Controls, heights or windows behave unexpectedly</a></li>
+<li class="chapter"><a href="#24-keyboard-shortcuts-and-context">24. Keyboard shortcuts and context</a></li>
+<li class="chapter"><a href="#25-glossary-and-next-reading">25. Glossary and next reading</a></li></ul></nav></details></aside>
+<main id="content"><noscript><p>Search requires JavaScript. All chapters, links and browser printing remain available without it.</p></noscript><header class=hero><p class=eyebrow>PLAY · BUILD · MANAGE</p><h1>Parkbound — complete player manual</h1></header>
+<p>Version 0.99.2 · Windows · available entirely offline · English names match the game&#x27;s controls.</p>
+<section aria-labelledby="1-finding-your-way-around-this-manual">
+<h2 id="1-finding-your-way-around-this-manual" tabindex="-1">1. Finding your way around this manual</h2>
+<p>Parkbound is a park-building and management game. Build a connected park, install attractions, look after visitors and balance income against expenses. Campaign scenarios add specific objectives and sometimes a deadline. In Sandbox, you choose what you want to achieve.</p>
+<p>Press <strong>H</strong> or <strong>F1</strong> in a park to open <strong>Help</strong>, then choose the document icon labelled <strong>Player manual - open in browser</strong>. Hover over an icon or focus it with the keyboard to reveal its full name. You can also double-click <code>docs/PLAYER_MANUAL.html</code> beside <code>Parkbound.exe</code>. No internet connection is required. This Markdown document contains the same instructions.</p>
+<p>The HTML version has a contents panel with chapter and topic links, a search field, a clear-search button and a print button. Try searching for “queue”, “stock”, “interest” or “height”. Search shows matching chapters and highlights your words. Clicking a contents entry restores the full document and takes you to that topic. <strong>Ctrl+F</strong> uses the browser&#x27;s own search. <strong>/</strong> focuses the manual&#x27;s search box; <strong>Escape</strong> clears its filter while the box is focused. The browser&#x27;s Back button returns to a previous heading.</p>
+<p><strong>Start here:</strong> <a href="#3-your-first-playable-park-step-by-step">your first playable park</a>, <a href="#5-screen-layout-and-menus">finding controls</a>, <a href="#9-managing-one-ride">individual ride settings</a>, <a href="#15-finances-and-profit">making money</a>, <a href="#19-the-six-scenario-campaign">the campaign</a>, <a href="#23-troubleshooting">solving problems</a>.</p>
+<p>This guide describes the current game. A grey control or red construction preview usually has a specific reason: research, money, ownership, clearance, connectivity, operating status or scenario rules. Read that reason before trying again. Older technical guides in the docs folder record earlier releases and may mention superseded limits; use this manual for the current playing workflow.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="2-installing-starting-and-choosing-a-game">
+<h2 id="2-installing-starting-and-choosing-a-game" tabindex="-1">2. Installing, starting and choosing a game</h2>
+<h3 id="install-on-windows-or-use-the-portable-package" tabindex="-1">Install on Windows or use the portable package</h3>
+<ol>
+<li>Run the Parkbound Windows installer, or extract the complete portable ZIP.</li>
+<li>Keep the <strong>assets</strong>, <strong>designs</strong> and <strong>docs</strong> folders with the portable executable. Copying only the executable leaves parts of the distribution behind.</li>
+<li>Start Parkbound from its shortcut or <code>Parkbound.exe</code>.</li>
+<li>New display preferences start borderless. Open <strong>Settings</strong> to choose a display, window mode and interface scale.</li>
+<li>If the display becomes unusable, press <strong>F11</strong> to recover Windowed mode, Current display and Auto interface scale. You can also start <code>Parkbound.exe --safe-windowed</code>.</li>
+</ol>
+<h3 id="what-the-main-menu-choices-do" tabindex="-1">What the main-menu choices do</h3>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Choice</th>
+<th scope="col">What happens</th>
+<th scope="col">Best for</th>
+</tr></thead><tbody>
+<tr><td>Play Sunhaven Gardens</td><td>Starts a fresh landscaped demonstration with seven working rides</td><td>Exploring and learning management</td></tr>
+<tr><td>Continue latest park</td><td>Loads your most recent saved park</td><td>Continuing a visit</td></tr>
+<tr><td>New Park</td><td>Configures a fresh Sandbox</td><td>Building your own park</td></tr>
+<tr><td>Campaign</td><td>Starts a scenario with objectives and unlocks</td><td>A directed challenge</td></tr>
+<tr><td>Load Park</td><td>Selects a saved park or its previous valid backup</td><td>Managing several parks</td></tr>
+<tr><td>Scenarios and editor</td><td>Creates, imports, edits and plays custom scenarios</td><td>Designing your own challenges</td></tr>
+<tr><td>Settings</td><td>Changes display, sound, controls and accessibility</td><td>Making the game comfortable</td></tr>
+</tbody></table></div>
+<p>The main menu keeps text buttons. Many in-park actions use icons. Hold the pointer over one to read its name, shortcut and any price. <strong>Tab</strong> and <strong>Shift+Tab</strong> move keyboard focus; <strong>Enter</strong> activates the focused control. <strong>Escape</strong> returns to the previous screen.</p>
+<h3 id="configure-a-sandbox" tabindex="-1">Configure a Sandbox</h3>
+<p>Name your park, then select a map with <strong>32, 64, 128 or 256 tiles per side</strong>, an available landscape and the starting rules. The 32-tile option has flat terrain and starter infrastructure. Larger maps begin empty and can use flat or rolling landscapes. Starting budgets are $500, $1,000, $5,000 and $10,000. You can configure research availability, visitor arrivals, loans and charging policy.</p>
+<p>For your first custom park, choose <strong>32</strong>, flat terrain and a comfortable budget. Select fully available research if you want to practise construction without research locks. Choose <strong>Create Park</strong>; that is the initial keyboard selection when this screen opens. Sandbox has no compulsory finishing score or deadline. A larger map provides space but also requires more entrance and path construction.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="3-your-first-playable-park-step-by-step">
+<h2 id="3-your-first-playable-park-step-by-step" tabindex="-1">3. Your first playable park step by step</h2>
+<h3 id="route-a-learn-in-sunhaven-gardens" tabindex="-1">Route A: learn in Sunhaven Gardens</h3>
+<ol>
+<li>Choose <strong>Play Sunhaven Gardens</strong>. Each use starts a new demonstration; it does not load your previous saved visit.</li>
+<li>Press <strong>Space</strong> to pause. Locate the seven rides, service avenue and entrance.</li>
+<li>Right-drag to move the camera. Use the wheel over the map to zoom. Briefly right-click a building to manage that particular object.</li>
+<li>Open <strong>Guests</strong> and inspect satisfaction and needs. Select a visitor, then choose <strong>Find</strong> to locate that person.</li>
+<li>Open <strong>Management and economy → Overview</strong>, then <strong>History</strong>. Compare sales with operating expenses.</li>
+<li>Right-click a facility. Check its opening state and price; inspect its stock under <strong>Supplies</strong>.</li>
+<li>Resume with <strong>Space</strong>. Watch guests queue, board and return to public paths after their rides.</li>
+<li>Close the panels and press <strong>F5</strong> to save your own visit. Later use <strong>Continue latest park</strong> or <strong>Load Park</strong>.</li>
+</ol>
+<p>Sunhaven contains Sunburst Coaster, Willow Falls, Sunhaven Railway, Garden Carousel, Blossom Cups, Golden Wheel and Marigold Voyager. All eight facilities and all five staff roles are present. Research is unlocked and there is no campaign deadline. The opening allocation is $15,000, but construction and simulated activity have already been recorded. The displayed cash is the remaining balance, not necessarily $15,000.</p>
+<h3 id="route-b-build-your-own-first-park" tabindex="-1">Route B: build your own first park</h3>
+<ol>
+<li>Create a Sandbox and pause immediately. For guided practice, open <strong>Help → First park guide</strong>. Its seven steps observe your actual park actions.</li>
+<li>Locate the public paths. On a large empty map, build from the west edge through the available land corridor towards your building area.</li>
+<li>Set a public path as the visitor entrance through <strong>Visitor flow</strong>. Enable arrivals and open the park.</li>
+<li>Use <strong>Build → Catalogue</strong> to select an available gentle ride, such as a carousel. Place it on clear owned land with space for access and an exit.</li>
+<li>Right-click the ride and open <strong>Access</strong>. Build its entrance, join it to a queue and connect the other end of that queue to public paths.</li>
+<li>Build a separate exit. Its public path must return to the park network. Use the suggestions in <strong>Access</strong> to find missing connections.</li>
+<li>Open <strong>Operations</strong>, resolve all reported problems and open the ride. Start with a modest ticket price.</li>
+<li>Add drinks, food and toilets with their serving sides facing public paths. Check opening, prices and stock.</li>
+<li>Add a few benches and bins. Leave cash for supplies, wages and upkeep.</li>
+<li>Resume. Check actual admissions, completed guest rides and served customers. A moving ride alone does not prove that guests can reach it.</li>
+<li>Press <strong>F5</strong>. Add a second ride after the first receives customers and you understand its costs.</li>
+</ol>
+<h3 id="a-useful-first-play-routine" tabindex="-1">A useful first-play routine</h3>
+<p>Build while paused, run the park for a short period, inspect the result and change one problem at a time. Check connectivity first, then needs, operating status, stock and finances. Save after a successful expansion and before major rebuilding. Fast-forward is useful once you know visitors are moving correctly and recurring expenses are affordable.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="4-objectives-and-the-simulation-clock">
+<h2 id="4-objectives-and-the-simulation-clock" tabindex="-1">4. Objectives and the simulation clock</h2>
+<p>In Sandbox you decide your objective: several distinct rides, satisfied guests, no lost visitors or a succession of profitable periods. Campaign scenarios define their own conditions. Reaching one number is insufficient when the scenario requires several objectives at once.</p>
+<p><strong>Space</strong> pauses or resumes. Outside text fields and special panels, <strong>1</strong>, <strong>2</strong> and <strong>3</strong> select 1×, 2× and 4× speed. In Explore, those number keys select menu groups instead. A payment or campaign interval expressed in seconds refers to <strong>simulation time</strong>, not the Windows clock. Fast-forward also accelerates needs, expenses, research and deadlines.</p>
+<p>Ride and facility settings do not automatically pause the park. Pause with Space if you want time to read. Opening this manual in a browser does not pause it either. A loaded park begins paused so that you can inspect its state before resuming.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="5-screen-layout-and-menus">
+<h2 id="5-screen-layout-and-menus" tabindex="-1">5. Screen layout and menus</h2>
+<h3 id="header-sidebar-and-explore" tabindex="-1">Header, sidebar and Explore</h3>
+<p>The header contains the park name and key figures. Finance, Rides and <strong>Tips</strong> shortcuts sit together. The sidebar contains general actions and grouped construction tools. Selecting a guest, path or attraction changes the contextual information. The lower status message often explains why an action was refused.</p>
+<p><strong>Explore / F2</strong> is the central route through the controls:</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Group</th>
+<th scope="col">Main destinations</th>
+</tr></thead><tbody>
+<tr><td>Build</td><td>Paths, queues, terrain, rides, facilities, coaster track and saved designs</td></tr>
+<tr><td>Manage</td><td>Finance, economy, visitor flow, staff and scenario editing</td></tr>
+<tr><td>Inspect</td><td>Guest, ride and facility details</td></tr>
+<tr><td>Park</td><td>Objectives, park statistics, saving and the park menu</td></tr>
+<tr><td>Help / Settings</td><td>Instructions, sound, accessibility and display</td></tr>
+</tbody></table></div>
+<p>Panels scroll when their contents do not fit. Place the pointer over the panel and turn the wheel; over the map, the wheel zooms. Escape first closes a panel or cancels a tool, then opens the park menu from the clear map. Leave a text field before expecting letter keys to act as shortcuts.</p>
+<h3 id="reading-icons" tabindex="-1">Reading icons</h3>
+<p>Track symbols lead to coaster tools, winding lines to paths, gates to entrances, outward arrows to exits, tools to maintenance, coins and charts to finances, people to visitors and a lightbulb to Tips. Plus and minus change the value in their own group. Check the tooltip to distinguish path height from brush size. Names, editable fields and list entries remain readable text. Main-menu, New Park and Settings choices retain their text labels.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="6-camera-display-sound-and-accessibility">
+<h2 id="6-camera-display-sound-and-accessibility" tabindex="-1">6. Camera, display, sound and accessibility</h2>
+<h3 id="inspect-the-map" tabindex="-1">Inspect the map</h3>
+<p>Hold and drag the <strong>right or middle mouse button</strong> to pan. A short right-click without dragging opens object settings. Use <strong>WASD</strong> or arrow keys when no text field or list has those keys. <strong>Q/E</strong> rotate the map by a quarter turn. Use the wheel or <strong>+/−</strong> to zoom, <strong>Home</strong> to fit the park, <strong>G</strong> for the grid and <strong>U</strong> for underground view.</p>
+<p>Rotate when a tall building hides an entrance. Zoom out to inspect connections and zoom in for gates or height changes. Click a visible part of the attraction, rather than empty space beside a tall structure. Right-click selection accounts for rotation and interface scaling.</p>
+<h3 id="use-a-higher-resolution-display" tabindex="-1">Use a higher-resolution display</h3>
+<p>Open <strong>Menu → Settings</strong>. Choose the display, Windowed, Borderless or Fullscreen, and interface scale <strong>Auto, 100%, 125%, 150% or 200%</strong>. The effective scale may be capped to keep controls usable; Settings shows that effective value. Smaller screens require more panel scrolling. F11 restores a safe window configuration.</p>
+<h3 id="music-ride-sounds-and-reactions" tabindex="-1">Music, ride sounds and reactions</h3>
+<p><strong>F10</strong> opens sound controls. Adjust Master, Music, Ambience, Rides, Alerts &amp; interface and Guest &amp; staff reactions separately. Camera position and zoom affect ride-sound proximity and stereo placement. Water rides, chain and rolling sounds, and guest reactions follow relevant activity. Reduce Music to hear the park more clearly; use Mute or reduce Master for silence.</p>
+<p>Sound fades when the game loses focus. <strong>Reconnect audio device</strong> retries the current Windows output after a device change or loss. Short captions communicate important actions even without sound. Music and ambience may continue while paused; ride activity stops with the simulation.</p>
+<h3 id="accessibility-and-custom-keys" tabindex="-1">Accessibility and custom keys</h3>
+<p>Open <strong>Controls &amp; accessibility</strong> from Settings or Help. Eighteen gameplay actions can use alternative available keys. The panel shows current assignments; fixed navigation and recovery keys keep their roles. The shortcut table later in this manual lists defaults. <strong>High contrast</strong> improves separation between text and backgrounds. <strong>Reduced motion</strong> reduces decorative movement while vehicles and guests still show their real positions. Captions can be controlled separately.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="7-terrain-ownership-and-gardens">
+<h2 id="7-terrain-ownership-and-gardens" tabindex="-1">7. Terrain, ownership and gardens</h2>
+<h3 id="owned-land-and-terrain-height" tabindex="-1">Owned land and terrain height</h3>
+<p>Construction requires owned land. Large maps start with a central owned area and a narrow corridor to the western edge. <strong>Buy Land</strong> purchases adjoining tiles for $5 each. Ground colouring and boundaries show ownership.</p>
+<p><strong>Raise</strong> and <strong>Lower</strong> change terrain by one level. The brush covers 1×1, 3×3 or 5×5 tiles. The preview shows its entire area and exact cost. Raising or lowering costs $1 per changed tile, grass/sand painting $0.50 and water $2. If any tile is invalid or the whole action is unaffordable, nothing is purchased. Clear obstructing construction before changing its terrain.</p>
+<p>Changing ground height does not automatically lower an existing elevated ride. Building height, path height and ground height are separate. Set the desired placement height before building a new ride. Major changes to an existing attraction can require rebuilding or editing its track.</p>
+<h3 id="water-bridges-and-tunnels" tabindex="-1">Water, bridges and tunnels</h3>
+<p>Water needs suitable level ground. Ground-level paths and objects can block flooding. A bridge with sufficient clearance may remain over water, but a new ground path cannot be placed in the water. A path cannot pass partly through solid ground.</p>
+<p>To build a tunnel, enable <strong>Underground view</strong>, select Path or Queue and lower the construction height far enough for the complete path clearance to fit below the surface. A slope needs extra room. The preview says <strong>Tunnel</strong> when valid. Surface view hides buried sections and shows tunnel mouths where they connect outside. Return underground to select or edit buried paths.</p>
+<h3 id="trees-flowers-and-path-furniture" tabindex="-1">Trees, flowers and path furniture</h3>
+<p>Place trees and flowers on clear owned grass or sand. Trees cost $2.50 and flower beds $1.50. Removing paid scenery returns half its original price. Free existing decoration has no paid purchase value to refund. Nearby scenery supports satisfaction but does not replace food, drink or rest.</p>
+<p>Benches and bins belong on public paths. Signs and fences provide visual wayfinding and edges; by themselves they do not change guest route selection. <strong>Cover a path</strong> adds a roof to a bench. A new bench costs $1; covering an existing bench is free. Keep entrances visible and walking routes compact rather than filling every available tile.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="8-paths-queues-gates-and-heights">
+<h2 id="8-paths-queues-gates-and-heights" tabindex="-1">8. Paths, queues, gates and heights</h2>
+<h3 id="four-different-pieces-of-infrastructure" tabindex="-1">Four different pieces of infrastructure</h3>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Item</th>
+<th scope="col">Purpose</th>
+<th scope="col">Required connection</th>
+</tr></thead><tbody>
+<tr><td>Public path / Path</td><td>Circulation for visitors and staff</td><td>Other public paths and the park entrance</td></tr>
+<tr><td>Queue</td><td>Waiting for one particular ride</td><td>Public access at one end, that ride&#x27;s entrance at the other</td></tr>
+<tr><td>Entrance / Gate</td><td>Boarding the selected ride</td><td>The correct ride and its own queue</td></tr>
+<tr><td>Exit</td><td>Leaving the ride</td><td>The ride and a public route back into the park</td></tr>
+</tbody></table></div>
+<p>A working arrangement looks like this:</p>
+<pre><code>park entrance === public path === facilities === public park network
+                       |
+                    queue A --&gt; entrance A --&gt; ride A
+                                                  |
+                         public return path &lt;---- exit A</code></pre>
+<p>A queue is not a public through-route. A facility needs public path access on its serving side. Queues and gates belong to the selected ride: check its name before building them. <strong>Rides → Access</strong> is the best place to check the owner and missing connections.</p>
+<h3 id="build-a-connection-step-by-step" tabindex="-1">Build a connection step by step</h3>
+<ol>
+<li>Select <strong>Path / P</strong> for the public section or <strong>Queue / J</strong> for the waiting section.</li>
+<li>Set height and shape before placing. C changes path shape/direction; for gates and facilities, C changes orientation.</li>
+<li>Place neighbouring tiles with matching <strong>edge heights</strong>. Adjacent tiles at different levels do not connect automatically.</li>
+<li>Use a one-level slope between consecutive heights. Its high edge must meet the high neighbouring edge.</li>
+<li>Place the entrance with <strong>I</strong>, facing the ride, and its exit with <strong>K</strong>, with a separate public return connection.</li>
+<li>Check <strong>Access</strong>, resolve each failed condition and then watch a real guest use the route.</li>
+</ol>
+<p>A level public path costs $1 and a sloped public path $1.50. Level queues cost $2 and sloped queues $2.50. Hover for the selected tile&#x27;s quote. Invalid placement spends nothing. Paths can appear close together without connecting; inspect their heights, orientation, type and ownership.</p>
+<h3 id="demolition-and-undo" tabindex="-1">Demolition and undo</h3>
+<p><strong>Demolish / X</strong> removes the pointed-at item when allowed. <strong>Delete</strong> removes a selected object. Close rides and allow passengers to leave before major demolition. Removing a path can also remove its furniture and disconnect the park.</p>
+<p>Paid paths return half their purchase price, plus applicable furniture refunds. Rides and facilities use their own refund rules and actual paid cost. A refund is a separate transaction from a new purchase; replacement construction is not automatically free.</p>
+<p>While park construction is paused, <strong>Ctrl+Z</strong> and <strong>Ctrl+Y</strong> reverse or redo up to sixteen recent edits. Resuming, loading or switching parks clears this temporary history. Coaster drafts have their own undo/redo. Saves store the resulting park, not the undo stack. Undo never replenishes spent Tips.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="9-managing-one-ride">
+<h2 id="9-managing-one-ride" tabindex="-1">9. Managing one ride</h2>
+<h3 id="open-the-correct-settings-with-a-right-click" tabindex="-1">Open the correct settings with a right-click</h3>
+<p>Briefly <strong>right-click</strong> a visible ride, its track, owned gate or queue. <strong>Rides</strong> opens with the owner of that item selected. Right-click a facility building to open <strong>Services</strong> instead. Empty ground opens nothing. Holding the button and dragging pans the camera without opening settings.</p>
+<p>Changing camera, park or foreground panel during the gesture cancels it. This prevents a stale click from selecting a different object after a drag or load. A foreground panel covers the map; close it before clicking an attraction behind it.</p>
+<h3 id="operations-names-and-colours" tabindex="-1">Operations, names and colours</h3>
+<p><strong>Operations</strong> shows operating state, opening, capacity and the settings supported by the selected model. A carousel does not expose the same equipment as a coaster or transport train. Change vehicle counts and similar equipment only while the ride is closed, stopped and empty. A close request lets already departed journeys finish.</p>
+<p>Adjust loading and waits to suit demand. A high minimum load can hold a quiet ride at the station. Additional trains do not help when station or block space is insufficient. <strong>Reset</strong> restores default operating settings. This panel also reports maintenance, running costs and reasons opening is refused.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Setting</th>
+<th scope="col">Meaning</th>
+<th scope="col">When to change it</th>
+</tr></thead><tbody>
+<tr><td>Cars / Trains</td><td>Vehicle and train count where supported</td><td>Add capacity when demand and block spacing support it</td></tr>
+<tr><td>Station wait</td><td>Base waiting period at the station</td><td>Balance prompt departure with time for boarding</td></tr>
+<tr><td>Minimum load</td><td>Desired minimum passenger count</td><td>Lower it in quiet parks; zero means no minimum</td></tr>
+<tr><td>Max extra wait</td><td>Additional time to seek the minimum load</td><td>Prevent unnecessarily long waits</td></tr>
+<tr><td>Lift speed</td><td>Speed on lift sections</td><td>Consider the following track and retest afterwards</td></tr>
+<tr><td>Brake speed</td><td>Track braking setting</td><td>Control approach speeds and retest afterwards</td></tr>
+<tr><td>Cycle duration</td><td>Length of a fixed ride&#x27;s operating cycle</td><td>Balance experience against throughput</td></tr>
+</tbody></table></div>
+<p>Choose <strong>Edit name</strong>, type a name and use <strong>Apply name</strong>. <strong>Restore default</strong> restores the model name. <strong>Colors</strong> selects available paint schemes. Renaming or repainting does not repair access or change ticket prices.</p>
+<h3 id="tickets-and-the-selected-ride-inspector" tabindex="-1">Tickets and the selected ride inspector</h3>
+<p>The right-click leaves that ride selected. Close Rides with <strong>Use ride / Escape</strong> to return to its map inspector. Use <strong>F6/F7</strong> or its price icons for $0.50 changes. <strong>O</strong> opens or closes the selected ride and <strong>F</strong> locates it. Different rides retain independent prices. <strong>Management → Policies</strong> also offers price presets that affect all installed rides.</p>
+<p>Scenario rules can require free rides. A guest with a reserved fare keeps that quote; later prices apply to later reservations. Payment occurs on actual departure. Cancelled boarding is not a sale.</p>
+<h3 id="access-testing-and-maintenance" tabindex="-1">Access, testing and maintenance</h3>
+<p><strong>Access</strong> checks the entrance, queue and exit route. Choose a suggested construction action, place its preview, then reopen Access for the next missing item. A preview is not yet a built path. <strong>Test</strong> runs an isolated mechanics lap for an installed coaster; close and empty it first.</p>
+<p>For wear or a maintenance shutdown, use the offered <strong>Service ride</strong> action or provide a reachable mechanic. The ride must be safe, stopped and empty. Resolve cash and access problems too. A mechanic cannot reach an isolated path island, and adding money does not automatically reopen a ride closed for unpaid costs.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="10-the-full-ride-catalogue">
+<h2 id="10-the-full-ride-catalogue" tabindex="-1">10. The full ride catalogue</h2>
+<p>Open <strong>Build → Catalogue</strong>, choose a family and select an available model. Read its quote, footprint and description. Rotate with <strong>C</strong> and place only when the entire preview is valid. Multiple instances can have separate names, customers and accounts. Some older quick-build controls have narrower limits; the catalogue contains the full selection.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Family</th>
+<th scope="col">Model</th>
+<th scope="col">Supplied capacity</th>
+<th scope="col">Character and considerations</th>
+</tr></thead><tbody>
+<tr><td>Gentle</td><td>Festival Carousel</td><td>6</td><td>Gentle rotating horses; a useful first ride</td></tr>
+<tr><td>Gentle</td><td>Meadow Wheel</td><td>6</td><td>Observation wheel with a tall gondola structure</td></tr>
+<tr><td>Gentle</td><td>Whirling Cups</td><td>12</td><td>Six rotating two-person cups</td></tr>
+<tr><td>Gentle</td><td>Skyline Tower</td><td>8</td><td>Observation lift, viewing pause and descent</td></tr>
+<tr><td>Thrill</td><td>Skyward Swing</td><td>6</td><td>Pendulum gondola; demand depends on preferences</td></tr>
+<tr><td>Thrill</td><td>Beacon Drop</td><td>6</td><td>Lift, hold, rapid drop and braking return</td></tr>
+<tr><td>Thrill</td><td>Corsair Ship</td><td>12</td><td>Swinging pirate ship</td></tr>
+<tr><td>Water</td><td>Timber Falls</td><td>4</td><td>Log boat, lift and splashdown</td></tr>
+<tr><td>Water</td><td>River Rapids</td><td>6</td><td>Passenger raft on a water channel</td></tr>
+<tr><td>Transport</td><td>Park Railway</td><td>12</td><td>Railway between two stations</td></tr>
+<tr><td>Transport</td><td>Vista Monorail</td><td>12</td><td>Monorail between two stations</td></tr>
+<tr><td>Coaster</td><td>Classic Coaster</td><td>6</td><td>Classic track with wooden supports</td></tr>
+<tr><td>Coaster</td><td>Steel Launch Coaster</td><td>6</td><td>Steel track with launch and transition pieces</td></tr>
+<tr><td>Coaster</td><td>Inverted Coaster</td><td>6</td><td>Suspended seats beneath the track</td></tr>
+</tbody></table></div>
+<p>Capacities describe the supplied configurations. Supported train and car settings can change them. Each track family restricts its available pieces. The live catalogue quote determines cost, clearance and research availability. Leave money for paths, gates, stock, wages and upkeep after the initial purchase.</p>
+<p>Fixed rides reserve their full footprint and height. Supplied tracked layouts occupy approximately 10×7 tiles before rotation. Leave room beyond the visible vehicles. Transport uses a boarding station and a destination: put the entrance at the first station and the exit at the destination. The empty train returns to the boarding station.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="11-building-a-coaster-from-station-to-first-ride">
+<h2 id="11-building-a-coaster-from-station-to-first-ride" tabindex="-1">11. Building a coaster from station to first ride</h2>
+<h3 id="start-with-a-short-working-circuit" tabindex="-1">Start with a short working circuit</h3>
+<ol>
+<li>Pause and choose <strong>Coaster track / Z</strong>. Choose <strong>New coaster</strong> for a separate ride; select an existing ride in Rides before editing its track.</li>
+<li>Choose clear owned land and start a station at ground level. Leave outside space for its entrance, queue and exit.</li>
+<li>Keep <strong>Follow heights</strong> enabled. Select a straight and use <strong>Add next piece / Enter</strong>. The next preview inherits the preceding exit direction and height.</li>
+<li>Build a small circuit with curves. Establish a working loop before adding complicated elevation changes.</li>
+<li>Match the final piece to the station&#x27;s direction and height. Visually nearby ends do not necessarily connect.</li>
+<li>Read the quote and choose <strong>Apply</strong>. This installs the draft and settles actual costs/refunds. Drawing pieces in the draft alone does not build an operating attraction.</li>
+<li>Open <strong>Rides → Access</strong> and build its entrance, owned queue and public exit route.</li>
+<li>Keep the ride closed and use <strong>Test → Run one isolated lap</strong>. Resolve track problems.</li>
+<li>Select suitable train and loading settings, open the ride, watch a guest complete a journey and save.</li>
+</ol>
+<h3 id="climbs-descents-and-the-next-pieces-height" tabindex="-1">Climbs, descents and the next piece&#x27;s height</h3>
+<p>The preview shows <strong>Start → End</strong> levels. With <strong>Follow heights</strong>, each piece starts at the previous exit. Consecutive lifts climb automatically; a drop starts at the reached elevation and leaves the next piece lower. Curves update the next heading too.</p>
+<p><strong>PgUp/PgDn</strong> manually changes the entry height. Manual height or direction changes disable following because they deliberately depart from the previous endpoint. Select <strong>Follow heights on</strong> to return to that open end. Reopening an incomplete draft finds its last open connection. At the floor or height limit, the editor can fall back to a straight; inspect the preview before placing.</p>
+<p>Pieces include Station, Straight, left/right Curve, Bank, Lift, one/two-level Drop, Brakes, Launch, Camelback, Smooth rise, Smooth drop and Heartline roll. A camelback rises inside its tile but ends at its original height. Smooth rise/drop changes level gradually. A roll needs extra clearance above the track. Track families may reject particular pieces; the red preview explains the restriction.</p>
+<h3 id="trains-blocks-and-tests" tabindex="-1">Trains, blocks and tests</h3>
+<p>Coasters support one to three trains with one to three two-seat cars when the layout permits it. Multiple trains require <strong>more blocks than trains</strong>, and each block must hold an entire train. The station and brake pieces begin blocks. Space brakes sufficiently far apart. A train stopped at a red signal may simply be waiting for the next block to clear.</p>
+<p>Change the fleet only when the ride is closed, stopped and empty. Minimum load applies to the train at the station. Closing lets dispatched trains return and unload. Water rides use their own vehicle restrictions; transport uses a single train and a destination.</p>
+<p>Tests report speed, height, features, estimated forces and layout ratings. These are model estimates, not engineering certification. The isolated lap excludes queueing, passenger loading and block waits. Track or operating changes invalidate the previous result. Retest, then observe actual guest reactions. Testing does not advance the park clock or change guests and cash.</p>
+<h3 id="safely-modify-an-existing-ride" tabindex="-1">Safely modify an existing ride</h3>
+<p>Save first. Close the correct coaster and let everyone leave. Open its draft, change a few pieces, inspect connections and cost, apply and retest. <strong>Next coaster</strong> switches saved workspaces; check the name before Apply. Up to eight coaster records can coexist with fixed rides. Draft undo is separate from paused park-construction undo.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="12-saving-and-sharing-coaster-designs">
+<h2 id="12-saving-and-sharing-coaster-designs" tabindex="-1">12. Saving and sharing coaster designs</h2>
+<p><strong>Designs / Ctrl+D</strong> opens the design library. A design stores track geometry, not a complete park, guest population or all operating settings. Save a draft with a meaningful name. The library supports search, previews, renaming, updating a selected design, import and export.</p>
+<p>The package includes <strong>Pocket Oval</strong>, <strong>Meadow Winder</strong> and <strong>Meadow Climb</strong> in designs. Import a <code>.parktrack.json</code>, select it, adjust position, rotation and height, then inspect its preview. <strong>Load into draft</strong> loads geometry; <strong>Apply</strong> constructs it. Close and empty an existing ride before replacement. Moving a station can require new gates and paths.</p>
+<p>A supplied design&#x27;s original placement height need not be ground level. Adjust it deliberately; Follow heights then preserves connections between pieces. Check land, tunnels, research, cash and nearby construction. Export a successful design and try importing it into another park before sharing. Importing geometry does not automatically unlock the receiving park&#x27;s research.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="13-facilities-prices-and-stock">
+<h2 id="13-facilities-prices-and-stock" tabindex="-1">13. Facilities, prices and stock</h2>
+<h3 id="eight-services-with-different-purposes" tabindex="-1">Eight services with different purposes</h3>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Facility</th>
+<th scope="col">Build cost</th>
+<th scope="col">Default visit price</th>
+<th scope="col">Main effect</th>
+</tr></thead><tbody>
+<tr><td>Food</td><td>$120</td><td>$2</td><td>Relieves hunger</td></tr>
+<tr><td>Drinks</td><td>$80</td><td>$1</td><td>Relieves thirst</td></tr>
+<tr><td>Toilets</td><td>$100</td><td>Free</td><td>Relieves bathroom need</td></tr>
+<tr><td>Rest</td><td>$140</td><td>Free</td><td>Restores energy and helps nausea</td></tr>
+<tr><td>Ice cream</td><td>$110</td><td>$1.50</td><td>Helps hunger and thirst together</td></tr>
+<tr><td>Souvenirs</td><td>$160</td><td>$4</td><td>Satisfies souvenir demand</td></tr>
+<tr><td>Information</td><td>$90</td><td>Free</td><td>Provides park information</td></tr>
+<tr><td>First aid</td><td>$180</td><td>Free</td><td>Helps nauseous and exhausted visitors</td></tr>
+</tbody></table></div>
+<p>Scenarios and existing parks can use other configured prices; Sunhaven deliberately charges less for some services. These are model defaults, not mandatory prices. Free service still consumes supplies and incurs upkeep.</p>
+<h3 id="configure-one-facility" tabindex="-1">Configure one facility</h3>
+<ol>
+<li>Right-click its building and check the selected name and kind in <strong>Services</strong>.</li>
+<li>Open or close it and change its price with the plus/minus controls. F6/F7 also adjust prices in this panel.</li>
+<li>Check customers, sales, costs and its serving edge. A nearby public path on the wrong side is insufficient.</li>
+<li>Open <strong>Management and economy → Supplies</strong> and select that same facility.</li>
+<li>Inspect inventory, automatic ordering and cash. Order twenty units or enable automatic ordering as needed.</li>
+<li>Resume and check that served-customer counts actually increase.</li>
+</ol>
+<h3 id="how-inventory-works" tabindex="-1">How inventory works</h3>
+<p>With management enabled, each facility holds up to one hundred consumable units. Toilets, rest, information and first aid also use supplies. Automatic ordering buys twenty units when an open facility falls below five. The complete batch must be affordable. A failed order retries later while automatic ordering remains enabled.</p>
+<p>Supplies are paid for on delivery. A completed service consumes one unit and charges its agreed price. A price change does not alter an existing quote. Empty stock prevents normal service sales. Closing stops automatic ordering and upkeep, but does not remove visitors&#x27; needs.</p>
+<p>Reports expense stock when purchased. A large delivery can therefore make a period look unprofitable before those supplies serve later customers. Demolition does not erase the historical expense or turn unused stock into additional sales.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="14-understanding-and-helping-guests">
+<h2 id="14-understanding-and-helping-guests" tabindex="-1">14. Understanding and helping guests</h2>
+<h3 id="individual-visitors-and-parties" tabindex="-1">Individual visitors and parties</h3>
+<p>Open <strong>Guests / L</strong>. Select a person to inspect their money, satisfaction, current activity, preferences, needs and available journey/group information. <strong>Find</strong> centres the map on that person. Page and filter controls help you locate specific problems.</p>
+<p>New arrivals can form three-person parties with family, thrill-seeking or relaxed preferences. Members pay individually and can choose different affordable activities, but regroup between visits and leave together. Satisfied departing parties may attempt a return later; that is not an immediate guaranteed sale. Wallets are finite, so an apparently popular park can lose repeat business through excessive prices.</p>
+<h3 id="set-the-park-entrance-and-admission-policy" tabindex="-1">Set the park entrance and admission policy</h3>
+<p>Select a suitable public path on the map, open <strong>Visitor flow</strong> and choose <strong>Set entry</strong>. Check its reported connection. <strong>Toggle arrivals</strong> controls new arrival attempts; <strong>Open / close park</strong> controls admission. Entry price has its own minus/plus controls. Pricing policy can require free entry, free rides or allow flexible charging. A scenario can lock that choice.</p>
+<p>Candidates consider their willingness and available money before entering. High admission leaves less for rides and facilities. Closing the park prevents new admission but does not immediately remove existing guests. <strong>Send guest home</strong> asks the selected visitor to leave; existing activity and an exit route still matter. Sending people home does not repair disconnected paths.</p>
+<h3 id="needs-satisfaction-and-ride-ratings" tabindex="-1">Needs, satisfaction and ride ratings</h3>
+<p>Hunger, thirst, bathroom need, tiredness, nausea and other needs change during a visit. Heat increases thirst. Demanding rides can increase the need for rest or first aid. Choices depend on affordability, preferences, connections and current condition. Offer variety in both rides and services.</p>
+<p>Satisfaction is different from a ride rating. A visitor can enjoy a ride but still be unhappy through thirst or lack of rest. Scenery improves the surroundings; entertainers help satisfaction. Neither substitutes for a reachable toilet. Persistent unhappiness leads to departure. Adjust prices, shorten routes or provide missing services according to the reported problem.</p>
+<h3 id="use-filters-and-trend-charts" tabindex="-1">Use filters and trend charts</h3>
+<p><strong>All</strong>, <strong>Urgent</strong>, <strong>Unhappy</strong> and <strong>Lost</strong> filter the guest list. Urgent means hunger, thirst or bathroom need is at least 70. Unhappy means satisfaction below 40. A visitor can meet several filters at once.</p>
+<p><strong>Park stats</strong> combines current averages with trends. The visitor chart samples every thirty simulation seconds and retains up to twenty-four samples. Loading starts a fresh session chart; it does not discard guests&#x27; saved state. Inspect several subsequent samples to see whether an intervention helped. Do not confuse a current snapshot with the park&#x27;s complete sales history.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="15-finances-and-profit">
+<h2 id="15-finances-and-profit" tabindex="-1">15. Finances and profit</h2>
+<h3 id="four-different-figures" tabindex="-1">Four different figures</h3>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Figure</th>
+<th scope="col">Meaning</th>
+<th scope="col">Common mistake</th>
+</tr></thead><tbody>
+<tr><td>Cash</td><td>Money available now</td><td>Treating a loan as earned profit</td></tr>
+<tr><td>Sales / Revenue</td><td>Receipts from guest purchases</td><td>Treating revenue as profit</td></tr>
+<tr><td>Operating result</td><td>Sales less recorded running expenses</td><td>Assuming a busy park must be profitable</td></tr>
+<tr><td>Park value / assets</td><td>Book value of paid installed construction</td><td>Assuming asset value is immediately spendable cash</td></tr>
+</tbody></table></div>
+<p><strong>Finance / N</strong> provides cashflows, park summaries, loans, park value and transactions. Management adds trends and actionable problems. Historical expenses remain after a ride or facility is demolished. Recent transactions are bounded, but older amounts remain represented in totals and owner accounts.</p>
+<h3 id="reconcile-sales-with-available-cash" tabindex="-1">Reconcile sales with available cash</h3>
+<p>A useful reconciliation is: starting allocation plus operating result, plus demolition refunds, minus construction, plus borrowing, minus principal repayments and paid interest equals cash. Operating costs include ride/facility upkeep, delivered supplies, wages, research and advertising. Reports separate these categories so you do not have to infer sales from the bank balance.</p>
+<p>Use <strong>Management → History</strong> to compare successive periods. It retains sixty financial snapshots, one per simulation minute. Construction and supplies can make an expansion period negative by design. Check later whether the extension earns enough extra business. Keep a cash reserve for payments due before the next customer sale.</p>
+<h3 id="make-the-park-more-profitable" tabindex="-1">Make the park more profitable</h3>
+<ol>
+<li>Repair disconnected access and closed sales outlets first. Unreachable capacity earns nothing.</li>
+<li>Inspect actual customers and operating costs for each ride and facility.</li>
+<li>Check whether guests reject prices or have run out of money. Change one price at a time.</li>
+<li>Temporarily close unnecessary loss-making services or build more compactly, while keeping essential needs covered.</li>
+<li>Research things you can afford and intend to build. Avoid continuous funding without a construction plan.</li>
+<li>Hire staff for visible work; inspect unpaid workers and patrol restrictions.</li>
+<li>Advertise after the park can feed, queue, entertain and release additional visitors.</li>
+<li>Compare a new financial period. More revenue with even faster-growing costs is not improved profit.</li>
+</ol>
+<p><strong>Policies</strong> offers $2, $3 and $5 price presets for all installed rides. These check the rules before changing prices and preserve existing guest quotes. Use them deliberately: a gentle carousel and an intense coaster need not perform best at the same price.</p>
+<h3 id="use-loans-deliberately" tabindex="-1">Use loans deliberately</h3>
+<p><strong>Finance → Loans</strong> borrows or repays $100 at a time within the permitted limit and scenario rules. The general outstanding principal limit is $2,000. Interest is <strong>0.5% per simulation minute</strong>: a $100 loan costs $0.50 for a full minute. This is not an annual rate. Faster simulation advances that cost faster.</p>
+<p>Interest accrues gradually and is collected at minute boundaries. Unpaid amounts remain due; the game does not automatically borrow more. Principal repayment also requires payment of accrued whole-cent interest. Borrow for a specific, reachable income opportunity and retain operating cash. A loan does not automatically reopen attractions closed for funds.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="16-staff-maintenance-weather-and-incidents">
+<h2 id="16-staff-maintenance-weather-and-incidents" tabindex="-1">16. Staff, maintenance, weather and incidents</h2>
+<h3 id="put-your-team-to-work" tabindex="-1">Put your team to work</h3>
+<p>Open <strong>Manage → Staff and park life</strong>. New parks enable these systems. Older parks may offer <strong>Enable park life</strong>. Hire up to twenty team members; each role costs $1 per thirty simulation seconds. Inspect each employee&#x27;s assignment and paid status.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Role</th>
+<th scope="col">Work</th>
+<th scope="col">Check when idle</th>
+</tr></thead><tbody>
+<tr><td>Mechanic</td><td>Services rides that are ready for maintenance</td><td>Is the ride closed, empty, stopped and reachable?</td></tr>
+<tr><td>Handyman</td><td>Removes litter and vomit, empties bins</td><td>Is the task on a reachable public path within patrol?</td></tr>
+<tr><td>Security</td><td>Resolves vandalism and guest-distress incidents</td><td>Can the worker reach an incident in the patrol area?</td></tr>
+<tr><td>Entertainer</td><td>Improves nearby visitors&#x27; satisfaction</td><td>Is the worker paid and near guests?</td></tr>
+<tr><td>Service attendant</td><td>Assists at facilities and helps tired or nauseous visitors</td><td>Is there a reachable open counter or a guest needing help?</td></tr>
+</tbody></table></div>
+<p>Select a worker and use <strong>Patrol tile</strong> on public paths to include or exclude work destinations. <strong>Whole park</strong> clears the restriction. A patrol limits destinations; travel can use the connected public network. <strong>Find selected</strong> locates the employee. <strong>Dismiss selected</strong> ends employment without deleting past wages from the accounts.</p>
+<p><strong>Management → Policies</strong> provides a $0–$20 team payroll cap per thirty-second payment window. Insufficient cash or a low cap suspends work until payment succeeds. The cap does not cover all other park costs or older standalone staff contracts. <strong>Grounds controls</strong> retains the earlier separate mechanic/handyman controls; avoid paying for unintended duplicate staffing.</p>
+<h3 id="weather-and-shelter" tabindex="-1">Weather and shelter</h3>
+<p>Park life supports sunny, hot, rainy and storm conditions. Automatic weather can change every sixty simulation seconds; weather policy can also fix one condition. Heat increases thirst. Rain and storms reduce outdoor satisfaction. Covered benches shelter visitors while they rest.</p>
+<p>Storms can close exposed rides while dispatched guests finish their journeys. Suitable covered rides can continue. When conditions improve, the game checks whether reopening is safe. Your own close request, broken access, maintenance or unpaid costs can still keep a ride shut. The <strong>Lighting / Weather</strong> choices in display Settings concern presentation; manage simulated weather through <strong>Staff and park life</strong>.</p>
+<h3 id="resolve-incidents" tabindex="-1">Resolve incidents</h3>
+<p>Orange markers and staff reports identify incidents. Severe tiredness or nausea can trigger guest distress; unhappy visitors may damage furniture. A vandalised shelter stops working properly until repaired.</p>
+<p>Choose <strong>Find first incident</strong>, inspect the need or damage, check security&#x27;s route and provide relevant services or attendants. Hiring more security alone does not solve a persistent shortage of rest, drinks or connected paths. For maintenance, also inspect the individual ride&#x27;s status.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="17-research-and-economic-controls">
+<h2 id="17-research-and-economic-controls" tabindex="-1">17. Research and economic controls</h2>
+<p>Open <strong>Management and economy → Research</strong>. Choose a category and funding: paused, $1, $2.50 or $5 per thirty simulation seconds. A project requires $40 of actual paid research. When cash is limited, smaller affordable payments may be processed. Switching categories preserves investment; completed categories stop charging.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Category</th>
+<th scope="col">Normally available at the start</th>
+<th scope="col">Research unlocks</th>
+</tr></thead><tbody>
+<tr><td>Gentle</td><td>Carousel, Wheel, Cups</td><td>Skyline Tower</td></tr>
+<tr><td>Thrill</td><td>None</td><td>Swing, Drop, Corsair Ship</td></tr>
+<tr><td>Water</td><td>None</td><td>Timber Falls, River Rapids</td></tr>
+<tr><td>Transport</td><td>Park Railway</td><td>Vista Monorail</td></tr>
+<tr><td>Coasters</td><td>Classic Coaster</td><td>Steel Launch Coaster, Inverted Coaster</td></tr>
+<tr><td>Facilities</td><td>Food, Drinks, Toilets, Rest, Information</td><td>Ice cream, Souvenirs, First aid</td></tr>
+</tbody></table></div>
+<p>The catalogue shows availability for your current park. A fully unlocked Sandbox or custom scenario can differ from this starting set. Research normally begins paused so it does not quietly spend your opening budget. Older parks may first need <strong>Enable management</strong>; read its notice because stock and economic rules change afterwards.</p>
+<p><strong>Overview</strong> summarises money and warnings. <strong>Research</strong> controls unlocks. <strong>Supplies</strong> controls stock. <strong>Marketing</strong> offers promotions. <strong>Policies</strong> contains shared price actions and payroll limits. <strong>History</strong> compares periods. <strong>Operations</strong> groups problems at specific objects. Use Operations to move from a broad warning to the relevant ride, facility or visitor.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="18-marketing-campaigns">
+<h2 id="18-marketing-campaigns" tabindex="-1">18. Marketing campaigns</h2>
+<p>A marketing campaign purchases reach, not guaranteed customers or profit. First open the park, enable arrivals, connect the entrance and ensure spare capacity. Advertising is paid immediately. Duration uses simulation time; closing the park or disabling arrivals neither refunds nor pauses a paid campaign. Space pauses the whole simulation.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Campaign</th>
+<th scope="col">Price</th>
+<th scope="col">Duration</th>
+<th scope="col">Effect</th>
+</tr></thead><tbody>
+<tr><td>Local flyers</td><td>$25</td><td>5 minutes</td><td>Shortens the candidate interval from 30 to 15 seconds</td></tr>
+<tr><td>Radio ads</td><td>$40</td><td>5 minutes</td><td>Candidates accept up to $3 more admission, within their actual wallets</td></tr>
+<tr><td>Family week</td><td>$50</td><td>5 minutes</td><td>Themed arrivals at a 10-second interval; requires an open gentle ride</td></tr>
+<tr><td>Coaster enthusiasts</td><td>$50</td><td>5 minutes</td><td>Themed arrivals at a 10-second interval; requires an open coaster</td></tr>
+</tbody></table></div>
+<p>Flyers and radio are available through <strong>Visitor flow</strong> and marketing routes. Each type can have one active campaign; flyers and radio can overlap. Only one themed promotion can run at a time. Do not assume overlapping campaigns add all their benefits arithmetically: inspect the active arrival cadence and real results. Scenario policies can prohibit particular promotions.</p>
+<h3 id="evaluate-a-campaign" tabindex="-1">Evaluate a campaign</h3>
+<ol>
+<li>Inspect your cash reserve, available capacity and the last financial period before buying.</li>
+<li>Choose the appropriate effect: flyers for more arrival opportunities, radio for admission willingness, or a theme matched to open attractions.</li>
+<li>Note guests, sales and costs. Resume until enough campaign time has passed.</li>
+<li>Inspect candidates, admitted visitors and radio&#x27;s extra admissions. A candidate is not necessarily a paying customer.</li>
+<li>Check needs and queues: overcrowding can consume the benefit of additional sales.</li>
+<li>Compare extra revenue with the advertising bill and additional operating costs before buying again.</li>
+</ol>
+<p>Radio does not add money to guest wallets. A candidate can still refuse because of budget or rules. Sales attributed to an active promotion describe activity in its window; they do not prove every sale was caused solely by advertising.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="19-the-six-scenario-campaign">
+<h2 id="19-the-six-scenario-campaign" tabindex="-1">19. The six-scenario campaign</h2>
+<p>The game campaign is separate from advertising. Choose <strong>Campaign</strong> at the title. Each scenario has objectives, initial rules and an unlock condition. Awards belong to your player profile and unlock the next scenario. <strong>Later campaign</strong> cycles through the four later challenges.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Scenario</th>
+<th scope="col">Objectives</th>
+<th scope="col">Deadline</th>
+<th scope="col">Starting allocation</th>
+</tr></thead><tbody>
+<tr><td>Meadow Challenge</td><td>20 new visitors, 5 completed guest rides, at least $750 cash</td><td>None</td><td>$1,000</td></tr>
+<tr><td>Boardwalk Sprint</td><td>24 new visitors, 12 completed guest rides, at least $900 cash</td><td>10 minutes</td><td>$1,000</td></tr>
+<tr><td>Cedar Valley</td><td>30 new visitors and 65 satisfaction</td><td>20 minutes</td><td>$2,000</td></tr>
+<tr><td>Research Ridge</td><td>Complete 1 funded research project and 20 guest rides</td><td>20 minutes</td><td>$2,000</td></tr>
+<tr><td>Lakeside Services</td><td>Install 3 facilities, serve 12 customers and welcome 30 visitors</td><td>20 minutes</td><td>$2,000</td></tr>
+<tr><td>Grand Festival</td><td>Welcome 60 visitors, earn $150 sales and reach 65 satisfaction</td><td>20 minutes</td><td>$2,500</td></tr>
+</tbody></table></div>
+<p>Inspect progress and state in <strong>Scenarios and goals</strong>. A ride in a guest objective is a completed passenger trip, not a new track or empty test lap. New-arrival totals start from the challenge&#x27;s beginning. Existing activity is not automatically a head start. A cash target is a balance requirement, unlike an operating-profit target.</p>
+<h3 id="approach-meadow-and-boardwalk" tabindex="-1">Approach Meadow and Boardwalk</h3>
+<p><strong>Meadow</strong> requires free admission. Ride tickets may earn money. Radio and themed promotions are unavailable, but flyers are allowed. Research is capped at $2.50 per thirty seconds. Establish a connected open ride, keep expenses controlled and let enough new visitors complete trips. Protect the $750 balance while building.</p>
+<p><strong>Boardwalk</strong> requires free rides. Consider admission income and suitable facility prices rather than relying on coaster tickets. Pause to plan, but remember the ten-minute clock advances when resumed. Watch admissions, completed rides and cash together; improving one alone does not win.</p>
+<h3 id="approach-the-four-later-challenges" tabindex="-1">Approach the four later challenges</h3>
+<p>For <strong>Cedar Valley</strong>, keep needs reachable and routes manageable to protect satisfaction. <strong>Research Ridge</strong> requires paid research; placing an already available model does not complete a funded project. Choose funding and category early. <strong>Lakeside Services</strong> needs real customers, so incorrect orientation or empty stock prevents progress even with three buildings. <strong>Grand Festival</strong> combines capacity, sales and satisfaction; monitor all three instead of buying arrivals alone.</p>
+<p>A failed deadline remains saved with that park. Load an earlier saved state or start a new attempt. Earned profile awards remain. Start separate attempts rather than trying to change a challenge already in progress.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="20-custom-scenarios-and-the-editor">
+<h2 id="20-custom-scenarios-and-the-editor" tabindex="-1">20. Custom scenarios and the editor</h2>
+<h3 id="design-a-challenge" tabindex="-1">Design a challenge</h3>
+<ol>
+<li>Begin with a Sandbox containing the landscape and starting buildings you want.</li>
+<li>Open <strong>Scenarios and editor</strong> and choose <strong>New from this park</strong>. The editor preserves your original park separately.</li>
+<li>Choose <strong>Build park</strong> to edit terrain, paths, scenery, rides and services. The banner identifies this authoring state.</li>
+<li>Return to the editor and enter a name and description. Explain special restrictions to the player.</li>
+<li>On <strong>Goals and rules</strong>, choose up to four distinct objectives, their metrics and targets, and an optional deadline.</li>
+<li>Set starting allocation, admission policy, research, loans and arrivals. <strong>Available content</strong> restricts constructible ride models and facilities.</li>
+<li>Choose <strong>Save scenario</strong>, then <strong>Test scenario</strong> to play an actual test run.</li>
+<li>Use <strong>Return to editor</strong> to restore your design and adjust it. Test play does not award official campaign medals.</li>
+<li><strong>Return to park</strong>, followed by confirmation, restores your original park. Saved scenarios remain available.</li>
+</ol>
+<p>Metrics include arrivals, rides, customers, sales, operating profit, cash, satisfaction, facilities, park value and funded research. Allow time for travel, service and affordable construction. Restrictions on new construction do not remove buildings already present in the template.</p>
+<h3 id="set-fair-financial-objectives" tabindex="-1">Set fair financial objectives</h3>
+<p>Starting budget is the financial allocation; existing construction spending still belongs to the template park. A budget below recorded spending is refused. Sales goals count new scenario sales. Operating-result goals can include the template&#x27;s existing operating history. Begin with a deliberate, tested template and inspect the actual progress figures.</p>
+<h3 id="share-scenarios" tabindex="-1">Share scenarios</h3>
+<p>The library searches by name and shows description, map dimensions, goals and compatibility. <strong>Play selected</strong> starts an attempt after confirmation. <strong>Edit selected</strong> opens an editable copy. Rename and archive require confirmation; archiving moves the file to the scenario archive.</p>
+<p><strong>Export</strong> writes a <code>.parkscenario.json</code>. <strong>Import</strong> validates the selected file before adding it to the library. A scenario carries its starting park and rules, not a Windows program or campaign profile. Imported custom challenges do not grant official campaign awards. Unsupported or damaged files show an error; retain the original when investigating a problem.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="21-tips-three-uses-per-park">
+<h2 id="21-tips-three-uses-per-park" tabindex="-1">21. Tips: three uses per park</h2>
+<p>The <strong>lightbulb</strong> next to Finance and Rides produces <strong>two suggestions</strong> about current conditions, such as disconnected access, needs, unhappiness, cash, losses, rejected prices or interest. Advice does not change the park automatically or promise profit. Read both suggestions, then inspect the relevant figures.</p>
+<p>Each park receives <strong>three uses in total</strong>, not three per launch. Saving, restarting, loading a backup and construction undo do not replenish the allowance. <strong>Save As New Park</strong> carries spent uses into the copy. A genuinely new park receives a new allowance.</p>
+<p>The first advice request in an unsaved park creates a library slot to persist the count. This does not replace normal saving of later progress: keep using F5. If the allowance cannot be stored, the game shows an error and withholds new advice. Advice is computed locally; no internet service is needed.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="22-saves-backups-and-another-pc">
+<h2 id="22-saves-backups-and-another-pc" tabindex="-1">22. Saves, backups and another PC</h2>
+<h3 id="preserve-your-park" tabindex="-1">Preserve your park</h3>
+<p><strong>F5</strong> or <strong>Menu → Save</strong> writes to the current park&#x27;s library slot. A new park receives its own slot on first save. <strong>Save As New Park</strong> creates a separate copy. <strong>Rename</strong> changes the library display name. <strong>Delete</strong> archives a park rather than immediately erasing it permanently from disk.</p>
+<p><strong>Load Park</strong> lists saved parks. <strong>Continue latest park</strong> selects the latest save. <strong>F9</strong> loads the current stored park; <strong>Shift+F9</strong> requests the previous valid backup. Save your current state separately first if you want to preserve it. A backup is the previous save, not an unlimited timeline. Read confirmations when replacing or leaving unsaved work.</p>
+<p>Saves contain terrain, construction, visitors, vehicles, prices, stock, finances, staff, research, running campaigns, scenario progress and Tips use. Temporary charts, selection and undo history need not all persist. The current park schema is 52; older executables may not read newer saves. Keep a copy of the player folder when upgrading.</p>
+<h3 id="where-files-live" tabindex="-1">Where files live</h3>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">File or folder</th>
+<th scope="col">Purpose</th>
+</tr></thead><tbody>
+<tr><td><code>%LOCALAPPDATA%\Parkbound\saves</code></td><td>Player parks, preferences, profile and libraries</td></tr>
+<tr><td><code>parks</code> inside the player folder</td><td>Independent park slots with metadata and backups</td></tr>
+<tr><td><code>deleted-parks</code></td><td>Archived park slots</td></tr>
+<tr><td><code>campaign.json</code> and its backup</td><td>Earned campaign awards</td></tr>
+<tr><td><code>display-settings.json</code>, <code>sound-settings.json</code>, <code>accessibility-settings.json</code></td><td>Personal preferences</td></tr>
+<tr><td><code>docs/PLAYER_MANUAL.html</code> beside the executable</td><td>This offline player manual</td></tr>
+</tbody></table></div>
+<p>Close Parkbound before copying data. Transfer the <strong>whole player folder</strong> to another PC, not just one park file. Install the same or a compatible newer version there, restore the folder, load the park and check display settings for the new monitor. The source-code checkout on OneDrive does not automatically synchronise AppData.</p>
+<p>The development checkout is <code>C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon</code>. That contains source and technical documents, not automatically your player profile. Developers should read <strong>RESUME_DEVELOPMENT.md</strong> before continuing work. Google Drive synchronisation is disabled.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="23-troubleshooting">
+<h2 id="23-troubleshooting" tabindex="-1">23. Troubleshooting</h2>
+<h3 id="no-visitors-are-entering" tabindex="-1">No visitors are entering</h3>
+<ol>
+<li>Resume the simulation; a paused park produces no new candidates.</li>
+<li>Open <strong>Visitor flow</strong> and check park opening, enabled arrivals and the selected entrance.</li>
+<li>Confirm that entrance is a public path connected to the park network.</li>
+<li>Inspect candidates and refusals. Expensive admission can prevent access even to affordable rides.</li>
+<li>Check the active visitor limit and allow existing visitors time to leave.</li>
+<li>Buy advertising only after these checks. Marketing does not build an entrance.</li>
+</ol>
+<h3 id="a-ride-will-not-open-or-has-no-passengers" tabindex="-1">A ride will not open or has no passengers</h3>
+<ol>
+<li>Right-click the correct ride and read the specific Operations reason.</li>
+<li>Check Access: its own entrance, queue with public access and separate connected exit.</li>
+<li>Inspect edge heights, especially after terrain edits or slope construction.</li>
+<li>Check the circuit, required test, fleet/block space and whether configuration changes require a stopped empty ride.</li>
+<li>Resolve maintenance, weather or funds closure. Reopen explicitly when required.</li>
+<li>If open but empty, inspect price, preferences, wallets and minimum load. Follow a visitor with Find.</li>
+</ol>
+<h3 id="guests-or-queues-appear-stuck" tabindex="-1">Guests or queues appear stuck</h3>
+<p>Check the public return to the park entrance and the ride&#x27;s exit path first. Ride A&#x27;s queue does not provide access to ride B. Find the first disconnected edge, wrong level or reversed gate. Rotate to reveal hidden pieces and use Underground view for buried paths. After repairing a connection, let the park run briefly before adding more paths.</p>
+<h3 id="a-facility-makes-no-sales" tabindex="-1">A facility makes no sales</h3>
+<p>Check opening, stock, funds for a whole delivery and a public path on its serving side. Then inspect price and actual guest demand. A souvenir shop does not relieve thirst. A customer may still be travelling or receiving service; sales register on completion. Verify the selected facility in both Services and Supplies to avoid adjusting a different building.</p>
+<h3 id="a-busy-park-keeps-losing-cash" tabindex="-1">A busy park keeps losing cash</h3>
+<p>Pause and open <strong>Finance</strong> and <strong>Management → History</strong>. Separate construction, supplies, wages, upkeep, advertising, research and interest. Stop unnecessary recurring expenses, repair unreachable capacity and adjust prices methodically. A loan provides breathing room but adds interest; it does not correct an unprofitable operation by itself.</p>
+<h3 id="research-or-staff-seem-inactive" tabindex="-1">Research or staff seem inactive</h3>
+<p>Check paused funding, completed categories, insufficient cash and scenario restrictions. For staff, inspect wages, payroll cap, public access, patrol area and suitable work. A mechanic correctly waits for an empty, stopped ride. A worker on an isolated path cannot reach a task elsewhere.</p>
+<h3 id="controls-heights-or-windows-behave-unexpectedly" tabindex="-1">Controls, heights or windows behave unexpectedly</h3>
+<p>Read the tooltip and leave text entry first. PgUp/PgDn can change a list page or construction height depending on context. C can rotate a building or change a path shape. Manually changing coaster height disables Follow heights. Right-dragging is not a context click. Escape returns towards inspection so you can choose the intended tool again.</p>
+<p>For small text, increase interface scale. For hidden controls, scroll over the panel. For the wrong display, use F11. For missing audio, check Mute, volume levels, Windows output and Reconnect audio device. For a damaged save, try the offered backup and retain the damaged original for investigation. Follow recovery messages instead of overwriting your only copy blindly.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="24-keyboard-shortcuts-and-context">
+<h2 id="24-keyboard-shortcuts-and-context" tabindex="-1">24. Keyboard shortcuts and context</h2>
+<p>These are defaults. <strong>Controls &amp; accessibility</strong> shows customised assignments. Typing in a field enters text; arrow keys may select list items; number keys choose groups in Explore. Context deliberately changes some keys&#x27; meanings.</p>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Key or gesture</th>
+<th scope="col">Action</th>
+</tr></thead><tbody>
+<tr><td>Short right-click</td><td>Settings for the clicked ride or facility</td></tr>
+<tr><td>Right-drag / middle-drag</td><td>Pan the camera</td></tr>
+<tr><td>WASD / arrows</td><td>Pan outside special input contexts</td></tr>
+<tr><td>Wheel / + / − over map</td><td>Zoom</td></tr>
+<tr><td>Wheel over a panel</td><td>Scroll panel contents</td></tr>
+<tr><td>Q / E</td><td>Rotate the map</td></tr>
+<tr><td>Home</td><td>Fit the park in view</td></tr>
+<tr><td>Space</td><td>Pause/resume</td></tr>
+<tr><td>1 / 2 / 3</td><td>1× / 2× / 4× outside Explore and text entry</td></tr>
+<tr><td>F2</td><td>Explore; 1–5 select its groups</td></tr>
+<tr><td>L / M / N / Y</td><td>Guests / Services / Finance / Rides</td></tr>
+<tr><td>Z</td><td>Coaster editor</td></tr>
+<tr><td>Ctrl+D</td><td>Design library</td></tr>
+<tr><td>P / J</td><td>Public path / queue</td></tr>
+<tr><td>I / K</td><td>Ride entrance / exit</td></tr>
+<tr><td>X / Delete</td><td>Demolition tool / remove selected item</td></tr>
+<tr><td>B / V</td><td>Raise / lower terrain</td></tr>
+<tr><td>C</td><td>Path shape or orientation; track direction in the editor</td></tr>
+<tr><td>PgUp / PgDn</td><td>Build height; page/selection in relevant panels</td></tr>
+<tr><td>Enter in coaster editor</td><td>Add the next piece</td></tr>
+<tr><td>G / U</td><td>Grid / underground view</td></tr>
+<tr><td>O / F</td><td>Open/close selected ride or facility / locate ride, in the appropriate context</td></tr>
+<tr><td>F6 / F7</td><td>Price − / + $0.50 for the active selection</td></tr>
+<tr><td>Ctrl+Z / Ctrl+Y</td><td>Undo / redo paused construction or the active draft</td></tr>
+<tr><td>F5 / F9 / Shift+F9</td><td>Save / load / previous backup</td></tr>
+<tr><td>H / F1</td><td>Help</td></tr>
+<tr><td>F10</td><td>Sound</td></tr>
+<tr><td>F11</td><td>Recover safe window settings</td></tr>
+<tr><td>Tab / Shift+Tab / Enter</td><td>Next focus / previous focus / activate</td></tr>
+<tr><td>Escape</td><td>Close the active panel/tool, then open the park menu</td></tr>
+</tbody></table></div>
+<p><strong>T</strong> and <strong>R</strong> are older terrain/demonstration restoration actions with particular conditions, not normal ways to rebuild an occupied park safely. Use explicit building tools for normal construction and Home for the camera. Save before using a restoration action.</p>
+<a class="back" href="#top">↑ Contents and top</a></section>
+<section aria-labelledby="25-glossary-and-next-reading">
+<h2 id="25-glossary-and-next-reading" tabindex="-1">25. Glossary and next reading</h2>
+<div class="table-scroll" role="region" aria-label="Table" tabindex="0"><table><thead><tr>
+<th scope="col">Term</th>
+<th scope="col">Meaning</th>
+</tr></thead><tbody>
+<tr><td>Ride</td><td>An independently managed attraction with its own access, operations and accounts</td></tr>
+<tr><td>Facility / Service</td><td>A building that relieves a need and can consume stock</td></tr>
+<tr><td>Public path</td><td>The general circulation network</td></tr>
+<tr><td>Queue</td><td>Waiting path assigned to one ride</td></tr>
+<tr><td>Edge height</td><td>Level where a path joins its neighbour</td></tr>
+<tr><td>Draft</td><td>Editable track layout before Apply</td></tr>
+<tr><td>Block</td><td>A protected track section reserving space for a train</td></tr>
+<tr><td>Candidate</td><td>Someone considering entry, not necessarily admitted</td></tr>
+<tr><td>Admission</td><td>An actual park entry</td></tr>
+<tr><td>Revenue / Sales</td><td>Guest receipts before expenses</td></tr>
+<tr><td>Upkeep</td><td>Recurring operating costs</td></tr>
+<tr><td>Payroll cap</td><td>Maximum team wages paid per payment window</td></tr>
+<tr><td>Cashflow</td><td>Money actually entering or leaving accounts</td></tr>
+<tr><td>Operating result</td><td>Operating receipts minus recorded running expenses</td></tr>
+<tr><td>Scenario</td><td>Starting park with objectives and rules</td></tr>
+<tr><td>Campaign</td><td>Official scenario sequence; in marketing, an advertising promotion</td></tr>
+<tr><td>Backup</td><td>Previous valid saved version, not unlimited history</td></tr>
+</tbody></table></div>
+<p>Start playing with <a href="#3-your-first-playable-park-step-by-step">chapter 3</a>, find controls through <a href="#5-screen-layout-and-menus">the menu guide</a> and consult <a href="#23-troubleshooting">troubleshooting</a> when stuck. For construction, keep <a href="#8-paths-queues-gates-and-heights">paths</a> and <a href="#11-building-a-coaster-from-station-to-first-ride">coasters</a> handy. For management, begin with <a href="#15-finances-and-profit">finance</a>, <a href="#16-staff-maintenance-weather-and-incidents">staff</a> and <a href="#17-research-and-economic-controls">research</a>.</p>
+<p>This manual is maintained with the source and Windows package. The technical resume guide, version history and session reports document development and checks; they are not additional game objectives. The development PC provides correctness checks and is not a product-performance reference.</p>
+<a class="back" href="#top">↑ Contents and top</a></section><div class="no-results" id="no-results" hidden>No chapters found. Try a shorter term, such as path, price or stock.</div><footer>Parkbound 0.99.2 · Generated from PLAYER_MANUAL.md · No internet or account required.</footer></main></div><script>
+'use strict';
+const search=document.querySelector('#search'),status=document.querySelector('#status');
+const sections=[...document.querySelectorAll('main section')],links=[...document.querySelectorAll('nav a')];
+const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en');
+const index=sections.map(el=>normalize(el.textContent));
+function unmark(){document.querySelectorAll('mark').forEach(m=>m.replaceWith(document.createTextNode(m.textContent)));sections.forEach(s=>s.normalize());}
+function highlight(section,query){
+  if(!query)return;const walk=document.createTreeWalker(section,NodeFilter.SHOW_TEXT);const nodes=[];
+  while(walk.nextNode())nodes.push(walk.currentNode);
+  for(const node of nodes){const text=node.textContent,lower=normalize(text),at=lower.indexOf(query);if(at<0)continue;
+    // Highlight only equal-length normalized text (diacritics); never inject a search string as HTML.
+    if(lower.length!==text.length)continue;
+    const fragment=document.createDocumentFragment();let start=0,pos=at;
+    while(pos>=0){fragment.append(document.createTextNode(text.slice(start,pos)));const mark=document.createElement('mark');mark.textContent=text.slice(pos,pos+query.length);fragment.append(mark);start=pos+query.length;pos=lower.indexOf(query,start);}
+    fragment.append(document.createTextNode(text.slice(start)));node.replaceWith(fragment);
+  }
+}
+function filter(){unmark();const query=normalize(search.value.trim()).slice(0,100),terms=query.split(/\s+/).filter(Boolean);let count=0;
+  sections.forEach((s,i)=>{s.hidden=!terms.every(t=>index[i].includes(t));if(!s.hidden){count++;terms.forEach(t=>highlight(s,t));}});
+  links.forEach(a=>{const target=document.getElementById(a.hash.slice(1));a.closest('li').hidden=target.closest('section').hidden;});
+  status.textContent=query?`${count} of ${sections.length} chapters found`:`${sections.length} chapters · offline`;
+  document.querySelector('#no-results').hidden=count!==0;
+}
+search.addEventListener('input',filter);document.querySelector('#clear').addEventListener('click',()=>{search.value='';filter();search.focus();});
+document.querySelector('#print').addEventListener('click',()=>{search.value='';filter();window.print();});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){e.preventDefault();search.focus();}if(e.key==='Escape'&&document.activeElement===search){search.value='';filter();}});
+document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{if(search.value){search.value='';filter();}}));
+window.addEventListener('hashchange',()=>{const target=document.getElementById(location.hash.slice(1));if(target){if(search.value){search.value='';filter();}target.scrollIntoView();}});
+if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){links.forEach(a=>a.removeAttribute('aria-current'));const a=links.find(a=>a.hash==='#'+entry.target.id);if(a)a.setAttribute('aria-current','location');}}},{rootMargin:'0px 0px -65% 0px'});document.querySelectorAll('h2,h3').forEach(h=>observer.observe(h));}
+window.addEventListener('scroll',()=>{const total=document.documentElement.scrollHeight-innerHeight;document.querySelector('#position').style.width=(total>0?scrollY/total*100:0)+'%';},{passive:true});
+filter();
+</script></body></html>

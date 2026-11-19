@@ -91,7 +91,7 @@ foreach ($guide in $guides) {
     if ((Get-FileHash -LiteralPath (Join-Path $package $guide)).Hash -ne
         (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory $guide)).Hash) { throw "Stale bundled guide: $guide" }
 }
-$manual = 'docs/HANDLEIDING_NL.html'
+$manual = 'docs/PLAYER_MANUAL.html'
 if ((Get-FileHash -LiteralPath (Join-Path $package $manual)).Hash -ne
     (Get-FileHash -LiteralPath (Join-Path $workspaceDirectory $manual)).Hash) {
     throw 'Missing or stale offline player manual.'

@@ -322,7 +322,7 @@ impl Default for ViewState {
             save_pending: None,
             successful_saves: 0,
             save_notice: "F5 save / F9 load\nShift+F9 loads backup".into(),
-            manual_notice: "Stapsgewijze uitleg, zoeken en inhoudsopgave. Werkt offline.".into(),
+            manual_notice: "Step-by-step instructions, search and contents. Works offline.".into(),
             diagnostic_case: None,
             camera_span: 1.0,
             pan_limit: Vec2::splat(1800.0),

@@ -1,5 +1,12 @@
 # Parkbound release notes
 
+## 0.99.2 — English player manual and interaction acceptance
+
+- Translate the complete 25-chapter manual, navigation, search messages and Help entry into English.
+- Open `docs/PLAYER_MANUAL.html` from Help. Existing `HANDLEIDING_NL.html` bookmarks also display the English guide.
+- Retain the established right-click settings gesture and save schema/content 52/52.
+- Record native Windows interaction checks and GitHub CI results in the resume guide and session report.
+
 ## 0.99.1 — right-click object settings
 
 - Right-click a ride, its track, gates or owned queue to open that ride’s settings.

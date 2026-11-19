@@ -1,5 +1,15 @@
 # Project decisions
 
+## 2026-11-19 — English manual and completed native checks
+
+- The owner requested English, matching the game. `docs/PLAYER_MANUAL.md` is
+  canonical; the generated HTML and all Help messages are English.
+- Preserve old HTML bookmarks as a generated English copy. Keep the old Markdown
+  address as a short English pointer; no second manual translation is maintained.
+- Verify real right-click ownership and facility price controls in an isolated
+  Windows profile, then verify the English manual opens from the final build.
+- Retain save schema/content 52/52 and avoid using this PC as a performance reference.
+
 ## 2026-11-19 — Offline Nederlandse spelershandleiding
 
 - Eén Markdown-bron, `docs/HANDLEIDING_NL.md`, genereert een zelfstandige HTML-

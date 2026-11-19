@@ -1,5 +1,32 @@
 # Resume development on another Windows PC
 
+## Current work — English manual and native acceptance, 0.99.2
+
+On `codex/right-click-settings`, continuing from
+`0cf1718696e7a1eb09edc0e8a324b19888872535` (PR #93).
+The complete player manual, contents/search interface and related in-game Help
+text are now English. Canonical files: `docs/PLAYER_MANUAL.md` and `.html`.
+The old HTML filename contains the same English edition for existing bookmarks;
+the old Markdown address points to the canonical source. No Dutch runtime
+manual text remains. The guide retains 25 chapters, 80 headings, 120 local links
+and 14 tables; generator and JavaScript syntax checks pass.
+
+Native Windows checks in the isolated `artifacts/english-native-0991` profile
+opened Golden Wheel (#6) from its owned queue, Garden Carousel (#4) from its
+canopy and Drinks (#2) from its building. Drinks' price changed from $1.00 to
+$1.50 and back through the actual buttons, while paused cash/clock remained
+unchanged. The test park was saved. English-manual launch verification and
+final 0.99.2 package/installation checks are in progress.
+
+Local strict Clippy passed. The manual resolver test/release build are running.
+The earlier exact-head GitHub workflow #503 passed formatting, manual and lint
+steps and is still executing its full suite. Do not describe CI as passed yet.
+
+Shared source: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Save schema/content
+52/52 is unchanged. Drive remains disabled; preserve local exports and player
+files. This PC is not a performance reference.
+
 ## Current checkpoint — Right-click settings and Dutch manual, 0.99.1
 
 Runtime and manual source: `38179d701e229ab38fe4d844c026c7c06b04611e`,

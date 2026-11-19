@@ -1,7 +1,7 @@
 //! Opens the bundled, offline player manual without sending player data anywhere.
 use std::path::{Path, PathBuf};
 
-const DOCUMENT: &str = "docs/HANDLEIDING_NL.html";
+const DOCUMENT: &str = "docs/PLAYER_MANUAL.html";
 
 fn locate(executable: &Path, workspace: &Path) -> Option<PathBuf> {
     executable
@@ -15,8 +15,9 @@ fn locate(executable: &Path, workspace: &Path) -> Option<PathBuf> {
 pub(crate) fn open() -> Result<(), String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let path = locate(&executable, &workspace)
-        .ok_or("Handleiding ontbreekt. Pak het volledige spelpakket uit, inclusief de map docs.")?;
+    let path = locate(&executable, &workspace).ok_or(
+        "Player manual missing. Extract the complete game package, including the docs folder.",
+    )?;
     launch(&path)
 }
 
@@ -27,15 +28,12 @@ fn launch(path: &Path) -> Result<(), String> {
         .arg(path)
         .spawn()
         .map(|_| ())
-        .map_err(|error| format!("Open docs/HANDLEIDING_NL.html handmatig: {error}"))
+        .map_err(|error| format!("Open docs/PLAYER_MANUAL.html manually: {error}"))
 }
 
 #[cfg(not(windows))]
 fn launch(_path: &Path) -> Result<(), String> {
-    Err(
-        "Open docs/HANDLEIDING_NL.html in je browser. De automatische opener vereist Windows."
-            .into(),
-    )
+    Err("Open docs/PLAYER_MANUAL.html in your browser. Automatic opening requires Windows.".into())
 }
 
 #[cfg(test)]
