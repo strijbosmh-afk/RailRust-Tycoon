@@ -22,6 +22,43 @@ remains disabled, with cached standard prompt 2.1.0 used locally. Source lives a
 `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
 Save schema/content remains 51/51 and display settings remain version 1.
 
-At 08:49 UTC, final formatting, strict Clippy, build, relevant UI tests and
-distribution verification were in progress. This file is updated with their
-outcomes before completion. This PC is excluded from performance acceptance.
+Runtime `726dcfc8ce400eb452ca3d0aedbf952227f1fef9` is published in PR 91.
+Verification completed around 09:06 UTC. This PC is excluded from performance
+acceptance.
+
+## Checks and distribution
+
+- Formatting and strict release Clippy passed for all workspace targets.
+- All 33 UI tests, six front-screen tests and five display tests passed. The
+  first UI run exposed a copy/new-park icon matching conflict. The matcher now
+  gives the copy action priority, and the regression passes.
+- Text-button preservation, live captions, keyboard focus and hover handling
+  have automated regression coverage. Original action handlers remain in use.
+- Seven engine captures exercised construction, title, new park, settings and
+  high contrast at 1024 × 680, 1920 × 1080 and 3840 × 2160 with appropriate UI
+  scales. Two final normal/high-contrast captures checked the refined icon
+  masks. Construction groups, restored text and small-window scrolling were
+  reviewed in those images under `artifacts/structured-*.png` and
+  `artifacts/final-icons-*.png`.
+- The release executable SHA256 is
+  `b7c9ba207b448d02a8b1d79222a0354aa0168946553320243e2cdbc5d0adf214`.
+  The extracted package passed all 194 payload hashes and 167 current guides,
+  followed by separate `write-front` and `verify-front` processes. Evidence is
+  in `artifacts/structured-package-proof/verification.txt`.
+- PC1830 was upgraded from 0.97.0 to 0.98.1 in
+  `%LOCALAPPDATA%\Programs\Parkbound`. All 194 installed payloads match the
+  package, both shortcuts use the expected executable and icon, and both
+  player files retain their exact hashes. Evidence is in
+  `artifacts/structured-installation.txt`.
+
+The final documentation refresh is packaged with the same verified executable.
+Download hashes accompany the ZIP and installer in `dist/`. GitHub run
+`44492067260` was still in progress at this checkpoint. The local checks above
+and the recorded GitHub state are separate evidence.
+
+## Resume
+
+The requested UI changes are complete. Continue from the latest commit on
+`codex/themed-menus-borderless`. Read `RESUME_DEVELOPMENT.md` and the existing
+development plan before choosing another phase. Google Drive remains disabled
+and existing local queued exports are retained.
