@@ -1,5 +1,12 @@
 # Project decisions
 
+## 2026-11-19 — Sunhaven Gardens startup
+
+Prepare the demo on Bevy's background compute pool during the intro and
+clone the prepared park for each playthrough. This preserves the deterministic
+9,000-tick opening state and moves its preparation off the UI thread. Show a
+startup screen for both demo and new-park actions.
+
 ## 2026-11-19 — Browseable first-park guide
 
 - Separate navigation from optional practice. Next must never silently ignore

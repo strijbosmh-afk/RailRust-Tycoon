@@ -1,5 +1,13 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Park startup
+
+Continue on `codex/right-click-settings`. The front end prepares Sunhaven
+Gardens on a background worker and keeps the original opening state available
+for replay. A startup screen gives feedback after Create Park or Play Sunhaven
+Gardens. The previous transfer remains the 0.99.3 package checkpoint. See
+`docs/sessions/2026-11-19-park-startup.md` for scope and checks.
+
 ## Current checkpoint — Complete PC transfer, 0.99.3
 
 The requested handoff is in `dist/Parkbound-Transfer-2026-11-19`, with a

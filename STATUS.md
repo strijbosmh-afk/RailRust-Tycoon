@@ -1,5 +1,13 @@
 # Project status
 
+## 0.99.3 — Park startup
+
+Sunhaven Gardens prepares its deterministic opening state on a background
+worker during the intro. The title screen reuses that state for independent
+demo starts in the same process. Creating a new park or starting the demo
+shows a progress message while the park is prepared. See
+[the startup session](docs/sessions/2026-11-19-park-startup.md).
+
 ## Current checkpoint — Complete PC transfer, 0.99.3
 
 The requested handoff is in `dist/Parkbound-Transfer-2026-11-19`, with a
