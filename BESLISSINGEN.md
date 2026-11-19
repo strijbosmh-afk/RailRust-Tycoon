@@ -1,5 +1,54 @@
 # Project decisions
 
+## 2026-11-19 — Sunhaven Gardens startup
+
+Prepare the demo on Bevy's background compute pool during the intro and
+clone the prepared park for each playthrough. This preserves the deterministic
+9,000-tick opening state and moves its preparation off the UI thread. Show a
+startup screen for both demo and new-park actions.
+
+## 2026-11-19 — Browseable first-park guide
+
+- Separate navigation from optional practice. Next must never silently ignore
+  a click because the player has not added a path, ride, guest trip or save.
+- Keep live completion feedback, explicit instructions and current-step
+  tooltips. Preserve Back, replay and explicit tools without automatically
+  constructing or spending anything when browsing.
+- Observe new connected public-path IDs, so removing another path cannot hide
+  a successful exercise. Use existing rides for Access in populated parks.
+- The guide remains transient UI state; park saves stay 52/52.
+
+## 2026-11-19 — English manual and completed native checks
+
+- The owner requested English, matching the game. `docs/PLAYER_MANUAL.md` is
+  canonical; the generated HTML and all Help messages are English.
+- Preserve old HTML bookmarks as a generated English copy. Keep the old Markdown
+  address as a short English pointer; no second manual translation is maintained.
+- Verify real right-click ownership and facility price controls in an isolated
+  Windows profile, then verify the English manual opens from the final build.
+- Retain save schema/content 52/52 and avoid using this PC as a performance reference.
+- Native testing exposed the Explorer command opening Documents instead of the
+  HTML. Use `ShellExecuteW` with a literal UTF-16 filename, native separators,
+  no shell arguments, and checked error codes. No new dependency is required.
+
+## 2026-11-19 — Offline Nederlandse spelershandleiding
+
+- Eén Markdown-bron, `docs/HANDLEIDING_NL.md`, genereert een zelfstandige HTML-
+  handleiding met 25 hoofdstukken, zoeken, sectielinks en printopmaak.
+- Help opent de lokale HTML via de Windows-bestandsassociatie; geen netwerk,
+  telemetrie, nieuwe Rust-dependency of wijziging van parkdata.
+- Het pakket naast de executable krijgt voorrang boven de ontwikkelcheckout.
+  Een ontbrekend bestand geeft een zichtbare aanwijzing in Help.
+- `python scripts/build-player-manual.py --check` controleert hoofdstukken,
+  ankers en gegenereerde inhoud in CI. Python is alleen een bouwgereedschap;
+  spelers hebben geen Python nodig.
+
+## 2026-11-19 — individual settings by right-click
+
+- Use a short right-click release to open the existing owner-specific ride or service window. Preserve right-drag and middle-drag camera panning.
+- Use the same physical visibility picking as normal selection. Coaster rails and owned queues/gates resolve to their ride; unrelated terrain/scenery do not open a window.
+- Keep a four-logical-pixel drag threshold. Cancel gestures across focus, modal, camera or park-generation changes. Keep the gesture transient and retain save schema/content 52/52.
+
 ## 2026-11-19 — Organized menus and three-use park advice
 
 - Keep the established forest/cream/gold theme and main-menu text buttons. Give remaining panels labelled sections and distinct facility/management pictograms. Preserve text in editable fields, roster entries and design previews.

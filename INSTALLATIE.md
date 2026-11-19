@@ -1,10 +1,16 @@
 # Installation and development
 
-## Windows installer in 0.99.0
+## Windows installer in 0.99.3
 
-Run `Parkbound-0.99.0-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
+Run `Parkbound-0.99.3-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
 
-New display preferences start borderless fullscreen. F11 restores a decorated window, and `Parkbound.exe --safe-windowed` starts a temporary windowed session. Existing saved display choices remain supported. Version 0.99.0 adds no runtime dependencies. Saves use schema/content 52/52. The Tips allowance is stored with each park and its library metadata, so transfer the complete player-data folder to retain it when moving PCs. Supported older saves migrate automatically; older binaries cannot open new saves.
+New display preferences start borderless fullscreen. F11 restores a decorated window, and `Parkbound.exe --safe-windowed` starts a temporary windowed session. Existing saved display choices remain supported. Version 0.99.1 adds no runtime dependencies. Right-click object settings work with a standard mouse; right-drag and middle-drag remain camera controls. Saves use schema/content 52/52. The Tips allowance is stored with each park and its library metadata, so transfer the complete player-data folder to retain it when moving PCs. Supported older saves migrate automatically; older binaries cannot open new saves.
+
+The English player manual is in `docs/PLAYER_MANUAL.html` and opens from Help.
+Edit `docs/PLAYER_MANUAL.md`, then run `python scripts/build-player-manual.py`
+and its `--check` mode with Python 3.10+. No external Python packages are
+needed. Players only need their normal browser. The old HTML filename remains
+an English compatibility copy for bookmarks.
 
 Version 0.97.0 uses the existing runtime and build toolchain. Crowd PCM is embedded in the executable and its CC0 original and license are bundled in `assets/audio`. Python audio tools are only needed to regenerate that source asset. The owner disabled Google Drive synchronization. Respect `PROJECT.json` and `AGENTS.md` on a new PC before processing queued exports.
 
@@ -29,13 +35,23 @@ Version 0.91.0 includes **Play Sunhaven Gardens · 7 rides** on the title screen
 
 ## Resume development on another PC
 
+For the self-contained transfer folder (source, Git history, installer,
+documentation and player-data backup), start with
+`docs/TRANSFER_TO_ANOTHER_PC.md` or the folder's `START_HERE.md`.
+
 Clone the repository specified in `PROJECT.json`, then check out the branch and commit recorded in `STATUS.md` and `RESUME_DEVELOPMENT.md`. Install Git, Rust 1.93.1 and the Microsoft Visual C++ build tools with Windows SDK. Use the committed lockfile.
 
 The first source build downloads the locked dependencies from crates.io. The extracted Windows distribution supports offline play.
 
 Run `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings` and `cargo test --release --workspace --locked`. Build the Windows package with `scripts/package-windows.ps1`.
 
-For project registration on that PC, read the current Softwareprojecten standard prompt and local `ONBOARDING.md`, verify the existing GitHub and private Drive destinations, then use `node onboarding.mjs --project PATH --apply`. The helper installation lives in `%USERPROFILE%\.codex\softwareprojecten`. Review native hook trust on that PC. Automatic export is established only after its native Stop event, local export and accepted Drive readback receipt.
+The optional Codex project-helper setup is separate from installing or building
+the game. If it is installed on that PC, follow its local standard prompt and
+`ONBOARDING.md`, preserving this project's identity and GitHub remote. Google
+Drive synchronization is disabled; do not contact Drive or transfer exports
+there unless the owner explicitly re-enables it. Do not copy authentication,
+machine configuration or hook trust from the previous PC. No helper setup is
+required just to play Parkbound.
 
 The current shared OneDrive path is recorded in `RESUME_DEVELOPMENT.md`. Register the actual Git root on each PC rather than assuming an identical drive path.
 

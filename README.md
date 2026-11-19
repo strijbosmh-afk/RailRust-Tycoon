@@ -1,5 +1,21 @@
 # Parkbound
 
+Version **0.99.3** fixes the first-park guide stopping at step 2/7. **Next** now
+always advances, while separate practice feedback explains what remains to try.
+Tooltips follow the current step, and existing parks can use an existing ride
+for the access exercise.
+
+Read the [complete English player manual](docs/PLAYER_MANUAL.md), or open
+`docs/PLAYER_MANUAL.html` for search and a contents panel. In the game:
+**H/F1 → Player manual**. Its 25 chapters cover starting, construction,
+individual settings, every ride and facility, finance, staff, research,
+advertising, the campaign and scenario editor.
+
+Version **0.99.2** makes the complete manual, its navigation and all related
+Help messages English. Existing manual bookmarks still show the current guide.
+
+Version **0.99.1** opens individual ride and facility settings with a short **right-click**. Right-drag and middle-drag keep panning the map. The selected object is resolved from its visible surface, including coaster rails, gates and owned queues. See [individual settings](docs/OBJECT_SETTINGS.md).
+
 Version **0.99.0** organizes the remaining game menus into labelled sections, with distinct facility and management icons. A new **Tips** lightbulb beside Rides offers two suggestions based on your current park. Each park gets three uses, retained across saves, backups and restarts. The main menu keeps its text buttons. Read [the advice and menu guide](docs/PARK_TIPS.md).
 
 Version **0.98.1** groups Build tools into Paths, Landscape and Scenery, with colored pictograms and hover labels. The main menu, new-park dialogs and settings use their original text buttons. Park menus share a forest-green, cream and gold theme. New display preferences start in borderless fullscreen. **F11** restores windowed mode. See [menu and display behavior](docs/MENU_THEME.md).

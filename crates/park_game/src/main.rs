@@ -34,7 +34,9 @@ mod history_shortcuts;
 #[cfg(test)]
 mod input_tests;
 mod installation_guard;
+mod manual;
 mod measurement;
+mod object_settings;
 mod park_library;
 mod path_tools;
 mod persistence;
@@ -195,6 +197,7 @@ struct ViewState {
     price_notice: Option<String>,
     save_pending: Option<SaveAction>,
     save_notice: String,
+    manual_notice: String,
     successful_saves: u64,
     diagnostic_case: Option<park_sim::diagnostics::DiagnosticCase>,
     camera_span: f32,
@@ -319,6 +322,7 @@ impl Default for ViewState {
             save_pending: None,
             successful_saves: 0,
             save_notice: "F5 save / F9 load\nShift+F9 loads backup".into(),
+            manual_notice: "Step-by-step instructions, search and contents. Works offline.".into(),
             diagnostic_case: None,
             camera_span: 1.0,
             pan_limit: Vec2::splat(1800.0),
@@ -1849,9 +1853,10 @@ fn pointer_input(
     buttons: Res<ButtonInput<MouseButton>>,
     mut wheel: MessageReader<MouseWheel>,
     mut view: ResMut<ViewState>,
-    mut previous_cursor: Local<Option<Vec2>>,
+    mut pointer: Local<(Option<Vec2>, object_settings::RightClick)>,
     ui_scale: Option<Res<UiScale>>,
 ) {
+    let (previous_cursor, right_click) = &mut *pointer;
     let scroll: f32 = wheel
         .read()
         .map(|event| match event.unit {
@@ -1860,11 +1865,14 @@ fn pointer_input(
         })
         .sum();
     if view.accessibility_open || view.capture_active || view.front_modal {
+        right_click.reset();
+        view.dragging = false;
         view.hovered = None;
         *previous_cursor = None;
         return;
     }
     if consume_front_pointer_release(&mut view, &buttons) {
+        right_click.reset();
         view.hovered = None;
         view.path_tool.clear_pointer();
         view.track_editor.preview = None;
@@ -1873,6 +1881,7 @@ fn pointer_input(
         return;
     }
     let Ok(window) = windows.single() else {
+        right_click.reset();
         view.hovered = None;
         view.path_tool.clear_pointer();
         view.track_editor.preview = None;
@@ -1881,6 +1890,7 @@ fn pointer_input(
         return;
     };
     if !window.focused {
+        right_click.reset();
         view.dragging = false;
         view.hovered = None;
         view.path_tool.clear_pointer();
@@ -1889,6 +1899,7 @@ fn pointer_input(
         return;
     }
     let Some(cursor) = window.cursor_position() else {
+        right_click.reset();
         view.hovered = None;
         view.path_tool.clear_pointer();
         view.track_editor.preview = None;
@@ -1907,6 +1918,7 @@ fn pointer_input(
         buttons.just_pressed(MouseButton::Left),
         buttons.pressed(MouseButton::Right) || buttons.pressed(MouseButton::Middle),
     ) {
+        right_click.reset();
         return;
     }
     let interface_scale = ui_scale.as_ref().map_or(1.0, |scale| scale.0);
@@ -1928,10 +1940,24 @@ fn pointer_input(
     );
     let starting_drag = over_map
         && (buttons.just_pressed(MouseButton::Right) || buttons.just_pressed(MouseButton::Middle));
+    if buttons.just_pressed(MouseButton::Right) {
+        right_click.reset();
+    }
+    right_click.track(cursor);
+    let conflicting_pointer =
+        buttons.pressed(MouseButton::Left) || buttons.pressed(MouseButton::Middle);
+    if !over_map || view.edits_blocked() || conflicting_pointer || scroll != 0.0 {
+        right_click.cancel();
+    }
     if starting_drag {
         view.dragging = true;
     }
     if view.help
+        || view.navigation_open
+        || view.catalogue_open
+        || view.workshop_open
+        || view.management_open
+        || view.park_life_open
         || view.guests_open
         || view.services_open
         || view.finance_open
@@ -1942,7 +1968,10 @@ fn pointer_input(
     {
         view.dragging = false;
     }
-    if view.dragging && !starting_drag {
+    if view.dragging
+        && !starting_drag
+        && (buttons.pressed(MouseButton::Middle) || right_click.dragged())
+    {
         let (scale, _) = camera_layout_scaled(window, &view, &sim.0, interface_scale);
         view.pan += Vec2::new(-movement.x, movement.y) * scale;
         view.pan = view.pan.clamp(-view.pan_limit, view.pan_limit);
@@ -1963,9 +1992,20 @@ fn pointer_input(
     };
     view.hovered =
         point.and_then(|point| world::pick_surface(point, &sim.0, view.rotation, view.view_mode));
+    if buttons.just_pressed(MouseButton::Right) && over_map {
+        right_click.begin(cursor, view.hovered, &view);
+        if view.edits_blocked() || conflicting_pointer || scroll != 0.0 {
+            right_click.cancel();
+        }
+    }
+    if buttons.just_released(MouseButton::Right) && right_click.finish(&sim.0, &mut view) {
+        *previous_cursor = None;
+        return;
+    }
     let panning = view.dragging
         || buttons.pressed(MouseButton::Right)
-        || buttons.pressed(MouseButton::Middle);
+        || buttons.pressed(MouseButton::Middle)
+        || buttons.just_released(MouseButton::Right);
     if view.park_life_pick.is_some() && point.is_some() && !panning && !view.edits_blocked() {
         if buttons.just_pressed(MouseButton::Left) {
             ui::park_life::pick(&mut sim.0, &mut view);

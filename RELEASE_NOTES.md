@@ -1,5 +1,34 @@
 # Parkbound release notes
 
+## 0.99.3 — first-park guide navigation
+
+- Next always advances through all seven steps; unmet practice tasks no longer silently block the button.
+- Show explicit practice status and current-step tooltips, with Back and Finish navigation.
+- Recognise connected new path IDs instead of only checking the net path count.
+- Let the access exercise inspect a selected or existing ride in an already built park.
+- Keep guide navigation read-only for park data and retain save schema/content 52/52.
+
+## 0.99.2 — English player manual and interaction acceptance
+
+- Translate the complete 25-chapter manual, navigation, search messages and Help entry into English.
+- Open `docs/PLAYER_MANUAL.html` from Help. Existing `HANDLEIDING_NL.html` bookmarks also display the English guide.
+- Use Windows file associations to open the manual; the earlier Explorer command could open Documents instead. Display an error when Windows refuses the request.
+- Retain the established right-click settings gesture and save schema/content 52/52.
+- Record native Windows interaction checks and GitHub CI results in the resume guide and session report.
+
+## 0.99.1 — right-click object settings
+
+- Right-click a ride, its track, gates or owned queue to open that ride’s settings.
+- Right-click a service building to open its individual price and operating controls.
+- Preserve right/middle drag panning and ignore clicks through foreground terrain or UI.
+- Cancel pending clicks on camera, park-load and focus changes. Opening settings does not change the park or consume Tips.
+- No new dependencies or save-format changes.
+
+Dezelfde versie bevat een Nederlandstalige spelershandleiding met 25
+hoofdstukken, zoekfunctie, hoofdstuklinks en afdrukweergave. Open haar via
+Help of `docs/HANDLEIDING_NL.html`. De Markdown-bron wordt met een
+dependencyvrije generator omgezet; CI controleert links en actualiteit.
+
 ## 0.99.0 — organized menus and park advice
 
 - Labelled inset sections and distinct icons across the remaining park menus.

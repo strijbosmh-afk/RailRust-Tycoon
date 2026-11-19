@@ -4,7 +4,7 @@ Version 0.89.0 continues the Windows game with original sound and player assista
 
 ## Start and learn
 
-New parks open a seven-step first-park guide. Follow the camera introduction, extend a public path, place a Carousel, connect its entrance queue and exit, welcome a visitor, save, and return through the park library. Each construction step observes your actual park. Next becomes available when its action succeeds. Skip guide ends it immediately. Help → First park guide starts it again in the current park.
+New parks open a seven-step first-park guide. Follow the camera introduction, extend a public path, place a Carousel, connect its entrance queue and exit, welcome a visitor, save, and return through the park library. From version 0.99.3, Next always advances: practice is optional and its live status is displayed separately. The path exercise recognises a new connected public tile, even when another tile has been removed. In an existing park, the access tool can inspect an existing ride. Skip guide ends it immediately. Help → First park guide starts it again in the current park.
 
 The guide opens the existing construction and management controls. A queue joins the ride entrance to one public path endpoint. The exit needs its own public connection. Use Rides → Access for the missing connection reason and suggested build locations. For coasters, use the preview’s next height, choose an ascent or descent, complete the circuit and run its test before opening. The Help page also explains terrain edges, facilities and staff.
 

@@ -1,22 +1,27 @@
 //! A replayable guide that observes the actual park and opens existing tools.
+use std::collections::BTreeSet;
+
 use crate::{Simulation, ViewState, accessibility::Preferences};
 use bevy::prelude::*;
-use park_sim::{RideAccessStatus, RideModel, Speed};
+use park_sim::{ObjectId, Park, RideAccessStatus, RideId, RideModel, Speed};
 
 #[derive(Resource, Default)]
 pub(crate) struct Guide {
     active: bool,
     step: usize,
     generation: u64,
-    baseline_paths: usize,
+    baseline_paths: BTreeSet<ObjectId>,
     baseline_rides: Vec<park_sim::RideId>,
     saved_revision: u64,
 }
 #[derive(Component)]
 struct Panel;
 #[derive(Component)]
-struct GuideText;
-#[derive(Component, Clone, Copy)]
+enum GuideText {
+    Body,
+    Button(Control),
+}
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
 enum Control {
     Tool,
     Next,
@@ -42,7 +47,7 @@ const STEPS: [(&str, &str, &str); 7] = [
     (
         "Connect its entrance and exit",
         "In Rides, choose your new ride and open Access. Build an entrance and a queue that ends at one public path. Connect an exit to a public path. Resolve the displayed reason if access is incomplete.",
-        "Open ride access",
+        "Ride access",
     ),
     (
         "Welcome your guests",
@@ -93,7 +98,7 @@ fn setup(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                GuideText,
+                GuideText::Body,
                 Text::new(""),
                 TextFont {
                     font_size: 14.0,
@@ -118,7 +123,17 @@ fn setup(mut commands: Commands) {
                         },
                         BackgroundColor(crate::ui::BUTTON),
                     ))
-                    .with_children(|p| crate::ui::label(p, name, 12.0, crate::ui::INK));
+                    .with_children(|p| {
+                        p.spawn((
+                            GuideText::Button(control),
+                            Text::new(name),
+                            TextFont {
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor(crate::ui::INK),
+                        ));
+                    });
                 }
             });
         });
@@ -130,7 +145,7 @@ fn update(
     mut view: ResMut<ViewState>,
     buttons: Query<(&Interaction, &Control), Changed<Interaction>>,
     mut panels: Query<&mut Node, With<Panel>>,
-    mut labels: Query<&mut Text, With<GuideText>>,
+    mut labels: Query<(&GuideText, &mut Text)>,
 ) {
     if std::mem::take(&mut view.tutorial_requested) {
         *guide = Guide {
@@ -141,7 +156,8 @@ fn update(
                 .objects()
                 .iter()
                 .filter(|o| o.is_public_path())
-                .count(),
+                .map(|o| o.id)
+                .collect(),
             baseline_rides: sim.0.all_rides().map(|r| r.id).collect(),
             saved_revision: view.successful_saves,
             ..default()
@@ -175,51 +191,34 @@ fn update(
     if !visible {
         return;
     }
-    let new_ride = sim
-        .0
-        .all_rides()
-        .find(|r| !guide.baseline_rides.contains(&r.id))
-        .map(|r| r.id);
-    let complete = match guide.step {
-        1 => {
-            sim.0
-                .objects()
-                .iter()
-                .filter(|o| o.is_public_path())
-                .count()
-                > guide.baseline_paths
-        }
-        2 => new_ride.is_some(),
-        3 => new_ride.is_some_and(|id| {
-            sim.0.ride_access(id).status == RideAccessStatus::Ready
-                && sim.0.ride_opening_status(id).is_ok()
-        }),
-        4 => sim
-            .0
-            .all_rides()
-            .any(|r| Some(r.id) == new_ride && r.completed > 0),
-        5 => view.successful_saves != guide.saved_revision,
-        _ => true,
-    };
+    let complete = practice_complete(&guide, &sim.0, &view);
     let (title, copy, tool) = STEPS[guide.step];
-    for mut label in &mut labels {
-        label.0 = format!(
-            "{} / {} · {}\n{}\n{} · {}\nPaths [{}]  Queues [{}]  Rides [{}]  Save [{}]",
-            guide.step + 1,
-            STEPS.len(),
-            title,
-            copy,
-            tool,
-            if complete {
-                "Ready to continue"
-            } else {
-                "Try this in your park, then Next"
-            },
-            prefs.value.shortcut(4),
-            prefs.value.shortcut(5),
-            prefs.value.shortcut(13),
-            prefs.value.shortcut(15)
-        );
+    for (kind, mut label) in &mut labels {
+        label.0 = match kind {
+            GuideText::Button(Control::Tool) => tool.into(),
+            GuideText::Button(Control::Next) if guide.step == STEPS.len() - 1 => {
+                "Next - finish guide".into()
+            }
+            GuideText::Button(Control::Next) => "Next step - practice is optional".into(),
+            GuideText::Button(Control::Back) => "Previous step".into(),
+            GuideText::Button(Control::Skip) => "Close guide - replay from Help".into(),
+            GuideText::Body => format!(
+                "{} / {} · {}\n{}\nPractice: {}\nNext always continues; you can practise now or return later.\nPaths [{}]  Queues [{}]  Rides [{}]  Save [{}]",
+                guide.step + 1,
+                STEPS.len(),
+                title,
+                copy,
+                if complete {
+                    "Complete"
+                } else {
+                    practice_hint(guide.step)
+                },
+                prefs.value.shortcut(4),
+                prefs.value.shortcut(5),
+                prefs.value.shortcut(13),
+                prefs.value.shortcut(15)
+            ),
+        };
     }
     for (interaction, control) in &buttons {
         if *interaction != Interaction::Pressed {
@@ -228,14 +227,13 @@ fn update(
         view.ui_pointer_consumed = true;
         match control {
             Control::Skip => guide.active = false,
-            Control::Next if complete => {
+            Control::Next => {
                 guide.step += 1;
                 if guide.step == STEPS.len() {
                     guide.active = false;
                     guide.step = 0;
                 }
             }
-            Control::Next => {}
             Control::Back => guide.step = guide.step.saturating_sub(1),
             Control::Tool => match guide.step {
                 0 => view.reset_camera(),
@@ -246,10 +244,10 @@ fn update(
                     view.set_path_tool(crate::path_tools::PathTool::Carousel);
                 }
                 3 => {
+                    let ride = practice_ride(&guide, &sim.0, &view);
                     view.set_rides_modal(true);
                     view.ride_tab = crate::ui::rides::RideTab::Access;
-                    view.selected_ride =
-                        new_ride.or_else(|| sim.0.all_rides().next().map(|r| r.id));
+                    view.selected_ride = ride;
                 }
                 4 => {
                     view.set_modal(false, true, false, false);
@@ -261,6 +259,55 @@ fn update(
             },
         }
         break;
+    }
+}
+
+fn practice_ride(guide: &Guide, park: &Park, view: &ViewState) -> Option<RideId> {
+    park.all_rides()
+        .find(|ride| !guide.baseline_rides.contains(&ride.id))
+        .map(|ride| ride.id)
+        .or_else(|| {
+            view.selected_ride
+                .filter(|id| park.ride_by_id(*id).is_some())
+        })
+        .or_else(|| {
+            park.all_rides()
+                .find(|ride| park.ride_model(ride.id) == Some(RideModel::Carousel))
+                .map(|ride| ride.id)
+        })
+        .or_else(|| park.all_rides().next().map(|ride| ride.id))
+}
+
+fn practice_complete(guide: &Guide, park: &Park, view: &ViewState) -> bool {
+    match guide.step {
+        1 => park.objects().iter().any(|path| {
+            path.is_public_path()
+                && !guide.baseline_paths.contains(&path.id)
+                && !park.path_neighbors(path.id).is_empty()
+        }),
+        2 => park
+            .all_rides()
+            .any(|ride| !guide.baseline_rides.contains(&ride.id)),
+        3 => practice_ride(guide, park, view).is_some_and(|id| {
+            park.ride_access(id).status == RideAccessStatus::Ready
+                && park.ride_opening_status(id).is_ok()
+        }),
+        4 => practice_ride(guide, park, view)
+            .and_then(|id| park.ride_by_id(id))
+            .is_some_and(|ride| ride.completed > 0),
+        5 => view.successful_saves != guide.saved_revision,
+        _ => true,
+    }
+}
+
+fn practice_hint(step: usize) -> &'static str {
+    match step {
+        1 => "Add a NEW public path tile connected to another public path.",
+        2 => "Build a new Carousel, or continue to inspect an existing ride.",
+        3 => "Connect a ride's entrance, queue and public exit route.",
+        4 => "Let a guest complete a trip on the selected ride.",
+        5 => "Save successfully using the Save button or your shortcut.",
+        _ => "Explore at your own pace.",
     }
 }
 
@@ -289,8 +336,16 @@ fn block_pointer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn completed(app: &App) -> bool {
+        practice_complete(
+            app.world().resource::<Guide>(),
+            &app.world().resource::<Simulation>().0,
+            app.world().resource::<ViewState>(),
+        )
+    }
+
     #[test]
-    fn guide_requires_new_construction_paid_visits_and_a_successful_save() {
+    fn optional_practice_observes_construction_visits_and_successful_saves() {
         use park_sim::{Park, PathDirection, PathSlope, TerrainProfile, TilePos};
         let mut park = Park::new(32, 32);
         park.apply_terrain_profile(TerrainProfile::Flat);
@@ -316,26 +371,27 @@ mod tests {
         }
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 1);
-        next(&mut app, button);
-        assert_eq!(app.world().resource::<Guide>().step, 1);
+        assert!(!completed(&app));
         {
             let mut sim = app.world_mut().resource_mut::<Simulation>();
             for x in 2..=10 {
                 sim.0.place_path(TilePos { x, y: 4 }, 0).unwrap();
             }
         }
+        assert!(completed(&app));
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 2);
+        assert!(!completed(&app));
         let id = app
             .world_mut()
             .resource_mut::<Simulation>()
             .0
             .build_catalogue_ride(RideModel::Carousel, TilePos { x: 5, y: 7 }, 0, 0)
             .unwrap();
+        assert!(completed(&app));
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 3);
-        next(&mut app, button);
-        assert_eq!(app.world().resource::<Guide>().step, 3);
+        assert!(!completed(&app));
         {
             let mut sim = app.world_mut().resource_mut::<Simulation>();
             sim.0
@@ -360,6 +416,7 @@ mod tests {
             sim.0.set_ride_ticket_price(id, 100).unwrap();
             sim.0.set_ride_open_checked(id, true).unwrap();
         }
+        assert!(completed(&app));
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 4);
         {
@@ -372,11 +429,12 @@ mod tests {
             }
             assert!(sim.0.ride_by_id(id).unwrap().completed > 0);
         }
+        assert!(completed(&app));
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 5);
-        next(&mut app, button);
-        assert_eq!(app.world().resource::<Guide>().step, 5);
+        assert!(!completed(&app));
         app.world_mut().resource_mut::<ViewState>().successful_saves += 1;
+        assert!(completed(&app));
         next(&mut app, button);
         assert_eq!(app.world().resource::<Guide>().step, 6);
         next(&mut app, button);
@@ -430,5 +488,162 @@ mod tests {
             .tutorial_requested = true;
         app.update();
         assert_eq!(app.world().resource::<Guide>().step, 0);
+    }
+
+    fn guide_app(park: Park) -> App {
+        let mut app = App::new();
+        app.insert_resource(Preferences::load(None))
+            .insert_resource(Guide::default())
+            .insert_resource(Simulation(park))
+            .insert_resource(ViewState {
+                tutorial_requested: true,
+                ..default()
+            })
+            .add_systems(Startup, setup)
+            .add_systems(Update, update);
+        app.update();
+        app
+    }
+
+    fn button(app: &mut App, wanted: Control) -> Entity {
+        app.world_mut()
+            .query::<(Entity, &Control)>()
+            .iter(app.world())
+            .find(|(_, control)| **control == wanted)
+            .map(|(entity, _)| entity)
+            .unwrap()
+    }
+
+    fn click(app: &mut App, entity: Entity) {
+        app.world_mut().entity_mut(entity).insert(Interaction::None);
+        app.update();
+        app.world_mut()
+            .entity_mut(entity)
+            .insert(Interaction::Pressed);
+        app.update();
+    }
+
+    #[test]
+    fn next_can_browse_all_seven_steps_without_building_or_spending() {
+        for park in [
+            crate::new_game_park(),
+            park_sim::demo_park::build_demo_park().unwrap(),
+        ] {
+            let mut app = guide_app(park);
+            let before = app
+                .world()
+                .resource::<Simulation>()
+                .0
+                .to_save_bytes()
+                .unwrap();
+            let next = button(&mut app, Control::Next);
+            for step in 0..STEPS.len() {
+                assert!(app.world().resource::<Guide>().active);
+                assert_eq!(app.world().resource::<Guide>().step, step);
+                click(&mut app, next);
+                // A held button is a single interaction, not repeated navigation.
+                app.update();
+                if step + 1 < STEPS.len() {
+                    assert_eq!(app.world().resource::<Guide>().step, step + 1);
+                }
+            }
+            assert!(!app.world().resource::<Guide>().active);
+            assert_eq!(
+                app.world()
+                    .resource::<Simulation>()
+                    .0
+                    .to_save_bytes()
+                    .unwrap(),
+                before
+            );
+            assert!(
+                app.world_mut()
+                    .query_filtered::<&Node, With<Panel>>()
+                    .iter(app.world())
+                    .all(|node| node.display == Display::None)
+            );
+        }
+    }
+
+    #[test]
+    fn path_practice_uses_new_connected_ids_not_a_net_count() {
+        use park_sim::{TerrainProfile, TilePos};
+        let mut park = Park::new(32, 32);
+        park.apply_terrain_profile(TerrainProfile::Flat);
+        let old = park.place_path(TilePos { x: 2, y: 4 }, 0).unwrap();
+        park.place_path(TilePos { x: 3, y: 4 }, 0).unwrap();
+        let mut app = guide_app(park);
+        app.world_mut().resource_mut::<Guide>().step = 1;
+        assert!(!completed(&app));
+        let isolated = app
+            .world_mut()
+            .resource_mut::<Simulation>()
+            .0
+            .place_path(TilePos { x: 12, y: 12 }, 0)
+            .unwrap();
+        assert!(!completed(&app));
+        {
+            let mut sim = app.world_mut().resource_mut::<Simulation>();
+            sim.0.remove_object(isolated).unwrap();
+            sim.0.remove_object(old).unwrap();
+            sim.0.place_path(TilePos { x: 4, y: 4 }, 0).unwrap();
+        }
+        assert_eq!(app.world().resource::<Simulation>().0.objects().len(), 2);
+        assert!(completed(&app));
+    }
+
+    #[test]
+    fn demo_access_can_use_an_existing_ride_and_labels_explain_navigation() {
+        let mut app = guide_app(park_sim::demo_park::build_demo_park().unwrap());
+        app.world_mut().resource_mut::<Guide>().step = 1;
+        app.update();
+        let body = app
+            .world_mut()
+            .query::<(&GuideText, &Text)>()
+            .iter(app.world())
+            .find(|(kind, _)| matches!(kind, GuideText::Body))
+            .unwrap()
+            .1
+            .0
+            .clone();
+        assert!(body.contains("NEW public path tile"));
+        assert!(body.contains("Next always continues"));
+        app.world_mut().resource_mut::<Guide>().step = 3;
+        let tool = button(&mut app, Control::Tool);
+        let before = app
+            .world()
+            .resource::<Simulation>()
+            .0
+            .to_save_bytes()
+            .unwrap();
+        click(&mut app, tool);
+        let view = app.world().resource::<ViewState>();
+        assert!(view.rides_open);
+        assert_eq!(view.ride_tab, crate::ui::rides::RideTab::Access);
+        let ride = view.selected_ride.unwrap();
+        assert_eq!(
+            app.world().resource::<Simulation>().0.ride_model(ride),
+            Some(RideModel::Carousel)
+        );
+        assert_eq!(
+            app.world()
+                .resource::<Simulation>()
+                .0
+                .to_save_bytes()
+                .unwrap(),
+            before
+        );
+    }
+
+    #[test]
+    fn foreground_panels_block_guide_navigation() {
+        let mut app = guide_app(crate::new_game_park());
+        let next = button(&mut app, Control::Next);
+        app.world_mut().resource_mut::<ViewState>().help = true;
+        click(&mut app, next);
+        assert_eq!(app.world().resource::<Guide>().step, 0);
+        app.world_mut().resource_mut::<ViewState>().help = false;
+        click(&mut app, next);
+        assert_eq!(app.world().resource::<Guide>().step, 1);
     }
 }
