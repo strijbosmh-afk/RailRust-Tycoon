@@ -194,6 +194,9 @@ struct Navigation {
     outlined: Option<Entity>,
     modal: Vec<bool>,
 }
+
+#[derive(SystemSet, Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub(crate) struct AccessibilityStyle;
 #[derive(Component)]
 struct OriginalText {
     base: Color,
@@ -231,7 +234,9 @@ pub(crate) fn configure(app: &mut App, args: &[OsString]) {
         )
         .add_systems(
             PostUpdate,
-            (restore, style).chain().after(bevy::ui::UiSystems::Layout),
+            (restore, style.in_set(AccessibilityStyle))
+                .chain()
+                .after(bevy::ui::UiSystems::Layout),
         );
 }
 fn setup(mut commands: Commands) {

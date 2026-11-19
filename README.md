@@ -1,5 +1,7 @@
 # Parkbound
 
+Version **0.98.0** gives park menus a shared forest-green, cream and gold theme. The menu button uses a scalable icon with a hover/focus label. New display preferences start in borderless fullscreen. **F11** restores windowed mode. See [menu and display behavior](docs/MENU_THEME.md).
+
 Version **0.97.0** adds three arranged original soundtracks, attraction-specific sound that follows camera zoom, water and lift chains, and recorded cheering visitors. **F10** controls the mix. Google Drive synchronization is disabled at the owner's request. See [the audio guide](docs/AUDIO_OVERHAUL.md).
 
 Version **0.96.1** adds the approved red-and-gold coaster icon to the Windows executable, game window, taskbar, shortcuts and installer. The original transparent artwork and seven-size ICO are included. See [the icon guide](docs/GAME_ICON.md).

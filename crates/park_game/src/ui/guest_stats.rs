@@ -187,7 +187,7 @@ fn stat_row(p: &mut ChildSpawnerCommands, kind: StatBar, color: Color) {
                 height: px(13),
                 ..default()
             },
-            BackgroundColor(Color::srgb_u8(217, 225, 210)),
+            BackgroundColor(crate::ui::theme::INSET),
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
@@ -232,15 +232,15 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                     row_gap: px(7),
                     ..default()
                 },
-                BackgroundColor(Color::srgb_u8(232, 238, 224)),
+                BackgroundColor(crate::ui::theme::INSET),
                 BorderRadius::all(px(6)),
             ))
             .with_children(|p| {
                 label(p, "SATISFACTION", 12.0, INK);
                 for (index, color) in [
-                    Color::srgb_u8(196, 75, 61),
-                    Color::srgb_u8(215, 153, 52),
-                    Color::srgb_u8(70, 148, 108),
+                    crate::ui::theme::DANGER,
+                    crate::ui::theme::WARNING,
+                    crate::ui::theme::SUCCESS,
                 ]
                 .into_iter()
                 .enumerate()
@@ -257,13 +257,13 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                     row_gap: px(7),
                     ..default()
                 },
-                BackgroundColor(Color::srgb_u8(232, 238, 224)),
+                BackgroundColor(crate::ui::theme::INSET),
                 BorderRadius::all(px(6)),
             ))
             .with_children(|p| {
                 label(p, "URGENT NEEDS", 12.0, INK);
                 for index in 0..5 {
-                    stat_row(p, StatBar::Need(index), Color::srgb_u8(196, 75, 61));
+                    stat_row(p, StatBar::Need(index), crate::ui::theme::DANGER);
                 }
                 label(p, "70+ urgency; energy 30 or less", 10.0, MUTED);
             });
@@ -329,7 +329,7 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                 row_gap: px(5),
                 ..default()
             },
-            BackgroundColor(Color::srgb_u8(232, 238, 224)),
+            BackgroundColor(crate::ui::theme::INSET),
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
@@ -351,11 +351,8 @@ pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
                     })
                     .with_children(|p| {
                         for (kind, color) in [
-                            (
-                                StatBar::TrendSatisfaction(index),
-                                Color::srgb_u8(70, 148, 108),
-                            ),
-                            (StatBar::TrendUrgent(index), Color::srgb_u8(196, 75, 61)),
+                            (StatBar::TrendSatisfaction(index), crate::ui::theme::SUCCESS),
+                            (StatBar::TrendUrgent(index), crate::ui::theme::DANGER),
                         ] {
                             p.spawn((
                                 kind,

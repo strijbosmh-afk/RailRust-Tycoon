@@ -1,5 +1,11 @@
 # Project status
 
+## Current work — Menu theme and borderless startup, 0.98.0
+
+Branch `codex/themed-menus-borderless` starts at `4933b0ec75fa33c4d62c1a251a2803fb61674213`. Forest-green menu panels, cream text, gold accents and an icon-only park-menu button with a hover/focus label are implemented. New display settings start in borderless fullscreen. Verification is in progress. See `docs/MENU_THEME.md` and the current session report.
+
+The shared Git root remains `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Google Drive synchronization is disabled. The cached standard prompt is 2.1.0. Saves remain 51/51 and display settings remain version 1.
+
 ## Current work — Soundtrack and spatial audio, 0.97.0
 
 Branch `codex/soundtrack-and-spatial-audio` starts at `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Runtime `44c25003d7bb7172175ec85f385c2c2394c9e56c` is published in PR 90. Three arranged original tracks, zoom-aware ride sound and recorded visitor cheering are complete. All 1,045 tests, strict Clippy, formatting, eleven independent WAV re-renders, Windows audio output and extracted-package demo/front/audio continuation passed. See `docs/AUDIO_OVERHAUL.md` and `docs/sessions/2026-11-18-soundtrack.md`.

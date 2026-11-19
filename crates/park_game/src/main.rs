@@ -710,6 +710,8 @@ fn main() -> AppExit {
     } else {
         campaign::Campaign::load(save_session.store.clone())
     };
+    let startup_mode = display_settings.window_mode();
+    let decorated = startup_mode == bevy::window::WindowMode::Windowed;
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::srgb_u8(227, 235, 225)))
         .insert_resource(Time::<Fixed>::from_hz(TICKS_PER_SECOND as f64))
@@ -730,6 +732,8 @@ fn main() -> AppExit {
             primary_window: Some(Window {
                 title: "Parkbound - Meadow Lake".into(),
                 resolution: WindowResolution::new(1280, 800),
+                mode: startup_mode,
+                decorations: decorated,
                 resize_constraints: bevy::window::WindowResizeConstraints {
                     min_width: 1024.0,
                     min_height: 680.0,
@@ -859,6 +863,8 @@ fn main() -> AppExit {
         app.insert_resource(scene);
     }
     app_icon::configure(&mut app);
+    ui::theme::configure(&mut app);
+    ui::menu_icon::configure(&mut app);
     accessibility::configure(&mut app, &arguments);
     onboarding::configure(&mut app);
     capture::configure(&mut app);

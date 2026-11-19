@@ -1,4 +1,12 @@
-# Parkbound 0.97.0 soundtrack and spatial audio
+# Parkbound 0.98.0 menu theme and borderless startup
+
+Park menus use forest-green panels, cream lettering and gold accents, with
+matching hover, selected and disabled states. The top-right park-menu button
+has a scalable icon and a text label on hover or keyboard focus. New display
+preferences start borderless fullscreen. F11 and safe-windowed recovery remain
+available. Existing display choices and park saves remain compatible.
+
+## Parkbound 0.97.0 soundtrack and spatial audio
 
 Three original instrumental tracks have fuller arrangements, rhythmic and
 melodic variations and crossfaded transitions. Zooming toward rides brings

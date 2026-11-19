@@ -1,5 +1,12 @@
 # Project decisions
 
+## 2026-11-19 — Menu theme and fullscreen
+
+- Use shared forest, cream and gold colors throughout the menu system. Retain readable button text when the background changes to gold.
+- Interpret the requested menu icon as the top-right park-menu control. Draw three scalable bars and show its label on hover and keyboard focus.
+- Create new windows borderless by default. Honor explicit saved display choices and retain decorated-window recovery through F11 and safe-windowed launch.
+- Preserve display settings version 1 and park saves 51/51. Keep Google Drive disabled.
+
 ## 2026-11-18 — Soundtrack, spatial sound and Drive synchronization
 
 - Disable Google Drive synchronization for Parkbound at the owner's request. Retain local exports and existing destination IDs. Keep the project flag in Git so another PC can respect the choice.

@@ -307,6 +307,20 @@
       "variants": [
         "mono-pcm"
       ]
+    },
+    {
+      "id": "ui.park-theme",
+      "type": "procedural",
+      "source": "crates/park_game/src/ui/theme.rs",
+      "rights": "Parkbound original",
+      "variants": ["forest-panels", "gold-actions", "button-contrast"]
+    },
+    {
+      "id": "ui.menu-icon",
+      "type": "procedural",
+      "source": "crates/park_game/src/ui/menu_icon.rs",
+      "rights": "Parkbound original",
+      "variants": ["scalable-bars", "hover-label", "keyboard-label"]
     }
   ]
 }

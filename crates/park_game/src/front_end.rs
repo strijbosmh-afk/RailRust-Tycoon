@@ -1147,10 +1147,10 @@ fn spawn_overlay(
         spawn_welcome(commands, front, art);
         return;
     }
-    let gold = Color::srgb_u8(255, 207, 71);
-    let cream = Color::srgb_u8(255, 249, 219);
+    let gold = crate::ui::theme::ACCENT;
+    let cream = crate::ui::theme::TEXT;
     let ink = Color::srgb_u8(20, 61, 45);
-    let panel = Color::srgb_u8(34, 104, 66);
+    let panel = crate::ui::theme::PANEL;
     commands.spawn((Overlay, GlobalZIndex(30), Node { position_type: PositionType::Absolute,
         width: percent(100), height: percent(100), justify_content: JustifyContent::Center,
         align_items: AlignItems::Center, ..default() }, BackgroundColor(Color::srgba(0.03,0.11,0.08,0.94))))
@@ -1405,18 +1405,21 @@ fn button(parent: &mut ChildSpawnerCommands, value: &str, action: Action) {
         .spawn((
             Button,
             action,
+            crate::ui::theme::StandardButton,
             Node {
                 width: percent(100),
                 height: px(30),
                 flex_shrink: 0.0,
                 padding: UiRect::horizontal(px(11)),
+                border: UiRect::all(px(1)),
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(Color::srgb_u8(244, 209, 91)),
+            BackgroundColor(crate::ui::theme::BUTTON),
+            BorderColor::all(crate::ui::theme::BORDER),
             BorderRadius::all(px(6)),
         ))
-        .with_children(|p| title(p, value, 16.0, Color::srgb_u8(27, 59, 44)));
+        .with_children(|p| title(p, value, 16.0, crate::ui::theme::TEXT));
 }
 fn action_name(action: Action) -> &'static str {
     match action {

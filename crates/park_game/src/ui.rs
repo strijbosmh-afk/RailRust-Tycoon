@@ -21,6 +21,7 @@ pub(crate) mod guest_stats;
 pub(super) mod guests;
 pub(crate) mod layout;
 pub(crate) mod management;
+pub(crate) mod menu_icon;
 pub(crate) mod names;
 pub(crate) mod navigation;
 pub(crate) mod park_life;
@@ -28,6 +29,7 @@ pub(crate) mod rides;
 pub(crate) mod scenario_workshop;
 pub(crate) mod scenarios;
 pub(crate) mod services;
+pub(crate) mod theme;
 pub(super) mod track;
 pub(crate) mod visitor_flow;
 pub(super) use economy::money;
@@ -91,12 +93,12 @@ pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
 #[cfg(test)]
 pub(super) const PATH_PANEL_HEIGHT: f32 = 358.0;
 
-pub(crate) const INK: Color = Color::srgb_u8(24, 63, 48);
-pub(crate) const MUTED: Color = Color::srgb_u8(92, 110, 84);
-pub(crate) const PAPER: Color = Color::srgb_u8(252, 244, 222);
-const BORDER: Color = Color::srgb_u8(193, 174, 123);
-const GOLD: Color = Color::srgb_u8(239, 192, 76);
-pub(crate) const BUTTON: Color = Color::srgb_u8(240, 231, 201);
+pub(crate) const INK: Color = theme::TEXT;
+pub(crate) const MUTED: Color = theme::MUTED;
+pub(crate) const PAPER: Color = theme::PANEL;
+const BORDER: Color = theme::BORDER;
+const GOLD: Color = theme::ACCENT;
+pub(crate) const BUTTON: Color = theme::BUTTON;
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
@@ -321,7 +323,7 @@ pub(super) fn setup(mut commands: Commands) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(INK),
+            BackgroundColor(theme::HEADER),
         ))
         .with_children(|p| {
             p.spawn(Node {
@@ -331,7 +333,7 @@ pub(super) fn setup(mut commands: Commands) {
             })
             .with_children(|p| {
                 p.spawn(row()).with_children(|p| {
-                    label(p, "PARKBOUND", 25.0, PAPER);
+                    label(p, "PARKBOUND", 25.0, GOLD);
                     p.spawn((
                         Button,
                         Action::Finance,
@@ -372,13 +374,13 @@ pub(super) fn setup(mut commands: Commands) {
                 );
             });
             p.spawn(row()).with_children(|p| {
-                dynamic_label(p, "00:00  /  1x", 13.0, PAPER, Label::Clock);
+                dynamic_label(p, "00:00  /  1x", 13.0, INK, Label::Clock);
                 button(p, "Pause", Action::Pause, 70.0);
                 button(p, "1x", Action::Speed(Speed::Normal), 39.0);
                 button(p, "2x", Action::Speed(Speed::Fast), 39.0);
                 button(p, "4x", Action::Speed(Speed::Fastest), 39.0);
                 button(p, "Help", Action::Help, 60.0);
-                button(p, "Menu", Action::Menu, 62.0);
+                menu_icon::button(p);
             });
         });
 
@@ -488,7 +490,7 @@ pub(super) fn setup(mut commands: Commands) {
                     row_gap: px(8),
                     ..default()
                 },
-                BackgroundColor(Color::srgb_u8(234, 237, 221)),
+                BackgroundColor(crate::ui::theme::INSET),
                 BorderRadius::all(px(5)),
             ))
             .with_children(|p| {
@@ -2061,11 +2063,11 @@ pub(super) fn refresh(
             || access_disabled
             || test_disabled
         {
-            Color::srgb_u8(239, 240, 232)
+            crate::ui::theme::DISABLED
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD
         } else if !view.capture_active && *interaction == Interaction::Hovered {
-            Color::srgb_u8(207, 220, 197)
+            crate::ui::theme::HOVER
         } else {
             BUTTON
         };
