@@ -49,3 +49,29 @@ The real registered root is
 The existing registration, project identity and Git remote are preserved. The
 local standard prompt is 2.1.0; Drive remains explicitly disabled. Existing
 exports stay local. No timing from this PC is product performance evidence.
+
+
+## Corrected opener and final interruption
+
+The corrected runtime is source `42c7f09fb3bb57ce888d2b7db72c3c1ad0b7396b`,
+SHA256 `d6f68d4fcc2df1e9c922cf4cff34c16a2e8687bbf43ec2c101df66f60eb9c67b`.
+Strict workspace/all-target Clippy and the release build passed. The prepared
+package passed 203 payload checks and 174 current guides. The English manual
+contains 9,277 words; all 120 local links, 80 headings and 14 tables were checked.
+The resolver test and seven pointer tests passed on 0.99.2 before the final
+Windows-opener replacement. The replacement was compiled/linted and requires
+the remaining native observation.
+
+The first 0.99.2 package reloaded the isolated saved park correctly and passed
+right-click checks for Garden Carousel #4 and Drinks #2. Help displayed English
+controls and instructions. The corrected package was then launched to repeat
+manual opening. Computer Use reported a physical Escape stop before an input
+could be sent. No further Computer Use calls followed. The corrected manual
+launcher and search/navigation are therefore NOT recorded as native passes.
+The isolated process was left alone; installation requires the game to close.
+
+The previous exact-head CI run `44525877778` passed its test/build and numerous
+continuation steps and was still finishing when checked. The latest remote
+state is recorded in `artifacts/english-ci.json`; the PR checks are authoritative.
+Do not infer a completed workflow from local test results. Remaining work is
+native manual-opening/search verification and any still-running remote jobs.

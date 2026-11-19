@@ -1,31 +1,50 @@
 # Resume development on another Windows PC
 
-## Current work — English manual and native acceptance, 0.99.2
+## Current checkpoint — English manual and context controls, 0.99.2
 
-On `codex/right-click-settings`, continuing from
-`0cf1718696e7a1eb09edc0e8a324b19888872535` (PR #93).
-The complete player manual, contents/search interface and related in-game Help
-text are now English. Canonical files: `docs/PLAYER_MANUAL.md` and `.html`.
-The old HTML filename contains the same English edition for existing bookmarks;
-the old Markdown address points to the canonical source. No Dutch runtime
-manual text remains. The guide retains 25 chapters, 80 headings, 120 local links
-and 14 tables; generator and JavaScript syntax checks pass.
+Continue on `codex/right-click-settings` / PR #93. English-manual source:
+`34cf0fdb7311d1c06234e833432f069176731856`. Windows-opener fix:
+`42c7f09fb3bb57ce888d2b7db72c3c1ad0b7396b`. The subsequent documentation
+commit records this acceptance checkpoint. The complete manual and all related
+Help text are English. `docs/PLAYER_MANUAL.md` is canonical; its HTML has search,
+25 chapters, 80 headings, 120 local links and 14 tables. The older HTML address
+is an identical English compatibility copy.
 
-Native Windows checks in the isolated `artifacts/english-native-0991` profile
-opened Golden Wheel (#6) from its owned queue, Garden Carousel (#4) from its
-canopy and Drinks (#2) from its building. Drinks' price changed from $1.00 to
-$1.50 and back through the actual buttons, while paused cash/clock remained
-unchanged. The test park was saved. English-manual launch verification and
-final 0.99.2 package/installation checks are in progress.
+Native checks passed on the 0.99.2 package: right-click Garden Carousel #4 and
+Drinks #2 selected the correct individual settings. Earlier checks also opened
+Golden Wheel #6 from its queue and changed/restored the drinks price through
+actual buttons. The isolated saved park reloaded paused with its state intact.
+No real player data was used.
 
-Local strict Clippy passed. The manual resolver test/release build are running.
-The earlier exact-head GitHub workflow #503 passed formatting, manual and lint
-steps and is still executing its full suite. Do not describe CI as passed yet.
+The manual-opening test found the earlier Explorer launcher opening Documents.
+It now uses `ShellExecuteW`, literal UTF-16 filenames with native separators
+and checked error codes. The corrected build and strict all-target Clippy
+passed. The eight focused resolver/pointer tests passed before the final opener
+replacement; the new Windows call was compiled and linted. HTML generation,
+all local links and JavaScript syntax passed. The package passed 203 payload
+hashes and 174 current guides.
 
-Shared source: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
-Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Save schema/content
-52/52 is unchanged. Drive remains disabled; preserve local exports and player
-files. This PC is not a performance reference.
+IMPORTANT: the user stopped Computer Use with physical Escape before the
+corrected opener could be visually retested. Do not mark that final native
+manual-opening/search check complete. The running isolated test process was
+left alone after the stop. Close the game before installing the prepared
+0.99.2 update; the installer refuses an active game. Installation status and
+final package receipts are under `artifacts/english-*` and `dist`.
+
+Runtime SHA256:
+`d6f68d4fcc2df1e9c922cf4cff34c16a2e8687bbf43ec2c101df66f60eb9c67b`.
+GitHub CI is inspected through [PR #93 checks](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/93/checks).
+Local passing tests do not imply a green remote workflow. See the latest
+commit's checks and local CI receipt for the publication-time state.
+
+Remaining: visually verify that Help opens the English manual, exercise its
+search and chapter links, and confirm all remote jobs have completed. Native
+input was stopped by the user; do not resume it without a new request.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Park schema/content
+stays 52/52. Drive remains disabled and existing exports remain local. This PC
+is not a performance reference.
 
 ## Current checkpoint — Right-click settings and Dutch manual, 0.99.1
 
