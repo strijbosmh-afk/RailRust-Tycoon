@@ -50,6 +50,7 @@ pub(super) struct VersionTwentyParkData<O = SurfaceObject, G = Guest, R = crate:
 impl VersionTwentyParkData {
     pub(super) fn migrate(self) -> ParkData {
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,

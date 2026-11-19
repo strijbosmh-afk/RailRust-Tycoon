@@ -76,9 +76,10 @@ pub(super) fn setup(commands: &mut Commands) {
                 }
             });
             for model in RideModel::ALL {
-                p.spawn((CatalogueEntry(category_index(model.category())),Node { flex_direction: FlexDirection::Column, padding: UiRect::all(px(10)), row_gap: px(5), border: UiRect::all(px(1)), flex_shrink: 0.0, ..default() }, BorderColor::all(BORDER))).with_children(|p| {
+                p.spawn((CatalogueEntry(category_index(model.category())),Node { flex_direction: FlexDirection::Column, padding: UiRect::all(px(10)), row_gap: px(5), border: UiRect::all(px(1)), flex_shrink: 0.0, ..default() }, BorderColor::all(BORDER),BackgroundColor(theme::INSET),BorderRadius::all(px(7)))).with_children(|p| {
                     let (width,depth)=model.dimensions();
                     let capacity=if model.tracked(){usize::from(model.seats_per_car()*model.max_cars())}else{model.flat_capacity()};
+                    label(p,model.name(),16.0,GOLD);
                     button(p,model.name(),Action::Catalogue(Command::Ride(model)),250.0);
                     p.spawn((Text::new(""), TextFont { font_size: 12.0, ..default() }, TextColor(MUTED), ResearchLabel(Some(model), None)));
                     label(p,model.description(),12.0,INK);
@@ -87,7 +88,8 @@ pub(super) fn setup(commands: &mut Commands) {
                 });
             }
             for kind in ServiceKind::ALL {
-                p.spawn((CatalogueEntry(5),Node{ flex_direction: FlexDirection::Column, padding: UiRect::all(px(9)), row_gap: px(4), border: UiRect::all(px(1)), flex_shrink:0.0,..default()},BorderColor::all(BORDER))).with_children(|p|{
+                p.spawn((CatalogueEntry(5),Node{ flex_direction: FlexDirection::Column, padding: UiRect::all(px(9)), row_gap: px(4), border: UiRect::all(px(1)), flex_shrink:0.0,..default()},BorderColor::all(BORDER),BackgroundColor(theme::INSET),BorderRadius::all(px(7)))).with_children(|p|{
+                    label(p,&kind.to_string(),16.0,GOLD);
                     button(p,&format!("Build {kind}"),Action::Catalogue(Command::Facility(kind)),250.0);
                     p.spawn((Text::new(""), TextFont { font_size: 12.0, ..default() }, TextColor(MUTED), ResearchLabel(None, Some(kind))));
                     let effect=match kind {

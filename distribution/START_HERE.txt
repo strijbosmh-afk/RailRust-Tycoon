@@ -4,6 +4,12 @@ Launch Parkbound.exe, then choose Play Sunhaven Gardens to start the seven-ride
 demo. New Park offers a sandbox and the original campaign. Use the park menu to
 save, load, return to the title screen or quit. Help opens the first-park guide.
 
+TIPS
+The lightbulb beside Rides offers two suggestions for your current park. Each
+park has three uses in total, retained after saving, backup loading and restart.
+Hover over icons to see their action and shortcut. The title menu keeps text
+buttons. See docs/PARK_TIPS.md for details.
+
 The game runs offline. Rust and development tools are only needed to build its
 source code. The Windows package includes the required runtime DLLs, artwork,
 fonts and their notices.

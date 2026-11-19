@@ -600,17 +600,28 @@ fn control(p: &mut ChildSpawnerCommands, label: &str, c: Command) {
 fn controls(p: &mut ChildSpawnerCommands, section: u8, items: &[(&str, Command)]) {
     p.spawn((
         Section(section),
-        Node {
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: px(5),
-            row_gap: px(5),
-            ..row()
-        },
+        layout::section_node(),
+        BackgroundColor(super::theme::INSET),
+        BorderRadius::all(px(7)),
     ))
     .with_children(|p| {
-        for (name, command) in items {
-            control(p, name, *command);
-        }
+        label(
+            p,
+            match section {
+                0 => "Scenario library actions",
+                1 => "Goals and rules",
+                2 => "Available rides and facilities",
+                3 => "Save and test the scenario",
+                _ => "Confirm scenario changes",
+            },
+            12.0,
+            super::GOLD,
+        );
+        p.spawn(layout::action_row()).with_children(|p| {
+            for (name, command) in items {
+                control(p, name, *command);
+            }
+        });
     });
 }
 pub(crate) fn setup(commands: &mut Commands) {
@@ -678,6 +689,9 @@ pub(crate) fn setup(commands: &mut Commands) {
                     },
                     TextColor(INK),
                     Body,
+                    layout::section_node(),
+                    BackgroundColor(super::theme::INSET),
+                    BorderRadius::all(px(7)),
                 ));
                 controls(
                     p,
@@ -695,6 +709,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                         Button,
                         Action::Workshop(Command::Select(i)),
                         Row(i),
+                        super::button_icons::TextButton,
                         Node {
                             min_height: px(30),
                             padding: UiRect::all(px(6)),

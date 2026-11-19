@@ -33,6 +33,14 @@ jobs:
       - name: Verify embedded Windows icons
         shell: pwsh
         run: ./scripts/verify-windows-icon.ps1 -Executable ./target/release/parkbound.exe
+      - name: Verify three-use tips across fresh processes
+        shell: pwsh
+        run: |
+          $tipsDirectory = Join-Path $env:RUNNER_TEMP ("Parkbound tips proof é " + [guid]::NewGuid())
+          & ./target/release/parkbound.exe --save-check write-tips --save-dir $tipsDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Tips writer failed" }
+          & ./target/release/parkbound.exe --save-check verify-tips --save-dir $tipsDirectory | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Tips restart verification failed" }
       - name: Verify playable demo park across fresh processes
         shell: pwsh
         run: |

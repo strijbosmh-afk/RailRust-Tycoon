@@ -3,8 +3,8 @@ use park_sim::{FinanceEntry, FinanceKind, Park, RideCashflow};
 
 use super::*;
 
-pub(crate) const PANEL_WIDTH: f32 = 760.0;
 pub(crate) const PANEL_HEIGHT: f32 = 520.0;
+pub(crate) const PANEL_WIDTH: f32 = 760.0;
 pub(crate) const PAGE_SIZE: usize = 8;
 pub(crate) const RIDE_PAGE_SIZE: usize = 4;
 pub(crate) const SUMMARY_PAGE_SIZE: usize = 5;
@@ -163,60 +163,64 @@ pub(super) fn setup(commands: &mut Commands) {
                     .with_children(|p| text(p, "Ride cashflows", 12.0, FinanceLabel::View));
                     button(p, "Close [N/Esc]", Action::CloseFinance, 140.0);
                 });
-                text(
-                    p,
-                    "Cash / Income / Costs / Net",
-                    14.0,
-                    FinanceLabel::Summary,
-                );
-                text(
-                    p,
-                    "Ride tickets / Service sales / Upkeep / Supplies / Construction / Refunds",
-                    11.0,
-                    FinanceLabel::Categories,
-                );
-                p.spawn(Node {
-                    height: px(52),
-                    flex_shrink: 0.0,
-                    ..default()
-                })
-                .with_children(|p| {
-                    text(p, "", 11.0, FinanceLabel::History);
+                layout::section(p, "Financial overview", |p| {
+                    text(
+                        p,
+                        "Cash / Income / Costs / Net",
+                        14.0,
+                        FinanceLabel::Summary,
+                    );
+                    text(
+                        p,
+                        "Ride tickets / Service sales / Upkeep / Supplies / Construction / Refunds",
+                        11.0,
+                        FinanceLabel::Categories,
+                    );
+                    p.spawn(Node {
+                        height: px(52),
+                        flex_shrink: 0.0,
+                        ..default()
+                    })
+                    .with_children(|p| {
+                        text(p, "", 11.0, FinanceLabel::History);
+                    });
                 });
-                p.spawn(Node {
-                    height: px(208),
-                    flex_shrink: 0.0,
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(2),
-                    ..default()
-                })
-                .with_children(|p| {
-                    text(p, "", 11.0, FinanceLabel::ListHeading);
-                    for index in 0..PAGE_SIZE {
-                        p.spawn((
-                            FinanceRow(index),
-                            Node {
-                                height: px(22),
-                                flex_shrink: 0.0,
-                                ..default()
-                            },
-                        ))
-                        .with_children(|p| {
-                            text(p, "", 11.0, FinanceLabel::Row(index));
-                        });
-                    }
-                });
-                p.spawn((
-                    FinancePaging,
-                    Node {
-                        justify_content: JustifyContent::SpaceBetween,
-                        ..row()
-                    },
-                ))
-                .with_children(|p| {
-                    button(p, "Previous [PgUp]", Action::FinancePage(-1), 140.0);
-                    text(p, "Page 1 / 1", 12.0, FinanceLabel::Page);
-                    button(p, "Next [PgDn]", Action::FinancePage(1), 140.0);
+                layout::section(p, "Accounts and history", |p| {
+                    p.spawn(Node {
+                        height: px(208),
+                        flex_shrink: 0.0,
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(2),
+                        ..default()
+                    })
+                    .with_children(|p| {
+                        text(p, "", 11.0, FinanceLabel::ListHeading);
+                        for index in 0..PAGE_SIZE {
+                            p.spawn((
+                                FinanceRow(index),
+                                Node {
+                                    height: px(22),
+                                    flex_shrink: 0.0,
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|p| {
+                                text(p, "", 11.0, FinanceLabel::Row(index));
+                            });
+                        }
+                    });
+                    p.spawn((
+                        FinancePaging,
+                        Node {
+                            justify_content: JustifyContent::SpaceBetween,
+                            ..row()
+                        },
+                    ))
+                    .with_children(|p| {
+                        button(p, "Previous [PgUp]", Action::FinancePage(-1), 140.0);
+                        text(p, "Page 1 / 1", 12.0, FinanceLabel::Page);
+                        button(p, "Next [PgDn]", Action::FinancePage(1), 140.0);
+                    });
                 });
                 p.spawn((
                     FinanceLoanControls,

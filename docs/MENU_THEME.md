@@ -1,4 +1,4 @@
-# Parkbound 0.98.1 menu presentation
+# Parkbound 0.99.0 menu presentation
 
 ## Shared park colors
 
@@ -39,6 +39,18 @@ the viewport, including near the lower and right edges.
 `crates/park_game/src/ui/pictograms.rs` owns the artwork and action mapping.
 `crates/park_game/src/ui/build_tools.rs` owns the construction groups.
 
+## Organized management and advice
+
+The remaining game panels now use labelled inset sections and compact action
+rows. Food, drink, toilets, ice cream, gifts, information, first aid, staff,
+supplies, advertising and policy have distinct artwork. Editable fields and
+selectable roster/design rows retain their readable contents.
+
+The third header shortcut is Tips, a lightbulb with a live remaining-use tooltip.
+It shows two state-based suggestions and is limited to three uses per park,
+including after save/load, backup restoration and restart. Read
+[the advice guide](PARK_TIPS.md) for the persistence rules and verification.
+
 ## Startup display
 
 New display settings use borderless fullscreen on the current monitor. The
@@ -49,7 +61,7 @@ Fullscreen choices. Previously saved choices remain valid.
 **F11** restores a decorated window with automatic interface scale.
 `--safe-windowed` starts a temporary windowed session. Deterministic captures
 and diagnostics use their existing windowed dimensions. Display preferences
-remain version 1 and park saves remain 51/51.
+remain version 1. Park saves are now 52/52 for the three-use Tips allowance.
 
 ## Verification
 

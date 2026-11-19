@@ -109,141 +109,146 @@ pub(super) fn setup(commands: &mut Commands) {
                 ))
                 .with_children(|p| label(p, "Designs", 11.0, INK));
             });
-            p.spawn(row()).with_children(|p| {
-                small_button(p, "New coaster", TrackCommand::NewCoaster, 100.0);
-                small_button(p, "Next coaster", TrackCommand::NextCoaster, 100.0);
+            layout::section(p, "Next piece and elevation", |p| {
+                p.spawn(row()).with_children(|p| {
+                    small_button(p, "New coaster", TrackCommand::NewCoaster, 100.0);
+                    small_button(p, "Next coaster", TrackCommand::NextCoaster, 100.0);
+                });
+                small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
+                small_button(p, "Follow heights on", TrackCommand::Follow, 207.0);
+                small_button(p, "Add next piece [Enter]", TrackCommand::AddNext, 207.0);
+                p.spawn((
+                    Text::new("Start 8 → End 8"),
+                    TextFont {
+                        font_size: 13.0,
+                        ..default()
+                    },
+                    TextColor(INK),
+                    TrackLabel::Height,
+                ));
+                p.spawn(row()).with_children(|p| {
+                    small_button(p, "Lower [PgDn]", TrackCommand::Height(-1), 100.0);
+                    small_button(p, "Raise [PgUp]", TrackCommand::Height(1), 100.0);
+                });
             });
-            small_button(p, "Heading East [C]", TrackCommand::Turn, 207.0);
-            small_button(p, "Follow heights on", TrackCommand::Follow, 207.0);
-            small_button(p, "Add next piece [Enter]", TrackCommand::AddNext, 207.0);
-            p.spawn((
-                Text::new("Start 8 → End 8"),
-                TextFont {
-                    font_size: 13.0,
-                    ..default()
-                },
-                TextColor(INK),
-                TrackLabel::Height,
-            ));
-            p.spawn(row()).with_children(|p| {
-                small_button(p, "Lower [PgDn]", TrackCommand::Height(-1), 100.0);
-                small_button(p, "Raise [PgUp]", TrackCommand::Height(1), 100.0);
-            });
-
-            p.spawn(row()).with_children(|p| {
+            layout::section(p, "Track pieces", |p| {
+                p.spawn(row()).with_children(|p| {
+                    small_button(
+                        p,
+                        "Station",
+                        TrackCommand::Piece(TrackBuildKind::Station),
+                        100.0,
+                    );
+                    small_button(
+                        p,
+                        "Straight",
+                        TrackCommand::Piece(TrackBuildKind::Straight),
+                        100.0,
+                    );
+                });
+                p.spawn(row()).with_children(|p| {
+                    small_button(
+                        p,
+                        "Left curve",
+                        TrackCommand::Piece(TrackBuildKind::CurveLeft),
+                        100.0,
+                    );
+                    small_button(
+                        p,
+                        "Right curve",
+                        TrackCommand::Piece(TrackBuildKind::CurveRight),
+                        100.0,
+                    );
+                });
+                p.spawn(row()).with_children(|p| {
+                    small_button(
+                        p,
+                        "Bank left",
+                        TrackCommand::Piece(TrackBuildKind::BankedLeft),
+                        100.0,
+                    );
+                    small_button(
+                        p,
+                        "Bank right",
+                        TrackCommand::Piece(TrackBuildKind::BankedRight),
+                        100.0,
+                    );
+                });
+                p.spawn(row()).with_children(|p| {
+                    small_button(
+                        p,
+                        "Chain lift +1",
+                        TrackCommand::Piece(TrackBuildKind::Lift),
+                        100.0,
+                    );
+                    small_button(
+                        p,
+                        "Brakes",
+                        TrackCommand::Piece(TrackBuildKind::Brake),
+                        100.0,
+                    );
+                });
+                p.spawn(row()).with_children(|p| {
+                    small_button(
+                        p,
+                        "Drop -1",
+                        TrackCommand::Piece(TrackBuildKind::Drop),
+                        100.0,
+                    );
+                    small_button(
+                        p,
+                        "Drop -2",
+                        TrackCommand::Piece(TrackBuildKind::SteepDrop),
+                        100.0,
+                    );
+                });
                 small_button(
                     p,
-                    "Station",
-                    TrackCommand::Piece(TrackBuildKind::Station),
-                    100.0,
+                    "Launch",
+                    TrackCommand::Piece(TrackBuildKind::Launch),
+                    207.0,
                 );
                 small_button(
                     p,
-                    "Straight",
-                    TrackCommand::Piece(TrackBuildKind::Straight),
-                    100.0,
+                    "Camelback / $35",
+                    TrackCommand::Piece(TrackBuildKind::Camelback),
+                    207.0,
                 );
-            });
-            p.spawn(row()).with_children(|p| {
+                p.spawn(row()).with_children(|p| {
+                    small_button(
+                        p,
+                        "Smooth +1",
+                        TrackCommand::Piece(TrackBuildKind::TransitionUp),
+                        100.0,
+                    );
+                    small_button(
+                        p,
+                        "Smooth -1",
+                        TrackCommand::Piece(TrackBuildKind::TransitionDown),
+                        100.0,
+                    );
+                });
                 small_button(
                     p,
-                    "Left curve",
-                    TrackCommand::Piece(TrackBuildKind::CurveLeft),
-                    100.0,
-                );
-                small_button(
-                    p,
-                    "Right curve",
-                    TrackCommand::Piece(TrackBuildKind::CurveRight),
-                    100.0,
-                );
-            });
-            p.spawn(row()).with_children(|p| {
-                small_button(
-                    p,
-                    "Bank left",
-                    TrackCommand::Piece(TrackBuildKind::BankedLeft),
-                    100.0,
-                );
-                small_button(
-                    p,
-                    "Bank right",
-                    TrackCommand::Piece(TrackBuildKind::BankedRight),
-                    100.0,
-                );
-            });
-            p.spawn(row()).with_children(|p| {
-                small_button(
-                    p,
-                    "Chain lift +1",
-                    TrackCommand::Piece(TrackBuildKind::Lift),
-                    100.0,
-                );
-                small_button(
-                    p,
-                    "Brakes",
-                    TrackCommand::Piece(TrackBuildKind::Brake),
-                    100.0,
-                );
-            });
-            p.spawn(row()).with_children(|p| {
-                small_button(
-                    p,
-                    "Drop -1",
-                    TrackCommand::Piece(TrackBuildKind::Drop),
-                    100.0,
-                );
-                small_button(
-                    p,
-                    "Drop -2",
-                    TrackCommand::Piece(TrackBuildKind::SteepDrop),
-                    100.0,
-                );
-            });
-            small_button(
-                p,
-                "Launch",
-                TrackCommand::Piece(TrackBuildKind::Launch),
-                207.0,
-            );
-            small_button(
-                p,
-                "Camelback / $35",
-                TrackCommand::Piece(TrackBuildKind::Camelback),
-                207.0,
-            );
-            p.spawn(row()).with_children(|p| {
-                small_button(
-                    p,
-                    "Smooth +1",
-                    TrackCommand::Piece(TrackBuildKind::TransitionUp),
-                    100.0,
-                );
-                small_button(
-                    p,
-                    "Smooth -1",
-                    TrackCommand::Piece(TrackBuildKind::TransitionDown),
-                    100.0,
+                    "Heartline roll / $60",
+                    TrackCommand::Piece(TrackBuildKind::HeartlineRoll),
+                    207.0,
                 );
             });
-            small_button(
-                p,
-                "Heartline roll / $60",
-                TrackCommand::Piece(TrackBuildKind::HeartlineRoll),
-                207.0,
-            );
-            p.spawn(row()).with_children(|p| {
-                small_button(p, "Erase [X]", TrackCommand::Erase, 64.0);
-                small_button(p, "Copy live", TrackCommand::CopyInstalled, 64.0);
-                small_button(p, "Clear", TrackCommand::Clear, 65.0);
-            });
-            p.spawn(row()).with_children(|p| {
-                small_button(p, "Undo Ctrl+Z", TrackCommand::Undo, 100.0);
-                small_button(p, "Redo Ctrl+Y", TrackCommand::Redo, 100.0);
-            });
-            p.spawn(row()).with_children(|p| {
-                small_button(p, "Apply track", TrackCommand::Apply, 100.0);
-                small_button(p, "Done [Esc]", TrackCommand::Done, 100.0);
+            layout::section(p, "Edit and apply", |p| {
+                p.spawn(row()).with_children(|p| {
+                    small_button(p, "Erase [X]", TrackCommand::Erase, 64.0);
+                    small_button(p, "Copy live", TrackCommand::CopyInstalled, 64.0);
+                    small_button(p, "Clear", TrackCommand::Clear, 65.0);
+                });
+                p.spawn(row()).with_children(|p| {
+                    small_button(p, "Undo Ctrl+Z", TrackCommand::Undo, 100.0);
+                    small_button(p, "Redo Ctrl+Y", TrackCommand::Redo, 100.0);
+                });
+                p.spawn(row()).with_children(|p| {
+                    small_button(p, "Apply track", TrackCommand::Apply, 100.0);
+                    small_button(p, "Done [Esc]", TrackCommand::Done, 100.0);
+                });
             });
             for (kind, color, height) in [
                 (TrackLabel::Status, INK, 27.0),

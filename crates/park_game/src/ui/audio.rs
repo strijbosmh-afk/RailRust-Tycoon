@@ -43,6 +43,7 @@ pub(crate) fn setup(commands: &mut Commands) {
             .with_children(|p|{
                 label(p,"The sounds of your park",23.0,INK);
                 label(p,"Three original soundtracks, nearby rides, water, lift chains and cheering visitors.\nF10 opens/closes this window. Sound fades out when focus is lost.",12.0,MUTED);
+                layout::section(p, "Volume mixer", |p| {
                 for (i,name) in ["Master","Music","Ambience","Rides","Alerts & interface"].iter().enumerate(){
                     p.spawn(Node{justify_content:JustifyContent::SpaceBetween,..row()}).with_children(|p|{
                         p.spawn((Text::new(format!("{name}: --%")),TextFont{font_size:14.0,..default()},TextColor(INK),AudioLabel::Level(i)));
@@ -50,12 +51,15 @@ pub(crate) fn setup(commands: &mut Commands) {
                     });
                 }
                 p.spawn(row()).with_children(|p|{p.spawn((Text::new("Reactions"),TextFont{font_size:14.0,..default()},TextColor(INK),AudioLabel::Reactions));control(p,"-10",Control::Reactions(-10),65.0);control(p,"+10",Control::Reactions(10),65.0);});
+                });
+                layout::section(p, "Playback and audio device", |p| {
                 p.spawn(row()).with_children(|p|{
                     p.spawn((Button,Control::Mute,Node{width:px(135),height:px(32),align_items:AlignItems::Center,justify_content:JustifyContent::Center,..default()},BackgroundColor(BUTTON),BorderRadius::all(px(5))))
                         .with_children(|p|{p.spawn((Text::new("Mute"),TextFont{font_size:13.0,..default()},TextColor(INK),AudioLabel::Mute));});
                     control(p,"Test chime",Control::Test,120.0);control(p,"Reset defaults",Control::Defaults,160.0);
                 });
                 control(p,"Reconnect audio device",Control::Restart,250.0);
+                });
                 p.spawn((Text::new(""),TextFont{font_size:12.0,..default()},TextColor(MUTED),AudioLabel::Status));
                 label(p,"Music and ambience continue while paused; ride sounds pause.\nSound settings save separately and never change park finances or time.",12.0,MUTED);
                 button(p,"Back to the park [Esc]",Action::CloseHelp,240.0);

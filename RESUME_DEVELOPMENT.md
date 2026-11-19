@@ -1,5 +1,22 @@
 # Resume development on another Windows PC
 
+## Current work — Organized menus and park advice, 0.99.0
+
+Continue on `codex/park-advice-and-menus`, based on `72f272cdc51a4327abe187905ce9e09a1da77415`.
+Remaining game panels have labelled groups and improved facility/management icons.
+The main menu retains its original text buttons. The third header shortcut is
+Tips: two state-based suggestions per request, with three uses per park.
+Usage is retained in save schema/content 52/52 and monotonic library metadata,
+including after backup loading and construction undo. Read `docs/PARK_TIPS.md`.
+
+All 1,057 workspace tests, formatting, strict release Clippy and the original
+asset checks passed. Windows visual and package verification is in progress.
+Final publication and installation evidence will be recorded before handoff.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Google Drive remains disabled. Local standard prompt 2.1.0 is in use.
+This PC supplies correctness and visual checks only.
+
 ## Current work — Structured construction menus, 0.98.1
 
 Continue `codex/themed-menus-borderless`, runtime `726dcfc8ce400eb452ca3d0aedbf952227f1fef9`, in PR 91. The Build panel groups paths, landscape and scenery, with their own height/brush controls and improved colored icons. Front screens use their original text buttons. All 44 relevant UI/front/display tests, strict checks, release compilation, screen captures and extracted-package front continuation passed. See `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-structured-build-menu.md`.

@@ -1,4 +1,20 @@
-# Parkbound 0.98.1 structured construction menus
+# Parkbound release notes
+
+## 0.99.0 — organized menus and park advice
+
+- Labelled inset sections and distinct icons across the remaining park menus.
+- Main-menu text buttons retained; editable fields and roster entries stay readable.
+- New Tips lightbulb beside Rides. Each request returns two local suggestions
+  based on park state, with three uses per park.
+- Allowance persists through normal saves, primary/backup loads, restart, copied
+  parks and construction undo. A genuinely new park starts with three uses.
+- Saves migrate to schema/content 52/52. Supported older parks start with zero
+  uses spent. Older binaries cannot open new saves.
+- No new runtime dependencies. Google Drive remains disabled.
+
+See `docs/PARK_TIPS.md` and the current session report for verification evidence.
+
+## 0.98.1 — structured construction menus
 
 Build tools are grouped into Paths, Landscape and Scenery/park items. Their
 colored pictograms distinguish paths, queues, signs, patrol routes and brush

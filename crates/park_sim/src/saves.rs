@@ -49,9 +49,13 @@ pub(crate) const MAX_PATHS: usize = 2048;
 const MAX_GUESTS: usize = 512;
 const MAX_CIRCUIT_PIECES: usize = 2048;
 const MAX_TOTAL_ROUTE_IDS: usize = 65_536;
-pub const SCHEMA_VERSION: u32 = 51;
-pub const CONTENT_VERSION: u32 = 51;
+pub const SCHEMA_VERSION: u32 = 52;
+pub const CONTENT_VERSION: u32 = 52;
 const FORMAT: &str = "parkbound-save";
+
+fn tips_unused(uses: &u8) -> bool {
+    *uses == 0
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SaveError {
@@ -195,6 +199,8 @@ impl CoasterData {
 #[serde(deny_unknown_fields)]
 #[serde(bound(deserialize = "O: Deserialize<'de>, G: Deserialize<'de>, R: Deserialize<'de>"))]
 struct ParkData<O = SurfaceObject, G = Guest, R = crate::Ride> {
+    #[serde(default, skip_serializing_if = "tips_unused")]
+    tips_used: u8,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -412,6 +418,7 @@ impl VersionNineParkData {
             .finances
             .migrate(self.ride.as_ref().map(|ride| ride.id));
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,
@@ -591,6 +598,7 @@ struct VersionEightService {
 impl VersionEightParkData {
     fn migrate(self) -> ParkData {
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,
@@ -866,6 +874,7 @@ impl Park {
                 | 48
                 | 49
                 | 50
+                | 51
                 | SCHEMA_VERSION
         ) {
             return Err(SaveError::UnsupportedSchema(header.schema_version));
@@ -890,6 +899,9 @@ impl Park {
         validate_decoration_field(bytes, header.schema_version)?;
         validate_path_economy_field(bytes, header.schema_version)?;
         let value: serde_json::Value = serde_json::from_slice(bytes).map_err(json_error)?;
+        if header.schema_version < 52 && value["park"].get("tips_used").is_some() {
+            return Err(invalid("profit tips require schema 52"));
+        }
         if header.schema_version < 51 && value["park"].get("play_rules").is_some() {
             return Err(invalid("scenario tools require schema 51"));
         }
@@ -2242,6 +2254,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
             })
             .collect();
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,
@@ -2288,6 +2301,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
     }
     fn migrate_experience(self) -> ParkData {
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,
@@ -2337,6 +2351,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionSevenP
 impl<O: Into<SurfaceObject>, G: Into<Guest>, R: Into<crate::Ride>> VersionFiveParkData<O, G, R> {
     fn migrate(self) -> ParkData {
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,
@@ -2514,6 +2529,7 @@ impl<O: Into<SurfaceObject>, G: Into<Guest>> LegacyParkData<O, G> {
             .map(|_| crate::Ride::new(crate::RideId(1)));
         let next_ride_id = if ride.is_some() { 2 } else { 1 };
         ParkData {
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,
@@ -2622,6 +2638,7 @@ impl ParkData {
     }
     fn from_park(park: &Park) -> Self {
         Self {
+            tips_used: park.tips_used,
             extra_trains: park.extra_trains.clone(),
             other_coasters: park
                 .other_coasters
@@ -2682,6 +2699,9 @@ impl ParkData {
     }
 
     fn into_park(self, legacy_banks: bool) -> Result<Park, SaveError> {
+        if self.tips_used > crate::MAX_TIP_USES {
+            return Err(invalid("tip usage exceeds three per park"));
+        }
         if !(1..=MAX_MAP_SIZE).contains(&self.width) || !(1..=MAX_MAP_SIZE).contains(&self.height) {
             return Err(invalid("map dimensions are outside 1..=256"));
         }
@@ -2698,6 +2718,7 @@ impl ParkData {
         let circuit_data = self.circuit;
         let other_data = self.other_coasters;
         let mut park = Park {
+            tips_used: self.tips_used,
             park_life: self.park_life,
             management: self.management,
             play_rules: self.play_rules,

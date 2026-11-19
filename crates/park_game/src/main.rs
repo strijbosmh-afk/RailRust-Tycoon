@@ -92,6 +92,8 @@ struct ViewState {
     view_mode: world::ViewMode,
     help: bool,
     audio_view: bool,
+    tips_view: bool,
+    tips_requested: bool,
     guests_open: bool,
     services_open: bool,
     finance_open: bool,
@@ -213,6 +215,8 @@ impl Default for ViewState {
             view_mode: world::ViewMode::Surface,
             help: false,
             audio_view: false,
+            tips_view: false,
+            tips_requested: false,
             guests_open: false,
             services_open: false,
             finance_open: false,
@@ -409,6 +413,7 @@ impl ViewState {
     fn set_modal(&mut self, help: bool, guests: bool, services: bool, finance: bool) {
         self.navigation_open = false;
         self.help = help;
+        self.tips_view = false;
         self.guests_open = guests;
         self.services_open = services;
         self.finance_open = finance;
@@ -696,9 +701,26 @@ fn main() -> AppExit {
             Some("services") => view.services_open = true,
             Some("rides") => view.rides_open = true,
             Some("designs") => view.designs_open = true,
+            Some("management") => view.management_open = true,
+            Some("staff") => view.park_life_open = true,
+            Some("catalogue") => view.catalogue_open = true,
+            Some("finance") => view.finance_open = true,
+            Some("workshop") => view.workshop_open = true,
+            Some("flow") => {
+                view.guests_open = true;
+                view.guest_flow_view = true;
+            }
+            Some("audio") => {
+                view.help = true;
+                view.audio_view = true;
+            }
+            Some("tips") => {
+                view.help = true;
+                view.tips_view = true;
+            }
             _ => {
                 eprintln!(
-                    "unknown --capture-panel; use build, manage, inspect, park, help, guests, services, rides or designs"
+                    "unknown --capture-panel; use build, manage, inspect, park, help, guests, services, rides, designs, management, staff, catalogue, finance, workshop, flow, audio or tips"
                 );
                 return AppExit::error();
             }
@@ -779,6 +801,7 @@ fn main() -> AppExit {
                             )
                                 .chain(),
                             ui::button_actions,
+                            ui::tips::apply,
                             front_end::input,
                             display::update,
                             keyboard_input,
@@ -832,7 +855,7 @@ fn main() -> AppExit {
                         ui::appearance::refresh,
                         ui::refresh,
                         front_end::refresh,
-                        ui::audio::refresh,
+                        (ui::audio::refresh, ui::tips::refresh).chain(),
                         ui::guests::refresh,
                         ui::guest_stats::sample_history,
                         ui::guest_stats::refresh,

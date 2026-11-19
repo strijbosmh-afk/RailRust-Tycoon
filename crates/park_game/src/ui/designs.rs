@@ -124,6 +124,7 @@ fn preview_column(parent: &mut ChildSpawnerCommands) {
                         let slot = row_index * 2 + column_index;
                         p.spawn((
                             DesignThumbnail(slot),
+                            super::button_icons::TextButton,
                             Button,
                             Action::Design(DesignCommand::Select(usize::MAX)),
                             Node {
@@ -238,8 +239,10 @@ pub(crate) fn setup(commands: &mut Commands) {
                         12.0,
                         MUTED,
                     );
+                    label(p, "Design name and files", 12.0, GOLD);
                     p.spawn((
                         NameField,
+                        super::button_icons::TextButton,
                         Button,
                         Action::Design(DesignCommand::NameFocus),
                         Node {
@@ -257,19 +260,21 @@ pub(crate) fn setup(commands: &mut Commands) {
                         BorderRadius::all(px(5)),
                     ))
                     .with_children(|p| text(p, "Design name (32 characters)", 13.0, DesignLabel::Name));
-                    p.spawn(row()).with_children(|p| {
+                    p.spawn(layout::action_row()).with_children(|p| {
                         design_button(p, "Save new", DesignCommand::SaveNew, 154.0);
                         design_button(p, "Update selected", DesignCommand::UpdateSelected, 166.0);
                         design_button(p, "Rename selected", DesignCommand::RenameSelected, 166.0);
                         value_cell(p, 174.0, DesignLabel::Draft);
                     });
-                    p.spawn(row()).with_children(|p| {
+                    p.spawn(layout::action_row()).with_children(|p| {
                         design_button(p, "Import file", DesignCommand::Import, 253.0);
                         design_button(p, "Export selected", DesignCommand::Export, 253.0);
                     });
-                    p.spawn(row()).with_children(|p| {
+                    label(p, "Find a saved design", 12.0, GOLD);
+                    p.spawn(layout::action_row()).with_children(|p| {
                         p.spawn((
                             SearchField,
+                            super::button_icons::TextButton,
                             Button,
                             Action::Design(DesignCommand::SearchFocus),
                             Node {
@@ -322,21 +327,22 @@ pub(crate) fn setup(commands: &mut Commands) {
                         ..default()
                     })
                     .with_children(|p| text(p, "", 14.0, DesignLabel::Details));
+                    label(p, "Placement", 12.0, GOLD);
                     label(
                         p,
                         "Anchor: first station (or first piece) / Use its entry height",
                         12.0,
                         MUTED,
                     );
-                    p.spawn(row()).with_children(|p| {
+                    p.spawn(layout::action_row()).with_children(|p| {
                         design_button(p, "-", DesignCommand::MoveX(-1), 32.0);
-                        value_cell(p, 172.0, DesignLabel::X);
+                        value_cell(p, 100.0, DesignLabel::X);
                         design_button(p, "+", DesignCommand::MoveX(1), 32.0);
                         design_button(p, "-", DesignCommand::MoveY(-1), 32.0);
-                        value_cell(p, 172.0, DesignLabel::Y);
+                        value_cell(p, 100.0, DesignLabel::Y);
                         design_button(p, "+", DesignCommand::MoveY(1), 32.0);
                     });
-                    p.spawn(row()).with_children(|p| {
+                    p.spawn(layout::action_row()).with_children(|p| {
                         design_button(p, "-", DesignCommand::Height(-1), 32.0);
                         value_cell(p, 172.0, DesignLabel::Height);
                         design_button(p, "+", DesignCommand::Height(1), 32.0);
@@ -357,7 +363,7 @@ pub(crate) fn setup(commands: &mut Commands) {
                         ))
                         .with_children(|p| text(p, "Turn / 0 degrees", 13.0, DesignLabel::Rotation));
                     });
-                    p.spawn(row()).with_children(|p| {
+                    p.spawn(layout::action_row()).with_children(|p| {
                         design_button(p, "Load into draft", DesignCommand::LoadDraft, 253.0);
                         design_button(p, "Delete selected", DesignCommand::DeleteSelected, 253.0);
                     });

@@ -127,6 +127,29 @@ pub(super) struct FrontEnd {
 }
 
 impl FrontEnd {
+    pub(crate) fn consume_tip_use(
+        &mut self,
+        park: &mut Park,
+        view: &mut ViewState,
+    ) -> Result<u8, String> {
+        let library = self
+            .library
+            .as_ref()
+            .ok_or("Tip usage needs a writable park library.")?;
+        if self.active.is_none() {
+            let entry = library.create(&self.draft, park)?;
+            self.active = Some(entry.id);
+            self.selected = Some(entry.id);
+            view.successful_saves = view.successful_saves.wrapping_add(1);
+        }
+        let used = library.record_tip_use(
+            self.active.expect("park slot established"),
+            park.tips_used(),
+        )?;
+        park.retain_tip_uses(used).map_err(str::to_owned)?;
+        self.reload();
+        Ok(used)
+    }
     pub fn enabled(&self) -> bool {
         self.enabled
     }
