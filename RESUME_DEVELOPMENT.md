@@ -1,5 +1,11 @@
 # Resume development on another Windows PC
 
+## Current work — Structured construction menus, 0.98.1
+
+Continue `codex/themed-menus-borderless` from `18d9ee8fee24dcab33cfff85977ba8b28e82dc6b`. The Build panel groups paths, landscape and scenery, with their own height/brush controls and improved colored icons. Front screens use their original text buttons. Verification and distribution are in progress. See `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-structured-build-menu.md`.
+
+Shared checkout `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Existing Rust/Windows requirements apply. Google Drive remains disabled. Save format is 51/51 and display preferences are version 1. This PC supplies correctness and visual evidence.
+
 ## Current work — Menu theme and borderless startup, 0.98.0
 
 Continue on `codex/themed-menus-borderless`, based on `4933b0ec75fa33c4d62c1a251a2803fb61674213`. The interface uses shared forest/cream/gold colors. Every menu button uses an original antialiased pictogram and a live hover/focus label, including construction, ride gates and settings. New display settings launch borderless, while F11 and `--safe-windowed` provide windowed recovery. Verification is in progress. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-menu-theme.md`.

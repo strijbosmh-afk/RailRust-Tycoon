@@ -1,4 +1,4 @@
-# Parkbound 0.98.0 menu presentation
+# Parkbound 0.98.1 menu presentation
 
 ## Shared park colors
 
@@ -14,20 +14,30 @@ meaning with brighter shades suited to the dark panels.
 
 ## Icon buttons
 
-Every menu button uses a compact pictogram, including Path, Find, Gate, Exit,
-construction tools, ride controls, navigation, settings and the opening menu.
+In-park buttons use compact pictograms, including Path, Find, Gate, Exit,
+construction tools and ride controls. The title, new-park, pause and settings
+screens retain their original text buttons and dimensions.
 The full action label and its existing shortcut appear on hover or keyboard
 focus. Dynamic labels continue to update, including open/close states and
 selected entries. Adjustment buttons identify what they change in their tooltip.
 
+The Build panel groups paths, landscape tools, and scenery/park items in labelled
+inset panels. Path height belongs to Paths. Brush size belongs to Landscape.
+The top row opens the ride catalogue, services or demolition. Each group wraps
+its controls within the available width and participates in the existing
+vertical scroll area on smaller windows.
+
 The original text entities and action handlers remain attached to their buttons.
 The icon presentation hides their text nodes, retains accessible button names
-and adds original antialiased artwork generated in Rust. Icon tint follows the
-button background and high-contrast setting. The shared tooltip stays inside
+and adds original antialiased artwork generated in Rust. Construction icons use
+filled shapes and park colors. Signs, patrol routes and brush adjustments have
+distinct symbols. Selected and disabled buttons use a monochrome variant for
+contrast, as does high-contrast mode. The shared tooltip stays inside
 the viewport, including near the lower and right edges.
 
 `crates/park_game/src/ui/button_icons.rs` owns presentation and tooltip behavior.
 `crates/park_game/src/ui/pictograms.rs` owns the artwork and action mapping.
+`crates/park_game/src/ui/build_tools.rs` owns the construction groups.
 
 ## Startup display
 

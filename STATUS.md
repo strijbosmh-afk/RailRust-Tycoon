@@ -1,5 +1,11 @@
 # Project status
 
+## Current work — Structured construction menus, 0.98.1
+
+Branch `codex/themed-menus-borderless` continues from `18d9ee8fee24dcab33cfff85977ba8b28e82dc6b`. The Build panel now groups Paths, Landscape and Scenery/park items. Construction icons use colored filled artwork, with distinct signs, patrol routes and brush controls. The title, new-park, pause and settings screens regain their original text buttons. Verification and distribution are in progress. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-structured-build-menu.md`.
+
+The shared Git root is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Google Drive remains disabled and local standard prompt 2.1.0 is in use. Saves remain 51/51 and display settings remain version 1.
+
 ## Current work — Menu theme and borderless startup, 0.98.0
 
 Branch `codex/themed-menus-borderless` starts at `4933b0ec75fa33c4d62c1a251a2803fb61674213`. Forest-green menu panels, cream text and gold accents are implemented. The owner's clarification applies icon-only controls and live hover/focus labels to every menu button. New display settings start in borderless fullscreen. Verification is in progress. See `docs/MENU_THEME.md` and the current session report.

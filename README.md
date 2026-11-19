@@ -1,6 +1,6 @@
 # Parkbound
 
-Version **0.98.0** gives park menus a shared forest-green, cream and gold theme. Every menu button uses an original antialiased icon with a live hover/focus label, including Path, Find, Gate and Exit. New display preferences start in borderless fullscreen. **F11** restores windowed mode. See [menu and display behavior](docs/MENU_THEME.md).
+Version **0.98.1** groups Build tools into Paths, Landscape and Scenery, with colored pictograms and hover labels. The main menu, new-park dialogs and settings use their original text buttons. Park menus share a forest-green, cream and gold theme. New display preferences start in borderless fullscreen. **F11** restores windowed mode. See [menu and display behavior](docs/MENU_THEME.md).
 
 Version **0.97.0** adds three arranged original soundtracks, attraction-specific sound that follows camera zoom, water and lift chains, and recorded cheering visitors. **F10** controls the mix. Google Drive synchronization is disabled at the owner's request. See [the audio guide](docs/AUDIO_OVERHAUL.md).
 

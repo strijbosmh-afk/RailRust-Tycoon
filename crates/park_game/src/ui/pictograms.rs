@@ -87,6 +87,10 @@ pub(super) enum Glyph {
     Loop,
     Brake,
     Lift,
+    Sign,
+    Patrol,
+    BrushSmaller,
+    BrushLarger,
 }
 
 impl Glyph {
@@ -166,6 +170,10 @@ impl Glyph {
         Self::Loop,
         Self::Brake,
         Self::Lift,
+        Self::Sign,
+        Self::Patrol,
+        Self::BrushSmaller,
+        Self::BrushLarger,
     ];
 
     pub(super) fn for_button(action: Option<&Action>, caption: &str) -> Self {
@@ -208,11 +216,28 @@ impl Glyph {
             Some(Action::RotateRight) => Self::RotateRight,
             Some(Action::ZoomIn) => Self::Plus,
             Some(Action::ZoomOut) => Self::Minus,
+            Some(Action::TerrainBrushRadius(delta)) => {
+                if *delta < 0 {
+                    Self::BrushSmaller
+                } else {
+                    Self::BrushLarger
+                }
+            }
+            Some(Action::CyclePathShape) => {
+                if caption.starts_with("Flat") {
+                    Self::Flat
+                } else if caption.starts_with("Ground") {
+                    Self::Terrain
+                } else if caption.starts_with("Brush") {
+                    Self::Brush
+                } else {
+                    Self::SlopeUp
+                }
+            }
             Some(
                 Action::TicketPrice(delta)
                 | Action::ServicePrice(delta)
-                | Action::PathHeight(delta)
-                | Action::TerrainBrushRadius(delta),
+                | Action::PathHeight(delta),
             ) => {
                 if *delta < 0 {
                     Self::Minus
@@ -232,7 +257,8 @@ impl Glyph {
             Some(Action::RedoPark) => Self::Redo,
             Some(Action::ToggleBin | Action::ToggleEmptyBins) => Self::Bin,
             Some(Action::ToggleBench) => Self::Bench,
-            Some(Action::ToggleSign) => Self::Flag,
+            Some(Action::ToggleSign) => Self::Sign,
+            Some(Action::TogglePatrol) => Self::Patrol,
             Some(Action::ToggleFence) => Self::Fence,
             Some(Action::CycleGuestFilter) => Self::Filter,
             Some(Action::SelectGuest(_)) => Self::Guests,
@@ -410,7 +436,10 @@ impl Glyph {
     }
 
     pub(super) fn image(self) -> Image {
-        let mut canvas = Canvas(vec![0; 64 * 64 * 4]);
+        let mut canvas = Canvas {
+            pixels: vec![0; 64 * 64 * 4],
+            ink: CREAM,
+        };
         self.draw(&mut canvas);
         let mut image = Image::new(
             Extent3d {
@@ -419,7 +448,7 @@ impl Glyph {
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
-            canvas.0,
+            canvas.pixels,
             TextureFormat::Rgba8UnormSrgb,
             RenderAssetUsages::default(),
         );
@@ -435,108 +464,255 @@ impl Glyph {
                     c.line([5., y], [27., y]);
                 }
             }
-            Path | Queue => {
-                c.poly(&[[6., 28.], [12., 18.], [8., 11.], [18., 4.]]);
-                c.poly(&[[16., 28.], [22., 18.], [18., 11.], [28., 4.]]);
-                if self == Queue {
-                    for y in [9., 17., 25.] {
-                        c.line([3., y], [5., y]);
-                    }
-                } else {
-                    c.line([13., 23.], [15., 20.]);
-                    c.line([16., 9.], [20., 6.]);
+            Path => {
+                c.color(WOOD);
+                c.fill(&[[6., 29.], [26., 29.], [22., 5.], [10., 5.]]);
+                c.color(CREAM);
+                c.fill(&[[8., 27.], [24., 27.], [21., 4.], [11., 4.]]);
+                c.color(WOOD);
+                for y in [10., 17., 24.] {
+                    c.line([10., y], [23., y]);
+                }
+                c.line([16., 5.], [16., 26.]);
+            }
+            Queue => {
+                c.color(BLUE);
+                c.fill(&[[5., 28.], [27., 28.], [25., 5.], [7., 5.]]);
+                c.color(GOLD);
+                c.poly(&[
+                    [8., 25.],
+                    [24., 25.],
+                    [24., 17.],
+                    [9., 17.],
+                    [9., 9.],
+                    [23., 9.],
+                ]);
+                c.color(CREAM);
+                for p in [
+                    [8., 25.],
+                    [24., 25.],
+                    [24., 17.],
+                    [9., 17.],
+                    [9., 9.],
+                    [23., 9.],
+                ] {
+                    c.line(p, [p[0], p[1] - 3.]);
+                    c.disc([p[0], p[1] - 3.], 1.1);
                 }
             }
             Gate => {
-                c.rect(5., 9., 27., 27.);
-                c.line([5., 9.], [16., 4.]);
-                c.line([16., 4.], [27., 9.]);
-                c.line([11., 15.], [11., 27.]);
-                c.line([21., 15.], [21., 27.]);
-                c.line([11., 15.], [21., 15.]);
+                c.color(WOOD);
+                c.block(5., 12., 10., 29.);
+                c.block(22., 12., 27., 29.);
+                c.color(GOLD);
+                c.fill(&[[3., 12.], [16., 3.], [29., 12.]]);
+                c.color(CREAM);
+                c.line([5., 13.], [27., 13.]);
+                c.line([8., 22.], [24., 22.]);
+                c.color(RED);
+                c.block(12., 20., 15., 24.);
+                c.block(18., 20., 21., 24.);
             }
             Exit => {
-                c.poly(&[[14., 5.], [5., 5.], [5., 27.], [14., 27.]]);
-                c.line([12., 16.], [28., 16.]);
-                c.poly(&[[22., 10.], [28., 16.], [22., 22.]]);
+                c.color(CREAM);
+                c.poly(&[[14., 4.], [5., 4.], [5., 28.], [14., 28.]]);
+                c.color(GREEN);
+                c.fill(&[
+                    [12., 13.],
+                    [21., 13.],
+                    [21., 8.],
+                    [29., 16.],
+                    [21., 24.],
+                    [21., 19.],
+                    [12., 19.],
+                ]);
             }
             Search => {
+                c.color(BLUE);
+                c.disc([13., 13.], 7.);
+                c.color(CREAM);
                 c.circle([13., 13.], 8.);
-                c.line([19., 19.], [28., 28.]);
+                c.line([9., 10.], [12., 8.]);
+                c.color(GOLD);
+                c.fill(&[[18., 21.], [21., 18.], [29., 26.], [26., 29.]]);
             }
             Hammer => {
-                c.poly(&[[5., 10.], [10., 4.], [20., 12.], [15., 18.], [5., 10.]]);
-                c.line([16., 15.], [27., 27.]);
+                c.color(WOOD);
+                c.fill(&[[13., 17.], [17., 13.], [29., 25.], [25., 29.]]);
+                c.color(CREAM);
+                c.fill(&[[4., 10.], [9., 4.], [21., 12.], [16., 19.]]);
+                c.color(BLUE);
+                c.line([8., 10.], [16., 15.]);
             }
             Raise | Lower => {
-                c.poly(&[[4., 24.], [12., 20.], [20., 24.], [28., 20.]]);
-                c.line([16., 5.], [16., 18.]);
+                c.color(WOOD);
+                c.fill(&[
+                    [3., 23.],
+                    [16., 29.],
+                    [29., 23.],
+                    [29., 27.],
+                    [16., 32.],
+                    [3., 27.],
+                ]);
+                c.color(GREEN);
+                c.fill(&[[3., 23.], [16., 17.], [29., 23.], [16., 29.]]);
+                c.color(if self == Raise { GOLD } else { BLUE });
                 if self == Raise {
-                    c.poly(&[[11., 10.], [16., 5.], [21., 10.]]);
+                    c.fill(&[
+                        [12., 17.],
+                        [20., 17.],
+                        [20., 9.],
+                        [25., 9.],
+                        [16., 1.],
+                        [7., 9.],
+                        [12., 9.],
+                    ]);
                 } else {
-                    c.poly(&[[11., 13.], [16., 18.], [21., 13.]]);
+                    c.fill(&[
+                        [12., 2.],
+                        [20., 2.],
+                        [20., 10.],
+                        [25., 10.],
+                        [16., 18.],
+                        [7., 10.],
+                        [12., 10.],
+                    ]);
                 }
             }
             Water => {
-                for y in [8., 16., 24.] {
+                c.color(BLUE);
+                c.fill(&[
+                    [3., 24.],
+                    [6., 10.],
+                    [16., 4.],
+                    [27., 10.],
+                    [29., 24.],
+                    [16., 30.],
+                ]);
+                c.color(CREAM);
+                for y in [14., 21.] {
                     c.poly(&[
-                        [3., y],
-                        [8., y - 2.],
-                        [16., y + 2.],
-                        [24., y - 2.],
-                        [29., y],
+                        [6., y],
+                        [10., y - 2.],
+                        [16., y + 1.],
+                        [22., y - 2.],
+                        [27., y],
                     ]);
                 }
             }
             Grass => {
+                c.color(WOOD);
+                c.fill(&[
+                    [3., 21.],
+                    [16., 27.],
+                    [29., 21.],
+                    [29., 25.],
+                    [16., 31.],
+                    [3., 25.],
+                ]);
+                c.color(GREEN);
+                c.fill(&[[3., 21.], [16., 15.], [29., 21.], [16., 27.]]);
+                c.color(CREAM);
                 c.poly(&[
-                    [6., 27.],
-                    [4., 13.],
-                    [14., 25.],
-                    [16., 5.],
-                    [19., 25.],
-                    [28., 12.],
-                    [25., 27.],
+                    [10., 21.],
+                    [8., 12.],
+                    [15., 18.],
+                    [17., 5.],
+                    [20., 20.],
+                    [25., 13.],
+                    [24., 23.],
                 ]);
             }
             Sand => {
-                c.poly(&[[3., 25.], [11., 18.], [19., 24.], [27., 17.]]);
-                for p in [[7., 10.], [16., 8.], [24., 11.], [16., 28.]] {
-                    c.disc(p, 1.5);
+                c.color(WOOD);
+                c.fill(&[
+                    [3., 18.],
+                    [16., 25.],
+                    [29., 18.],
+                    [29., 24.],
+                    [16., 31.],
+                    [3., 24.],
+                ]);
+                c.color(GOLD);
+                c.fill(&[[3., 18.], [16., 11.], [29., 18.], [16., 25.]]);
+                c.color(CREAM);
+                c.poly(&[[8., 17.], [14., 15.], [21., 19.], [25., 18.]]);
+                for p in [[9., 21.], [18., 21.], [18., 14.], [23., 16.]] {
+                    c.disc(p, 0.8);
                 }
             }
             Tree => {
-                c.circle([11., 12.], 6.);
-                c.circle([20., 12.], 7.);
-                c.circle([16., 7.], 5.);
-                c.line([16., 18.], [16., 28.]);
-                c.line([11., 28.], [21., 28.]);
+                c.color(WOOD);
+                c.block(14., 15., 19., 30.);
+                c.color(GREEN);
+                c.disc([9., 15.], 6.);
+                c.disc([22., 15.], 7.);
+                c.disc([16., 8.], 7.);
+                c.color(CREAM);
+                c.poly(&[[10., 11.], [11., 7.], [15., 5.]]);
+                c.color(GOLD);
+                c.poly(&[[16., 26.], [16., 18.], [22., 14.]]);
             }
             Flower => {
-                for p in [[16., 7.], [23., 13.], [20., 21.], [11., 21.], [9., 13.]] {
-                    c.circle(p, 4.);
+                c.color(GREEN);
+                c.line([16., 14.], [16., 30.]);
+                c.fill(&[[16., 25.], [8., 20.], [8., 26.], [16., 28.]]);
+                c.fill(&[[16., 23.], [24., 18.], [24., 24.], [16., 26.]]);
+                c.color(RED);
+                for p in [[16., 5.], [23., 10.], [20., 17.], [12., 17.], [9., 10.]] {
+                    c.disc(p, 4.);
                 }
-                c.disc([16., 14.], 3.);
-                c.line([16., 24.], [16., 29.]);
+                c.color(GOLD);
+                c.disc([16., 11.], 4.);
+                c.color(CREAM);
+                c.disc([15., 10.], 1.);
             }
             Shop => {
-                c.rect(6., 14., 26., 28.);
-                c.poly(&[[4., 14.], [7., 5.], [25., 5.], [28., 14.], [4., 14.]]);
-                for x in [10., 16., 22.] {
-                    c.line([x, 6.], [x, 14.]);
-                }
-                c.rect(12., 21., 20., 28.);
+                c.color(CREAM);
+                c.block(6., 13., 26., 29.);
+                c.color(BLUE);
+                c.fill(&[[3., 14.], [7., 4.], [25., 4.], [29., 14.]]);
+                c.color(GOLD);
+                c.fill(&[[8., 14.], [11., 4.], [15., 4.], [14., 14.]]);
+                c.fill(&[[20., 14.], [19., 4.], [23., 4.], [25., 14.]]);
+                c.color(WOOD);
+                c.block(11., 20., 21., 29.);
+                c.color(GOLD);
+                c.line([4., 15.], [28., 15.]);
             }
             Ride => {
+                c.color(GOLD);
+                c.poly(&[[6., 29.], [16., 13.], [26., 29.]]);
+                c.color(BLUE);
                 c.circle([16., 13.], 10.);
-                for a in 0..8 {
-                    let a = a as f32 * std::f32::consts::FRAC_PI_4;
-                    c.line([16., 13.], [16. + a.cos() * 10., 13. + a.sin() * 10.]);
+                c.color(CREAM);
+                for a in 0..6 {
+                    let angle = a as f32 * std::f32::consts::TAU / 6.;
+                    let point = [16. + angle.cos() * 10., 13. + angle.sin() * 10.];
+                    c.line([16., 13.], point);
+                    c.color(RED);
+                    c.block(point[0] - 2., point[1], point[0] + 2., point[1] + 3.);
+                    c.color(CREAM);
                 }
-                c.poly(&[[7., 29.], [16., 13.], [25., 29.]]);
-                c.line([5., 29.], [27., 29.]);
+                c.disc([16., 13.], 2.);
+                c.line([4., 30.], [28., 30.]);
             }
-            Track | Lift | Flat | SlopeUp | SlopeDown | Brake => {
+            Flat => {
+                c.color(WOOD);
+                c.fill(&[
+                    [3., 19.],
+                    [16., 26.],
+                    [29., 19.],
+                    [29., 23.],
+                    [16., 30.],
+                    [3., 23.],
+                ]);
+                c.color(CREAM);
+                c.fill(&[[3., 19.], [16., 12.], [29., 19.], [16., 26.]]);
+                c.color(GOLD);
+                c.line([8., 19.], [24., 19.]);
+            }
+            Track | Lift | SlopeUp | SlopeDown | Brake => {
                 let (a, b) = match self {
                     SlopeUp | Lift => ([4., 25.], [28., 7.]),
                     SlopeDown => ([4., 7.], [28., 25.]),
@@ -785,25 +961,60 @@ impl Glyph {
                 c.poly(&[[27., 5.], [30., 12.], [30., 20.], [27., 27.]]);
             }
             Bin => {
-                c.poly(&[[7., 9.], [9., 28.], [23., 28.], [25., 9.]]);
+                c.color(BLUE);
+                c.fill(&[[7., 9.], [9., 28.], [23., 28.], [25., 9.]]);
+                c.color(CREAM);
                 c.line([4., 9.], [28., 9.]);
                 c.poly(&[[11., 8.], [11., 4.], [21., 4.], [21., 8.]]);
                 c.line([13., 14.], [13., 23.]);
                 c.line([19., 14.], [19., 23.]);
             }
             Bench => {
-                c.rect(4., 7., 28., 16.);
-                c.line([3., 21.], [29., 21.]);
+                c.color(WOOD);
+                c.block(4., 7., 28., 16.);
+                c.block(3., 19., 29., 23.);
+                c.color(CREAM);
+                c.line([5., 11.], [27., 11.]);
                 c.line([7., 16.], [7., 28.]);
                 c.line([25., 16.], [25., 28.]);
+            }
+            Sign => {
+                c.color(WOOD);
+                c.block(14., 5., 18., 30.);
+                c.color(GOLD);
+                c.fill(&[[4., 5.], [23., 5.], [29., 10.], [23., 15.], [4., 15.]]);
+                c.color(CREAM);
+                c.poly(&[[19., 8.], [22., 10.], [19., 12.]]);
+            }
+            Patrol => {
+                c.color(GOLD);
+                c.poly(&[[4., 27.], [4., 20.], [10., 20.], [10., 10.], [27., 10.]]);
+                c.color(BLUE);
+                c.fill(&[
+                    [11., 5.],
+                    [15., 2.],
+                    [19., 5.],
+                    [19., 11.],
+                    [15., 18.],
+                    [11., 11.],
+                ]);
+                c.color(CREAM);
+                c.disc([15., 7.], 2.);
+                c.color(GREEN);
+                c.block(20., 22., 28., 27.);
+                c.disc([26., 20.], 2.);
             }
             Flag => {
                 c.line([7., 3.], [7., 29.]);
                 c.poly(&[[7., 4.], [26., 4.], [22., 10.], [26., 16.], [7., 16.]]);
             }
             Fence => {
+                c.color(WOOD);
+                c.block(3., 13., 29., 17.);
+                c.block(3., 22., 29., 26.);
+                c.color(CREAM);
                 for x in [6., 16., 26.] {
-                    c.poly(&[
+                    c.fill(&[
                         [x - 2., 28.],
                         [x - 2., 7.],
                         [x, 4.],
@@ -811,17 +1022,32 @@ impl Glyph {
                         [x + 2., 28.],
                     ]);
                 }
-                c.line([4., 14.], [28., 14.]);
-                c.line([4., 22.], [28., 22.]);
             }
-            Brush => {
-                c.poly(&[[7., 20.], [20., 4.], [25., 8.], [12., 24.], [7., 20.]]);
-                c.poly(&[[7., 20.], [4., 23.], [3., 29.], [10., 28.], [12., 24.]]);
+            Brush | BrushSmaller | BrushLarger => {
+                c.color(WOOD);
+                c.fill(&[[7., 20.], [20., 4.], [25., 8.], [12., 24.]]);
+                c.color(CREAM);
+                c.fill(&[[7., 20.], [4., 23.], [3., 29.], [10., 28.], [12., 24.]]);
+                c.color(BLUE);
+                c.line([7., 21.], [11., 24.]);
+                if self != Brush {
+                    c.color(GOLD);
+                    c.line([20., 23.], [29., 23.]);
+                    if self == BrushLarger {
+                        c.line([24.5, 18.5], [24.5, 27.5]);
+                    }
+                }
             }
             Land => {
-                c.poly(&[[3., 19.], [16., 12.], [29., 19.], [16., 27.], [3., 19.]]);
-                c.line([16., 3.], [16., 13.]);
-                c.line([11., 8.], [21., 8.]);
+                c.color(GREEN);
+                c.fill(&[[3., 20.], [16., 13.], [29., 20.], [16., 28.]]);
+                c.color(WOOD);
+                c.poly(&[[3., 23.], [16., 31.], [29., 23.]]);
+                c.color(GOLD);
+                c.disc([16., 8.], 7.);
+                c.color(CREAM);
+                c.line([16., 4.], [16., 12.]);
+                c.line([13., 8.], [19., 8.]);
             }
             Tool => {
                 c.poly(&[
@@ -1019,8 +1245,63 @@ impl Glyph {
     }
 }
 
-struct Canvas(Vec<u8>);
+const CREAM: [u8; 3] = [255, 244, 212];
+const GOLD: [u8; 3] = [239, 184, 70];
+const BLUE: [u8; 3] = [85, 186, 219];
+const GREEN: [u8; 3] = [114, 186, 109];
+const RED: [u8; 3] = [231, 126, 111];
+const WOOD: [u8; 3] = [185, 130, 75];
+
+struct Canvas {
+    pixels: Vec<u8>,
+    ink: [u8; 3],
+}
 impl Canvas {
+    fn color(&mut self, color: [u8; 3]) {
+        self.ink = color;
+    }
+
+    fn paint(&mut self, pixel: usize, coverage: f32) {
+        if coverage <= 0.0 {
+            return;
+        }
+        let previous = f32::from(self.pixels[pixel + 3]) / 255.0;
+        let alpha = coverage + previous * (1.0 - coverage);
+        for channel in 0..3 {
+            self.pixels[pixel + channel] = ((f32::from(self.ink[channel]) * coverage
+                + f32::from(self.pixels[pixel + channel]) * previous * (1.0 - coverage))
+                / alpha)
+                .round() as u8;
+        }
+        self.pixels[pixel + 3] = (alpha * 255.0).round() as u8;
+    }
+
+    fn fill(&mut self, points: &[[f32; 2]]) {
+        for y in 0..64 {
+            for x in 0..64 {
+                let mut covered = 0;
+                for offset in [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]] {
+                    let p = Vec2::new((x as f32 + offset[0]) / 2.0, (y as f32 + offset[1]) / 2.0);
+                    let mut inside = false;
+                    for i in 0..points.len() {
+                        let a = Vec2::from(points[i]);
+                        let b = Vec2::from(points[(i + 1) % points.len()]);
+                        if (a.y > p.y) != (b.y > p.y)
+                            && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x
+                        {
+                            inside = !inside;
+                        }
+                    }
+                    covered += u8::from(inside);
+                }
+                self.paint((y * 64 + x) * 4, f32::from(covered) / 4.0);
+            }
+        }
+    }
+
+    fn block(&mut self, x: f32, y: f32, right: f32, bottom: f32) {
+        self.fill(&[[x, y], [right, y], [right, bottom], [x, bottom]]);
+    }
     fn line(&mut self, a: [f32; 2], b: [f32; 2]) {
         let a = Vec2::from(a);
         let b = Vec2::from(b);
@@ -1052,8 +1333,7 @@ impl Canvas {
                     * 2.)
                     .clamp(0., 1.);
                 let pixel = (y * 64 + x) * 4;
-                self.0[pixel..pixel + 3].fill(255);
-                self.0[pixel + 3] = self.0[pixel + 3].max((coverage * 255.).round() as u8);
+                self.paint(pixel, coverage);
             }
         }
     }
@@ -1098,5 +1378,14 @@ mod tests {
             Glyph::Search
         );
         assert_eq!(Glyph::for_button(None, "Save As New Park"), Glyph::Copy);
+        assert_eq!(
+            Glyph::for_button(Some(&Action::ToggleSign), "Sign"),
+            Glyph::Sign
+        );
+        assert_eq!(
+            Glyph::for_button(Some(&Action::TogglePatrol), "Patrol"),
+            Glyph::Patrol
+        );
+        assert_ne!(Glyph::Path.image().data, Glyph::Queue.image().data);
     }
 }

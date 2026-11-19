@@ -1,5 +1,12 @@
 # Project decisions
 
+## 2026-11-19 — Structured Build panel and text navigation
+
+- Restore the original text buttons in the title, new-park, pause and settings screens, following the owner's clarification.
+- Group in-park construction actions by Paths, Landscape and Scenery/park items. Keep height controls with paths and brush controls with landscape editing.
+- Use colored filled pictograms for recognizable construction objects, with distinct sign, patrol and brush symbols. Use monochrome artwork for selected, disabled and high-contrast states.
+- Retain borderless startup, the existing action handlers and save format. Continue on the existing menu branch and PR 91.
+
 ## 2026-11-19 — Menu theme and fullscreen
 
 - Use shared forest, cream and gold colors throughout the menu system. Retain readable button text when the background changes to gold.

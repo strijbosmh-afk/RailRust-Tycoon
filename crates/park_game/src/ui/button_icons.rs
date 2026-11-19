@@ -7,7 +7,10 @@ use crate::{
 use bevy::{a11y::AccessibilityNode, ecs::system::SystemParam, prelude::*, window::PrimaryWindow};
 
 #[derive(Resource)]
-struct Artwork(Vec<Handle<Image>>);
+struct Artwork {
+    color: Vec<Handle<Image>>,
+    monochrome: Vec<Handle<Image>>,
+}
 
 #[derive(Component)]
 struct IconButton {
@@ -18,6 +21,9 @@ struct IconButton {
 
 #[derive(Component)]
 struct IconImage;
+/// Front-screen navigation retains readable text at its original dimensions.
+#[derive(Component)]
+pub(crate) struct TextButton;
 #[derive(Component)]
 struct Tooltip;
 #[derive(Component)]
@@ -33,7 +39,7 @@ type NewButtons<'w, 's> = Query<
         &'static mut Node,
         Option<&'static Action>,
     ),
-    (With<Button>, Without<IconButton>),
+    (With<Button>, Without<IconButton>, Without<TextButton>),
 >;
 type Buttons<'w, 's> = Query<
     'w,
@@ -59,12 +65,23 @@ pub(crate) fn configure(app: &mut App) {
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    commands.insert_resource(Artwork(
-        Glyph::ALL
-            .iter()
-            .map(|glyph| images.add(glyph.image()))
-            .collect(),
-    ));
+    let mut color = Vec::new();
+    let mut monochrome = Vec::new();
+    for glyph in Glyph::ALL {
+        let image = glyph.image();
+        let mut mask = image.clone();
+        for pixel in mask
+            .data
+            .as_mut()
+            .expect("generated RGBA pixels")
+            .chunks_exact_mut(4)
+        {
+            pixel[..3].fill(255);
+        }
+        color.push(images.add(image));
+        monochrome.push(images.add(mask));
+    }
+    commands.insert_resource(Artwork { color, monochrome });
     commands
         .spawn((
             Tooltip,
@@ -229,7 +246,7 @@ fn decorate(
         let image = commands
             .spawn((
                 IconImage,
-                ImageNode::new(artwork.0[glyph as usize].clone()),
+                ImageNode::new(artwork.color[glyph as usize].clone()),
                 Node {
                     width: px(28),
                     height: px(28),
@@ -297,23 +314,32 @@ fn update(
             accessible.set_label(button.caption.clone());
         }
         if let Ok(mut image) = images.get_mut(button.image) {
-            let desired = artwork.0[button.glyph as usize].clone();
+            let high_contrast = tooltip
+                .preferences
+                .as_ref()
+                .is_some_and(|p| p.value.high_contrast);
+            let foreground = theme::foreground(background.0);
+            let monochrome = high_contrast || foreground != theme::TEXT;
+            let desired = if monochrome {
+                &artwork.monochrome
+            } else {
+                &artwork.color
+            }[button.glyph as usize]
+                .clone();
             if image.image != desired {
                 image.image = desired;
             }
-            let color = if tooltip
-                .preferences
-                .as_ref()
-                .is_some_and(|p| p.value.high_contrast)
-            {
+            let color = if high_contrast {
                 let rgba = background.0.to_srgba();
                 if rgba.red * 0.2126 + rgba.green * 0.7152 + rgba.blue * 0.0722 > 0.5 {
                     Color::BLACK
                 } else {
                     Color::WHITE
                 }
+            } else if monochrome {
+                foreground
             } else {
-                theme::foreground(background.0)
+                Color::WHITE
             };
             if image.color != color {
                 image.color = color;
@@ -393,6 +419,22 @@ mod tests {
             .insert_resource(ViewState::default())
             .add_systems(Startup, setup)
             .add_systems(Update, (decorate, update).chain());
+        let menu_text = app
+            .world_mut()
+            .spawn((Text::new("New Park"), Node::default()))
+            .id();
+        let menu = app
+            .world_mut()
+            .spawn((
+                Button,
+                TextButton,
+                Node {
+                    width: percent(100),
+                    ..default()
+                },
+            ))
+            .add_child(menu_text)
+            .id();
         let text = app
             .world_mut()
             .spawn((Text::new("Path [P]"), Node::default()))
@@ -414,6 +456,12 @@ mod tests {
             .add_child(text)
             .id();
         app.update();
+        assert!(app.world().get::<IconButton>(menu).is_none());
+        assert_eq!(app.world().get::<Node>(menu).unwrap().width, percent(100));
+        assert_eq!(
+            app.world().get::<Node>(menu_text).unwrap().display,
+            Display::Flex
+        );
         assert_eq!(
             app.world().get::<IconButton>(button).unwrap().caption,
             "Path [P]"

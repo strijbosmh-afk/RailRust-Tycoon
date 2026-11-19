@@ -1372,6 +1372,7 @@ fn spawn_welcome(
                 Button,
                 action,
                 MenuButton { primary, focused },
+                crate::ui::button_icons::TextButton,
                 Node {
                     width: percent(100),
                     min_height: px(38),
@@ -1406,6 +1407,7 @@ fn button(parent: &mut ChildSpawnerCommands, value: &str, action: Action) {
             Button,
             action,
             crate::ui::theme::StandardButton,
+            crate::ui::button_icons::TextButton,
             Node {
                 width: percent(100),
                 height: px(30),
