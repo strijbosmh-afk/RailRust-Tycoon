@@ -288,11 +288,11 @@ impl Glyph {
         let families: &[(Self, &[&str])] = &[
             (Self::Close, &["close", "cancel", "done"]),
             (Self::Back, &["back", "return"]),
+            (Self::Copy, &["save as", "copy", "duplicate"]),
             (
                 Self::New,
                 &["new park", "create park", "new coaster", "new scenario"],
             ),
-            (Self::Copy, &["save as", "copy", "duplicate"]),
             (Self::Save, &["save", "export", "backup"]),
             (Self::Load, &["load", "import", "library"]),
             (Self::Exit, &["exit", "quit"]),
