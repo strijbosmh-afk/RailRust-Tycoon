@@ -34,3 +34,24 @@ replay and real tool selection; all seven steps in starter/demo parks without
 mutating saved park bytes; connected new path IDs after demolition; existing
 ride access and explanatory labels; and foreground-modal navigation guards.
 Windows release compilation and distribution checks are in progress.
+
+
+## Completed validation and Windows checkpoint
+
+Recorded 2026-11-19 13:27 UTC. Runtime commit:
+`16292a10ce2bb7f1bb2467c2398078c93eb2a0db`.
+All six focused guide tests passed. Formatting, strict workspace/all-target
+release Clippy and the release build passed. The extracted package passed 204
+payload hashes, 175 current guides and both fresh park-library processes.
+No native mouse check or performance acceptance is claimed.
+
+The installer upgraded PC1830 to 0.99.3. Its 204 payloads matched, all four
+existing player files were preserved byte-for-byte, and the two shortcuts and
+Installed apps icon were verified. Runtime SHA256:
+`f3c847f4927fec5f5485f212db4f571eaa341a5866a16a0ae11453fb2006f2f7`.
+The final guide refresh uses this same executable. Logs and final package
+checksums remain under `artifacts/guide-*` and `dist` respectively.
+
+No code work remains for this Next-button fix. The previous manual-opening
+native retest remains independent and unverified after the prior user stop.
+Git publication uses the existing branch/PR; verify its latest remote head.

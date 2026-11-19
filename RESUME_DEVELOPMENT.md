@@ -1,23 +1,40 @@
 # Resume development on another Windows PC
 
-## Current work — Unblocked first-park guide, 0.99.3
+## Current checkpoint — First-park guide navigation fixed, 0.99.3
 
-On `codex/right-click-settings`, based on `f918250fde2c9ead94c34dd5d03bc07007c8119c`.
-The first-park guide previously ignored Next at 2/7 until a new path existed.
-Next now always advances; optional practice has a separate explicit status.
-Tooltips follow the current step, and an existing park can use an existing
-ride for Access. Path practice tracks new connected IDs rather than net count.
-Guide navigation does not change the park, spend money or consume Tips.
+Runtime source: `16292a10ce2bb7f1bb2467c2398078c93eb2a0db`, branch
+`codex/right-click-settings`. The following documentation commit records the
+completed validation and installation. Resume from the latest remote branch.
 
-Formatting, strict workspace/all-target Clippy and all six focused guide
-regressions passed. The Windows release build and packaging are in progress. The player manual and quick-start guide describe optional practice.
-Park save schema/content stays 52/52; the guide remains transient UI state.
-The older native manual-opening acceptance task remains separate and is not
-claimed complete by this change.
+Next no longer stops at 2/7. Every step can be browsed without completing its
+practice task. The guide shows explicit optional-practice status, updates tool
+and navigation tooltips, and finishes normally after step 7. It detects a new
+connected public-path ID even if another path was removed, and can inspect an
+existing ride's access in Sunhaven or another established park.
 
-Source root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
-Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Google Drive
-remains disabled. Do not use this PC as a product-performance reference.
+All six guide regressions passed, including the complete seven-step flow in
+starter and demo parks with byte-identical saved park state, actual practice
+with construction/guests/saving, connected-path detection, existing-ride access,
+replay and modal guards. Formatting, strict workspace/all-target Clippy and the
+Windows release build passed. The extracted package passed 204 payload hashes,
+175 current guides and separate park-library writer/restart verification.
+
+PC1830 was upgraded to 0.99.3 at `%LOCALAPPDATA%\Programs\Parkbound`. All 204
+installed payloads matched, four player files stayed byte-identical and both
+shortcut targets/icons were verified. Runtime SHA256:
+`f3c847f4927fec5f5485f212db4f571eaa341a5866a16a0ae11453fb2006f2f7`.
+The final documentation refresh uses the same runtime. Current ZIP/installer
+checksums are beside the distribution files in `dist`; evidence is in
+`artifacts/guide-*`.
+
+The English manual and quick-start guide explain optional practice. Save
+schema/content stays 52/52; guide progress is transient and no migration is
+needed. The earlier native manual-opening retest is a separate outstanding
+acceptance item and is not claimed by this guide fix.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Drive remains
+disabled; keep existing local exports. This PC is not a performance reference.
 
 ## Current checkpoint — English manual and context controls, 0.99.2
 
