@@ -20,7 +20,9 @@ or save-version changes are introduced; saves remain 52/52.
 All 599 application tests and strict workspace Clippy passed. The seven new
 regressions cover owner identity, rotations, DPI/UI scaling, no-op ground clicks,
 right/middle panning, jitter, cancellation and unchanged save bytes/Tips.
-Windows/native and distribution verification are in progress. This PC supplies
+The Windows release build and embedded-icon verification passed. The extracted
+package passed 200 payload hashes and 172 current guides. All six fresh-process
+operations, Tips and park-library writer/verifier runs passed. This PC supplies
 correctness evidence only.
 
 ## Dutch player manual
@@ -43,3 +45,27 @@ Native interaction testing displayed the actual 0.99.1 title screen in an
 isolated muted profile and selected the demo. The user then stopped Computer
 Use with physical Escape. No further Computer Use actions were sent. Native
 right-click and browser-opening acceptance are therefore not claimed.
+
+
+## Final runtime and local installation checkpoint
+
+Recorded 2026-11-19 12:37 UTC. Runtime/manual commit:
+`38179d701e229ab38fe4d844c026c7c06b04611e` on
+`codex/right-click-settings`. The final documentation commit follows it.
+Executable SHA256:
+`2bff66774ed77e6b542762fbbdcc2455ddddc6ef1e9d8c6e14d36e5b2f275ffd`.
+
+The 0.99.1 installer updated PC1830 at
+`C:\Users\Michiel Strijbos\AppData\Local\Programs\Parkbound`.
+All 200 installed payload hashes matched, all four existing player files were
+unchanged, and both shortcuts and the Installed apps icon were checked.
+The final guide-only refresh uses the same executable. Its ZIP/installer
+checksums are recorded alongside the distribution files, avoiding recursive
+checksums inside their own documentation. The package verification scripts
+compare every bundled guide with the checkout.
+
+Remaining acceptance: native right-click on a ride and a service, plus opening
+Help's manual in the default browser. Computer Use was stopped by the user;
+these observations are not claimed. Automated regressions cover the gesture,
+owner identity and unchanged save state. There is no remaining code work in
+this request. Google Drive upload stays disabled; local exports are retained.

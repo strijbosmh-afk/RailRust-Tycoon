@@ -1,23 +1,49 @@
 # Project status
 
-## Current work — Right-click settings and Dutch player manual, 0.99.1
+## Current checkpoint — Right-click settings and Dutch manual, 0.99.1
 
-Working on `codex/right-click-settings`, based on
-`3d08981d99f8f3373941a2ffe72deaeaf2e66bd6` from the prior menu/advice phase.
-Short right-click releases open the visible ride or service's own settings.
-Right-drag and middle-drag retain camera panning. Existing menus, ownership and
-save schema/content 52/52 are preserved. Read `docs/OBJECT_SETTINGS.md`.
-The 25-chapter Dutch player manual is in `docs/HANDLEIDING_NL.md` and its
-offline HTML companion. Help opens the document in the default browser.
-Regenerate with `python scripts/build-player-manual.py`; CI checks freshness.
+Runtime and manual source: `38179d701e229ab38fe4d844c026c7c06b04611e`,
+branch `codex/right-click-settings`, based on the previous menu/advice phase
+at `3d08981d99f8f3373941a2ffe72deaeaf2e66bd6`. Resume from this branch's latest
+remote commit, which also includes the final validation record.
 
-All 599 application tests and strict workspace Clippy passed.
-The release build is in progress. Manual links and JavaScript syntax pass. Native input testing was stopped by the user
-with Escape; right-click and browser-opening acceptance are not claimed.
-Distribution verification remains pending.
+A short right-click opens the visible ride or service's own settings. Track,
+owned queues and gates resolve to their ride. Right/middle dragging still pans;
+focus, modal, camera and loaded-park changes cancel pending clicks. See
+`docs/OBJECT_SETTINGS.md`. Park schema/content remains 52/52.
 
-Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Local standard prompt 2.1.0 is used.
-Google Drive remains disabled. This PC is not a performance reference.
+The Dutch player manual contains 25 chapters, about 9,500 words, 80 heading
+anchors and 14 reference tables. `docs/HANDLEIDING_NL.md` is the source;
+`docs/HANDLEIDING_NL.html` is the offline searchable version. Help (H/F1) offers
+its document icon. All 120 local links resolve. Build with
+`python scripts/build-player-manual.py`; `--check` validates the output in CI.
+Python is a development tool only; the player uses a normal browser.
+
+All 599 application tests, formatting, strict workspace Clippy, the release
+build and seven-size embedded-icon checks passed. The extracted package passed
+200 payload hashes, 172 current guides and separate write/restart checks for
+ride operations, Tips and the park library. Manual HTML/link and JavaScript
+syntax checks passed. Logs are retained under `artifacts/context-*` and
+`artifacts/manual-audit.json`.
+
+PC1830 is updated to 0.99.1 at `%LOCALAPPDATA%\Programs\Parkbound`.
+All 200 installed payloads matched; four existing player files were preserved
+byte-for-byte, along with both shortcut targets/icons. Runtime SHA256:
+`2bff66774ed77e6b542762fbbdcc2455ddddc6ef1e9d8c6e14d36e5b2f275ffd`.
+The final guide-only package refresh uses this same executable; download
+checksums and installer records live beside the files in `dist`.
+
+Native input testing reached the real title screen in an isolated profile, then
+the user stopped Computer Use with Escape. No further UI automation followed.
+Native right-click and browser-opening acceptance remain unverified; the input
+behavior is covered by automated application regressions. The next manual
+check is a ride click, a service click and Help opening the offline manual.
+This PC supplies correctness evidence, never a product performance reference.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`; local standard prompt 2.1.0. Google Drive remains
+disabled. Preserve existing local exports and the complete AppData player
+folder when continuing on another PC.
 
 ## Current work — Organized menus and park advice, 0.99.0
 
