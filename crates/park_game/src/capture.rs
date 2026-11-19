@@ -1259,11 +1259,13 @@ fn apply_preset(
     view.terrain_change_pending = false;
     view.view_mode = capture.view_mode;
     view.scene_dirty = true;
-    view.help = matches!(
-        capture.scene,
-        Scene::Help | Scene::Sound | Scene::SoundMuted
-    );
-    view.audio_view = matches!(capture.scene, Scene::Sound | Scene::SoundMuted);
+    view.help = view.tips_view
+        || view.audio_view
+        || matches!(
+            capture.scene,
+            Scene::Help | Scene::Sound | Scene::SoundMuted
+        );
+    view.audio_view = view.audio_view || matches!(capture.scene, Scene::Sound | Scene::SoundMuted);
     if matches!(capture.scene, Scene::SoundMuted)
         && let Some(settings) = sound.as_mut()
     {

@@ -38,8 +38,10 @@ pub use visitors::{
     VISITOR_ARRIVAL_TICKS, VISITOR_LIFETIME_CAP, VISITOR_STAY_TICKS, VisitorError,
     VisitorFlowStats,
 };
+mod advice;
 pub mod diagnostics;
 mod economy;
+pub use advice::{MAX_TIP_USES, ProfitTip};
 mod experience;
 mod finance_summary;
 mod finances;
@@ -306,6 +308,7 @@ impl Speed {
 
 #[derive(Clone, Debug)]
 pub struct Park {
+    tips_used: u8,
     park_life: Option<park_life::ParkLife>,
     management: Option<management::Management>,
     play_rules: Option<scenario_tools::PlayRules>,
@@ -356,7 +359,8 @@ pub struct Park {
 /// their previous equality semantics across cloning and save/load.
 impl PartialEq for Park {
     fn eq(&self, other: &Self) -> bool {
-        self.play_rules == other.play_rules
+        self.tips_used == other.tips_used
+            && self.play_rules == other.play_rules
             && self.management == other.management
             && self.park_life == other.park_life
             && self.width == other.width
@@ -431,6 +435,7 @@ impl Park {
             width,
             height,
             tiles,
+            tips_used: 0,
             park_life: None,
             management: None,
             play_rules: None,

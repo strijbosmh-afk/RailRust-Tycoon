@@ -32,6 +32,7 @@ pub(crate) mod scenario_workshop;
 pub(crate) mod scenarios;
 pub(crate) mod services;
 pub(crate) mod theme;
+pub(crate) mod tips;
 pub(super) mod track;
 pub(crate) mod visitor_flow;
 pub(super) use economy::money;
@@ -109,6 +110,7 @@ pub(super) enum Action {
     Management(management::Command),
     Workshop(scenario_workshop::Command),
     Menu,
+    Tips,
     Navigation,
     CloseNavigation,
     NavGroup(navigation::Group),
@@ -193,6 +195,7 @@ pub(super) enum Action {
 pub(super) enum Label {
     Clock,
     Economy,
+    TipAllowance,
     TicketPrice,
     SelectionTitle,
     SelectionDetails,
@@ -232,7 +235,7 @@ pub(crate) fn adapt_header(
     let Ok(window) = windows.single() else {
         return;
     };
-    let compact = window.width() / scale.as_ref().map_or(1.0, |value| value.0) < 1100.0;
+    let compact = window.width() / scale.as_ref().map_or(1.0, |value| value.0) < 800.0;
     for mut node in &mut shortcuts {
         let display = if compact {
             Display::None
@@ -366,6 +369,23 @@ pub(super) fn setup(mut commands: Commands) {
                         BorderRadius::all(px(5)),
                     ))
                     .with_children(|p| label(p, "Rides [Y]", 12.0, INK));
+                    p.spawn((
+                        Button,
+                        Action::Tips,
+                        HeaderShortcut,
+                        Node {
+                            width: px(40),
+                            height: px(36),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(BUTTON),
+                        BorderRadius::all(px(5)),
+                    ))
+                    .with_children(|p| {
+                        dynamic_label(p, "Tips · 3 remaining", 12.0, INK, Label::TipAllowance)
+                    });
                 });
                 dynamic_label(
                     p,
@@ -436,7 +456,7 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                label(p, "CAMERA", 11.0, MUTED);
+                label(p, "Camera and view", 12.0, GOLD);
                 p.spawn(row()).with_children(|p| {
                     button(p, "< Q", Action::RotateLeft, 65.0);
                     button(p, "E >", Action::RotateRight, 65.0);
@@ -465,7 +485,7 @@ pub(super) fn setup(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                label(p, "PARK INSPECTOR", 11.0, MUTED);
+                label(p, "Park inspector", 12.0, GOLD);
                 dynamic_label(p, "Pick a surface", 18.0, INK, Label::SelectionTitle);
                 dynamic_label(
                     p,
@@ -475,6 +495,7 @@ pub(super) fn setup(mut commands: Commands) {
                     Label::SelectionDetails,
                 );
             });
+            label(p, "Edit selected object", 12.0, GOLD);
             p.spawn(row()).with_children(|p| {
                 button(p, "Remove [Del]", Action::RemovePath, 102.0);
                 button(p, "Restore demo", Action::RestorePaths, 102.0);
@@ -498,6 +519,7 @@ pub(super) fn setup(mut commands: Commands) {
             .with_children(|p| {
                 dynamic_label(p, "12 guests / finding routes", 11.0, INK, Label::Crowd);
             });
+            label(p, "Save and restore", 12.0, GOLD);
             p.spawn(row()).with_children(|p| {
                 button(p, "Save", Action::Save, 63.0);
                 button(p, "Load", Action::Load, 63.0);
@@ -666,6 +688,7 @@ pub(super) fn setup(mut commands: Commands) {
             ))
             .with_children(|p| {
                 label(p, "Make yourself at home", 23.0, INK);
+                layout::section(p, "Park basics", |p| {
                 label(p,"Paths join at matching edge heights. A queue needs one public entry and a ride entrance.\nRides → Access explains missing connections. Coaster tools show the next height before placement.\nChoose slope up/down, then Add next. Close the circuit, test it, and follow opening checks.\nFacilities need a public path and stock. Staff need reachable work. Save before major changes.\nShortcuts below are defaults. Controls & accessibility shows your saved key assignments.",12.0,INK);
                 label(
                     p,
@@ -676,6 +699,8 @@ pub(super) fn setup(mut commands: Commands) {
                     12.0,
                     MUTED,
                 );
+                });
+                layout::section(p, "Keyboard shortcuts", |p| {
                 for (keys, purpose) in [
                     ("F2 / 1–5", "Explore groups / change group"),
                     ("L / M / N / Y", "Guests / services / finance / rides"),
@@ -716,6 +741,8 @@ pub(super) fn setup(mut commands: Commands) {
                     12.0,
                     MUTED,
                 );
+                });
+                label(p, "Help and settings", 12.0, GOLD);
                 p.spawn(row()).with_children(|p|{
                     button(p, "Back to the park", Action::CloseHelp, 180.0);
                     button(p,"Sound [F10]",Action::Sound,160.0);
@@ -725,6 +752,7 @@ pub(super) fn setup(mut commands: Commands) {
             });
         });
     audio::setup(&mut commands);
+    tips::setup(&mut commands);
     guests::setup(&mut commands);
     services::setup(&mut commands);
     catalogue::setup(&mut commands);
@@ -1196,6 +1224,11 @@ pub(super) fn button_actions(
             | Action::NavGroup(_)
             | Action::NavTarget(_) => {}
             Action::Menu => view.front_request_menu = true,
+            Action::Tips => {
+                if !view.edits_blocked() {
+                    view.tips_requested = true;
+                }
+            }
             Action::Pause => view.pause(),
             Action::BrowseRide(delta) if view.rides_open => {
                 view.ride_browse_pending =
@@ -1698,6 +1731,7 @@ pub(super) fn refresh(
                     format!("{name} {}, {} / Height {height}", pos.x + 1, pos.y + 1)
                 },
             ),
+            Label::TipAllowance => format!("Tips · {} of 3 remaining",park_sim::MAX_TIP_USES-sim.0.tips_used()),
             Label::Pause => if view.speed == Speed::Paused {
                 "Resume"
             } else {
@@ -1858,6 +1892,7 @@ pub(super) fn refresh(
     for (action, interaction, mut background) in &mut buttons {
         let active = match action {
             Action::Menu => false,
+            Action::Tips => view.tips_view && view.help,
             Action::Pause => view.speed == Speed::Paused,
             Action::Speed(speed) => view.speed == *speed,
             Action::Grid => view.grid,
@@ -1934,9 +1969,12 @@ pub(super) fn refresh(
                         | crate::access_planning::AccessCommand::ShowOperations
                 ) | Action::CoasterTest(crate::coaster_testing::TestCommand::Show)
             );
+        let tips_disabled =
+            matches!(action, Action::Tips) && sim.0.tips_used() >= park_sim::MAX_TIP_USES;
         let color = if selected_ride_tab {
             GOLD
-        } else if tool_disabled
+        } else if tips_disabled
+            || tool_disabled
             || history_disabled
             || price_disabled
             || service_disabled
@@ -1958,7 +1996,7 @@ pub(super) fn refresh(
         }
     }
     for mut node in &mut help {
-        let display = if view.help && !view.audio_view {
+        let display = if view.help && !view.audio_view && !view.tips_view {
             Display::Flex
         } else {
             Display::None

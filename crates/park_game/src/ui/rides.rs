@@ -187,7 +187,8 @@ fn operating_row(parent: &mut ChildSpawnerCommands, field: OperatingField) {
                 32.0,
             );
             p.spawn(Node {
-                width: px(278),
+                flex_grow: 1.0,
+                min_width: px(0),
                 flex_shrink: 1.0,
                 ..default()
             })
@@ -221,10 +222,11 @@ pub(super) fn setup(commands: &mut Commands) {
             button(p,"Down >",Action::BrowseRide(1),65.0);
         });
         p.spawn(Node { column_gap: px(16), row_gap: px(16), flex_wrap: FlexWrap::Wrap, align_items: AlignItems::Start, flex_grow: 1.0, ..row() }).with_children(|p| {
-            p.spawn(Node { width: px(408), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
+            p.spawn((Node { width: px(408), ..layout::section_node() }, BackgroundColor(theme::INSET), BorderRadius::all(px(7)))).with_children(|p| {
                 p.spawn(Node{height:px(188),flex_shrink:0.0,..default()}).with_children(|p| {
                     operating_label(p, RideLabel::Details, 13.0, INK);
                 });
+                label(p,"Construction",12.0,GOLD);
                 p.spawn(row()).with_children(|p| {
                     button(p,&format!("Carousel {}",money(CAROUSEL_BUILD_COST_CENTS)),Action::BuildCarousel,124.0);
                     button(p,&format!("Swing {}",money(SWING_BUILD_COST_CENTS)),Action::BuildSwing,124.0);
@@ -233,6 +235,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 button(p,"Edit coaster track [Z]",Action::EditTrack,310.0);
                 label(p,&format!("Flat rides: six seats; 3 x 3 tiles. Add gates.\nDemolition returns {}% of the amount paid.\nOne of each may operate. Set height in Build Tools.",CAROUSEL_REFUND_PERCENT),12.0,MUTED);
                 label(p,"After closing this panel: O open/close / F find\nF6-F7 ticket / J queue / I entrance / K exit\nSpace pauses from this panel or the park.",12.0,MUTED);
+                label(p,"Ride name",12.0,GOLD);
                 p.spawn(row()).with_children(|p| {
                     button(p, "Edit name", Action::RideName(super::names::Command::Focus), 105.0);
                     operating_label(p, RideLabel::NameDraft, 13.0, INK);
@@ -243,7 +246,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 });
                 operating_label(p, RideLabel::NameNotice, 12.0, MUTED);
             });
-            p.spawn(Node { width: px(356), flex_shrink: 0.0, flex_direction: FlexDirection::Column, row_gap: px(6), ..default() }).with_children(|p| {
+            p.spawn((Node { width: px(356), ..layout::section_node() }, BackgroundColor(theme::INSET), BorderRadius::all(px(7)))).with_children(|p| {
                 p.spawn(row()).with_children(|p| {
                     button(p, "Operations", Action::RideAccess(AccessCommand::ShowOperations), 100.0);
                     button(p, "Access", Action::RideAccess(AccessCommand::ShowAccess), 75.0);

@@ -1,5 +1,40 @@
 # Project status
 
+## Current work — Organized menus and park advice, 0.99.0
+
+Runtime source `27e9eb714dfceab786561225a6a97301e57c83d9` is on
+`codex/park-advice-and-menus`. Remaining game menus have labelled sections,
+clearer facility and management icons, and readable form/list entries. The main
+menu retains its original text buttons. The third header shortcut is Tips,
+which returns two current-state suggestions with three uses per park. The
+allowance survives saving, primary/backup loading, restarting, copied parks
+and construction undo. New parks start with three uses. Read `docs/PARK_TIPS.md`.
+
+All 1,057 workspace tests passed, followed by all 35 UI tests after the final
+icon refinements. Formatting, strict Clippy, original asset records, Windows
+release compilation and embedded icon verification passed. Fifteen engine
+captures cover the menus, Tips, 1024x680 through 3840x2160 and main-menu text.
+The extracted package passed 196 payload hashes, 169 current guides and separate
+Tips, park-library and playable-demo write/restart processes.
+
+PC1830 is upgraded to 0.99.0 in `%LOCALAPPDATA%\Programs\Parkbound`. All installed
+payloads and both shortcuts were verified; both existing player files retained
+their exact hashes. Executable SHA256: `6d317b31dc11a43eedec9075fd490a72e8a568e7d59b9390abd0f150e78d3683`. The final documentation
+refresh uses the same executable. ZIP and installer checksums accompany their
+files in `dist/`. See `docs/sessions/2026-11-19-park-advice-menus.md` for evidence.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Park saves are 52/52; supported older parks migrate with zero tip uses spent.
+Copy the complete `%LOCALAPPDATA%\Parkbound\saves` folder to carry park-library
+metadata to another PC. Google Drive remains disabled; local standard prompt
+2.1.0 is in use. This PC supplies correctness checks only.
+
+The requested menu and advice work is complete. Resume from the latest commit
+on this branch and consult `docs/FULL_GAME_ROADMAP.md` before selecting another
+phase. Independent player acceptance and representative-hardware performance
+remain separate roadmap work. Check the new GitHub workflow's outcome before
+merging; publication alone is not a CI pass.
+
 ## Current work — Structured construction menus, 0.98.1
 
 Runtime `726dcfc8ce400eb452ca3d0aedbf952227f1fef9` on `codex/themed-menus-borderless` is published in PR 91. The Build panel groups Paths, Landscape and Scenery/park items. Construction icons use colored filled artwork, with distinct signs, patrol routes and brush controls. The title, new-park, pause and settings screens regain their original text buttons. All 44 relevant UI/front/display tests, formatting, strict Clippy, release compilation, screen captures and extracted-package front continuation passed. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-structured-build-menu.md`.

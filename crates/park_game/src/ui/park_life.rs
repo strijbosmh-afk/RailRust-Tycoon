@@ -209,71 +209,78 @@ pub(crate) fn setup(commands: &mut Commands) {
                     label(p, "Park life and staff", 24.0, INK);
                     control(p, "Close [Esc]", Command::Close, 130.0);
                 });
-                p.spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: 14.0,
-                        ..default()
-                    },
-                    TextColor(INK),
-                    Summary,
-                ));
-                p.spawn(Node {
-                    flex_wrap: FlexWrap::Wrap,
-                    column_gap: px(6),
-                    row_gap: px(5),
-                    ..row()
-                })
-                .with_children(|p| {
-                    control(p, "Enable park life", Command::Enable, 150.0);
-                    control(p, "Weather policy", Command::Weather, 150.0);
-                    control(p, "Cover a path", Command::Shelter, 150.0);
-                    control(p, "Find first incident", Command::FindIncident, 160.0);
-                    control(p, "Grounds controls", Command::Legacy, 150.0);
+                layout::section(p, "Weather and park conditions", |p| {
+                    p.spawn((
+                        Text::new(""),
+                        TextFont {
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(INK),
+                        Summary,
+                    ));
+                    p.spawn(Node {
+                        flex_wrap: FlexWrap::Wrap,
+                        column_gap: px(6),
+                        row_gap: px(5),
+                        ..row()
+                    })
+                    .with_children(|p| {
+                        control(p, "Enable park life", Command::Enable, 150.0);
+                        control(p, "Weather policy", Command::Weather, 150.0);
+                        control(p, "Cover a path", Command::Shelter, 150.0);
+                        control(p, "Find first incident", Command::FindIncident, 160.0);
+                        control(p, "Grounds controls", Command::Legacy, 150.0);
+                    });
                 });
-                label(
-                    p,
-                    "Hire staff / $1 every 30 simulation seconds / maximum 20",
-                    13.0,
-                    INK,
-                );
-                p.spawn(Node {
-                    flex_wrap: FlexWrap::Wrap,
-                    column_gap: px(6),
-                    row_gap: px(5),
-                    ..row()
-                })
-                .with_children(|p| {
-                    for role in StaffRole::ALL {
-                        control(p, role.label(), Command::Hire(role), 155.0);
-                    }
+                layout::section(p, "Hire your team", |p| {
+                    label(
+                        p,
+                        "Hire staff / $1 every 30 simulation seconds / maximum 20",
+                        13.0,
+                        INK,
+                    );
+                    p.spawn(Node {
+                        flex_wrap: FlexWrap::Wrap,
+                        column_gap: px(6),
+                        row_gap: px(5),
+                        ..row()
+                    })
+                    .with_children(|p| {
+                        for role in StaffRole::ALL {
+                            control(p, role.label(), Command::Hire(role), 155.0);
+                        }
+                    });
                 });
-                p.spawn(Node {
-                    flex_wrap: FlexWrap::Wrap,
-                    column_gap: px(6),
-                    row_gap: px(5),
-                    ..row()
-                })
-                .with_children(|p| {
-                    control(p, "Find selected", Command::FindStaff, 140.0);
-                    control(p, "Patrol tile", Command::Patrol, 130.0);
-                    control(p, "Whole park", Command::ClearPatrol, 130.0);
-                    control(p, "Dismiss selected", Command::Dismiss, 150.0);
+                layout::section(p, "Selected team member", |p| {
+                    p.spawn(Node {
+                        flex_wrap: FlexWrap::Wrap,
+                        column_gap: px(6),
+                        row_gap: px(5),
+                        ..row()
+                    })
+                    .with_children(|p| {
+                        control(p, "Find selected", Command::FindStaff, 140.0);
+                        control(p, "Patrol tile", Command::Patrol, 130.0);
+                        control(p, "Whole park", Command::ClearPatrol, 130.0);
+                        control(p, "Dismiss selected", Command::Dismiss, 150.0);
+                    });
+                    p.spawn((
+                        Text::new(""),
+                        TextFont {
+                            font_size: 13.0,
+                            ..default()
+                        },
+                        TextColor(MUTED),
+                        Details,
+                    ));
                 });
-                p.spawn((
-                    Text::new(""),
-                    TextFont {
-                        font_size: 13.0,
-                        ..default()
-                    },
-                    TextColor(MUTED),
-                    Details,
-                ));
                 for index in 0..park_sim::PARK_STAFF_LIMIT {
                     p.spawn((
                         Button,
                         Action::ParkLife(Command::Select(index)),
                         StaffRow(index),
+                        super::button_icons::TextButton,
                         Node {
                             display: Display::None,
                             min_height: px(30),

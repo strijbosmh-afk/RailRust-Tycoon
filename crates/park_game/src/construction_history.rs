@@ -46,7 +46,10 @@ impl EditHistory {
         stack.push(park);
     }
 
-    fn record(&mut self, before: Park, after: &Park) {
+    fn record(&mut self, mut before: Park, after: &Park) {
+        before
+            .retain_tip_uses(after.tips_used())
+            .expect("validated tip count");
         if before != *after {
             Self::push(&mut self.undo, before);
             self.redo.clear();
@@ -58,9 +61,12 @@ impl EditHistory {
             EditCommand::Undo => (&mut self.undo, &mut self.redo),
             EditCommand::Redo => (&mut self.redo, &mut self.undo),
         };
-        let Some(previous) = source.pop() else {
+        let Some(mut previous) = source.pop() else {
             return false;
         };
+        previous
+            .retain_tip_uses(park.tips_used())
+            .expect("validated tip count");
         Self::push(destination, std::mem::replace(park, previous));
         self.skip_finish = true;
         true
@@ -256,6 +262,26 @@ mod tests {
             Park::from_save_bytes(&park.to_save_bytes().unwrap()),
             Ok(park)
         );
+    }
+
+    #[test]
+    fn undo_and_redo_preserve_spent_advice_without_recording_tip_only_changes() {
+        let mut history = EditHistory::default();
+        let mut park = Park::new(32, 32);
+        let before = park.clone();
+        park.retain_tip_uses(1).unwrap();
+        history.record(before.clone(), &park);
+        assert!(!history.can_undo());
+        park.build_scenery(TilePos { x: 5, y: 5 }, SceneryKind::Tree)
+            .unwrap();
+        history.record(before, &park);
+        park.retain_tip_uses(3).unwrap();
+        assert!(history.restore(&mut park, EditCommand::Undo));
+        assert_eq!(park.tips_used(), 3);
+        assert!(park.objects().is_empty());
+        assert!(history.restore(&mut park, EditCommand::Redo));
+        assert_eq!(park.tips_used(), 3);
+        assert_eq!(park.objects().len(), 1);
     }
 
     #[test]

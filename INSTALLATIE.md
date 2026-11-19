@@ -1,10 +1,10 @@
 # Installation and development
 
-## Windows installer in 0.98.1
+## Windows installer in 0.99.0
 
-Run `Parkbound-0.98.1-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
+Run `Parkbound-0.99.0-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
 
-New display preferences start borderless fullscreen. F11 restores a decorated window, and `Parkbound.exe --safe-windowed` starts a temporary windowed session. Existing saved display choices remain supported. Version 0.98.1 adds no runtime dependencies.
+New display preferences start borderless fullscreen. F11 restores a decorated window, and `Parkbound.exe --safe-windowed` starts a temporary windowed session. Existing saved display choices remain supported. Version 0.99.0 adds no runtime dependencies. Saves use schema/content 52/52. The Tips allowance is stored with each park and its library metadata, so transfer the complete player-data folder to retain it when moving PCs. Supported older saves migrate automatically; older binaries cannot open new saves.
 
 Version 0.97.0 uses the existing runtime and build toolchain. Crowd PCM is embedded in the executable and its CC0 original and license are bundled in `assets/audio`. Python audio tools are only needed to regenerate that source asset. The owner disabled Google Drive synchronization. Respect `PROJECT.json` and `AGENTS.md` on a new PC before processing queued exports.
 

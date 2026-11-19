@@ -35,121 +35,75 @@ pub(crate) fn queue(view: &mut ViewState, command: VisitorCommand) {
         command
     });
 }
+fn value(p: &mut ChildSpawnerCommands, kind: VisitorLabel) {
+    p.spawn((
+        Text::new(""),
+        TextFont {
+            font_size: 12.0,
+            ..default()
+        },
+        TextColor(INK),
+        kind,
+    ));
+}
+fn actions(p: &mut ChildSpawnerCommands, items: &[(&str, VisitorCommand)]) {
+    p.spawn(layout::action_row()).with_children(|p| {
+        for (caption, command) in items {
+            button(p, caption, Action::Visitor(*command), 145.0);
+        }
+    });
+}
 pub(crate) fn setup(p: &mut ChildSpawnerCommands) {
     p.spawn((
         VisitorBody,
         Node {
             display: Display::None,
-            height: px(420),
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
-            row_gap: px(10),
+            row_gap: px(8),
             ..default()
         },
     ))
     .with_children(|p| {
-        for kind in [
-            VisitorLabel::Entry,
-            VisitorLabel::Totals,
-            VisitorLabel::Pricing,
-            VisitorLabel::Marketing,
-            VisitorLabel::Scenario,
-            VisitorLabel::Rules,
-            VisitorLabel::Selected,
-        ] {
-            p.spawn((
-                Text::new(""),
-                TextFont {
-                    font_size: 12.0,
-                    ..default()
-                },
-                TextColor(INK),
-                kind,
-            ));
-        }
-        p.spawn(Node {
-            justify_content: JustifyContent::SpaceBetween,
-            ..row()
-        })
-        .with_children(|p| {
-            button(
+        layout::section(p, "Arrivals and park entrance", |p| {
+            value(p, VisitorLabel::Entry);
+            value(p, VisitorLabel::Totals);
+            value(p, VisitorLabel::Selected);
+            actions(
                 p,
-                "Set entry",
-                Action::Visitor(VisitorCommand::SetEntry),
-                145.0,
-            );
-            button(
-                p,
-                "Toggle arrivals",
-                Action::Visitor(VisitorCommand::Toggle),
-                145.0,
-            );
-            button(
-                p,
-                "Open / close park",
-                Action::Visitor(VisitorCommand::TogglePark),
-                145.0,
-            );
-            button(
-                p,
-                "Send guest home",
-                Action::Visitor(VisitorCommand::SendHome),
-                145.0,
+                &[
+                    ("Set entry", VisitorCommand::SetEntry),
+                    ("Toggle arrivals", VisitorCommand::Toggle),
+                    ("Open / close park", VisitorCommand::TogglePark),
+                    ("Send guest home", VisitorCommand::SendHome),
+                ],
             );
         });
-        p.spawn(Node {
-            justify_content: JustifyContent::SpaceBetween,
-            ..row()
-        })
-        .with_children(|p| {
-            button(
+        layout::section(p, "Admission pricing", |p| {
+            value(p, VisitorLabel::Pricing);
+            value(p, VisitorLabel::Rules);
+            actions(
                 p,
-                "Entry -$0.50",
-                Action::Visitor(VisitorCommand::EntryDown),
-                145.0,
-            );
-            button(
-                p,
-                "Entry +$0.50",
-                Action::Visitor(VisitorCommand::EntryUp),
-                145.0,
-            );
-            button(
-                p,
-                "Next charging rule",
-                Action::Visitor(VisitorCommand::CycleRule),
-                185.0,
-            );
-            button(
-                p,
-                "Run flyers $25",
-                Action::Visitor(VisitorCommand::RunFlyers),
-                145.0,
+                &[
+                    ("Entry -$0.50", VisitorCommand::EntryDown),
+                    ("Entry +$0.50", VisitorCommand::EntryUp),
+                    ("Next charging rule", VisitorCommand::CycleRule),
+                ],
             );
         });
-        p.spawn((
-            Text::new(""),
-            TextFont {
-                font_size: 12.0,
-                ..default()
-            },
-            TextColor(INK),
-            VisitorLabel::Notice,
-        ));
-        p.spawn(Node { ..row() }).with_children(|p| {
-            button(
+        layout::section(p, "Advertising and goals", |p| {
+            value(p, VisitorLabel::Marketing);
+            value(p, VisitorLabel::Scenario);
+            actions(
                 p,
-                "Run radio ads $40",
-                Action::Visitor(VisitorCommand::RunRadio),
-                160.0,
-            );
-            button(
-                p,
-                "Start Meadow Challenge",
-                Action::Visitor(VisitorCommand::StartChallenge),
-                210.0,
+                &[
+                    ("Run flyers $25", VisitorCommand::RunFlyers),
+                    ("Run radio ads $40", VisitorCommand::RunRadio),
+                    ("Start Meadow Challenge", VisitorCommand::StartChallenge),
+                ],
             );
         });
+        value(p, VisitorLabel::Notice);
     });
 }
 pub(crate) fn apply_commands(mut sim: ResMut<Simulation>, mut view: ResMut<ViewState>) {

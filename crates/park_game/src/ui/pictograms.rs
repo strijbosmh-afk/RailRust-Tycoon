@@ -91,6 +91,19 @@ pub(super) enum Glyph {
     Patrol,
     BrushSmaller,
     BrushLarger,
+    Tips,
+    Staff,
+    Supplies,
+    Marketing,
+    Policy,
+    Trophy,
+    Food,
+    Drink,
+    Toilet,
+    IceCream,
+    Souvenir,
+    Information,
+    FirstAid,
 }
 
 impl Glyph {
@@ -174,11 +187,86 @@ impl Glyph {
         Self::Patrol,
         Self::BrushSmaller,
         Self::BrushLarger,
+        Self::Tips,
+        Self::Staff,
+        Self::Supplies,
+        Self::Marketing,
+        Self::Policy,
+        Self::Trophy,
+        Self::Food,
+        Self::Drink,
+        Self::Toilet,
+        Self::IceCream,
+        Self::Souvenir,
+        Self::Information,
+        Self::FirstAid,
     ];
 
     pub(super) fn for_button(action: Option<&Action>, caption: &str) -> Self {
         match action {
             Some(Action::Menu) => Self::Menu,
+            Some(
+                Action::CloseNavigation
+                | Action::CloseGuests
+                | Action::CloseServices
+                | Action::CloseFinance
+                | Action::CloseRides
+                | Action::CloseHelp,
+            ) => Self::Close,
+            Some(Action::ToggleTrain | Action::ToggleService) => Self::Power,
+            Some(Action::FinanceView) => Self::Chart,
+            Some(Action::Loan(_)) => Self::Finance,
+            Some(Action::BuildCarousel | Action::BuildSwing | Action::BuildDropTower) => Self::Ride,
+            Some(Action::ToggleHandyman) => Self::Staff,
+            Some(Action::ToggleCleaning) => Self::Brush,
+            Some(Action::NavGroup(group)) => match group {
+                super::navigation::Group::Build => Self::Hammer,
+                super::navigation::Group::Manage => Self::Finance,
+                super::navigation::Group::Inspect => Self::Search,
+                super::navigation::Group::Park => Self::Gate,
+                super::navigation::Group::Help => Self::Help,
+            },
+            Some(Action::RideAccess(crate::access_planning::AccessCommand::ShowOperations)) => {
+                Self::Settings
+            }
+            Some(Action::Design(command)) => match command {
+                crate::design_library::DesignCommand::Open
+                | crate::design_library::DesignCommand::Import
+                | crate::design_library::DesignCommand::LoadDraft => Self::Load,
+                crate::design_library::DesignCommand::Close
+                | crate::design_library::DesignCommand::Cancel => Self::Close,
+                crate::design_library::DesignCommand::SaveNew
+                | crate::design_library::DesignCommand::UpdateSelected
+                | crate::design_library::DesignCommand::Export => Self::Save,
+                crate::design_library::DesignCommand::DeleteSelected => Self::Bin,
+                crate::design_library::DesignCommand::NameFocus
+                | crate::design_library::DesignCommand::RenameSelected => Self::Pen,
+                crate::design_library::DesignCommand::SearchFocus => Self::Search,
+                crate::design_library::DesignCommand::ClearSearch => Self::Close,
+                crate::design_library::DesignCommand::Sort => Self::Filter,
+                crate::design_library::DesignCommand::Turn => Self::RotateRight,
+                crate::design_library::DesignCommand::Select(_) => Self::Eye,
+                crate::design_library::DesignCommand::Confirm => Self::Check,
+                crate::design_library::DesignCommand::Browse(delta) => {
+                    if *delta < 0 {
+                        Self::Back
+                    } else {
+                        Self::Forward
+                    }
+                }
+                crate::design_library::DesignCommand::MoveX(delta)
+                | crate::design_library::DesignCommand::MoveY(delta)
+                | crate::design_library::DesignCommand::Height(delta) => {
+                    if *delta < 0 {
+                        Self::Minus
+                    } else {
+                        Self::Plus
+                    }
+                }
+            },
+            Some(Action::Tips | Action::NavTarget(super::navigation::Destination::Tips)) => {
+                Self::Tips
+            }
             Some(Action::FocusTrain | Action::FindGuest) => Self::Search,
             Some(Action::SetPathTool(tool)) => match tool {
                 PathTool::Inspect => Self::Search,
@@ -186,7 +274,7 @@ impl Glyph {
                 PathTool::BuildQueue => Self::Queue,
                 PathTool::Entrance => Self::Gate,
                 PathTool::Exit => Self::Exit,
-                PathTool::Service(_) => Self::Shop,
+                PathTool::Service(kind) => Self::facility(*kind),
                 PathTool::Carousel => Self::Ride,
                 PathTool::Scenery(SceneryKind::Tree) => Self::Tree,
                 PathTool::Scenery(SceneryKind::FlowerBed) => Self::Flower,
@@ -246,7 +334,72 @@ impl Glyph {
                 }
             }
             Some(Action::Catalogue(super::catalogue::Command::Ride(_))) => Self::Ride,
-            Some(Action::Catalogue(super::catalogue::Command::Facility(_))) => Self::Shop,
+            Some(
+                Action::Catalogue(super::catalogue::Command::Facility(kind))
+                | Action::BuildService(kind),
+            ) => Self::facility(*kind),
+            Some(Action::Management(command)) => match command {
+                super::management::Command::Enable => Self::Power,
+                super::management::Command::Tab(tab) => [
+                    Self::Chart,
+                    Self::Research,
+                    Self::Supplies,
+                    Self::Marketing,
+                    Self::Policy,
+                    Self::Clock,
+                    Self::Tool,
+                ]
+                .get(usize::from(*tab))
+                .copied()
+                .unwrap_or(Self::Settings),
+                super::management::Command::Order | super::management::Command::AutoStock => {
+                    Self::Supplies
+                }
+                super::management::Command::Priority(_) | super::management::Command::Funding => {
+                    Self::Research
+                }
+                super::management::Command::Promotion(_)
+                | super::management::Command::Flyers
+                | super::management::Command::Radio => Self::Marketing,
+                super::management::Command::Staff => Self::Staff,
+                _ => Self::for_caption(caption),
+            },
+            Some(Action::ParkLife(command)) => match command {
+                super::park_life::Command::Enable => Self::Power,
+                super::park_life::Command::Weather => Self::Rain,
+                super::park_life::Command::Hire(role) => match role {
+                    park_sim::StaffRole::Mechanic => Self::Tool,
+                    park_sim::StaffRole::Handyman => Self::Bin,
+                    park_sim::StaffRole::Security => Self::Patrol,
+                    park_sim::StaffRole::Entertainer => Self::Star,
+                    park_sim::StaffRole::Attendant => Self::Staff,
+                },
+                super::park_life::Command::Select(_) => Self::Staff,
+                super::park_life::Command::Patrol | super::park_life::Command::ClearPatrol => {
+                    Self::Patrol
+                }
+                super::park_life::Command::Dismiss => Self::Exit,
+                super::park_life::Command::Shelter => Self::Home,
+                _ => Self::for_caption(caption),
+            },
+            Some(Action::NavTarget(
+                super::navigation::Destination::Staff | super::navigation::Destination::ParkLife,
+            )) => Self::Staff,
+            Some(Action::NavTarget(super::navigation::Destination::Marketing)) => Self::Marketing,
+            Some(Action::NavTarget(super::navigation::Destination::Scenarios)) => Self::Trophy,
+            Some(Action::Visitor(command)) => match command {
+                super::visitor_flow::VisitorCommand::SetEntry => Self::Gate,
+                super::visitor_flow::VisitorCommand::Toggle => Self::Guests,
+                super::visitor_flow::VisitorCommand::TogglePark => Self::Power,
+                super::visitor_flow::VisitorCommand::EntryDown => Self::Minus,
+                super::visitor_flow::VisitorCommand::EntryUp => Self::Plus,
+                super::visitor_flow::VisitorCommand::CycleRule => Self::Policy,
+                super::visitor_flow::VisitorCommand::RunFlyers
+                | super::visitor_flow::VisitorCommand::RunRadio => Self::Marketing,
+                super::visitor_flow::VisitorCommand::StartChallenge => Self::Trophy,
+                super::visitor_flow::VisitorCommand::SendHome => Self::Exit,
+                super::visitor_flow::VisitorCommand::Conflict => Self::Help,
+            },
             Some(Action::Grid) => Self::Grid,
             Some(Action::Terrain) => Self::Terrain,
             Some(Action::Underground) => Self::Underground,
@@ -264,6 +417,19 @@ impl Glyph {
             Some(Action::SelectGuest(_)) => Self::Guests,
             Some(Action::RepairGuestPath) => Self::Tool,
             _ => Self::for_caption(caption),
+        }
+    }
+
+    fn facility(kind: park_sim::ServiceKind) -> Self {
+        match kind {
+            park_sim::ServiceKind::Food => Self::Food,
+            park_sim::ServiceKind::Drink => Self::Drink,
+            park_sim::ServiceKind::Toilet => Self::Toilet,
+            park_sim::ServiceKind::Rest => Self::Bench,
+            park_sim::ServiceKind::IceCream => Self::IceCream,
+            park_sim::ServiceKind::Souvenir => Self::Souvenir,
+            park_sim::ServiceKind::Information => Self::Information,
+            park_sim::ServiceKind::FirstAid => Self::FirstAid,
         }
     }
 
@@ -335,6 +501,8 @@ impl Glyph {
                     "ambience",
                     "effects",
                     "reactions",
+                    "mute",
+                    "chime",
                 ],
             ),
             (Self::Undo, &["undo"]),
@@ -371,7 +539,17 @@ impl Glyph {
                 Self::Chart,
                 &["stats", "statistics", "ledger", "report", "economy"],
             ),
-            (Self::Guests, &["guest", "visitor", "staff", "handyman"]),
+            (
+                Self::Staff,
+                &["staff", "handyman", "entertainer", "security"],
+            ),
+            (Self::Supplies, &["supplies", "stock", "order"]),
+            (
+                Self::Marketing,
+                &["marketing", "advert", "flyers", "radio", "promotion"],
+            ),
+            (Self::Trophy, &["scenario", "goals", "challenge"]),
+            (Self::Guests, &["guest", "visitor"]),
             (
                 Self::Flag,
                 &[
@@ -459,6 +637,176 @@ impl Glyph {
     fn draw(self, c: &mut Canvas) {
         use Glyph::*;
         match self {
+            Tips => {
+                c.color(GOLD);
+                c.disc([16., 12.], 9.);
+                c.color(CREAM);
+                c.poly(&[[12., 14.], [16., 18.], [20., 14.]]);
+                c.line([16., 18.], [16., 24.]);
+                c.line([11., 25.], [21., 25.]);
+                c.line([12., 29.], [20., 29.]);
+            }
+            Staff => {
+                c.color(GOLD);
+                c.fill(&[[7., 12.], [9., 5.], [23., 5.], [25., 12.]]);
+                c.color(CREAM);
+                c.disc([16., 15.], 5.);
+                c.fill(&[
+                    [8., 24.],
+                    [12., 21.],
+                    [20., 21.],
+                    [24., 24.],
+                    [25., 30.],
+                    [7., 30.],
+                ]);
+                c.color(BLUE);
+                c.block(13., 22., 19., 30.);
+                c.color(RED);
+                c.disc([23., 25.], 2.);
+            }
+            Supplies => {
+                c.color(WOOD);
+                c.fill(&[
+                    [4., 10.],
+                    [16., 4.],
+                    [28., 10.],
+                    [28., 25.],
+                    [16., 31.],
+                    [4., 25.],
+                ]);
+                c.color(GOLD);
+                c.poly(&[[4., 10.], [16., 16.], [28., 10.]]);
+                c.line([16., 16.], [16., 30.]);
+                c.color(CREAM);
+                c.poly(&[[10., 7.], [22., 13.], [22., 20.]]);
+                c.line([7., 22.], [12., 24.]);
+            }
+            Marketing => {
+                c.color(RED);
+                c.fill(&[
+                    [4., 12.],
+                    [12., 12.],
+                    [28., 5.],
+                    [28., 25.],
+                    [12., 20.],
+                    [4., 20.],
+                ]);
+                c.color(GOLD);
+                c.fill(&[[10., 20.], [16., 21.], [18., 29.], [12., 29.]]);
+                c.color(CREAM);
+                c.line([27., 6.], [27., 24.]);
+                c.line([5., 13.], [5., 19.]);
+            }
+            Policy => {
+                c.color(CREAM);
+                c.block(6., 5., 26., 30.);
+                c.color(GOLD);
+                c.block(12., 3., 20., 8.);
+                c.circle([16., 4.], 3.);
+                c.color(GREEN);
+                c.poly(&[[10., 13.], [12., 15.], [16., 10.]]);
+                c.poly(&[[10., 23.], [12., 25.], [16., 20.]]);
+                c.color(BLUE);
+                c.line([19., 13.], [23., 13.]);
+                c.line([19., 23.], [23., 23.]);
+            }
+            Trophy => {
+                c.color(GOLD);
+                c.fill(&[[9., 5.], [23., 5.], [21., 17.], [16., 21.], [11., 17.]]);
+                c.poly(&[[9., 7.], [4., 7.], [5., 14.], [11., 16.]]);
+                c.poly(&[[23., 7.], [28., 7.], [27., 14.], [21., 16.]]);
+                c.line([16., 20.], [16., 26.]);
+                c.block(10., 27., 22., 30.);
+                c.color(CREAM);
+                c.line([12., 8.], [12., 13.]);
+            }
+            Food => {
+                c.color(GOLD);
+                c.fill(&[
+                    [5., 13.],
+                    [7., 8.],
+                    [12., 5.],
+                    [20., 5.],
+                    [25., 8.],
+                    [27., 13.],
+                ]);
+                c.block(5., 25., 27., 29.);
+                c.color(GREEN);
+                c.poly(&[[4., 16.], [9., 18.], [14., 16.], [19., 18.], [27., 16.]]);
+                c.color(RED);
+                c.block(5., 20., 27., 23.);
+                c.color(CREAM);
+                c.line([12., 8.], [13., 8.]);
+                c.line([19., 9.], [20., 9.]);
+            }
+            Drink => {
+                c.color(BLUE);
+                c.fill(&[[7., 10.], [25., 10.], [22., 29.], [10., 29.]]);
+                c.color(CREAM);
+                c.line([6., 10.], [26., 10.]);
+                c.poly(&[[17., 21.], [20., 4.], [27., 4.]]);
+                c.color(GOLD);
+                c.circle([16., 21.], 4.);
+            }
+            Toilet => {
+                c.color(BLUE);
+                c.disc([16., 16.], 14.);
+                c.color(CREAM);
+                for x in [10., 22.] {
+                    c.disc([x, 9.], 2.);
+                    c.line([x, 14.], [x, 23.]);
+                    c.line([x - 2., 18.], [x + 2., 18.]);
+                }
+                c.fill(&[[22., 14.], [18., 23.], [26., 23.]]);
+                c.line([8., 28.], [10., 23.]);
+                c.line([12., 28.], [10., 23.]);
+                c.line([20., 23.], [20., 28.]);
+                c.line([24., 23.], [24., 28.]);
+            }
+            IceCream => {
+                c.color(WOOD);
+                c.fill(&[[10., 16.], [24., 16.], [17., 31.]]);
+                c.color(CREAM);
+                c.line([13., 20.], [19., 24.]);
+                c.color(RED);
+                c.disc([12., 13.], 6.);
+                c.color(GOLD);
+                c.disc([22., 13.], 6.);
+                c.color(CREAM);
+                c.disc([17., 7.], 6.);
+            }
+            Souvenir => {
+                c.color(RED);
+                c.block(5., 13., 27., 29.);
+                c.color(GOLD);
+                c.block(3., 10., 29., 16.);
+                c.block(14., 10., 18., 29.);
+                c.color(CREAM);
+                c.poly(&[
+                    [16., 11.],
+                    [7., 8.],
+                    [8., 3.],
+                    [12., 3.],
+                    [16., 11.],
+                    [24., 8.],
+                    [24., 3.],
+                    [20., 3.],
+                    [16., 11.],
+                ]);
+            }
+            Information | FirstAid => {
+                c.color(if self == FirstAid { RED } else { BLUE });
+                c.disc([16., 16.], 13.);
+                c.color(CREAM);
+                if self == FirstAid {
+                    c.block(13., 8., 19., 24.);
+                    c.block(8., 13., 24., 19.);
+                } else {
+                    c.disc([16., 8.], 2.);
+                    c.block(14., 14., 18., 24.);
+                    c.line([12., 24.], [21., 24.]);
+                }
+            }
             Menu => {
                 for y in [8., 16., 24.] {
                     c.line([5., y], [27., y]);

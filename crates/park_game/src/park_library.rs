@@ -20,6 +20,8 @@ pub(super) struct Entry {
     pub id: u64,
     pub name: String,
     pub updated: u64,
+    #[serde(default)]
+    pub tip_uses: u8,
 }
 
 #[derive(Clone)]
@@ -63,7 +65,11 @@ impl ParkLibrary {
             let entry = match read_file(&path) {
                 Ok(bytes) if bytes.len() <= 4096 => serde_json::from_slice::<Entry>(&bytes)
                     .ok()
-                    .filter(|entry| entry.id == id && valid_name(&entry.name))
+                    .filter(|entry| {
+                        entry.id == id
+                            && valid_name(&entry.name)
+                            && entry.tip_uses <= park_sim::MAX_TIP_USES
+                    })
                     .unwrap_or_else(|| fallback(id)),
                 _ => fallback(id),
             };
@@ -109,6 +115,7 @@ impl ParkLibrary {
             id: next,
             name,
             updated: now(),
+            tip_uses: park.tips_used(),
         };
         self.write_entry(&entry)?;
         Ok(entry)
@@ -118,19 +125,38 @@ impl ParkLibrary {
         let mut entry = self.find(id)?;
         self.store(id).save(park).map_err(|e| e.to_string())?;
         entry.updated = now();
+        entry.tip_uses = entry.tip_uses.max(park.tips_used());
         self.write_entry(&entry)?;
         Ok(entry)
     }
 
     pub fn load(&self, id: u64, backup: bool) -> Result<Park, String> {
-        self.find(id)?;
+        let entry = self.find(id)?;
         let store = self.store(id);
-        (if backup {
+        let mut park = (if backup {
             store.load_backup()
         } else {
             store.load()
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+        park.retain_tip_uses(entry.tip_uses)
+            .map_err(str::to_owned)?;
+        Ok(park)
+    }
+
+    /// Commit the allowance before displaying advice. The slot lock also
+    /// protects metadata updates made by normal saves and renames.
+    pub fn record_tip_use(&self, id: u64, saved_uses: u8) -> Result<u8, String> {
+        let folder = self.directory(id);
+        let _lock = SaveLock::acquire(&folder).map_err(|e| e.to_string())?;
+        let mut entry = self.read_entry(id)?;
+        let used = entry.tip_uses.max(saved_uses);
+        if used >= park_sim::MAX_TIP_USES {
+            return Err("All three tip uses for this park have been used.".into());
+        }
+        entry.tip_uses = used + 1;
+        self.write_entry_unlocked(&entry)?;
+        Ok(entry.tip_uses)
     }
 
     pub fn rename(&self, id: u64, name: &str) -> Result<Entry, String> {
@@ -176,6 +202,28 @@ impl ParkLibrary {
 
     fn write_entry(&self, entry: &Entry) -> Result<(), String> {
         let folder = self.directory(entry.id);
+        let _lock = SaveLock::acquire(&folder).map_err(|e| e.to_string())?;
+        let mut entry = entry.clone();
+        if let Ok(previous) = self.read_entry(entry.id) {
+            entry.tip_uses = entry.tip_uses.max(previous.tip_uses);
+        }
+        self.write_entry_unlocked(&entry)
+    }
+
+    fn read_entry(&self, id: u64) -> Result<Entry, String> {
+        let bytes = read_file(&self.directory(id).join(META)).map_err(|e| e.to_string())?;
+        if bytes.len() > 4096 {
+            return Err("Park metadata exceeds 4 KiB.".into());
+        }
+        let entry: Entry = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        if entry.id != id || !valid_name(&entry.name) || entry.tip_uses > park_sim::MAX_TIP_USES {
+            return Err("Invalid park metadata.".into());
+        }
+        Ok(entry)
+    }
+
+    fn write_entry_unlocked(&self, entry: &Entry) -> Result<(), String> {
+        let folder = self.directory(entry.id);
         SaveStore::new(folder.clone())
             .check_directory(false)
             .map_err(|e| e.to_string())?;
@@ -198,6 +246,7 @@ fn fallback(id: u64) -> Entry {
         id,
         name: format!("Recovered park {id}"),
         updated: 0,
+        tip_uses: 0,
     }
 }
 fn parse_id(name: &str) -> Option<u64> {

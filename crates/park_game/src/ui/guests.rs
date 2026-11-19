@@ -237,7 +237,9 @@ pub(super) fn setup(commands: &mut Commands) {
                     .with_children(|p| text(p, "All guests", 11.0, GuestLabel::Filter));
                     button(p, "Close [L / Esc]", Action::CloseGuests, 140.0);
                 });
-                text(p, "Guest experience", 12.0, GuestLabel::Summary);
+                layout::section(p, "Guest experience", |p| {
+                    text(p, "Guest experience", 12.0, GuestLabel::Summary)
+                });
                 super::visitor_flow::setup(p);
                 super::scenarios::setup(p);
                 super::guest_stats::setup(p);
@@ -260,10 +262,12 @@ pub(super) fn setup(commands: &mut Commands) {
                         ..default()
                     })
                     .with_children(|p| {
+                        label(p, "Visitor list", 12.0, GOLD);
                         for index in 0..PAGE_SIZE {
                             p.spawn((
                                 Button,
                                 GuestRow(index),
+                                super::button_icons::TextButton,
                                 Action::SelectGuest(None),
                                 Node {
                                     width: percent(100),

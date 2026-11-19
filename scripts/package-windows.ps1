@@ -87,8 +87,8 @@ try {
         sourceCommitAtPackaging = $sourceCommit
         sourceTreeDirty = $sourceChanges.Count -ne 0
         executableSha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
-        parkSchema = 51
-        parkContent = 51
+        parkSchema = 52
+        parkContent = 52
         playerData = '%LOCALAPPDATA%\Parkbound\saves'
         channel = 'windows-test'
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stagedPackage 'release.json') -Encoding utf8

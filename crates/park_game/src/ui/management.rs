@@ -199,19 +199,32 @@ pub(crate) fn command(park: &mut park_sim::Park, view: &mut ViewState, action: C
     view.management_notice = result.unwrap_or_else(|e| e);
 }
 fn controls(p: &mut ChildSpawnerCommands, tab: u8, actions: &[(&str, Command)]) {
+    let title = if matches!(actions.first(), Some((_, Command::Priority(_)))) {
+        "Research priorities"
+    } else {
+        [
+            "Park management",
+            "Research funding",
+            "Supplies and facility operation",
+            "Advertising campaigns",
+            "Prices and staffing policy",
+            "Financial history",
+            "Resolve operating issues",
+        ][usize::from(tab)]
+    };
     p.spawn((
         Controls(tab),
-        Node {
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: px(6),
-            row_gap: px(5),
-            ..row()
-        },
+        layout::section_node(),
+        BackgroundColor(super::theme::INSET),
+        BorderRadius::all(px(7)),
     ))
     .with_children(|p| {
-        for (text, action) in actions {
-            button(p, text, Action::Management(*action), 158.0);
-        }
+        label(p, title, 12.0, super::GOLD);
+        p.spawn(layout::action_row()).with_children(|p| {
+            for (text, action) in actions {
+                button(p, text, Action::Management(*action), 158.0);
+            }
+        });
     });
 }
 pub(crate) fn setup(commands: &mut Commands) {
@@ -271,6 +284,9 @@ pub(crate) fn setup(commands: &mut Commands) {
                     },
                     TextColor(INK),
                     Content,
+                    layout::section_node(),
+                    BackgroundColor(super::theme::INSET),
+                    BorderRadius::all(px(7)),
                 ));
                 controls(
                     p,

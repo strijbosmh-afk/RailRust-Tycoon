@@ -60,6 +60,7 @@ pub(crate) enum Destination {
     Settings,
     Help,
     Sound,
+    Tips,
 }
 
 #[derive(Component)]
@@ -144,51 +145,106 @@ pub(crate) fn setup(commands: &mut Commands) {
                                 Display::None
                             },
                             width: percent(100),
-                            flex_direction: FlexDirection::Row,
-                            flex_wrap: FlexWrap::Wrap,
+                            flex_direction: FlexDirection::Column,
                             column_gap: px(8),
                             row_gap: px(8),
                             ..default()
                         },
                     ))
-                    .with_children(|p| match group {
-                        Group::Build => {
-                            destination(p, "Paths [P]", Destination::Path);
-                            destination(p, "Queue [J]", Destination::Queue);
-                            destination(p, "Raise terrain [B]", Destination::Raise);
-                            destination(p, "Lower terrain [V]", Destination::Lower);
-                            destination(p, "Trees", Destination::Tree);
-                            destination(p, "Flowers", Destination::Flowers);
-                            destination(p, "Build rides [Y]", Destination::Rides);
-                            destination(p, "Build services [M]", Destination::Services);
-                            destination(p, "Coaster track [Z]", Destination::Track);
-                            destination(p, "Track designs", Destination::Designs);
-                        }
-                        Group::Manage => {
-                            destination(p, "Finances [N]", Destination::Finances);
-                            destination(p, "Scenarios and editor", Destination::Workshop);
-                            destination(p, "Management and economy", Destination::Management);
-                            destination(p, "Staff and park life", Destination::ParkLife);
-                            destination(p, "Grounds controls", Destination::Staff);
-                            destination(p, "Visitor flow and ads", Destination::Marketing);
-                            destination(p, "Ride operations", Destination::Rides);
-                            destination(p, "Service operations", Destination::Services);
-                        }
-                        Group::Inspect => {
-                            destination(p, "Guests [L]", Destination::Guests);
-                            destination(p, "Rides [Y]", Destination::Rides);
-                            destination(p, "Facilities [M]", Destination::Services);
-                        }
-                        Group::Park => {
-                            destination(p, "Scenarios and goals", Destination::Scenarios);
-                            destination(p, "Park statistics", Destination::Statistics);
-                            destination(p, "Save park [F5]", Destination::Save);
-                            destination(p, "Park menu", Destination::ParkMenu);
-                        }
-                        Group::Help => {
-                            destination(p, "Controls [F1]", Destination::Help);
-                            destination(p, "Sound [F10]", Destination::Sound);
-                            destination(p, "Display settings", Destination::Settings);
+                    .with_children(|p| {
+                        let groups: &[(&str, &[(&str, Destination)])] = match group {
+                            Group::Build => &[
+                                (
+                                    "Paths and terrain",
+                                    &[
+                                        ("Paths [P]", Destination::Path),
+                                        ("Queue [J]", Destination::Queue),
+                                        ("Raise terrain [B]", Destination::Raise),
+                                        ("Lower terrain [V]", Destination::Lower),
+                                    ],
+                                ),
+                                (
+                                    "Rides and facilities",
+                                    &[
+                                        ("Build rides [Y]", Destination::Rides),
+                                        ("Build services [M]", Destination::Services),
+                                        ("Coaster track [Z]", Destination::Track),
+                                        ("Track designs", Destination::Designs),
+                                    ],
+                                ),
+                                (
+                                    "Gardens",
+                                    &[
+                                        ("Trees", Destination::Tree),
+                                        ("Flowers", Destination::Flowers),
+                                    ],
+                                ),
+                            ],
+                            Group::Manage => &[
+                                (
+                                    "Park economy",
+                                    &[
+                                        ("Finances [N]", Destination::Finances),
+                                        ("Management and economy", Destination::Management),
+                                        ("Visitor flow and ads", Destination::Marketing),
+                                    ],
+                                ),
+                                (
+                                    "Operations and staff",
+                                    &[
+                                        ("Ride operations", Destination::Rides),
+                                        ("Service operations", Destination::Services),
+                                        ("Staff and park life", Destination::ParkLife),
+                                        ("Grounds controls", Destination::Staff),
+                                    ],
+                                ),
+                                (
+                                    "Scenario editing",
+                                    &[("Scenarios and editor", Destination::Workshop)],
+                                ),
+                            ],
+                            Group::Inspect => &[(
+                                "Visitors and attractions",
+                                &[
+                                    ("Guests [L]", Destination::Guests),
+                                    ("Rides [Y]", Destination::Rides),
+                                    ("Facilities [M]", Destination::Services),
+                                ],
+                            )],
+                            Group::Park => &[
+                                (
+                                    "Progress",
+                                    &[
+                                        ("Scenarios and goals", Destination::Scenarios),
+                                        ("Park statistics", Destination::Statistics),
+                                    ],
+                                ),
+                                (
+                                    "Save and return",
+                                    &[
+                                        ("Save park [F5]", Destination::Save),
+                                        ("Park menu", Destination::ParkMenu),
+                                    ],
+                                ),
+                            ],
+                            Group::Help => &[(
+                                "Controls and presentation",
+                                &[
+                                    ("Controls [F1]", Destination::Help),
+                                    ("Profit tips (3 uses per park)", Destination::Tips),
+                                    ("Sound [F10]", Destination::Sound),
+                                    ("Display settings", Destination::Settings),
+                                ],
+                            )],
+                        };
+                        for (title, targets) in groups {
+                            layout::section(p, title, |p| {
+                                p.spawn(layout::action_row()).with_children(|p| {
+                                    for (caption, target) in *targets {
+                                        destination(p, caption, *target);
+                                    }
+                                });
+                            });
                         }
                     });
                 }
@@ -295,6 +351,7 @@ pub(crate) fn select(view: &mut ViewState, sim: Option<&mut Simulation>, target:
         Destination::Save => view.request_save(SaveAction::Save),
         Destination::ParkMenu => view.front_request_menu = true,
         Destination::Settings => view.front_request_settings = true,
+        Destination::Tips => view.tips_requested = true,
         Destination::Help | Destination::Sound => {
             view.set_modal(true, false, false, false);
             view.audio_view = target == Destination::Sound;

@@ -7,6 +7,44 @@ use bevy::{
 use super::{PATH_PANEL_RIGHT, PATH_PANEL_TOP, PATH_PANEL_WIDTH};
 use crate::{FOOTER, HEADER, RIDE_PANEL_MARGIN, SIDEBAR, ViewState};
 
+/// A shared inset section: its heading remains visible when actions use icons.
+pub(crate) fn section_node() -> Node {
+    Node {
+        width: percent(100),
+        padding: UiRect::all(px(10)),
+        flex_direction: FlexDirection::Column,
+        row_gap: px(7),
+        flex_shrink: 0.0,
+        ..default()
+    }
+}
+
+pub(crate) fn section(
+    parent: &mut bevy::ecs::hierarchy::ChildSpawnerCommands,
+    title: &str,
+    contents: impl FnOnce(&mut bevy::ecs::hierarchy::ChildSpawnerCommands),
+) {
+    parent
+        .spawn((
+            section_node(),
+            BackgroundColor(super::theme::INSET),
+            BorderRadius::all(px(7)),
+        ))
+        .with_children(|p| {
+            super::label(p, title, 12.0, super::GOLD);
+            contents(p);
+        });
+}
+
+pub(crate) fn action_row() -> Node {
+    Node {
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: px(7),
+        row_gap: px(7),
+        ..super::row()
+    }
+}
+
 #[derive(Component, Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ScrollLayer {
     Front,

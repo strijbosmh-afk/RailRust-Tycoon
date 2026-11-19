@@ -1,5 +1,13 @@
 # Project decisions
 
+## 2026-11-19 — Organized menus and three-use park advice
+
+- Keep the established forest/cream/gold theme and main-menu text buttons. Give remaining panels labelled sections and distinct facility/management pictograms. Preserve text in editable fields, roster entries and design previews.
+- Interpret the allowance as three requests per independent park, each returning two locally computed suggestions from the current state. A new park resets the allowance; a saved copy retains it.
+- Persist usage in schema/content 52/52 and a monotonic park-library metadata counter, written before displaying advice. Merge the counter when loading primary or backup saves and retain it through construction undo/redo.
+- An unsaved park gets a regular library slot before its first use. If the durable record cannot be written, show a storage error and withhold advice.
+- Keep Google Drive disabled and this PC outside product performance acceptance.
+
 ## 2026-11-19 — Structured Build panel and text navigation
 
 - Restore the original text buttons in the title, new-park, pause and settings screens, following the owner's clarification.

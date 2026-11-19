@@ -3,8 +3,8 @@ use park_sim::{Park, Service, ServiceId, ServiceKind};
 
 use super::*;
 
-pub(crate) const PANEL_WIDTH: f32 = 560.0;
 pub(crate) const PANEL_HEIGHT: f32 = 520.0;
+pub(crate) const PANEL_WIDTH: f32 = 560.0;
 
 pub(crate) fn construction_details(park: &Park, service: &Service) -> String {
     match park.service_demolition_quote(service.id) {
@@ -88,6 +88,7 @@ pub(super) fn setup(commands: &mut Commands) {
                     );
                     button(p, "Close [M/Esc]", Action::CloseServices, 130.0);
                 });
+                layout::section(p, "Build facilities", |p| {
                 p.spawn(row()).with_children(|p| {
                     for kind in [ServiceKind::Food, ServiceKind::Drink, ServiceKind::Toilet] {
                         button(
@@ -116,6 +117,8 @@ pub(super) fn setup(commands: &mut Commands) {
                     11.0,
                     MUTED,
                 );
+                });
+                layout::section(p, "Selected facility", |p| {
                 p.spawn(Node {
                     justify_content: JustifyContent::SpaceBetween,
                     ..row()
@@ -138,6 +141,8 @@ pub(super) fn setup(commands: &mut Commands) {
                         12.0,
                     );
                 });
+                });
+                layout::section(p, "Price and operation", |p| {
                 p.spawn(Node {
                     justify_content: JustifyContent::SpaceBetween,
                     ..row()
@@ -162,6 +167,7 @@ pub(super) fn setup(commands: &mut Commands) {
                         BorderRadius::all(px(5)),
                     ))
                     .with_children(|p| text(p, "Open [O]", ServiceLabel::Open, 13.0));
+                });
                 });
                 p.spawn(Node {
                     height: px(44),
