@@ -23,12 +23,47 @@ pub(crate) fn open() -> Result<(), String> {
 
 #[cfg(windows)]
 fn launch(path: &Path) -> Result<(), String> {
-    // Pass one literal path argument; never interpret a shell command or a URL.
-    std::process::Command::new("explorer.exe")
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("Open docs/PLAYER_MANUAL.html manually: {error}"))
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL},
+        core::{PCWSTR, w},
+    };
+
+    // Explorer interprets forward slashes as switches and can silently open
+    // Documents instead. Use the file association API with a literal UTF-16
+    // filename, preserving spaces/non-ASCII names and native separators.
+    let filename: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .map(|unit| {
+            if unit == u16::from(b'/') {
+                u16::from(b'\\')
+            } else {
+                unit
+            }
+        })
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: the NUL-terminated filename lives through this synchronous call;
+    // the optional argument and working-directory pointers are null.
+    let result = unsafe {
+        ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(filename.as_ptr()),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    let code = result.0 as usize;
+    if code <= 32 {
+        Err(format!(
+            "Windows could not open the manual (code {code}). Open docs/PLAYER_MANUAL.html manually."
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(not(windows))]

@@ -36,6 +36,14 @@ launch and final packaging/CI outcomes are recorded below when completed.
 
 ## Storage and environment
 
+The first 0.99.2 package also passed native right-clicks on Garden Carousel #4
+and Drinks #2 after loading the prior isolated save. Help's section, tooltip
+and status text were English. Its manual button exposed a real defect: the
+Explorer command opened Documents, and no manual browser window appeared.
+The opener was replaced with `ShellExecuteW`, a literal UTF-16 file path with
+native separators, null command arguments and checked Windows error codes.
+Retesting the corrected build is required before claiming manual acceptance.
+
 The real registered root is
 `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
 The existing registration, project identity and Git remote are preserved. The

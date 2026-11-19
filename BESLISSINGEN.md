@@ -9,6 +9,9 @@
 - Verify real right-click ownership and facility price controls in an isolated
   Windows profile, then verify the English manual opens from the final build.
 - Retain save schema/content 52/52 and avoid using this PC as a performance reference.
+- Native testing exposed the Explorer command opening Documents instead of the
+  HTML. Use `ShellExecuteW` with a literal UTF-16 filename, native separators,
+  no shell arguments, and checked error codes. No new dependency is required.
 
 ## 2026-11-19 — Offline Nederlandse spelershandleiding
 

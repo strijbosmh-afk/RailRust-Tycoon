@@ -4,6 +4,7 @@
 
 - Translate the complete 25-chapter manual, navigation, search messages and Help entry into English.
 - Open `docs/PLAYER_MANUAL.html` from Help. Existing `HANDLEIDING_NL.html` bookmarks also display the English guide.
+- Use Windows file associations to open the manual; the earlier Explorer command could open Documents instead. Display an error when Windows refuses the request.
 - Retain the established right-click settings gesture and save schema/content 52/52.
 - Record native Windows interaction checks and GitHub CI results in the resume guide and session report.
 
