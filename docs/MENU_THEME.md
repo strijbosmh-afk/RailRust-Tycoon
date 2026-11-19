@@ -12,13 +12,22 @@ dark lettering. Other buttons use light lettering. The existing high-contrast
 mode applies after the normal theme. Original status colors retain their
 meaning with brighter shades suited to the dark panels.
 
-## Menu button
+## Icon buttons
 
-The top-right park-menu button uses three scalable bars. Its **Park menu**
-label appears when the pointer is over it or the keyboard focus reaches it.
-The button retains its existing action and provides an accessible name.
-The pictogram is generated with native UI nodes and needs no downloaded font
-glyph or bitmap.
+Every menu button uses a compact pictogram, including Path, Find, Gate, Exit,
+construction tools, ride controls, navigation, settings and the opening menu.
+The full action label and its existing shortcut appear on hover or keyboard
+focus. Dynamic labels continue to update, including open/close states and
+selected entries. Adjustment buttons identify what they change in their tooltip.
+
+The original text entities and action handlers remain attached to their buttons.
+The icon presentation hides their text nodes, retains accessible button names
+and adds original antialiased artwork generated in Rust. Icon tint follows the
+button background and high-contrast setting. The shared tooltip stays inside
+the viewport, including near the lower and right edges.
+
+`crates/park_game/src/ui/button_icons.rs` owns presentation and tooltip behavior.
+`crates/park_game/src/ui/pictograms.rs` owns the artwork and action mapping.
 
 ## Startup display
 
@@ -34,7 +43,7 @@ remain version 1 and park saves remain 51/51.
 
 ## Verification
 
-Theme contrast, nested button labels, the hover/focus label and display startup
+Theme contrast, nested button labels, icon generation, live hover/focus labels and display startup
 and recovery have focused checks. Runtime screenshots and input checks,
 complete tests and distribution results are recorded in the session report.
 

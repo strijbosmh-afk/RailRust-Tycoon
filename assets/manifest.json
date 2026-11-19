@@ -316,11 +316,11 @@
       "variants": ["forest-panels", "gold-actions", "button-contrast"]
     },
     {
-      "id": "ui.menu-icon",
+      "id": "ui.button-icons",
       "type": "procedural",
-      "source": "crates/park_game/src/ui/menu_icon.rs",
+      "source": "crates/park_game/src/ui/pictograms.rs",
       "rights": "Parkbound original",
-      "variants": ["scalable-bars", "hover-label", "keyboard-label"]
+      "variants": ["antialiased-pictograms", "hover-label", "keyboard-label", "live-action-labels"]
     }
   ]
 }

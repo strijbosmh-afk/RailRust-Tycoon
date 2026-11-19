@@ -13,6 +13,7 @@ use crate::path_tools::PathTool;
 
 pub(crate) mod appearance;
 pub(crate) mod audio;
+pub(crate) mod button_icons;
 pub(crate) mod catalogue;
 pub(crate) mod designs;
 mod economy;
@@ -21,10 +22,10 @@ pub(crate) mod guest_stats;
 pub(super) mod guests;
 pub(crate) mod layout;
 pub(crate) mod management;
-pub(crate) mod menu_icon;
 pub(crate) mod names;
 pub(crate) mod navigation;
 pub(crate) mod park_life;
+mod pictograms;
 pub(crate) mod rides;
 pub(crate) mod scenario_workshop;
 pub(crate) mod scenarios;
@@ -380,7 +381,7 @@ pub(super) fn setup(mut commands: Commands) {
                 button(p, "2x", Action::Speed(Speed::Fast), 39.0);
                 button(p, "4x", Action::Speed(Speed::Fastest), 39.0);
                 button(p, "Help", Action::Help, 60.0);
-                menu_icon::button(p);
+                button(p, "Park menu", Action::Menu, 40.0);
             });
         });
 

@@ -2,7 +2,7 @@
 
 ## Current work — Menu theme and borderless startup, 0.98.0
 
-Continue on `codex/themed-menus-borderless`, based on `4933b0ec75fa33c4d62c1a251a2803fb61674213`. The interface uses shared forest/cream/gold colors. The top-right park-menu button has a scalable icon and hover/focus label. New display settings launch borderless, while F11 and `--safe-windowed` provide windowed recovery. Verification is in progress. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-menu-theme.md`.
+Continue on `codex/themed-menus-borderless`, based on `4933b0ec75fa33c4d62c1a251a2803fb61674213`. The interface uses shared forest/cream/gold colors. Every menu button uses an original antialiased pictogram and a live hover/focus label, including construction, ride gates and settings. New display settings launch borderless, while F11 and `--safe-windowed` provide windowed recovery. Verification is in progress. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-menu-theme.md`.
 
 Shared checkout `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the existing Rust and Windows build requirements. Saves remain 51/51 and display preferences remain version 1. Google Drive remains disabled. This PC is used for correctness and visual checks.
 

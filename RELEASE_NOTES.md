@@ -1,8 +1,9 @@
 # Parkbound 0.98.0 menu theme and borderless startup
 
 Park menus use forest-green panels, cream lettering and gold accents, with
-matching hover, selected and disabled states. The top-right park-menu button
-has a scalable icon and a text label on hover or keyboard focus. New display
+matching hover, selected and disabled states. All menu buttons use compact
+antialiased icons with their full action labels on hover or keyboard focus,
+including construction, ride gates, navigation, settings and the opening menu. New display
 preferences start borderless fullscreen. F11 and safe-windowed recovery remain
 available. Existing display choices and park saves remain compatible.
 

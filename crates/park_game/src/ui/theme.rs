@@ -18,8 +18,6 @@ pub(crate) const SUCCESS: Color = Color::srgb_u8(129, 202, 151);
 
 #[derive(Component)]
 pub(crate) struct StandardButton;
-#[derive(Component)]
-pub(crate) struct IconStroke;
 
 pub(crate) fn configure(app: &mut App) {
     app.add_systems(Update, button_feedback).add_systems(
@@ -28,8 +26,16 @@ pub(crate) fn configure(app: &mut App) {
     );
 }
 
-fn button_feedback(mut buttons: Query<(&Interaction, &mut BackgroundColor), With<StandardButton>>) {
+fn button_feedback(
+    view: Option<Res<crate::ViewState>>,
+    mut buttons: Query<(&Interaction, &mut BackgroundColor), With<StandardButton>>,
+) {
     for (interaction, mut color) in &mut buttons {
+        let interaction = if view.as_ref().is_some_and(|view| view.capture_active) {
+            Interaction::None
+        } else {
+            *interaction
+        };
         let desired = match interaction {
             Interaction::Pressed => ACCENT,
             Interaction::Hovered => HOVER,
@@ -41,7 +47,7 @@ fn button_feedback(mut buttons: Query<(&Interaction, &mut BackgroundColor), With
     }
 }
 
-fn foreground(color: Color) -> Color {
+pub(super) fn foreground(color: Color) -> Color {
     let rgba = color.to_srgba();
     let brightness = rgba.red * 0.2126 + rgba.green * 0.7152 + rgba.blue * 0.0722;
     if color == DISABLED {
@@ -65,7 +71,6 @@ fn foregrounds(
     buttons: ChangedButtons<'_, '_>,
     children: Query<&Children>,
     mut text: Query<&mut TextColor>,
-    mut strokes: Query<&mut BackgroundColor, (With<IconStroke>, Without<Button>)>,
 ) {
     if preferences.is_some_and(|prefs| prefs.value.high_contrast) {
         return;
@@ -78,11 +83,6 @@ fn foregrounds(
                 && label.0 != color
             {
                 label.0 = color;
-            }
-            if let Ok(mut stroke) = strokes.get_mut(entity)
-                && stroke.0 != color
-            {
-                stroke.0 = color;
             }
             if let Ok(descendants) = children.get(entity) {
                 pending.extend(descendants.iter());
@@ -114,19 +114,11 @@ mod tests {
     }
 
     #[test]
-    fn button_foreground_tracks_nested_labels_and_icon_strokes() {
+    fn button_foreground_tracks_nested_labels() {
         let mut app = App::new();
         app.add_systems(Update, foregrounds);
         let label = app.world_mut().spawn(TextColor(TEXT)).id();
-        let stroke = app
-            .world_mut()
-            .spawn((IconStroke, BackgroundColor(TEXT)))
-            .id();
-        let group = app
-            .world_mut()
-            .spawn_empty()
-            .add_children(&[label, stroke])
-            .id();
+        let group = app.world_mut().spawn_empty().add_child(label).id();
         let button = app
             .world_mut()
             .spawn((Button, BackgroundColor(ACCENT)))
@@ -134,10 +126,6 @@ mod tests {
             .id();
         app.update();
         assert_eq!(app.world().get::<TextColor>(label).unwrap().0, DARK_TEXT);
-        assert_eq!(
-            app.world().get::<BackgroundColor>(stroke).unwrap().0,
-            DARK_TEXT
-        );
         app.world_mut()
             .get_mut::<BackgroundColor>(button)
             .unwrap()

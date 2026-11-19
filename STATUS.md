@@ -2,7 +2,7 @@
 
 ## Current work — Menu theme and borderless startup, 0.98.0
 
-Branch `codex/themed-menus-borderless` starts at `4933b0ec75fa33c4d62c1a251a2803fb61674213`. Forest-green menu panels, cream text, gold accents and an icon-only park-menu button with a hover/focus label are implemented. New display settings start in borderless fullscreen. Verification is in progress. See `docs/MENU_THEME.md` and the current session report.
+Branch `codex/themed-menus-borderless` starts at `4933b0ec75fa33c4d62c1a251a2803fb61674213`. Forest-green menu panels, cream text and gold accents are implemented. The owner's clarification applies icon-only controls and live hover/focus labels to every menu button. New display settings start in borderless fullscreen. Verification is in progress. See `docs/MENU_THEME.md` and the current session report.
 
 The shared Git root remains `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Google Drive synchronization is disabled. The cached standard prompt is 2.1.0. Saves remain 51/51 and display settings remain version 1.
 

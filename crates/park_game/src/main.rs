@@ -864,7 +864,7 @@ fn main() -> AppExit {
     }
     app_icon::configure(&mut app);
     ui::theme::configure(&mut app);
-    ui::menu_icon::configure(&mut app);
+    ui::button_icons::configure(&mut app);
     accessibility::configure(&mut app, &arguments);
     onboarding::configure(&mut app);
     capture::configure(&mut app);

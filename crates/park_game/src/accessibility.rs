@@ -197,6 +197,9 @@ struct Navigation {
 
 #[derive(SystemSet, Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) struct AccessibilityStyle;
+
+#[derive(Component)]
+pub(crate) struct KeyboardFocus;
 #[derive(Component)]
 struct OriginalText {
     base: Color,
@@ -646,16 +649,19 @@ fn style(
     if nav.outlined != focused || prefs.is_changed() {
         for id in &buttons {
             if focused == Some(id) {
+                commands.entity(id).insert(KeyboardFocus);
                 commands.entity(id).insert(Outline::new(
                     px(3),
                     px(1),
                     Color::srgb_u8(30, 110, 245),
                 ));
             } else if prefs.value.high_contrast {
+                commands.entity(id).remove::<KeyboardFocus>();
                 commands
                     .entity(id)
                     .insert(Outline::new(px(1), px(0), Color::BLACK));
             } else {
+                commands.entity(id).remove::<KeyboardFocus>();
                 commands.entity(id).remove::<Outline>();
             }
         }
