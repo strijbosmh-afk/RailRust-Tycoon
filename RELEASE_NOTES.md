@@ -1,5 +1,13 @@
 # Parkbound release notes
 
+## 0.99.3 — first-park guide navigation
+
+- Next always advances through all seven steps; unmet practice tasks no longer silently block the button.
+- Show explicit practice status and current-step tooltips, with Back and Finish navigation.
+- Recognise connected new path IDs instead of only checking the net path count.
+- Let the access exercise inspect a selected or existing ride in an already built park.
+- Keep guide navigation read-only for park data and retain save schema/content 52/52.
+
 ## 0.99.2 — English player manual and interaction acceptance
 
 - Translate the complete 25-chapter manual, navigation, search messages and Help entry into English.

@@ -186,10 +186,10 @@ def build() -> str:
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <meta name="description" content="Parkbound: complete offline player manual with step-by-step building, management, campaigns and troubleshooting.">
-<title>Parkbound — player manual 0.99.2</title><style>{STYLE}</style></head>
+<title>Parkbound — player manual 0.99.3</title><style>{STYLE}</style></head>
 <body id="top"><a class="skip" href="#content">Skip to the manual</a><div id="position" aria-hidden="true"></div><div class="layout">
 <aside><details open><summary>Contents &amp; search</summary><div class="search"><label for="search">Find a topic</label><input id="search" type="search" maxlength="100" placeholder="Try queue or budget" autocomplete="off" aria-controls="content"><div class="controls"><button id="clear" type="button">Clear search</button><button id="print" type="button">Print / PDF</button></div><p class="status" id="status" role="status" aria-live="polite">25 chapters · offline</p></div><nav aria-label="Chapters"><ul>{toc}</ul></nav></details></aside>
-<main id="content"><noscript><p>Search requires JavaScript. All chapters, links and browser printing remain available without it.</p></noscript>{body}<div class="no-results" id="no-results" hidden>No chapters found. Try a shorter term, such as path, price or stock.</div><footer>Parkbound 0.99.2 · Generated from PLAYER_MANUAL.md · No internet or account required.</footer></main></div><script>{SCRIPT}</script></body></html>
+<main id="content"><noscript><p>Search requires JavaScript. All chapters, links and browser printing remain available without it.</p></noscript>{body}<div class="no-results" id="no-results" hidden>No chapters found. Try a shorter term, such as path, price or stock.</div><footer>Parkbound 0.99.3 · Generated from PLAYER_MANUAL.md · No internet or account required.</footer></main></div><script>{SCRIPT}</script></body></html>
 '''
 
 

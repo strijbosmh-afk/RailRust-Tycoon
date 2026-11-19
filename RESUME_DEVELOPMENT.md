@@ -1,5 +1,24 @@
 # Resume development on another Windows PC
 
+## Current work — Unblocked first-park guide, 0.99.3
+
+On `codex/right-click-settings`, based on `f918250fde2c9ead94c34dd5d03bc07007c8119c`.
+The first-park guide previously ignored Next at 2/7 until a new path existed.
+Next now always advances; optional practice has a separate explicit status.
+Tooltips follow the current step, and an existing park can use an existing
+ride for Access. Path practice tracks new connected IDs rather than net count.
+Guide navigation does not change the park, spend money or consume Tips.
+
+Formatting, strict workspace/all-target Clippy and all six focused guide
+regressions passed. The Windows release build and packaging are in progress. The player manual and quick-start guide describe optional practice.
+Park save schema/content stays 52/52; the guide remains transient UI state.
+The older native manual-opening acceptance task remains separate and is not
+claimed complete by this change.
+
+Source root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Google Drive
+remains disabled. Do not use this PC as a product-performance reference.
+
 ## Current checkpoint — English manual and context controls, 0.99.2
 
 Continue on `codex/right-click-settings` / PR #93. English-manual source:

@@ -2,7 +2,7 @@ PARKBOUND
 
 Launch Parkbound.exe, then choose Play Sunhaven Gardens to start the seven-ride
 demo. New Park offers a sandbox and the original campaign. Use the park menu to
-save, load, return to the title screen or quit. Help opens the first-park guide.
+save, load, return to the title screen or quit. Help opens the first-park guide. Next always advances; practice is optional.
 
 COMPLETE ENGLISH PLAYER MANUAL
 Open docs\PLAYER_MANUAL.html for 25 chapters with contents, search and print.

@@ -1,8 +1,8 @@
 # Installation and development
 
-## Windows installer in 0.99.2
+## Windows installer in 0.99.3
 
-Run `Parkbound-0.99.2-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
+Run `Parkbound-0.99.3-setup-x64.exe` to install for your Windows account, or extract the portable ZIP. The default program folder is `%LOCALAPPDATA%\Programs\Parkbound`. Player data uses `%LOCALAPPDATA%\Parkbound\saves`. Close the game before updating. Setup and uninstall preserve player data. The package runs with the included runtime DLLs and assets.
 
 New display preferences start borderless fullscreen. F11 restores a decorated window, and `Parkbound.exe --safe-windowed` starts a temporary windowed session. Existing saved display choices remain supported. Version 0.99.1 adds no runtime dependencies. Right-click object settings work with a standard mouse; right-drag and middle-drag remain camera controls. Saves use schema/content 52/52. The Tips allowance is stored with each park and its library metadata, so transfer the complete player-data folder to retain it when moving PCs. Supported older saves migrate automatically; older binaries cannot open new saves.
 

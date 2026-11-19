@@ -1,5 +1,10 @@
 # Parkbound
 
+Version **0.99.3** fixes the first-park guide stopping at step 2/7. **Next** now
+always advances, while separate practice feedback explains what remains to try.
+Tooltips follow the current step, and existing parks can use an existing ride
+for the access exercise.
+
 Read the [complete English player manual](docs/PLAYER_MANUAL.md), or open
 `docs/PLAYER_MANUAL.html` for search and a contents panel. In the game:
 **H/F1 → Player manual**. Its 25 chapters cover starting, construction,

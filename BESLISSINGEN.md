@@ -1,5 +1,16 @@
 # Project decisions
 
+## 2026-11-19 — Browseable first-park guide
+
+- Separate navigation from optional practice. Next must never silently ignore
+  a click because the player has not added a path, ride, guest trip or save.
+- Keep live completion feedback, explicit instructions and current-step
+  tooltips. Preserve Back, replay and explicit tools without automatically
+  constructing or spending anything when browsing.
+- Observe new connected public-path IDs, so removing another path cannot hide
+  a successful exercise. Use existing rides for Access in populated parks.
+- The guide remains transient UI state; park saves stay 52/52.
+
 ## 2026-11-19 — English manual and completed native checks
 
 - The owner requested English, matching the game. `docs/PLAYER_MANUAL.md` is

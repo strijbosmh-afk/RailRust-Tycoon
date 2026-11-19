@@ -1,6 +1,6 @@
 # Parkbound — complete player manual
 
-Version 0.99.2 · Windows · available entirely offline · English names match the game's controls.
+Version 0.99.3 · Windows · available entirely offline · English names match the game's controls.
 
 ## 1. Finding your way around this manual
 
@@ -74,6 +74,17 @@ Sunhaven contains Sunburst Coaster, Willow Falls, Sunhaven Railway, Garden Carou
 11. Press **F5**. Add a second ride after the first receives customers and you understand its costs.
 
 ### A useful first-play routine
+
+The built-in **First park guide** is also a reference you can browse. **Next**
+always opens the following step, even if you have not done its exercise.
+**Practice** reports whether the current task is complete and explains what
+remains; it does not lock navigation. Use **Back** to return, or close and replay
+the guide from Help. The final Next button finishes the guide.
+
+For the path exercise, add a **new public path tile connected to another public
+path**. Existing tiles and isolated new tiles do not complete the practice task.
+In an existing park such as Sunhaven, the access tool can inspect an existing
+ride without requiring you to build another attraction first.
 
 Build while paused, run the park for a short period, inspect the result and change one problem at a time. Check connectivity first, then needs, operating status, stock and finances. Save after a successful expansion and before major rebuilding. Fast-forward is useful once you know visitors are moving correctly and recurring expenses are affordable.
 
