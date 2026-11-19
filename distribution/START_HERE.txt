@@ -4,6 +4,17 @@ Launch Parkbound.exe, then choose Play Sunhaven Gardens to start the seven-ride
 demo. New Park offers a sandbox and the original campaign. Use the park menu to
 save, load, return to the title screen or quit. Help opens the first-park guide.
 
+UITGEBREIDE NEDERLANDSE HANDLEIDING
+Open docs\HANDLEIDING_NL.html voor 25 hoofdstukken met inhoudsopgave,
+zoeken en afdrukken. In het spel: H/F1 > documenticoon Handleiding (NL).
+Behandelt beginnen, bouwen, individuele instellingen, bezoekers, personeel,
+financien, onderzoek, reclame, de zes scenario's en de scenario-editor.
+Werkt offline. Pauzeer het park met Space voordat je rustig gaat lezen.
+
+INDIVIDUAL SETTINGS
+Right-click a ride or service building to open its own settings. Right-drag or
+middle-drag pans the park. Hover over an icon to read its action.
+
 TIPS
 The lightbulb beside Rides offers two suggestions for your current park. Each
 park has three uses in total, retained after saving, backup loading and restart.

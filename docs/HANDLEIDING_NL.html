@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta name="description" content="Parkbound: volledige offline spelershandleiding met stappenplannen, bouwen, beheer, campagnes en probleemoplossing.">
+<title>Parkbound — spelershandleiding 0.99.1</title><style>
+:root{color-scheme:light;--ink:#163b31;--green:#123c31;--gold:#f5ce68;--paper:#fffdf4;--line:#d9e2d5}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:1.5rem}
+body{margin:0;background:#eaf0e7;color:var(--ink);font:17px/1.7 system-ui,Segoe UI,sans-serif}
+a{color:#116a50;text-underline-offset:.2em}a:hover{color:#854d05}a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:3px solid #cd8c09;outline-offset:4px}
+.skip{position:fixed;top:-100px;background:var(--gold);z-index:10;padding:10px}.skip:focus{top:0}
+.layout{max-width:1580px;margin:auto;display:grid;grid-template-columns:310px minmax(0,1fr);gap:28px;padding:28px}
+aside{position:sticky;top:20px;height:calc(100vh - 40px);overflow:auto;padding:22px;background:var(--green);color:#fff9df;border-radius:18px;scrollbar-color:#9cb7a8 var(--green)}
+summary{font-size:1.3rem;font-weight:750;cursor:pointer}.search{margin:18px 0}label{display:block;font-weight:650}input{display:block;width:100%;font:inherit;padding:10px;border:2px solid #e3c572;border-radius:8px;background:#fffdf5;color:#163b31;margin:6px 0}
+button{font:inherit;cursor:pointer;padding:6px 12px;border:1px solid #e5cc8b;border-radius:7px;background:#f5ce68;color:#203b2e}
+.controls{display:flex;flex-wrap:wrap;gap:8px}.status{font-size:.83rem;color:#e1e8d9;margin:8px 0;min-height:1.6em}
+nav ul{list-style:none;padding:0;margin:12px 0}nav li{margin:3px 0}nav a{display:block;color:#fff7d4;text-decoration:none;font-size:.88rem;line-height:1.4;padding:8px;border-radius:5px;border-left:3px solid transparent}
+nav .sub a{font-size:.79rem;color:#c4dbcc;padding:4px 8px 4px 21px}nav a:hover,nav a[aria-current]{background:#285344;border-color:var(--gold);color:#fff}
+main{min-width:0;max-width:1050px}.hero{background:var(--green);color:#fff8dd;border:1px solid #426a55;padding:34px;border-radius:18px}.eyebrow{font-size:.8rem;letter-spacing:.16em;color:var(--gold);font-weight:700}h1{font-size:clamp(1.8rem,3vw,2.8rem);line-height:1.2;margin:10px 0}
+section{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:28px 34px;margin:24px 0;box-shadow:0 3px 12px #183e3006}
+h2{font-size:1.6rem;line-height:1.3;margin:0 0 22px;border-bottom:3px solid #e4b747;padding-bottom:16px}h3{font-size:1.16rem;margin:32px 0 12px;color:#17674d}p{margin:15px 0}li{padding:4px 0 4px 6px}ol li::marker{font-weight:800;color:#126a4d}strong{color:#174e39}code{background:#edf1e7;border-radius:4px;padding:.1em .25em;font-size:.86em;overflow-wrap:anywhere}
+pre{overflow:auto;background:#e9f0e6;padding:18px;border-radius:10px;line-height:1.6}pre code{background:none;white-space:pre;overflow-wrap:normal;padding:0}.table-scroll{overflow-x:auto;margin:18px 0}table{border-collapse:collapse;width:100%;font-size:.9rem}th{text-align:left;background:#dae8d6;color:#153e2c}th,td{padding:12px;border:1px solid #d8e0d2;vertical-align:top}tbody tr:nth-child(even){background:#f1f4e9}
+.back{display:inline-block;margin-top:18px;font-size:.85rem}mark{background:#ffe28b;color:#173d30;border-radius:2px}.no-results{background:#fff5d5;border:1px solid #cea336;border-radius:10px;padding:24px;margin-top:24px}[hidden]{display:none!important}footer{padding:24px;font-size:.85rem}#position{position:fixed;top:0;left:0;height:4px;background:#c48b12;width:0;z-index:9}
+@media(max-width:950px){.layout{display:block;padding:12px}aside{position:static;height:auto;margin-bottom:18px;padding:18px}nav{max-height:38vh;overflow:auto}.hero{padding:24px}section{padding:24px 20px}body{font-size:16px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{body{background:white;color:black;font:11pt/1.5 sans-serif}.layout{display:block;padding:0}aside,.back,.no-results,#position,.skip{display:none!important}main{max-width:none}.hero{background:white;color:black;border:0;padding:0}.eyebrow{color:black}section{display:block!important;border:0;box-shadow:none;padding:0;margin:20pt 0;break-before:page}table{font-size:9pt}tr{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}mark{background:none}}
+</style></head>
+<body id="top"><a class="skip" href="#content">Naar de handleiding</a><div id="position" aria-hidden="true"></div><div class="layout">
+<aside><details open><summary>Inhoud &amp; zoeken</summary><div class="search"><label for="search">Zoek een onderwerp</label><input id="search" type="search" maxlength="100" placeholder="Bijv. wachtrij of budget" autocomplete="off" aria-controls="content"><div class="controls"><button id="clear" type="button">Wis zoekopdracht</button><button id="print" type="button">Afdrukken / PDF</button></div><p class="status" id="status" role="status" aria-live="polite">25 hoofdstukken · offline</p></div><nav aria-label="Hoofdstukken"><ul><li class="chapter"><a href="#1-wegwijs-in-deze-handleiding">1. Wegwijs in deze handleiding</a></li>
+<li class="chapter"><a href="#2-installeren-starten-en-een-spel-kiezen">2. Installeren, starten en een spel kiezen</a></li>
+<li class="sub"><a href="#windows-installeren-of-een-portable-pakket-gebruiken">Windows installeren of een portable pakket gebruiken</a></li>
+<li class="sub"><a href="#wat-betekenen-de-keuzes-in-het-hoofdmenu">Wat betekenen de keuzes in het hoofdmenu?</a></li>
+<li class="sub"><a href="#sandbox-instellen">Sandbox instellen</a></li>
+<li class="chapter"><a href="#3-je-eerste-speelbare-park-stap-voor-stap">3. Je eerste speelbare park stap voor stap</a></li>
+<li class="sub"><a href="#route-a-leren-in-sunhaven-gardens">Route A: leren in Sunhaven Gardens</a></li>
+<li class="sub"><a href="#route-b-je-eigen-eerste-park-bouwen">Route B: je eigen eerste park bouwen</a></li>
+<li class="sub"><a href="#een-bruikbare-eerste-speelroutine">Een bruikbare eerste speelroutine</a></li>
+<li class="chapter"><a href="#4-het-doel-en-de-spelklok">4. Het doel en de spelklok</a></li>
+<li class="chapter"><a href="#5-schermindeling-en-menus">5. Schermindeling en menu&#x27;s</a></li>
+<li class="sub"><a href="#header-zijbalk-en-explore">Header, zijbalk en Explore</a></li>
+<li class="sub"><a href="#iconen-lezen">Iconen lezen</a></li>
+<li class="chapter"><a href="#6-camera-beeld-geluid-en-toegankelijkheid">6. Camera, beeld, geluid en toegankelijkheid</a></li>
+<li class="sub"><a href="#de-kaart-bekijken">De kaart bekijken</a></li>
+<li class="sub"><a href="#een-hogere-resolutie-gebruiken">Een hogere resolutie gebruiken</a></li>
+<li class="sub"><a href="#muziek-attractiegeluiden-en-reacties">Muziek, attractiegeluiden en reacties</a></li>
+<li class="sub"><a href="#toegankelijkheid-en-eigen-toetsen">Toegankelijkheid en eigen toetsen</a></li>
+<li class="chapter"><a href="#7-terrein-land-en-tuinen">7. Terrein, land en tuinen</a></li>
+<li class="sub"><a href="#eigen-grond-en-terreinhoogte">Eigen grond en terreinhoogte</a></li>
+<li class="sub"><a href="#water-bruggen-en-tunnels">Water, bruggen en tunnels</a></li>
+<li class="sub"><a href="#bomen-bloemen-en-meubilair">Bomen, bloemen en meubilair</a></li>
+<li class="chapter"><a href="#8-paden-wachtrijen-poorten-en-hoogte">8. Paden, wachtrijen, poorten en hoogte</a></li>
+<li class="sub"><a href="#vier-onderdelen-die-niet-uitwisselbaar-zijn">Vier onderdelen die niet uitwisselbaar zijn</a></li>
+<li class="sub"><a href="#bouw-een-verbinding-stap-voor-stap">Bouw een verbinding stap voor stap</a></li>
+<li class="sub"><a href="#demolition-verwijderen-en-ongedaan-maken">Demolition, verwijderen en ongedaan maken</a></li>
+<li class="chapter"><a href="#9-een-attractie-afzonderlijk-beheren">9. Een attractie afzonderlijk beheren</a></li>
+<li class="sub"><a href="#met-rechts-het-juiste-instellingenvenster-openen">Met rechts het juiste instellingenvenster openen</a></li>
+<li class="sub"><a href="#operations-naam-en-kleuren">Operations, naam en kleuren</a></li>
+<li class="sub"><a href="#ticketprijs-en-inspectie">Ticketprijs en inspectie</a></li>
+<li class="sub"><a href="#access-testen-en-onderhoud">Access, testen en onderhoud</a></li>
+<li class="chapter"><a href="#10-de-volledige-attractiecatalogus">10. De volledige attractiecatalogus</a></li>
+<li class="chapter"><a href="#11-coasters-bouwen-van-station-tot-eerste-rit">11. Coasters bouwen van station tot eerste rit</a></li>
+<li class="sub"><a href="#begin-met-een-korte-werkende-baan">Begin met een korte werkende baan</a></li>
+<li class="sub"><a href="#klimmen-dalen-en-de-volgende-blokhoogte">Klimmen, dalen en de volgende blokhoogte</a></li>
+<li class="sub"><a href="#treinen-remblokken-en-testresultaten">Treinen, remblokken en testresultaten</a></li>
+<li class="sub"><a href="#bestaande-banen-veilig-aanpassen">Bestaande banen veilig aanpassen</a></li>
+<li class="chapter"><a href="#12-coasterontwerpen-bewaren-en-delen">12. Coasterontwerpen bewaren en delen</a></li>
+<li class="chapter"><a href="#13-services-prijzen-en-voorraad">13. Services, prijzen en voorraad</a></li>
+<li class="sub"><a href="#acht-voorzieningen-met-een-eigen-taak">Acht voorzieningen met een eigen taak</a></li>
+<li class="sub"><a href="#een-service-instellen">Eén service instellen</a></li>
+<li class="sub"><a href="#hoe-voorraad-werkt">Hoe voorraad werkt</a></li>
+<li class="chapter"><a href="#14-bezoekers-begrijpen-en-helpen">14. Bezoekers begrijpen en helpen</a></li>
+<li class="sub"><a href="#individuele-gasten-en-groepen">Individuele gasten en groepen</a></li>
+<li class="sub"><a href="#parkingang-en-toegangsbeleid-instellen">Parkingang en toegangsbeleid instellen</a></li>
+<li class="sub"><a href="#behoeften-tevredenheid-en-beoordelingen">Behoeften, tevredenheid en beoordelingen</a></li>
+<li class="sub"><a href="#filters-en-trendgrafieken-gebruiken">Filters en trendgrafieken gebruiken</a></li>
+<li class="chapter"><a href="#15-financien-en-winst">15. Financiën en winst</a></li>
+<li class="sub"><a href="#vier-cijfers-die-je-uit-elkaar-moet-houden">Vier cijfers die je uit elkaar moet houden</a></li>
+<li class="sub"><a href="#van-verkoop-naar-het-kassaldo">Van verkoop naar het kassaldo</a></li>
+<li class="sub"><a href="#een-park-rendabeler-maken">Een park rendabeler maken</a></li>
+<li class="sub"><a href="#leningen-verstandig-gebruiken">Leningen verstandig gebruiken</a></li>
+<li class="chapter"><a href="#16-personeel-onderhoud-weer-en-incidenten">16. Personeel, onderhoud, weer en incidenten</a></li>
+<li class="sub"><a href="#je-team-inzetten">Je team inzetten</a></li>
+<li class="sub"><a href="#weer-en-schuilplaatsen">Weer en schuilplaatsen</a></li>
+<li class="sub"><a href="#incidenten-aanpakken">Incidenten aanpakken</a></li>
+<li class="chapter"><a href="#17-onderzoek-en-economische-instellingen">17. Onderzoek en economische instellingen</a></li>
+<li class="chapter"><a href="#18-marketingcampagnes">18. Marketingcampagnes</a></li>
+<li class="sub"><a href="#een-campagne-evalueren">Een campagne evalueren</a></li>
+<li class="chapter"><a href="#19-de-campagne-zes-scenarios">19. De campagne: zes scenario&#x27;s</a></li>
+<li class="sub"><a href="#meadow-en-boardwalk-aanpakken">Meadow en Boardwalk aanpakken</a></li>
+<li class="sub"><a href="#de-vier-latere-opdrachten-aanpakken">De vier latere opdrachten aanpakken</a></li>
+<li class="chapter"><a href="#20-eigen-scenarios-en-de-editor">20. Eigen scenario&#x27;s en de editor</a></li>
+<li class="sub"><a href="#een-opdracht-ontwerpen">Een opdracht ontwerpen</a></li>
+<li class="sub"><a href="#budget-en-doelwaarden-eerlijk-instellen">Budget en doelwaarden eerlijk instellen</a></li>
+<li class="sub"><a href="#scenarios-delen">Scenario&#x27;s delen</a></li>
+<li class="chapter"><a href="#21-tips-drie-keer-per-park">21. Tips: drie keer per park</a></li>
+<li class="chapter"><a href="#22-opslaan-backups-en-een-andere-pc">22. Opslaan, backups en een andere pc</a></li>
+<li class="sub"><a href="#een-park-veilig-bewaren">Een park veilig bewaren</a></li>
+<li class="sub"><a href="#wat-staat-waar">Wat staat waar?</a></li>
+<li class="chapter"><a href="#23-problemen-oplossen">23. Problemen oplossen</a></li>
+<li class="sub"><a href="#er-komen-geen-bezoekers-binnen">Er komen geen bezoekers binnen</a></li>
+<li class="sub"><a href="#een-attractie-wil-niet-open-of-ontvangt-niemand">Een attractie wil niet open of ontvangt niemand</a></li>
+<li class="sub"><a href="#bezoekers-staan-vast-of-de-wachtrij-loopt-niet-door">Bezoekers staan vast of de wachtrij loopt niet door</a></li>
+<li class="sub"><a href="#een-service-verkoopt-niets">Een service verkoopt niets</a></li>
+<li class="sub"><a href="#het-park-verliest-geld-terwijl-het-druk-is">Het park verliest geld terwijl het druk is</a></li>
+<li class="sub"><a href="#onderzoek-of-personeel-lijkt-niets-te-doen">Onderzoek of personeel lijkt niets te doen</a></li>
+<li class="sub"><a href="#knoppen-hoogtes-of-vensters-reageren-onverwacht">Knoppen, hoogtes of vensters reageren onverwacht</a></li>
+<li class="chapter"><a href="#24-sneltoetsen-en-context">24. Sneltoetsen en context</a></li>
+<li class="chapter"><a href="#25-begrippen-en-verder-lezen">25. Begrippen en verder lezen</a></li></ul></nav></details></aside>
+<main id="content"><noscript><p>Zoeken vraagt JavaScript. Alle hoofdstukken, links en afdrukken via de browser blijven zonder JavaScript beschikbaar.</p></noscript><header class=hero><p class=eyebrow>SPELEN · BOUWEN · BEHEREN</p><h1>Parkbound — uitgebreide spelershandleiding</h1></header>
+<p>Versie 0.99.1 · Windows · volledig offline te lezen · Nederlands met de Engelse knopnamen uit het spel.</p>
+<section aria-labelledby="1-wegwijs-in-deze-handleiding">
+<h2 id="1-wegwijs-in-deze-handleiding" tabindex="-1">1. Wegwijs in deze handleiding</h2>
+<p>Parkbound is een parkbouw- en managementspel. Je legt een bereikbaar park aan, bouwt attracties, verzorgt je bezoekers en houdt inkomsten en uitgaven in evenwicht. In een campagne komen daar concrete doelen en soms een tijdslimiet bij. In Sandbox bepaal je zelf je opdracht.</p>
+<p>Open in het spel <strong>Help</strong> met <strong>H</strong> of <strong>F1</strong> en kies het documenticoon <strong>Handleiding (NL) - open in browser</strong>. De toelichting verschijnt wanneer je boven het icoon blijft hangen of het met het toetsenbord selecteert. Je kunt ook <code>docs/HANDLEIDING_NL.html</code> naast <code>Parkbound.exe</code> dubbelklikken. Daarvoor is geen internet nodig. Deze Markdown-versie bevat dezelfde uitleg.</p>
+<p>De browserversie heeft links naar elk hoofdstuk en subonderwerp, een zoekvak, een knop om de zoekopdracht te wissen en een afdrukknop. Zoek bijvoorbeeld op “wachtrij”, “voorraad”, “rente” of “hoogte”. Zoeken toont de bijpassende hoofdstukken en markeert de gevonden woorden. Klik op een hoofdstuk om de volledige tekst daarvan te zien. Met <strong>Ctrl+F</strong> zoek je ook via je browser. Met <strong>/</strong> ga je naar het zoekvak; <strong>Escape</strong> wist daar de filter. Gebruik de terugknop van je browser om na een verwijzing terug te gaan.</p>
+<p><strong>Begin hier:</strong> <a href="#3-je-eerste-speelbare-park-stap-voor-stap">eerste speelbare park</a>, <a href="#5-schermindeling-en-menus">alle menu&#x27;s</a>, <a href="#9-een-attractie-afzonderlijk-beheren">individuele instellingen</a>, <a href="#15-financien-en-winst">geld verdienen</a>, <a href="#19-de-campagne-zes-scenarios">campagne spelen</a>, <a href="#23-problemen-oplossen">problemen oplossen</a>.</p>
+<p>De gids beschrijft de beschikbare spelversie. Menu-iconen hebben een naam bij hover of toetsenbordfocus. Een grijze knop of rode bouwpreview heeft doorgaans een concrete reden: onderzoek, geld, terrein, verbinding, bedrijfsstatus of scenarioregels. Lees die melding voordat je opnieuw klikt. Historische technische documenten in de map docs kunnen oudere aantallen en versies noemen; deze gids behandelt de huidige spelerswerkwijze.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="2-installeren-starten-en-een-spel-kiezen">
+<h2 id="2-installeren-starten-en-een-spel-kiezen" tabindex="-1">2. Installeren, starten en een spel kiezen</h2>
+<h3 id="windows-installeren-of-een-portable-pakket-gebruiken" tabindex="-1">Windows installeren of een portable pakket gebruiken</h3>
+<ol>
+<li>Gebruik de Parkbound Windows-installer of pak het volledige portable zipbestand uit.</li>
+<li>Bewaar bij het portable pakket ook de mappen <strong>assets</strong>, <strong>designs</strong> en <strong>docs</strong>. Alleen het exe-bestand kopiëren laat onderdelen van het pakket achter.</li>
+<li>Start Parkbound via de snelkoppeling of <code>Parkbound.exe</code>.</li>
+<li>Het spel gebruikt standaard een randloos scherm. Open <strong>Settings</strong> om scherm, weergavemodus en interfaceschaal aan te passen.</li>
+<li>Is het scherm onbruikbaar? Druk <strong>F11</strong> voor venstermodus op het huidige scherm met automatische interfaceschaal. Als noodstart bestaat ook <code>Parkbound.exe --safe-windowed</code>.</li>
+</ol>
+<h3 id="wat-betekenen-de-keuzes-in-het-hoofdmenu" tabindex="-1">Wat betekenen de keuzes in het hoofdmenu?</h3>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Keuze</th>
+<th scope="col">Wat er gebeurt</th>
+<th scope="col">Geschikt voor</th>
+</tr></thead><tbody>
+<tr><td>Play Sunhaven Gardens</td><td>Een nieuwe, aangeklede demonstratie met zeven werkende attracties</td><td>Rondkijken en leren beheren</td></tr>
+<tr><td>Continue latest park</td><td>Je laatst opgeslagen park laden</td><td>Verder spelen</td></tr>
+<tr><td>New Park</td><td>Een nieuw Sandbox-park instellen</td><td>Zelf bouwen</td></tr>
+<tr><td>Campaign</td><td>Een scenario met doelen en ontgrendelingen starten</td><td>Een gerichte uitdaging</td></tr>
+<tr><td>Load Park</td><td>Een opgeslagen park, of de vorige geldige backup ervan, kiezen</td><td>Meerdere parken beheren</td></tr>
+<tr><td>Scenarios and editor</td><td>Eigen scenario&#x27;s maken, importeren en spelen</td><td>Zelf opdrachten ontwerpen</td></tr>
+<tr><td>Settings</td><td>Beeld, geluid, besturing en toegankelijkheid</td><td>Het spel prettig instellen</td></tr>
+</tbody></table></div>
+<p>Het hoofdmenu behoudt tekstknoppen. Tijdens het spelen zijn veel acties iconen. Houd de muis even stil boven een icoon om naam, sneltoets en eventuele prijs te lezen. <strong>Tab</strong> en <strong>Shift+Tab</strong> verplaatsen de focus; <strong>Enter</strong> bedient de geselecteerde knop. <strong>Escape</strong> gaat een scherm terug.</p>
+<h3 id="sandbox-instellen" tabindex="-1">Sandbox instellen</h3>
+<p>Geef je park een naam. Kies een kaart van <strong>32, 64, 128 of 256 tegels per zijde</strong>, een beschikbaar landschap en je startregels. De 32-tegelvariant heeft vlak terrein en startervoorzieningen. Grotere parken beginnen leeg en kunnen vlak of met glooiingen worden gemaakt. De geldkeuzes zijn $500, $1.000, $5.000 en $10.000. Je kunt onderzoek, bezoekersinstroom, leningen en het toegangsbeleid instellen.</p>
+<p>Kies voor een eerste eigen park <strong>32</strong>, vlak terrein en een ruim budget. Wil je zonder onderzoekssloten oefenen, kies dan alle inhoud beschikbaar. Druk <strong>Create Park</strong>; bij het openen van dit scherm is dat de eerste toetsenbordkeuze. Een Sandbox heeft geen verplichte eindscore of deadline. Een groter park geeft ruimte, maar vereist ook een zelf gebouwde ingang en meer verbindingswerk.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="3-je-eerste-speelbare-park-stap-voor-stap">
+<h2 id="3-je-eerste-speelbare-park-stap-voor-stap" tabindex="-1">3. Je eerste speelbare park stap voor stap</h2>
+<h3 id="route-a-leren-in-sunhaven-gardens" tabindex="-1">Route A: leren in Sunhaven Gardens</h3>
+<ol>
+<li>Kies <strong>Play Sunhaven Gardens</strong>. Dit start iedere keer een nieuwe demonstratie; het laadt geen eerdere bezoekronde.</li>
+<li>Druk <strong>Space</strong> om te pauzeren. Bekijk de zeven attracties, serviceboulevard en ingang.</li>
+<li>Sleep met rechts om rond te kijken. Zoom boven de kaart met het muiswiel. Klik kort met rechts op een gebouw om juist dát object te beheren.</li>
+<li>Open <strong>Guests</strong> en bekijk tevredenheid en behoeften. Selecteer een bezoeker en kies <strong>Find</strong> om die terug te vinden.</li>
+<li>Open <strong>Management and economy → Overview</strong> en daarna <strong>History</strong>. Vergelijk verkoopopbrengsten met lopende kosten.</li>
+<li>Klik met rechts op een service. Controleer of hij open is en een redelijke prijs heeft; controleer voorraad onder <strong>Supplies</strong>.</li>
+<li>Hervat met <strong>Space</strong>. Kijk hoe bezoekers via wachtrijen instappen en na de rit naar de openbare paden terugkeren.</li>
+<li>Sluit vensters en druk <strong>F5</strong> om je eigen voortgang op te slaan. Laad die later via <strong>Continue latest park</strong> of <strong>Load Park</strong>.</li>
+</ol>
+<p>Sunhaven heeft Sunburst Coaster, Willow Falls, Sunhaven Railway, Garden Carousel, Blossom Cups, Golden Wheel en Marigold Voyager. Daarnaast zijn alle acht services en een team met de vijf personeelsrollen aanwezig. De demonstratie heeft geen campagnedeadline en alle onderzoek is beschikbaar. Het openingsbudget is $15.000, maar bouwkosten en reeds gespeelde activiteit zijn al in de getoonde kas verwerkt. Verwacht dus geen kassaldo van exact $15.000.</p>
+<h3 id="route-b-je-eigen-eerste-park-bouwen" tabindex="-1">Route B: je eigen eerste park bouwen</h3>
+<ol>
+<li>Maak een Sandbox. Pauzeer direct. Gebruik desgewenst <strong>Help → First park guide</strong> voor de ingebouwde zevenstappengids.</li>
+<li>Zoek de openbare paden. Op een lege grote kaart: bouw vanaf de westelijke rand via de beschikbare landstrook naar je bouwgebied.</li>
+<li>Kies een openbaar pad als bezoekersingang via <strong>Visitor flow</strong>. Controleer dat instroom is ingeschakeld en het park open is.</li>
+<li>Kies in <strong>Build → Catalogue</strong> een beschikbare rustige attractie, bijvoorbeeld een carousel. Plaats haar op vrij, eigen terrein; laat rondom ruimte voor toegang en uitgang.</li>
+<li>Open met rechts de attractie en kies <strong>Access</strong>. Maak de ingang aan de attractie, verbind die met een wachtrij en sluit de andere kant van de wachtrij aan op het openbare pad.</li>
+<li>Maak een afzonderlijke uitgang. Het openbare pad naast die uitgang moet terug naar het park leiden. Gebruik de suggesties in <strong>Access</strong> als een verbinding ontbreekt.</li>
+<li>Open <strong>Operations</strong>. Los alle gemelde problemen op en open de attractie. Begin met een bescheiden ticketprijs.</li>
+<li>Bouw drank, eten en toiletten met hun bedieningszijde aan een openbaar pad. Controleer opening, prijs en voorraad.</li>
+<li>Plaats een paar bankjes en afvalbakken. Houd geld over voor personeel, voorraad en onderhoud.</li>
+<li>Hervat. Controleer echte aankomsten, voltooide ritten en klanten in de rapporten. Alleen een bewegende attractie bewijst nog niet dat bezoekers haar kunnen bereiken.</li>
+<li>Druk <strong>F5</strong>. Bouw pas een tweede attractie wanneer de eerste daadwerkelijk klanten ontvangt en het kostenoverzicht begrijpelijk is.</li>
+</ol>
+<h3 id="een-bruikbare-eerste-speelroutine" tabindex="-1">Een bruikbare eerste speelroutine</h3>
+<p>Werk per korte periode: bouw gepauzeerd, laat daarna even spelen, controleer wat er werkelijk gebeurt en pas één probleem tegelijk aan. Kijk achtereenvolgens naar bereikbaarheid, bezoekersbehoeften, bedrijfstoestand, voorraad en geld. Sla op na een geslaagde uitbreiding en vóór een grote verbouwing. Versnellen is nuttig nadat je zeker weet dat bezoekers niet vastlopen en vaste kosten betaalbaar zijn.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="4-het-doel-en-de-spelklok">
+<h2 id="4-het-doel-en-de-spelklok" tabindex="-1">4. Het doel en de spelklok</h2>
+<p>In Sandbox bouw je een aantrekkelijk, bereikbaar en betaalbaar park volgens je eigen doel. Voorbeelden zijn zeven verschillende attracties, tevreden bezoekers, een park zonder verdwaalde gasten of meerdere winstgevende periodes achter elkaar. De campagne geeft expliciete voorwaarden; het halen van één getal is onvoldoende als het scenario meerdere gelijktijdige doelen heeft.</p>
+<p><strong>Space</strong> pauzeert of hervat. Buiten invoervelden en speciale vensters kiezen <strong>1</strong>, <strong>2</strong> en <strong>3</strong> de snelheden 1×, 2× en 4×. In het Explore-menu kiezen die cijfers juist een menugroep. De vermelding “30 seconden” bij lonen, onderzoek of marketing betekent <strong>simulatietijd</strong>, geen tijd op de Windows-klok. Versnellen versnelt ook uitgaven, bezoekersbehoeften en deadlines.</p>
+<p>Een instellingenvenster voor attracties of services pauzeert het park niet automatisch. Druk eerst Space als je rustig wilt lezen. De handleiding in de browser pauzeert evenmin automatisch. Een geladen park begint gepauzeerd; controleer de toestand en hervat bewust.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="5-schermindeling-en-menus">
+<h2 id="5-schermindeling-en-menus" tabindex="-1">5. Schermindeling en menu&#x27;s</h2>
+<h3 id="header-zijbalk-en-explore" tabindex="-1">Header, zijbalk en Explore</h3>
+<p>Bovenaan staan de parknaam en kerncijfers. De snelkoppelingen naar financiën, attracties en <strong>Tips</strong> staan bij elkaar. Links staan algemene acties; de bouwsectie bevat gegroepeerde gereedschappen. Een geselecteerde gast, padtegel of attractie geeft contextinformatie. De onderste melding vertelt vaak waarom een actie niet lukt.</p>
+<p><strong>Explore / F2</strong> is de centrale route. Je hoeft niet ieder pictogram uit het hoofd te leren:</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Groep</th>
+<th scope="col">Belangrijkste onderdelen</th>
+</tr></thead><tbody>
+<tr><td>Build</td><td>Paden, wachtrijen, terrein, attracties, services, coasterbouw en ontwerpen</td></tr>
+<tr><td>Manage</td><td>Financiën, economie, bezoekersinstroom, personeel en scenario-editor</td></tr>
+<tr><td>Inspect</td><td>Bezoekers, attracties en services bekijken</td></tr>
+<tr><td>Park</td><td>Doelen, parkstatistieken, opslaan en parkmenu</td></tr>
+<tr><td>Help / Settings</td><td>Speluitleg, geluid, toegankelijkheid en weergave</td></tr>
+</tbody></table></div>
+<p>Vensters scrollen wanneer de inhoud niet past. Plaats de muis boven het venster en gebruik het wiel; boven de kaart zoomt datzelfde wiel. <strong>Escape</strong> sluit eerst een venster of actief gereedschap; vanuit de vrije kaart opent het het parkmenu. Een tekstveld moet eerst worden verlaten voordat een letter weer als sneltoets dient.</p>
+<h3 id="iconen-lezen" tabindex="-1">Iconen lezen</h3>
+<p>De vorm geeft de actie aan: spoor/rail voor coasterbouw, slingerende lijnen voor paden, poort voor toegang, pijl naar buiten voor uitgang, gereedschap voor onderhoud, munt/grafiek voor geld, personen voor bezoekers en lamp voor Tips. Plus en min wijzigen de waarde in de direct bijbehorende groep. Controleer de hovertekst om bijvoorbeeld padhoogte van borstelgrootte te onderscheiden. Een lijstregel of naamveld blijft leesbare tekst. Het hoofdmenu, New Park en Settings behouden hun tekstkeuzes.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="6-camera-beeld-geluid-en-toegankelijkheid">
+<h2 id="6-camera-beeld-geluid-en-toegankelijkheid" tabindex="-1">6. Camera, beeld, geluid en toegankelijkheid</h2>
+<h3 id="de-kaart-bekijken" tabindex="-1">De kaart bekijken</h3>
+<p>Sleep met de <strong>rechter- of middelste muisknop</strong> om te pannen. Een korte rechterklik zonder slepen opent objectinstellingen. Gebruik <strong>WASD</strong> of de pijltjes voor camera-beweging als geen invoerveld of keuzelijst die toetsen gebruikt. <strong>Q/E</strong> draaien de kaart een kwartslag. Het muiswiel of <strong>+/−</strong> zoomt; <strong>Home</strong> past de kaart in beeld. <strong>G</strong> toont het raster; <strong>U</strong> wisselt ondergrondweergave voor tunnels.</p>
+<p>Roteren helpt wanneer een hoog gebouw een ingang verbergt. Uitzoomen helpt voor het netwerk; inzoomen helpt bij hoogteverschillen en kleine poorten. Klik de zichtbare geometrie van de attractie, niet de lege ruimte naast een hoge constructie. De rechterklikselectie houdt rekening met rotatie en interfaceschaal.</p>
+<h3 id="een-hogere-resolutie-gebruiken" tabindex="-1">Een hogere resolutie gebruiken</h3>
+<p>Open <strong>Menu → Settings</strong>. Kies het scherm, Windowed, Borderless of Fullscreen en de interfaceschaal <strong>Auto, 100%, 125%, 150% of 200%</strong>. Een onbruikbaar grote schaal kan worden begrensd zodat bediening op het scherm blijft; Settings toont de effectieve schaal. Op een klein scherm moet je vaker door vensters scrollen. F11 herstelt de veilige vensterweergave.</p>
+<h3 id="muziek-attractiegeluiden-en-reacties" tabindex="-1">Muziek, attractiegeluiden en reacties</h3>
+<p><strong>F10</strong> opent geluid. Stel Master, Music, Ambience, Rides, Alerts &amp; interface en Guest &amp; staff reactions afzonderlijk in. Zoom en camerapositie beïnvloeden nabijheid en stereopositie van attractiegeluiden. Waterattracties, ketting-/rijgeluiden en bezoekersreacties horen bij de betreffende activiteit. Zet Music lager als je vooral de omgeving wilt horen; zet Master op nul of gebruik Mute voor stilte.</p>
+<p>Geluid vervaagt bij focusverlies. <strong>Reconnect audio device</strong> probeert de huidige Windows-uitvoer opnieuw wanneer je van apparaat wisselt of niets hoort. Korte ondertitels geven belangrijke acties ook zonder geluid weer. Muziek en omgevingsgeluid kunnen tijdens pauze doorlopen, terwijl ritactiviteit stopt.</p>
+<h3 id="toegankelijkheid-en-eigen-toetsen" tabindex="-1">Toegankelijkheid en eigen toetsen</h3>
+<p>Open <strong>Controls &amp; accessibility</strong> vanuit Settings of Help. Je kunt achttien spelacties een andere beschikbare toets geven. De lijst toont de actuele toewijzingen; vaste navigatie- en hersteltoetsen behouden hun rol. De referentie verderop beschrijft standaardtoetsen. <strong>High contrast</strong> maakt tekst en vlakken duidelijker. <strong>Reduced motion</strong> vermindert decoratieve beweging; voertuigen en bezoekers blijven hun werkelijke posities tonen. Ondertitels zijn afzonderlijk instelbaar.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="7-terrein-land-en-tuinen">
+<h2 id="7-terrein-land-en-tuinen" tabindex="-1">7. Terrein, land en tuinen</h2>
+<h3 id="eigen-grond-en-terreinhoogte" tabindex="-1">Eigen grond en terreinhoogte</h3>
+<p>Je kunt alleen bouwen op grond waarvoor het park rechten heeft. Grote kaarten beginnen met een centraal eigen gebied en een smalle verbinding naar de westrand. <strong>Buy Land</strong> koopt aansluitende tegels voor $5 per tegel. Verschillende grondkleuren en grenzen tonen het eigendom.</p>
+<p><strong>Raise</strong> en <strong>Lower</strong> verhogen of verlagen het terrein één stap. De borstel kan 1×1, 3×3 of 5×5 tegels bestrijken. De preview laat de echte prijs en het hele gebied zien. Verhogen/verlagen kost $1 per veranderde tegel, gras/zand schilderen $0,50 en water $2. Als één tegel ongeldig is of het geld ontbreekt, wordt de hele bewerking geweigerd. Verwijder of verplaats blokkerende bebouwing eerst.</p>
+<p>Terrein wijzigen verplaatst een bestaande verhoogde attractie niet automatisch naar beneden. Controleer gebouwhoogte, padhoogte en grondhoogte afzonderlijk. Gebruik voor een nieuwe attractie de gewenste bouwhoogte voordat je plaatst. Voor grote wijzigingen is een nieuwe plaatsing of aangepaste coastergeometrie nodig.</p>
+<h3 id="water-bruggen-en-tunnels" tabindex="-1">Water, bruggen en tunnels</h3>
+<p>Water vereist vlakke geschikte grond. Grondpaden en objecten kunnen het aanbrengen blokkeren. Een brug met voldoende hoogte kan boven water blijven bestaan; een nieuw grondpad op water is ongeldig. Een pad mag niet half door aarde heen lopen.</p>
+<p>Voor een tunnel: zet <strong>Underground view</strong> aan, kies Pad of Queue en zet de padhoogte voldoende onder het maaiveld. Het complete profiel moet ondergronds passen; een helling vraagt extra vrije hoogte. De hint meldt <strong>Tunnel</strong> wanneer dat klopt. Terug in Surface view zijn begraven delen verborgen; zichtbare tunnelmonden verschijnen bij aansluitingen naar buiten. Gebruik Underground view opnieuw om ze te selecteren of wijzigen.</p>
+<h3 id="bomen-bloemen-en-meubilair" tabindex="-1">Bomen, bloemen en meubilair</h3>
+<p>Plaats bomen en bloemen op vrije eigen gras- of zandtegels. Bomen kosten $2,50 en bloemen $1,50; verwijderen van betaald groen geeft de helft terug. Gratis aanwezige aankleding heeft geen oorspronkelijke aanschafwaarde om terug te betalen. Groen bij looproutes helpt de sfeer en tevredenheid, maar vervangt geen eten, drinken of rust.</p>
+<p>Bankjes en afvalbakken horen op openbare paden. Richtingborden en hekken geven visuele structuur; ze veranderen op zichzelf de routekeuze van bezoekers niet. <strong>Cover a path</strong> voegt een dak toe aan een bankje. Een nieuw bankje kost $1; een bestaand bankje overdekken is gratis. Houd belangrijke ingangen zichtbaar en looproutes kort in plaats van elk vrij vak te vullen.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="8-paden-wachtrijen-poorten-en-hoogte">
+<h2 id="8-paden-wachtrijen-poorten-en-hoogte" tabindex="-1">8. Paden, wachtrijen, poorten en hoogte</h2>
+<h3 id="vier-onderdelen-die-niet-uitwisselbaar-zijn" tabindex="-1">Vier onderdelen die niet uitwisselbaar zijn</h3>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Onderdeel</th>
+<th scope="col">Functie</th>
+<th scope="col">Waar sluit het op aan?</th>
+</tr></thead><tbody>
+<tr><td>Public path / Path</td><td>Openbare circulatie voor gasten en personeel</td><td>Andere openbare paden en de parkingang</td></tr>
+<tr><td>Queue</td><td>Wachten op één specifieke attractie</td><td>Openbare toegang aan één einde, attractie-ingang aan het andere</td></tr>
+<tr><td>Entrance / Gate</td><td>Instappen bij de geselecteerde attractie</td><td>De juiste attractie en haar eigen wachtrij</td></tr>
+<tr><td>Exit</td><td>Uitstappen na de rit</td><td>De attractie en een openbaar pad terug het park in</td></tr>
+</tbody></table></div>
+<p>Een werkend schema is:</p>
+<pre><code>parkingang === openbaar pad === services === openbaar parknetwerk
+                    |
+              wachtrij van A --&gt; ingang A --&gt; attractie A
+                                              |
+                        openbaar pad &lt;------ uitgang A</code></pre>
+<p>Een wachtrij is geen openbaar doorgaand pad. Een service heeft een openbaar pad aan de bedieningszijde nodig. De wachtrij en poorten horen bij een geselecteerde attractie: controleer de naam voordat je ze bouwt. Gebruik bij voorkeur <strong>Rides → Access</strong> om de selectie en ontbrekende onderdelen te zien.</p>
+<h3 id="bouw-een-verbinding-stap-voor-stap" tabindex="-1">Bouw een verbinding stap voor stap</h3>
+<ol>
+<li>Kies <strong>Path / P</strong> voor het openbare deel of <strong>Queue / J</strong> voor het wachtrijdeel.</li>
+<li>Stel hoogte en vorm in voordat je klikt. Bij hellingen wisselt <strong>C</strong> de richting/vorm; bij poorten en services draait C de oriëntatie.</li>
+<li>Plaats opeenvolgende tegels met gelijk aansluitende <strong>randhoogten</strong>. Twee naast elkaar liggende tegels op verschillende niveaus zijn niet automatisch verbonden.</li>
+<li>Gebruik een éénstapshelling tussen opeenvolgende niveaus. De hoge zijde moet precies aansluiten op de hoge buur.</li>
+<li>Plaats de ingang met <strong>I</strong>, gericht naar de attractie, en de uitgang met <strong>K</strong>, met een eigen openbaar retourpad.</li>
+<li>Controleer <strong>Access</strong>. Los iedere rode voorwaarde op en test daarna met een echte bezoeker.</li>
+</ol>
+<p>Een vlak openbaar pad kost $1; een hellend pad $1,50. Een vlakke wachtrij kost $2; een hellende wachtrij $2,50. Hover toont het bedrag voor de gekozen tegel. Ongeldige plaatsing kost niets. Paden kunnen visueel dicht bij elkaar liggen zonder te verbinden: controleer hoogte, richting, type en eigendom.</p>
+<h3 id="demolition-verwijderen-en-ongedaan-maken" tabindex="-1">Demolition, verwijderen en ongedaan maken</h3>
+<p><strong>Demolish / X</strong> verwijdert het aangewezen onderdeel als de spelregels dat toestaan. <strong>Delete</strong> verwijdert een geselecteerd object. Sluit attracties en laat bezoekers uitstappen vóór een grote sloopactie. Let erop dat een verwijderd pad ook meubilair en bereikbaarheid kan beïnvloeden.</p>
+<p>Betaalde paden geven de helft van de oorspronkelijke padprijs terug plus toepasselijke meubelteruggaven. Attracties en services tonen hun eigen geldige refund; bedragen hangen af van wat werkelijk voor dat object betaald is. Een nieuw bouwwerk plaatsen is niet gratis omdat je eerder iets sloopte: beide transacties worden afzonderlijk geboekt.</p>
+<p>Bij gepauzeerde parkbouw kun je <strong>Ctrl+Z</strong> en <strong>Ctrl+Y</strong> gebruiken voor maximaal zestien recente bewerkingen. Hervatten, een ander park laden of wisselen wist deze tijdelijke geschiedenis. De coasterdraft heeft een eigen undo/redo. Een save bewaart het park, niet die undo-lijst. De gebruikte Tips-teller wordt niet teruggedraaid.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="9-een-attractie-afzonderlijk-beheren">
+<h2 id="9-een-attractie-afzonderlijk-beheren" tabindex="-1">9. Een attractie afzonderlijk beheren</h2>
+<h3 id="met-rechts-het-juiste-instellingenvenster-openen" tabindex="-1">Met rechts het juiste instellingenvenster openen</h3>
+<p>Klik <strong>kort met de rechtermuisknop</strong> op een zichtbare attractie, haar track, eigen poort of wachtrij. Het venster <strong>Rides</strong> opent met de eigenaar van precies dat onderdeel geselecteerd. Klik met rechts op een servicegebouw voor <strong>Services</strong>. Een rechterklik op leeg terrein opent niets. Houd je de knop vast en sleep je, dan verplaats je de camera en verschijnt geen instellingenvenster.</p>
+<p>De selectie wordt niet aangenomen wanneer je ondertussen van camera, park of venster wisselt. Deze bescherming voorkomt dat de verkeerde attractie wordt geopend na slepen of laden. Een open venster bedekt de kaart; sluit het eerst voordat je daarachter een andere attractie probeert aan te klikken.</p>
+<h3 id="operations-naam-en-kleuren" tabindex="-1">Operations, naam en kleuren</h3>
+<p><strong>Operations</strong> toont status, opening, capaciteit en de instellingen die bij het model horen. Een carousel heeft andere mogelijkheden dan een coaster of transporttrein. Kies alleen aangeboden instellingen. Wijzig voertuigaantal, treinconfiguratie of vergelijkbare uitrusting wanneer de attractie dicht, stil en leeg is. Een sluitverzoek laat reeds vertrokken ritten veilig afronden.</p>
+<p>Pas minimumbezetting en wachttijden aan op de vraag. Hoge minimumbezetting kan in een rustig park lang lege stoelen vasthouden. Te veel treinen helpen niet als station of baanblokken onvoldoende ruimte hebben. <strong>Reset</strong> herstelt operationele standaardwaarden. Het paneel toont ook onderhoudstoestand, bedrijfskosten en een reden wanneer openen wordt geweigerd.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Instelling</th>
+<th scope="col">Betekenis</th>
+<th scope="col">Wanneer aanpassen?</th>
+</tr></thead><tbody>
+<tr><td>Cars / Trains</td><td>Wagen- en treinaantal, waar ondersteund</td><td>Meer capaciteit nadat baanblokken en vraag dat toelaten</td></tr>
+<tr><td>Station wait</td><td>Basiswachttijd aan het station</td><td>Balans tussen vlot vertrek en verzamelen van instappers</td></tr>
+<tr><td>Minimum load</td><td>Gewenst minimum aantal passagiers</td><td>Lager bij weinig bezoekers; nul schakelt het minimum uit</td></tr>
+<tr><td>Max extra wait</td><td>Extra wachten om minimumlading te halen</td><td>Voorkom dat een rustige rit onnodig lang blijft staan</td></tr>
+<tr><td>Lift speed</td><td>Snelheid op liftstukken</td><td>Alleen met aandacht voor de volgende baandelen en testresultaten</td></tr>
+<tr><td>Brake speed</td><td>Reminstelling van de baan</td><td>Aankomstsnelheden beheersen; daarna opnieuw testen</td></tr>
+<tr><td>Cycle duration</td><td>Duur van een vaste attractiecyclus</td><td>Afweging tussen ervaring en aantal ritten per tijdseenheid</td></tr>
+</tbody></table></div>
+<p>Bij <strong>Edit name</strong> typ je een eigen naam en bevestig je met <strong>Apply name</strong>. <strong>Restore default</strong> herstelt de modelnaam. Onder <strong>Colors</strong> kies je de beschikbare verfschema&#x27;s. Naam en kleur veranderen de bereikbaarheid, ritveiligheid en prijs niet.</p>
+<h3 id="ticketprijs-en-inspectie" tabindex="-1">Ticketprijs en inspectie</h3>
+<p>Na de rechterklik blijft de gekozen attractie geselecteerd. Sluit Rides met <strong>Use ride / Escape</strong> om haar kaartinspecteur te zien. Gebruik daar <strong>F6/F7</strong> of de prijsiconen voor stappen van $0,50. <strong>O</strong> opent of sluit de geselecteerde attractie; <strong>F</strong> brengt haar in beeld. De prijzen van verschillende attracties zijn onafhankelijk. Onder <strong>Management → Policies</strong> bestaan daarnaast prijsinstellingen voor alle attracties tegelijk.</p>
+<p>Let op scenarioregels: bij gratis attracties kun je niet alsnog een ticketopbrengst afdwingen. Een bezoeker die al een prijsafspraak heeft, behoudt zijn afgesproken bedrag. Nieuwe prijzen gelden voor latere afspraken. Geld wordt bij daadwerkelijk vertrek geïnd; een geannuleerde instap is geen verkochte rit.</p>
+<h3 id="access-testen-en-onderhoud" tabindex="-1">Access, testen en onderhoud</h3>
+<p><strong>Access</strong> is de checklist voor ingang, wachtrij en uitgang. Kies een voorgestelde bouwactie, plaats de preview en open Access opnieuw voor het volgende ontbrekende onderdeel. Een preview is nog geen gebouwd pad. <strong>Test</strong> berekent voor een geïnstalleerde coaster een afzonderlijke testronde. Sluit en leeg de rit eerst; zie het hoofdstuk over coasterbouw.</p>
+<p>Bij slijtage of onderhoudssluiting kun je de aangeboden <strong>Service ride</strong>-actie gebruiken of een bereikbare monteur inzetten. Eerst moet de rit veilig stil en leeg zijn. Los ook eventuele geld- en padproblemen op. Een monteur kan geen afgesloten eiland bereiken en een grotere kas heropent een geldgesloten attractie niet vanzelf.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="10-de-volledige-attractiecatalogus">
+<h2 id="10-de-volledige-attractiecatalogus" tabindex="-1">10. De volledige attractiecatalogus</h2>
+<p>Open <strong>Build → Catalogue</strong>. Kies een familie, selecteer een beschikbaar model en lees prijs, footprint en beschrijving. Draai met <strong>C</strong> en plaats pas wanneer de hele preview geldig is. Meerdere exemplaren van een model kunnen naast elkaar bestaan met eigen naam, bezoekers en boekhouding. Sommige oudere snelbouwknoppen hebben beperktere mogelijkheden; gebruik de catalogus voor het volledige aanbod.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Familie</th>
+<th scope="col">Model</th>
+<th scope="col">Geleverde capaciteit</th>
+<th scope="col">Karakter en aandachtspunt</th>
+</tr></thead><tbody>
+<tr><td>Gentle</td><td>Festival Carousel</td><td>6</td><td>Rustige draaimolen; geschikte eerste attractie</td></tr>
+<tr><td>Gentle</td><td>Meadow Wheel</td><td>6</td><td>Reuzenrad met hoge gondelconstructie</td></tr>
+<tr><td>Gentle</td><td>Whirling Cups</td><td>12</td><td>Zes draaiende tweepersoonskopjes</td></tr>
+<tr><td>Gentle</td><td>Skyline Tower</td><td>8</td><td>Observatietoren met lift en kijkpauze</td></tr>
+<tr><td>Thrill</td><td>Skyward Swing</td><td>6</td><td>Pendelgondel; vraag hangt af van voorkeuren</td></tr>
+<tr><td>Thrill</td><td>Beacon Drop</td><td>6</td><td>Omhoog, vasthouden en vrije-valachtige afdaling</td></tr>
+<tr><td>Thrill</td><td>Corsair Ship</td><td>12</td><td>Schommelend piratenschip</td></tr>
+<tr><td>Water</td><td>Timber Falls</td><td>4</td><td>Boomstam met lift en splashdown</td></tr>
+<tr><td>Water</td><td>River Rapids</td><td>6</td><td>Rondvaart in een raft op waterkanaal</td></tr>
+<tr><td>Transport</td><td>Park Railway</td><td>12</td><td>Trein tussen twee stations</td></tr>
+<tr><td>Transport</td><td>Vista Monorail</td><td>12</td><td>Monorail tussen twee stations</td></tr>
+<tr><td>Coaster</td><td>Classic Coaster</td><td>6</td><td>Klassieke coaster met houten ondersteuning</td></tr>
+<tr><td>Coaster</td><td>Steel Launch Coaster</td><td>6</td><td>Stalen baan met lanceer- en overgangsstukken</td></tr>
+<tr><td>Coaster</td><td>Inverted Coaster</td><td>6</td><td>Hangende stoelen onder de baan</td></tr>
+</tbody></table></div>
+<p>Capaciteit in deze tabel hoort bij de meegeleverde configuratie; ondersteunde trein- en wagoninstellingen kunnen haar wijzigen. Niet elk baantype accepteert elk bouwstuk. De live catalogusquote is bepalend voor prijs, grondruimte en onderzoeksslot. Koop geen model alleen omdat de eerste aanschaf past: toegang, paden, voorraad, lonen en onderhoud vragen ook geld.</p>
+<p>Vaste attracties gebruiken een volledig gereserveerde footprint en hoogte. De meegeleverde baanattracties beslaan ongeveer 10×7 tegels vóór rotatie. Laat daarom meer ruimte vrij dan alleen de zichtbare voertuigen suggereren. Transport heeft een instapstation en een bestemming: verbind de ingang bij het eerste station en de uitgang bij het andere. De lege trein keert terug naar het begin.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="11-coasters-bouwen-van-station-tot-eerste-rit">
+<h2 id="11-coasters-bouwen-van-station-tot-eerste-rit" tabindex="-1">11. Coasters bouwen van station tot eerste rit</h2>
+<h3 id="begin-met-een-korte-werkende-baan" tabindex="-1">Begin met een korte werkende baan</h3>
+<ol>
+<li>Pauzeer en kies <strong>Coaster track / Z</strong>. Kies <strong>New coaster</strong> voor een nieuwe baan; voor verbouwen selecteer je eerst de bestaande rit via Rides.</li>
+<li>Kies een vrije, eigen plek en begin op grondniveau met een station. Reserveer ruimte buiten het station voor ingang, wachtrij en uitgang.</li>
+<li>Laat <strong>Follow heights</strong> aan staan. Kies een recht stuk en gebruik <strong>Add next piece / Enter</strong>. De volgende preview neemt de uitgangsrichting en -hoogte over.</li>
+<li>Bouw een eenvoudig rondgaand traject met bochten. Maak eerst een kleine werkende lus voordat je ingewikkelde hoogtewisselingen toevoegt.</li>
+<li>Controleer dat het laatste stuk exact op richting en hoogte van het station aansluit. Alleen visueel dicht bij elkaar eindigen sluit de baan niet.</li>
+<li>Lees de bouwquote en kies <strong>Apply</strong>. Dit installeert de draft en verwerkt de werkelijke aanschaf/refund. Alleen stukken tekenen in de draft bouwt nog geen rijdende attractie.</li>
+<li>Open <strong>Rides → Access</strong>, maak ingang, eigen wachtrij en openbaar uitgangspad.</li>
+<li>Laat de coaster gesloten en voer <strong>Test → Run one isolated lap</strong> uit. Los problemen met het traject op.</li>
+<li>Stel een passende trein en laadregels in, open de attractie en laat één bezoeker een volledige reis maken. Sla daarna op.</li>
+</ol>
+<h3 id="klimmen-dalen-en-de-volgende-blokhoogte" tabindex="-1">Klimmen, dalen en de volgende blokhoogte</h3>
+<p>De preview toont <strong>Start → End</strong>. Bij <strong>Follow heights</strong> begint elk nieuw stuk op het eindniveau van het vorige. Twee liftstukken achter elkaar klimmen dus vanzelf verder. Een daling start op het bereikte hoge niveau en geeft het volgende stuk een lagere starthoogte. Na een bocht wordt ook de richting gevolgd.</p>
+<p><strong>PgUp/PgDn</strong> verandert handmatig de ingangshoogte. Dat zet automatisch volgen uit, omdat je bewust van het vorige eindpunt afwijkt. Zet <strong>Follow heights on</strong> weer aan om terug te gaan naar het open einde. Een onderbroken draft zoekt bij opnieuw openen zijn laatste open aansluiting. Bij de bodem of hoogtebegrenzing kan de editor naar een recht stuk terugvallen; controleer altijd de preview.</p>
+<p>Beschikbare stukken omvatten Station, Straight, linker/rechter Curve, Bank, Lift, één- of tweestaps Drop, Brakes, Launch, Camelback, Smooth rise, Smooth drop en Heartline roll. Een camelback eindigt op zijn beginhoogte met een top binnen de tegel. Smooth rise/drop verbindt niveaus geleidelijk. Een roll vraagt extra vrije hoogte boven de baan. Het gekozen baantype kan stukken beperken; een rode preview vermeldt de blokkade.</p>
+<h3 id="treinen-remblokken-en-testresultaten" tabindex="-1">Treinen, remblokken en testresultaten</h3>
+<p>Coasters ondersteunen één tot drie treinen met één tot drie tweezitswagens per trein, als het baanontwerp dat toelaat. Voor meerdere treinen zijn <strong>meer blokken dan treinen</strong> nodig en elk blok moet lang genoeg zijn voor een volledige trein. Het station en remstukken beginnen blokken. Plaats remstukken met voldoende tussenruimte. Een stilstaande trein vóór rood sein kan gewoon op een bezet volgend blok wachten.</p>
+<p>Wijzig de vloot alleen als de attractie gesloten, gestopt en leeg is. De minimumlading geldt voor de trein bij het station. Sluiten laat vertrokken treinen terugkomen en uitstappen. Waterbanen hebben hun eigen beperkte voertuigconfiguratie; transport gebruikt één trein en een bestemming.</p>
+<p>De test toont snelheden, hoogte, kenmerken, geschatte krachten en layoutbeoordelingen. Het is een modelberekening; wachtrijen, passagiersbelading en blokwachttijd maken geen deel uit van die geïsoleerde ronde. Wijzigingen aan baan of bedrijfsinstellingen maken eerdere resultaten verouderd. Test opnieuw en beoordeel daarna echte bezoekersreacties. De test verandert geen parkklok, gasten of kassaldo.</p>
+<h3 id="bestaande-banen-veilig-aanpassen" tabindex="-1">Bestaande banen veilig aanpassen</h3>
+<p>Sla eerst op. Sluit de juiste coaster en wacht tot alle bezoekers eruit zijn. Open zijn draft, wijzig enkele stukken, controleer prijs en verbindingen, pas toe en test opnieuw. <strong>Next coaster</strong> wisselt tussen opgeslagen baanwerkruimtes; controleer de naam vóór Apply. Er kunnen maximaal acht coasterrecords naast de vaste attracties bestaan. De tijdelijke draftgeschiedenis is niet dezelfde geschiedenis als gepauzeerde terreinbouw.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="12-coasterontwerpen-bewaren-en-delen">
+<h2 id="12-coasterontwerpen-bewaren-en-delen" tabindex="-1">12. Coasterontwerpen bewaren en delen</h2>
+<p><strong>Designs / Ctrl+D</strong> opent de ontwerpbibliotheek. Een ontwerp bewaart baangeometrie, geen compleet park, bezoekersbestand of volledige bedrijfsvoering. Bewaar je huidige draft met een herkenbare naam. De bibliotheek kan zoeken, voorvertonen, hernoemen, een gekozen ontwerp bijwerken, importeren en exporteren.</p>
+<p>Het pakket bevat <strong>Pocket Oval</strong>, <strong>Meadow Winder</strong> en <strong>Meadow Climb</strong> in de map designs. Importeer een <code>.parktrack.json</code>, selecteer het, pas positie, rotatie en hoogte aan en bekijk de preview. <strong>Load into draft</strong> laadt het ontwerp; <strong>Apply</strong> bouwt het werkelijk. Sluit en leeg een bestaande attractie vóór vervanging. Een verplaatst station kan nieuwe poorten en paden nodig hebben.</p>
+<p>De oorspronkelijke plaatsingshoogte van een meegeleverd ontwerp hoeft niet grondniveau te zijn. Pas die bewust aan; Follow heights bewaakt daarna de onderlinge aansluiting. Controleer vrij terrein, tunnels, onderzoek, cash en overige bebouwing. Exporteer een geslaagd eigen ontwerp en test import in een ander park als je het wilt delen. Een gedeeld bestand ontgrendelt niet automatisch alle onderzoek van de ontvangende speler.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="13-services-prijzen-en-voorraad">
+<h2 id="13-services-prijzen-en-voorraad" tabindex="-1">13. Services, prijzen en voorraad</h2>
+<h3 id="acht-voorzieningen-met-een-eigen-taak" tabindex="-1">Acht voorzieningen met een eigen taak</h3>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Service</th>
+<th scope="col">Bouwprijs</th>
+<th scope="col">Standaard bezoekprijs</th>
+<th scope="col">Belangrijkste effect</th>
+</tr></thead><tbody>
+<tr><td>Food</td><td>$120</td><td>$2</td><td>Vermindert honger</td></tr>
+<tr><td>Drinks</td><td>$80</td><td>$1</td><td>Vermindert dorst</td></tr>
+<tr><td>Toilets</td><td>$100</td><td>Gratis</td><td>Vermindert toiletbehoefte</td></tr>
+<tr><td>Rest</td><td>$140</td><td>Gratis</td><td>Herstelt energie en helpt bij misselijkheid</td></tr>
+<tr><td>Ice cream</td><td>$110</td><td>$1,50</td><td>Helpt tegen honger en dorst</td></tr>
+<tr><td>Souvenirs</td><td>$160</td><td>$4</td><td>Voldoet aan souvenirlust</td></tr>
+<tr><td>Information</td><td>$90</td><td>Gratis</td><td>Geeft bezoekers parkinformatie</td></tr>
+<tr><td>First aid</td><td>$180</td><td>Gratis</td><td>Helpt misselijke en vermoeide bezoekers</td></tr>
+</tbody></table></div>
+<p>Scenario&#x27;s en bestaande parken kunnen andere ingestelde prijzen hebben; Sunhaven gebruikt bijvoorbeeld lagere prijzen voor enkele services. De tabel geeft modelstandaarden, geen verplicht tarief. Gratis aanbieden voorkomt niet dat voorraad en exploitatie geld kosten.</p>
+<h3 id="een-service-instellen" tabindex="-1">Eén service instellen</h3>
+<ol>
+<li>Klik met rechts op het servicegebouw. Controleer de naam en het model in <strong>Services</strong>.</li>
+<li>Zet de service open of dicht en wijzig de prijs met de beschikbare plus/min-knoppen; F6/F7 werkt in dit venster ook voor prijsstappen.</li>
+<li>Controleer klanten, verkoop, kosten en de bedieningszijde. Een naastliggend pad aan de verkeerde zijde is onvoldoende.</li>
+<li>Ga voor voorraad naar <strong>Management and economy → Supplies</strong>. Selecteer dezelfde service.</li>
+<li>Controleer voorraad, automatisch bestellen en geld. Bestel indien nodig twintig eenheden of schakel automatisch bestellen in.</li>
+<li>Hervat en controleer dat het aantal bediende klanten werkelijk oploopt.</li>
+</ol>
+<h3 id="hoe-voorraad-werkt" tabindex="-1">Hoe voorraad werkt</h3>
+<p>In een park met management heeft elke service maximaal honderd verbruikseenheden. Ook toiletten, rust, informatie en eerste hulp verbruiken benodigdheden. Automatisch bestellen koopt twintig eenheden wanneer een open service onder vijf eenheden komt. De hele bestelling moet betaalbaar zijn. Bij geldgebrek wordt later opnieuw geprobeerd zolang automatisch bestellen aan staat.</p>
+<p>Voorraad wordt betaald bij levering. Een afgeronde bediening verbruikt een eenheid en rekent de afgesproken verkoopprijs af. Een prijswijziging verandert een al gemaakte afspraak niet. Zonder voorraad kun je geen normale serviceverkoop blijven draaien. Sluiten stopt automatisch bestellen en lopende exploitatiekosten, maar lost de behoefte van bezoekers niet op.</p>
+<p>Het rapport boekt ingekochte voorraad als uitgave zodra je haar koopt. Daardoor kan een periode met een grote bestelling tijdelijk verlies laten zien, terwijl de voorraad later nog klanten bedient. Sloop wist die historische uitgave niet en betaalt ongebruikte voorraad niet automatisch als nieuwe verkoop terug.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="14-bezoekers-begrijpen-en-helpen">
+<h2 id="14-bezoekers-begrijpen-en-helpen" tabindex="-1">14. Bezoekers begrijpen en helpen</h2>
+<h3 id="individuele-gasten-en-groepen" tabindex="-1">Individuele gasten en groepen</h3>
+<p><strong>Guests / L</strong> opent de lijst. Selecteer een persoon voor geld, tevredenheid, huidige activiteit, voorkeuren, behoeften en beschikbare reis-/groepsinformatie. <strong>Find</strong> centreert de kaart op die persoon. Met de pagina- en filterknoppen vind je ook een specifieke probleemgroep.</p>
+<p>Nieuw aankomende bezoekers kunnen drietallen vormen met familie-, sensatie- of rustige voorkeuren. Ze betalen individueel en kunnen verschillende betaalbare activiteiten kiezen, maar groeperen zich tussendoor en vertrekken samen. Een blij vertrokken groep kan later opnieuw proberen te komen; dat is geen gegarandeerde onmiddellijke verkoop. Bezoekers hebben een eindige portemonnee. Een populair park met te hoge prijzen kan dus toch weinig herhaalritten verkopen.</p>
+<h3 id="parkingang-en-toegangsbeleid-instellen" tabindex="-1">Parkingang en toegangsbeleid instellen</h3>
+<p>Selecteer op de kaart een geschikt openbaar pad, open <strong>Visitor flow</strong> en kies <strong>Set entry</strong>. Controleer de gemelde verbinding. <strong>Toggle arrivals</strong> regelt nieuwe aankomstpogingen; <strong>Open / close park</strong> regelt of het park bezoekers toelaat. De toegangsprijs heeft eigen min- en plusknoppen. Het beleid kan vrije toegang, gratis attracties of flexibel prijzen voorschrijven. Een scenario kan dat beleid vastzetten.</p>
+<p>Binnenkomende bezoekers beoordelen de entree op bereidheid en beschikbare portemonnee. Een hoge entree laat minder geld over voor ritten en services. Een dicht park voorkomt nieuwe toelating maar verwijdert bestaande bezoekers niet onmiddellijk. <strong>Send guest home</strong> vraagt de geselecteerde gast te vertrekken; een lopende activiteit en de route naar buiten blijven relevant. Gebruik vertrek niet om een ontbrekend uitgangspad te verbergen.</p>
+<h3 id="behoeften-tevredenheid-en-beoordelingen" tabindex="-1">Behoeften, tevredenheid en beoordelingen</h3>
+<p>Honger, dorst, toiletbehoefte, vermoeidheid, misselijkheid en andere behoeften groeien tijdens het bezoek. Warmte verhoogt dorst. Zware ritten kunnen de behoefte aan rust of eerste hulp vergroten. Bezoekers kiezen mede op betaalbaarheid, voorkeur, bereikbaarheid en hun huidige toestand. Zorg voor variatie in attracties én services.</p>
+<p>Tevredenheid is niet hetzelfde als attractiewaardering. Een gast kan een rit waarderen en toch ongelukkig zijn door dorst of gebrek aan rust. Groen helpt de sfeer; entertainers helpen tevredenheid; geen van beide vervangt een bereikbare toiletservice. Bij aanhoudend lage tevredenheid besluiten gasten te vertrekken. Verlaag zo nodig een prijs, verkort de route of voeg een ontbrekende voorziening toe.</p>
+<h3 id="filters-en-trendgrafieken-gebruiken" tabindex="-1">Filters en trendgrafieken gebruiken</h3>
+<p>De filters <strong>All</strong>, <strong>Urgent</strong>, <strong>Unhappy</strong> en <strong>Lost</strong> tonen alle gasten, urgente behoeften, ontevreden gasten en verdwaalde gasten. Urgent betekent minstens één van honger, dorst of toiletbehoefte op 70 of hoger. Unhappy betekent tevredenheid onder 40. Een gast kan in meer dan één categorie passen.</p>
+<p><strong>Park stats</strong> toont trends en actuele gemiddelden. De bezoekersgrafiek bemonstert tijdens het spelen en toont maximaal 24 metingen met intervallen van dertig simulatieseconden. Laden begint een nieuwe sessiegrafiek; dat betekent niet dat gastgegevens verloren zijn. Kijk of je ingreep de volgende metingen verbetert en vergelijk niet één momentopname met een hele verkoopgeschiedenis.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="15-financien-en-winst">
+<h2 id="15-financien-en-winst" tabindex="-1">15. Financiën en winst</h2>
+<h3 id="vier-cijfers-die-je-uit-elkaar-moet-houden" tabindex="-1">Vier cijfers die je uit elkaar moet houden</h3>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Cijfer</th>
+<th scope="col">Betekenis</th>
+<th scope="col">Veelgemaakte vergissing</th>
+</tr></thead><tbody>
+<tr><td>Cash</td><td>Nu beschikbaar geld</td><td>Een lening aanzien voor verdiende winst</td></tr>
+<tr><td>Sales / Revenue</td><td>Ontvangsten uit bezoekersverkopen</td><td>Omzet aanzien voor winst</td></tr>
+<tr><td>Operating result</td><td>Verkoop minus geboekte lopende kosten</td><td>Een druk park automatisch winstgevend noemen</td></tr>
+<tr><td>Park value / assets</td><td>Boekwaarde van betaalde aanwezige bouw</td><td>Verwachten dat die waarde direct als geld beschikbaar is</td></tr>
+</tbody></table></div>
+<p><strong>Finance / N</strong> geeft kasstromen, parksamenvatting, leningen, parkwaarde en transacties. De Management-overzichten geven aanvullend trends en concrete problemen. Kosten blijven historisch zichtbaar wanneer een rit of service wordt gesloopt. De recente transactielijst is begrensd; oudere bedragen blijven in totalen en eigenaarrekeningen bestaan.</p>
+<h3 id="van-verkoop-naar-het-kassaldo" tabindex="-1">Van verkoop naar het kassaldo</h3>
+<p>Een praktische aansluiting is: startbudget plus bedrijfsresultaat, plus sloopteruggaven, min bouwuitgaven, plus opgenomen leningen, min aflossingen en betaalde rente geeft de kas. Exploitatie omvat onder andere attractie-/servicekosten, gekochte voorraad, lonen, onderzoek en advertenties. De rapporten scheiden die soorten zodat je geen verkoop hoeft te raden uit het saldo.</p>
+<p>Bekijk <strong>Management → History</strong> om opeenvolgende periodes te vergelijken. Er zijn maximaal zestig financiële momentopnamen, één per simulatieminuut. Een periode met bouw- of voorraaduitgaven kan bewust negatief zijn. Beoordeel daarna of de uitbreiding voldoende extra klanten oplevert. Houd altijd een buffer voor betalingen die vóór de volgende kaartverkoop komen.</p>
+<h3 id="een-park-rendabeler-maken" tabindex="-1">Een park rendabeler maken</h3>
+<ol>
+<li>Los eerst ontbrekende verbindingen en gesloten verkooppunten op. Onbereikbare capaciteit verdient niets.</li>
+<li>Bekijk per attractie en service het werkelijk aantal klanten en de bedrijfskosten.</li>
+<li>Controleer of bezoekers prijzen afwijzen of simpelweg geen geld meer hebben. Pas één prijs tegelijk aan.</li>
+<li>Sluit onnodige verliesgevende voorzieningen tijdelijk of bouw compacter; laat essentiële behoeften wel bereikbaar bedienen.</li>
+<li>Onderzoek pas wat je binnenkort kunt betalen en plaatsen. Vermijd doorlopende financiering zonder bouwplan.</li>
+<li>Huur personeel voor zichtbaar werk en controleer loonwachters en patrouilles.</li>
+<li>Koop marketing pas wanneer extra bezoekers ook kunnen eten, wachten, rijden en vertrekken.</li>
+<li>Vergelijk daarna een nieuwe financiële periode. Hogere omzet met nog sneller stijgende kosten is geen verbetering van winst.</li>
+</ol>
+<p>Onder <strong>Policies</strong> bestaan prijsvoorstellen van $2, $3 en $5 voor alle geïnstalleerde attracties. Deze controleren de regels vóór uitvoering en behouden reeds afgesproken gastprijzen. Gebruik ze voorzichtig: een familiecarousel en intense coaster hoeven niet hetzelfde optimale tarief te hebben.</p>
+<h3 id="leningen-verstandig-gebruiken" tabindex="-1">Leningen verstandig gebruiken</h3>
+<p>Onder <strong>Finance → Loans</strong> leen of betaal je in stappen van $100, binnen de toegestane limiet en scenarioregels. De algemene hoofdsomlimiet is $2.000. Rente is <strong>0,5% per simulatieminuut</strong> over de openstaande hoofdsom: $100 kost dus $0,50 per volle minuut. Dit is geen jaarlijks percentage. Sneller spelen versnelt die kosten.</p>
+<p>Rente wordt geleidelijk opgebouwd en op minuutgrenzen geïnd. Onbetaalde rente blijft verschuldigd; zij wordt niet automatisch een nieuwe lening. Voor een aflossing moet ook opgebouwde hele-cent-rente kunnen worden voldaan. Leen voor een concreet bereikbaar inkomstenplan en houd genoeg over voor exploitatie. Geld lenen heropent geldgesloten attracties niet automatisch.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="16-personeel-onderhoud-weer-en-incidenten">
+<h2 id="16-personeel-onderhoud-weer-en-incidenten" tabindex="-1">16. Personeel, onderhoud, weer en incidenten</h2>
+<h3 id="je-team-inzetten" tabindex="-1">Je team inzetten</h3>
+<p>Open <strong>Manage → Staff and park life</strong>. Nieuwe parken hebben deze systemen actief. Oudere parken kunnen expliciet <strong>Enable park life</strong> aanbieden. Er passen maximaal twintig teamleden; elke rol kost $1 per dertig simulatieseconden. Controleer de taak en betaalstatus per werknemer.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Rol</th>
+<th scope="col">Werk</th>
+<th scope="col">Controleer bij stilstand</th>
+</tr></thead><tbody>
+<tr><td>Mechanic</td><td>Onderhoud aan daarvoor gereedstaande attracties</td><td>Rit gesloten, leeg, stil en bereikbaar?</td></tr>
+<tr><td>Handyman</td><td>Afval, braaksel en volle bakken aanpakken</td><td>Openbaar pad en passend werkgebied?</td></tr>
+<tr><td>Security</td><td>Vandalisme en nood-/distressmeldingen oplossen</td><td>Incident binnen bereik en patrouille?</td></tr>
+<tr><td>Entertainer</td><td>Tevredenheid van nabije bezoekers verhogen</td><td>Werknemer betaald en bij bezoekers?</td></tr>
+<tr><td>Service attendant</td><td>Bij services helpen en vermoeide/misselijke gasten ondersteunen</td><td>Open bereikbare balie of gasten op openbaar pad?</td></tr>
+</tbody></table></div>
+<p>Selecteer een werknemer, gebruik <strong>Patrol tile</strong> op een openbaar pad om een bestemming aan het werkgebied toe te voegen of eruit te halen. <strong>Whole park</strong> verwijdert die beperking. Een patrouille beperkt werkbestemmingen; reisroutes mogen via het verbonden openbare netwerk lopen. <strong>Find selected</strong> zoekt de werknemer; <strong>Dismiss selected</strong> beëindigt het contract zonder oude loonkosten te wissen.</p>
+<p>In <strong>Management → Policies</strong> staat een teamloongrens van $0 tot $20 per betaalvenster van dertig seconden. Te weinig kas of een te laag plafond zet werk stil tot betaling mogelijk is. De grens omvat niet automatisch alle andere parkuitgaven of oude losse medewerkercontracten. <strong>Grounds controls</strong> bevat ook de eerdere losse monteur-/handymanbediening; voorkom dat je onbedoeld dubbel personeel betaalt.</p>
+<h3 id="weer-en-schuilplaatsen" tabindex="-1">Weer en schuilplaatsen</h3>
+<p>De parklevensimulatie kent zonnig, heet, regenachtig en stormachtig weer. Automatisch weer kan elke zestig simulatieseconden veranderen; de weerbeleidknop kan een vaste toestand kiezen. Hitte maakt dorstig. Regen en storm drukken buitentevredenheid. Overdekte bankjes bieden bescherming tijdens rust.</p>
+<p>Storm kan blootgestelde attracties sluiten terwijl vertrokken gasten hun rit afronden. Geschikte overdekte attracties kunnen blijven draaien. Na herstel controleert het spel of veilig heropenen mogelijk is. Een eigen sluitverzoek, slecht pad, onderhoud of geldprobleem kan dat nog verhinderen. De decoratieve <strong>Lighting / Weather</strong>-weergave onder Settings is een presentatiekeuze; beheer werkelijk parkweer via <strong>Staff and park life</strong>.</p>
+<h3 id="incidenten-aanpakken" tabindex="-1">Incidenten aanpakken</h3>
+<p>Oranje kaartmarkeringen en de personeelsrapporten wijzen op incidenten. Ernstige vermoeidheid of misselijkheid kan een distressmelding veroorzaken; ongelukkige gasten kunnen meubilair beschadigen. Een beschadigde schuilplaats werkt niet goed totdat zij hersteld is.</p>
+<p>Gebruik <strong>Find first incident</strong>, bekijk de behoefte of schade, controleer de route van security en zet zo nodig services of attendants in. Alleen meer beveiliging inhuren verhelpt structureel gebrek aan rust, drank of bereikbare paden niet. Lees bij onderhoud ook de status van de individuele attractie.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="17-onderzoek-en-economische-instellingen">
+<h2 id="17-onderzoek-en-economische-instellingen" tabindex="-1">17. Onderzoek en economische instellingen</h2>
+<p>Open <strong>Management and economy → Research</strong>. Kies een categorie en financiering: gepauzeerd, $1, $2,50 of $5 per dertig simulatieseconden. Een project vraagt $40 aan daadwerkelijk betaalde investering. Bij beperkt geld kunnen kleinere betaalbare stappen worden verwerkt. Van categorie wisselen bewaart eerdere investering; een voltooide categorie blijft niet onbeperkt doorbetalen.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Categorie</th>
+<th scope="col">Beschikbaar bij normaal begin</th>
+<th scope="col">Via onderzoek</th>
+</tr></thead><tbody>
+<tr><td>Gentle</td><td>Carousel, Wheel, Cups</td><td>Skyline Tower</td></tr>
+<tr><td>Thrill</td><td>Geen</td><td>Swing, Drop, Corsair Ship</td></tr>
+<tr><td>Water</td><td>Geen</td><td>Timber Falls, River Rapids</td></tr>
+<tr><td>Transport</td><td>Park Railway</td><td>Vista Monorail</td></tr>
+<tr><td>Coasters</td><td>Classic Coaster</td><td>Steel Launch Coaster, Inverted Coaster</td></tr>
+<tr><td>Facilities</td><td>Food, Drinks, Toilets, Rest, Information</td><td>Ice cream, Souvenirs, First aid</td></tr>
+</tbody></table></div>
+<p>De catalogus toont de werkelijke beschikbaarheid voor jouw park. Een Sandbox met alles beschikbaar of een scenario met eigen regels kan van deze beginset afwijken. Onderzoek begint normaal gepauzeerd zodat je niet ongemerkt je startbudget uitgeeft. Oude parken kunnen eerst <strong>Enable management</strong> nodig hebben; lees die melding omdat voorraad en economische regels daarna veranderen.</p>
+<p><strong>Overview</strong> vat economie en waarschuwingen samen. <strong>Research</strong> bestuurt ontgrendelingen. <strong>Supplies</strong> beheert voorraden. <strong>Marketing</strong> biedt campagnes. <strong>Policies</strong> beheert gezamenlijke prijsacties en personeelsbudget. <strong>History</strong> vergelijkt financiële periodes. <strong>Operations</strong> brengt problemen bij concrete objecten samen. Gebruik die laatste route om van een abstract probleem naar de betrokken attractie, service of gast te gaan.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="18-marketingcampagnes">
+<h2 id="18-marketingcampagnes" tabindex="-1">18. Marketingcampagnes</h2>
+<p>Een marketingcampagne koopt extra bereik; zij garandeert geen klanten of winst. Zorg eerst dat het park open is, aankomsten toestaat, een verbonden ingang heeft en extra bezoekers kan bedienen. Advertenties kosten direct geld. De looptijd is simulatietijd; park sluiten of instroom uitzetten geeft geen refund en pauzeert de campagne niet. Space pauzeert wel de hele simulatie.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Campagne</th>
+<th scope="col">Prijs</th>
+<th scope="col">Looptijd</th>
+<th scope="col">Effect</th>
+</tr></thead><tbody>
+<tr><td>Local flyers</td><td>$25</td><td>5 minuten</td><td>Kandidaatinterval verkort van 30 naar 15 seconden</td></tr>
+<tr><td>Radio ads</td><td>$40</td><td>5 minuten</td><td>Kandidaten accepteren maximaal $3 meer toegangsprijs, binnen hun echte portemonnee</td></tr>
+<tr><td>Family week</td><td>$50</td><td>5 minuten</td><td>Thematische instroom, interval van 10 seconden; open rustige attractie vereist</td></tr>
+<tr><td>Coaster enthusiasts</td><td>$50</td><td>5 minuten</td><td>Thematische instroom, interval van 10 seconden; open coaster vereist</td></tr>
+</tbody></table></div>
+<p>Flyers en radio staan onder <strong>Visitor flow</strong> en via marketingroutes. Van ieder type kan één campagne actief zijn; flyers en radio kunnen samen lopen. Er kan één themapromotie tegelijk lopen. Combineer ze niet op basis van opgetelde beloften: lees het actieve instroominterval en de echte teller. Campagneregels kunnen bepaalde promoties verbieden.</p>
+<h3 id="een-campagne-evalueren" tabindex="-1">Een campagne evalueren</h3>
+<ol>
+<li>Bekijk vóór aankoop de kasbuffer, vrije capaciteit en laatste financiële periode.</li>
+<li>Kies een campagne die past: flyers voor meer kansen op aankomst, radio voor toegangsbereidheid, thema voor bijpassende attracties.</li>
+<li>Noteer bezoekers, verkoop en kosten. Hervat totdat voldoende campagnetijd is verstreken.</li>
+<li>Bekijk kandidaten, toegelaten bezoekers en, bij radio, extra toelatingen door het prijsvoordeel. Een kandidaat is nog geen betalende bezoeker.</li>
+<li>Controleer behoeften en wachtrijen: overbelasting kan nieuwe opbrengsten tenietdoen.</li>
+<li>Vergelijk na afloop de extra verkoop met campagne- én extra exploitatiekosten. Kies pas daarna een volgende campagne.</li>
+</ol>
+<p>Het radio-effect voegt geen geld aan de portemonnee toe. Een gast kan nog steeds weigeren wegens budget of regels. Toegeschreven campagneverkopen zijn een rapportage over het campagnevenster, geen bewijs dat iedere verkoop zonder reclame onmogelijk was.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="19-de-campagne-zes-scenarios">
+<h2 id="19-de-campagne-zes-scenarios" tabindex="-1">19. De campagne: zes scenario&#x27;s</h2>
+<p>De spelcampagne is iets anders dan reclame. Kies <strong>Campaign</strong> in het hoofdmenu. Elk scenario heeft eigen doelen, startregels en ontgrendeling. Je behaalde onderscheiding staat in het spelersprofiel en ontgrendelt het volgende scenario. <strong>Later campaign</strong> laat de vier latere opdrachten kiezen.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Scenario</th>
+<th scope="col">Doelen</th>
+<th scope="col">Deadline</th>
+<th scope="col">Beginbudget</th>
+</tr></thead><tbody>
+<tr><td>Meadow Challenge</td><td>20 nieuwe bezoekers, 5 voltooide bezoekersritten, minstens $750 kas</td><td>Geen</td><td>$1.000</td></tr>
+<tr><td>Boardwalk Sprint</td><td>24 nieuwe bezoekers, 12 voltooide bezoekersritten, minstens $900 kas</td><td>10 minuten</td><td>$1.000</td></tr>
+<tr><td>Cedar Valley</td><td>30 nieuwe bezoekers en tevredenheid 65</td><td>20 minuten</td><td>$2.000</td></tr>
+<tr><td>Research Ridge</td><td>1 gefinancierd onderzoeksproject afronden en 20 bezoekersritten</td><td>20 minuten</td><td>$2.000</td></tr>
+<tr><td>Lakeside Services</td><td>3 services plaatsen, 12 klanten bedienen en 30 bezoekers</td><td>20 minuten</td><td>$2.000</td></tr>
+<tr><td>Grand Festival</td><td>60 bezoekers, $150 verkoop en tevredenheid 65</td><td>20 minuten</td><td>$2.500</td></tr>
+</tbody></table></div>
+<p>Lees in <strong>Scenarios and goals</strong> de voortgang en status. Een “rit” in een bezoekersdoel is een voltooide gastreis, geen nieuwe baan of lege testronde. Nieuwe aankomsten tellen vanaf het scenariobegin. Bestaand verkeer is niet automatisch een voorsprong. Een kasdoel is een saldo-eis en verschilt van een winstdoel.</p>
+<h3 id="meadow-en-boardwalk-aanpakken" tabindex="-1">Meadow en Boardwalk aanpakken</h3>
+<p><strong>Meadow</strong> vereist gratis parktoegang. Ritten mogen geld kosten. Radio en themapromoties zijn niet beschikbaar; flyers kunnen wel. Onderzoek is begrensd op $2,50 per dertig seconden. Maak eerst een bereikbare open attractie, houd exploitatie klein en laat genoeg nieuwe bezoekers daadwerkelijk een rit afmaken. Bewaak de $750 kas terwijl je bouwt.</p>
+<p><strong>Boardwalk</strong> vereist gratis ritten. Denk dus aan toegangsinkomsten en passende serviceprijzen. Bouw niet blind extra coasters die niets aan het ritprijsdoel kunnen verdienen. Pauzeer om te plannen, maar besef dat na hervatten ook de tienminutenteller loopt. Bewaak tegelijk instroom, ritvoltooiingen en de benodigde kas.</p>
+<h3 id="de-vier-latere-opdrachten-aanpakken" tabindex="-1">De vier latere opdrachten aanpakken</h3>
+<p>Bij <strong>Cedar Valley</strong> zijn bereikbare behoeften en rustige routes belangrijk om tevredenheid op peil te houden. <strong>Research Ridge</strong> vraagt betaald onderzoek: alleen een al beschikbaar model neerzetten rondt geen nieuw gefinancierd project af. Kies tijdig categorie en budget. <strong>Lakeside Services</strong> vraagt niet alleen gebouwen maar echte bedieningen; lege voorraad of verkeerde oriëntatie blokkeert voortgang. <strong>Grand Festival</strong> combineert capaciteit, omzet en tevredenheid: controleer alle drie in plaats van uitsluitend bezoekers aan te trekken.</p>
+<p>Een mislukte deadline blijft bij dat park opgeslagen. Laad een eerdere eigen save of start een nieuwe poging. Eerder verdiende profielonderscheidingen blijven behouden. Probeer geen scenario te veranderen in een bestaande lopende uitdaging; start een aparte poging zodat doelen en regels helder blijven.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="20-eigen-scenarios-en-de-editor">
+<h2 id="20-eigen-scenarios-en-de-editor" tabindex="-1">20. Eigen scenario&#x27;s en de editor</h2>
+<h3 id="een-opdracht-ontwerpen" tabindex="-1">Een opdracht ontwerpen</h3>
+<ol>
+<li>Begin in een Sandbox met het gewenste landschap en de gewenste startgebouwen.</li>
+<li>Open <strong>Scenarios and editor</strong> en kies <strong>New from this park</strong>. De editor bewaart je oorspronkelijke park apart.</li>
+<li>Gebruik <strong>Build park</strong> voor terrein, paden, decoratie, attracties en services. De banner maakt duidelijk dat je de startopstelling bewerkt.</li>
+<li>Keer terug naar de editor en geef naam en beschrijving. Beschrijf voor de speler ook bijzondere beperkingen.</li>
+<li>Stel op <strong>Goals and rules</strong> maximaal vier verschillende doelen in, met maatstaf, doelwaarde en eventueel deadline.</li>
+<li>Stel startbudget, toegangsbeleid, onderzoek, leningen en instroom in. Op <strong>Available content</strong> kies je bouwbare modellen en services.</li>
+<li>Kies <strong>Save scenario</strong>, daarna <strong>Test scenario</strong> om de opdracht echt uit te proberen.</li>
+<li>Gebruik <strong>Return to editor</strong> om je ontwerp terug te krijgen en te verbeteren. Testen verdient geen officiële campagneonderscheidingen.</li>
+<li>Met <strong>Return to park</strong> en bevestiging verlaat je de editor en keert het oorspronkelijke park terug. Opgeslagen scenario&#x27;s blijven bestaan.</li>
+</ol>
+<p>Doelen kunnen onder andere aankomsten, ritten, klanten, verkoop, bedrijfsresultaat, kas, tevredenheid, services, parkwaarde en betaald onderzoek gebruiken. Stem deadlines af op looptijd, loopafstanden en werkelijk betaalbare bouw. Beperkingen op nieuwe bouw verwijderen reeds in de template aanwezige gebouwen niet.</p>
+<h3 id="budget-en-doelwaarden-eerlijk-instellen" tabindex="-1">Budget en doelwaarden eerlijk instellen</h3>
+<p>Het startbudget is de financiële toewijzing, terwijl eerdere bouwuitgaven van de startopstelling bij het park horen. Een budget onder de al geboekte besteding wordt geweigerd. Verkoopdoelen tellen nieuwe scenarioverkopen; een bedrijfsresultaatdoel kan de bestaande bedrijfshistorie van de template meenemen. Begin voor een heldere opdracht met een bewuste, geteste opstelling en lees de getoonde voortgang.</p>
+<h3 id="scenarios-delen" tabindex="-1">Scenario&#x27;s delen</h3>
+<p>De bibliotheek zoekt op naam, toont omschrijving, kaartgrootte, doelen en compatibiliteit. <strong>Play selected</strong> begint na bevestiging een poging. <strong>Edit selected</strong> opent een bewerkbare kopie. Hernoemen en archiveren vragen bevestiging; archiveren verplaatst het bestand naar het scenarioarchief.</p>
+<p><strong>Export</strong> maakt een <code>.parkscenario.json</code>. <strong>Import</strong> controleert het gekozen bestand voordat het aan de bibliotheek wordt toegevoegd. Een scenario bevat de startopstelling en regels; het is geen Windows-programma en ook geen campagneprofiel. Een geïmporteerde eigen opdracht kent geen officiële campagneonderscheidingen toe. Niet-ondersteunde of beschadigde bestanden tonen een fout; bewaar het origineel wanneer je een probleem onderzoekt.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="21-tips-drie-keer-per-park">
+<h2 id="21-tips-drie-keer-per-park" tabindex="-1">21. Tips: drie keer per park</h2>
+<p>Het <strong>lampicoon</strong> naast Finance en Rides geeft <strong>twee adviezen</strong> over de actuele toestand, bijvoorbeeld bereikbaarheid, behoeften, ontevreden gasten, cash, verlies, prijsafwijzingen of rente. Het advies past niets automatisch aan en belooft geen winst. Lees beide tips en controleer daarna de genoemde cijfers.</p>
+<p>Je kunt de knop <strong>drie keer per park</strong> gebruiken. Niet drie keer per keer opstarten. Opslaan, herladen, een vorige backup openen of een bouwbewerking terugdraaien herstelt het aantal niet. <strong>Save As New Park</strong> neemt verbruikte tips mee. Alleen een werkelijk nieuwe spelstart heeft een nieuwe limiet.</p>
+<p>Bij het eerste advies in een nog niet opgeslagen park wordt een bibliotheekplek gemaakt om het verbruik vast te leggen. Dat vervangt normaal opslaan van latere voortgang niet: blijf F5 gebruiken. Als die registratie niet kan worden geschreven, krijg je een fout en geen nieuw advies. De adviezen werken lokaal; er is geen internetdienst nodig.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="22-opslaan-backups-en-een-andere-pc">
+<h2 id="22-opslaan-backups-en-een-andere-pc" tabindex="-1">22. Opslaan, backups en een andere pc</h2>
+<h3 id="een-park-veilig-bewaren" tabindex="-1">Een park veilig bewaren</h3>
+<p><strong>F5</strong> of <strong>Menu → Save</strong> schrijft het huidige park naar zijn bibliotheekplek. Een nieuwe spelstart krijgt bij de eerste save een eigen plek. <strong>Save As New Park</strong> maakt een aparte kopie. <strong>Rename</strong> verandert de zichtbare naam van de bibliotheekplek. <strong>Delete</strong> archiveert een park; het verwijdert het niet meteen definitief van de schijf.</p>
+<p><strong>Load Park</strong> toont je opgeslagen parken. <strong>Continue latest park</strong> kiest de nieuwste save. <strong>F9</strong> laadt het huidige opgeslagen park; <strong>Shift+F9</strong> vraagt de vorige geldige backup. Sla vóór zo&#x27;n herstel eventueel je huidige toestand apart op. Een backup is de vorige save, geen volledige tijdlijn. Lees bevestigingen bij het verlaten of vervangen van onopgeslagen werk.</p>
+<p>Je park bewaart onder andere terrein, bouw, bezoekers, voertuigen, prijzen, voorraad, financiën, personeel, onderzoek, lopende campagnes, scenariovoortgang en Tips-verbruik. Tijdelijke grafieken, selectie en undo-geschiedenis hoeven niet allemaal mee te gaan. De huidige parkindeling is saveversie 52; een oudere executable kan een nieuwere save niet noodzakelijk lezen. Bewaar bij upgrades een kopie van je spelersmap.</p>
+<h3 id="wat-staat-waar" tabindex="-1">Wat staat waar?</h3>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Bestand of map</th>
+<th scope="col">Functie</th>
+</tr></thead><tbody>
+<tr><td><code>%LOCALAPPDATA%\Parkbound\saves</code></td><td>Spelersmap: parken, voorkeuren, profiel en bibliotheken</td></tr>
+<tr><td><code>parks</code> binnen de spelersmap</td><td>Afzonderlijke opgeslagen parkplekken met metadata en backups</td></tr>
+<tr><td><code>deleted-parks</code></td><td>Gearchiveerde parkplekken</td></tr>
+<tr><td><code>campaign.json</code> en backup</td><td>Verdiende campagneonderscheidingen</td></tr>
+<tr><td><code>display-settings.json</code>, <code>sound-settings.json</code>, <code>accessibility-settings.json</code></td><td>Persoonlijke instellingen</td></tr>
+<tr><td><code>docs/HANDLEIDING_NL.html</code> naast de executable</td><td>Deze offline spelershandleiding</td></tr>
+</tbody></table></div>
+<p>Sluit Parkbound voordat je bestanden kopieert. Neem voor een andere pc de <strong>hele spelersmap</strong> mee, niet alleen één parkbestand. Installeer daar dezelfde of een compatibele nieuwere Parkbound en zet de map terug. Start daarna, laad je park en controleer de instellingen voor het nieuwe scherm. De broncode op OneDrive synchroniseert AppData niet vanzelf.</p>
+<p>De ontwikkelcheckout staat op <code>C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon</code>. Dat is de code en technische documentatie, niet automatisch je spelersprofiel. Bouwers lezen <strong>RESUME_DEVELOPMENT.md</strong> om ontwikkeling te hervatten. Google Drive-synchronisatie is uitgeschakeld.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="23-problemen-oplossen">
+<h2 id="23-problemen-oplossen" tabindex="-1">23. Problemen oplossen</h2>
+<h3 id="er-komen-geen-bezoekers-binnen" tabindex="-1">Er komen geen bezoekers binnen</h3>
+<ol>
+<li>Hervat de simulatie; gepauzeerd komen geen nieuwe kandidaten.</li>
+<li>Open <strong>Visitor flow</strong> en controleer park open, instroom aan en een ingestelde ingang.</li>
+<li>Controleer dat die ingang op een openbaar pad ligt dat het parknetwerk bereikt.</li>
+<li>Bekijk kandidaten en weigeringen. Een te hoge toegangsprijs kan betaalbare ritten alsnog onbereikbaar maken.</li>
+<li>Controleer de actieve bezoekerslimiet en geef bestaande gasten tijd om te vertrekken.</li>
+<li>Koop pas daarna reclame. Marketing repareert geen ontbrekende ingang.</li>
+</ol>
+<h3 id="een-attractie-wil-niet-open-of-ontvangt-niemand" tabindex="-1">Een attractie wil niet open of ontvangt niemand</h3>
+<ol>
+<li>Rechtsklik de juiste attractie en lees de concrete Operations-melding.</li>
+<li>Controleer Access: correcte eigen ingang, wachtrij met openbare aansluiting en afzonderlijk bereikbaar uitgangspad.</li>
+<li>Controleer alle randhoogten, vooral na grondaanpassingen of hellingbouw.</li>
+<li>Controleer baanlus, vereiste test, trein-/blokruimte, stilstand en leegte voor configuratiewijzigingen.</li>
+<li>Los onderhoud, storm of geldsluiting op. Open daarna expliciet opnieuw als nodig.</li>
+<li>Is de rit open maar leeg? Bekijk prijs, gastvoorkeuren, beschikbare wallets en minimumlading. Volg een gast via Find.</li>
+</ol>
+<h3 id="bezoekers-staan-vast-of-de-wachtrij-loopt-niet-door" tabindex="-1">Bezoekers staan vast of de wachtrij loopt niet door</h3>
+<p>Controleer eerst het openbare pad terug naar de ingang en de uitgang van de rit. Een wachtrij van attractie A helpt attractie B niet. Zoek de eerste niet-aansluitende rand, te hoge/lage tegel of verkeerde poortoriëntatie. Roteer de kaart om verborgen onderdelen te zien. Gebruik Underground view voor begraven routes. Repareer de verbinding en laat even spelen voordat je nóg meer paden toevoegt.</p>
+<h3 id="een-service-verkoopt-niets" tabindex="-1">Een service verkoopt niets</h3>
+<p>Controleer opening, voorraad, geld voor een hele bestelling en een openbaar pad aan de bedieningskant. Daarna prijs en echte gastbehoefte. Een souvenirwinkel helpt een dorstige gast niet. Een bezoeker kan nog onderweg of in bediening zijn; verkoop wordt bij afronding zichtbaar. Gebruik Supplies en de individuele Services-selectie om niet per ongeluk het verkeerde gebouw te wijzigen.</p>
+<h3 id="het-park-verliest-geld-terwijl-het-druk-is" tabindex="-1">Het park verliest geld terwijl het druk is</h3>
+<p>Pauzeer en bekijk <strong>Finance</strong> plus <strong>Management → History</strong>. Splits bouw, voorraadinkoop, lonen, onderhoud, advertenties, onderzoek en rente. Stop onnodige doorlopende uitgaven, maak onbereikbare capaciteit bruikbaar en pas prijzen gecontroleerd aan. Een lening geeft ademruimte maar verhoogt rente; zij maakt een structureel verliesgevend park niet vanzelf rendabel.</p>
+<h3 id="onderzoek-of-personeel-lijkt-niets-te-doen" tabindex="-1">Onderzoek of personeel lijkt niets te doen</h3>
+<p>Controleer of financiering gepauzeerd is, de categorie al klaar is, cash ontbreekt of scenarioregels de instelling beperken. Controleer bij personeel loonstatus, loonplafond, openbaar pad, patrouille en daadwerkelijk geschikt werk. Een monteur wacht terecht op een lege en gestopte attractie. Een medewerker op een los padeiland kan niet naar het probleem lopen.</p>
+<h3 id="knoppen-hoogtes-of-vensters-reageren-onverwacht" tabindex="-1">Knoppen, hoogtes of vensters reageren onverwacht</h3>
+<p>Lees de hovertekst en sluit actieve tekstinvoer. Hetzelfde PgUp/PgDn bedient afhankelijk van het venster een lijstpagina of bouwhoogte. C draait soms een gebouw en wisselt soms een padvorm. Tijdens coasterbouw zet handmatig hoogte wijzigen Follow heights uit. Een sleepbeweging met rechts is geen contextklik. Druk Escape om naar inspectie terug te keren en probeer dan opnieuw.</p>
+<p>Bij te kleine tekst: interfaceschaal aanpassen. Bij verborgen bediening: boven het venster scrollen. Bij verkeerd scherm: F11. Bij geen geluid: Mute, volumes, Windows-uitvoer en Reconnect audio device controleren. Bij een onleesbare save: probeer de getoonde backup en bewaar het beschadigde bestand voor onderzoek. Laat herstelmeldingen leidend zijn; overschrijf niet blind je enige kopie.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="24-sneltoetsen-en-context">
+<h2 id="24-sneltoetsen-en-context" tabindex="-1">24. Sneltoetsen en context</h2>
+<p>Dit zijn de standaardtoetsen. <strong>Controls &amp; accessibility</strong> toont eventuele eigen toewijzingen. In een invoerveld typ je tekst; in een lijst kunnen pijltjes selecteren; in Explore kiezen cijfers groepen. Een toets kan daarom bewust een andere functie hebben dan op de vrije kaart.</p>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Toets of gebaar</th>
+<th scope="col">Functie</th>
+</tr></thead><tbody>
+<tr><td>Korte rechterklik</td><td>Instellingen van aangeklikte attractie/service</td></tr>
+<tr><td>Rechts slepen / midden slepen</td><td>Camera verplaatsen</td></tr>
+<tr><td>WASD / pijltjes</td><td>Camera verplaatsen buiten speciale invoercontext</td></tr>
+<tr><td>Wiel / + / − boven kaart</td><td>Zoomen</td></tr>
+<tr><td>Wiel boven venster</td><td>Door vensterinhoud scrollen</td></tr>
+<tr><td>Q / E</td><td>Kaart roteren</td></tr>
+<tr><td>Home</td><td>Kaart passend in beeld</td></tr>
+<tr><td>Space</td><td>Pauze/hervatten</td></tr>
+<tr><td>1 / 2 / 3</td><td>1× / 2× / 4×, buiten Explore en invoer</td></tr>
+<tr><td>F2</td><td>Explore; daarin 1–5 voor de groepen</td></tr>
+<tr><td>L / M / N / Y</td><td>Guests / Services / Finance / Rides</td></tr>
+<tr><td>Z</td><td>Coastereditor</td></tr>
+<tr><td>Ctrl+D</td><td>Ontwerpbibliotheek</td></tr>
+<tr><td>P / J</td><td>Openbaar pad / wachtrij</td></tr>
+<tr><td>I / K</td><td>Attractie-ingang / -uitgang</td></tr>
+<tr><td>X / Delete</td><td>Sloopgereedschap / geselecteerd onderdeel verwijderen</td></tr>
+<tr><td>B / V</td><td>Terrein omhoog / omlaag</td></tr>
+<tr><td>C</td><td>Padvorm of oriëntatie; coasterrichting in editor</td></tr>
+<tr><td>PgUp / PgDn</td><td>Bouwhoogte; pagina/keuze in daarvoor bestemd venster</td></tr>
+<tr><td>Enter in coastereditor</td><td>Volgend stuk toevoegen</td></tr>
+<tr><td>G / U</td><td>Raster / ondergrondweergave</td></tr>
+<tr><td>O / F</td><td>Geselecteerde rit of service openen/sluiten / rit vinden, in passende context</td></tr>
+<tr><td>F6 / F7</td><td>Prijs − / + $0,50 voor de actieve selectie</td></tr>
+<tr><td>Ctrl+Z / Ctrl+Y</td><td>Undo / redo van gepauzeerde bouw of de actieve draft</td></tr>
+<tr><td>F5 / F9 / Shift+F9</td><td>Opslaan / laden / vorige backup</td></tr>
+<tr><td>H / F1</td><td>Help</td></tr>
+<tr><td>F10</td><td>Geluid</td></tr>
+<tr><td>F11</td><td>Veilige vensterweergave herstellen</td></tr>
+<tr><td>Tab / Shift+Tab / Enter</td><td>Menufocus vooruit / terug / activeren</td></tr>
+<tr><td>Escape</td><td>Actief venster of gereedschap sluiten; daarna parkmenu</td></tr>
+</tbody></table></div>
+<p><strong>T</strong> en <strong>R</strong> zijn oude terrein-/demonstratieherstelacties met specifieke voorwaarden, geen normale route om een bewoond park veilig te verbouwen. Gebruik bij gewoon spelen de expliciete bouwgereedschappen en Home voor de camera. Sla op voordat je een herstelfunctie gebruikt.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section>
+<section aria-labelledby="25-begrippen-en-verder-lezen">
+<h2 id="25-begrippen-en-verder-lezen" tabindex="-1">25. Begrippen en verder lezen</h2>
+<div class="table-scroll" role="region" aria-label="Tabel" tabindex="0"><table><thead><tr>
+<th scope="col">Begrip</th>
+<th scope="col">Betekenis</th>
+</tr></thead><tbody>
+<tr><td>Attractie / Ride</td><td>Eén zelfstandig beheerd object met eigen toegang, bedrijfstoestand en boekhouding</td></tr>
+<tr><td>Facility / Service</td><td>Voorziening die een behoefte bedient en voorraad kan verbruiken</td></tr>
+<tr><td>Public path</td><td>Openbaar deel van het loopnetwerk</td></tr>
+<tr><td>Queue</td><td>Aan één attractie gekoppeld wachtpad</td></tr>
+<tr><td>Randhoogte</td><td>Hoogte waarop een pad aan de buur aansluit</td></tr>
+<tr><td>Draft</td><td>Bewerkbaar baanontwerp vóór Apply</td></tr>
+<tr><td>Block</td><td>Beveiligd baandeel dat ruimte reserveert voor een trein</td></tr>
+<tr><td>Candidate</td><td>Bezoeker die overweegt binnen te komen; nog niet noodzakelijk toegelaten</td></tr>
+<tr><td>Admission</td><td>Een daadwerkelijke toelating tot het park</td></tr>
+<tr><td>Revenue / Sales</td><td>Verkoopopbrengst, vóór aftrek van kosten</td></tr>
+<tr><td>Upkeep</td><td>Terugkerende exploitatie-/onderhoudskosten</td></tr>
+<tr><td>Payroll cap</td><td>Uitgavenplafond voor teamlonen per betaalvenster</td></tr>
+<tr><td>Cashflow</td><td>Geld dat werkelijk binnenkomt of vertrekt</td></tr>
+<tr><td>Operating result</td><td>Bedrijfsopbrengst minus geboekte bedrijfskosten</td></tr>
+<tr><td>Scenario</td><td>Parkstart met opdracht en vaste regels</td></tr>
+<tr><td>Campaign</td><td>Reeks officiële scenario&#x27;s; in marketingcontext een advertentieactie</td></tr>
+<tr><td>Backup</td><td>Vorige geldige opslagversie, geen onbeperkte geschiedenis</td></tr>
+</tbody></table></div>
+<p>Voor spelen: begin met <a href="#3-je-eerste-speelbare-park-stap-voor-stap">hoofdstuk 3</a>, gebruik <a href="#5-schermindeling-en-menus">de menuwegwijzer</a> en zoek bij vastlopen in <a href="#23-problemen-oplossen">problemen oplossen</a>. Voor bouwen zijn <a href="#8-paden-wachtrijen-poorten-en-hoogte">paden</a> en <a href="#11-coasters-bouwen-van-station-tot-eerste-rit">coasters</a> de belangrijkste referenties. Voor beheer begin je bij <a href="#15-financien-en-winst">financiën</a>, <a href="#16-personeel-onderhoud-weer-en-incidenten">personeel</a> en <a href="#17-onderzoek-en-economische-instellingen">onderzoek</a>.</p>
+<p>Deze handleiding wordt samen met broncode en Windows-pakket bijgewerkt. De technische hervatgids, versiegeschiedenis en sessieverslagen leggen ontwikkelwerk en teststatus vast. Ze zijn geen extra speldoelen. De ontwikkel-pc wordt uitsluitend gebruikt voor functionele controles, niet als prestatiereferentie voor het product.</p>
+<a class="back" href="#top">↑ Inhoud en begin</a></section><div class="no-results" id="no-results" hidden>Geen hoofdstuk gevonden. Gebruik een korter woord, bijvoorbeeld pad, prijs of voorraad.</div><footer>Parkbound 0.99.1 · Gegenereerd uit HANDLEIDING_NL.md · Geen internet of account nodig.</footer></main></div><script>
+'use strict';
+const search=document.querySelector('#search'),status=document.querySelector('#status');
+const sections=[...document.querySelectorAll('main section')],links=[...document.querySelectorAll('nav a')];
+const normalize=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('nl');
+const index=sections.map(el=>normalize(el.textContent));
+function unmark(){document.querySelectorAll('mark').forEach(m=>m.replaceWith(document.createTextNode(m.textContent)));sections.forEach(s=>s.normalize());}
+function highlight(section,query){
+  if(!query)return;const walk=document.createTreeWalker(section,NodeFilter.SHOW_TEXT);const nodes=[];
+  while(walk.nextNode())nodes.push(walk.currentNode);
+  for(const node of nodes){const text=node.textContent,lower=normalize(text),at=lower.indexOf(query);if(at<0)continue;
+    // Highlight only equal-length normalized text (Dutch diacritics); never inject a search string as HTML.
+    if(lower.length!==text.length)continue;
+    const fragment=document.createDocumentFragment();let start=0,pos=at;
+    while(pos>=0){fragment.append(document.createTextNode(text.slice(start,pos)));const mark=document.createElement('mark');mark.textContent=text.slice(pos,pos+query.length);fragment.append(mark);start=pos+query.length;pos=lower.indexOf(query,start);}
+    fragment.append(document.createTextNode(text.slice(start)));node.replaceWith(fragment);
+  }
+}
+function filter(){unmark();const query=normalize(search.value.trim()).slice(0,100),terms=query.split(/\s+/).filter(Boolean);let count=0;
+  sections.forEach((s,i)=>{s.hidden=!terms.every(t=>index[i].includes(t));if(!s.hidden){count++;terms.forEach(t=>highlight(s,t));}});
+  links.forEach(a=>{const target=document.getElementById(a.hash.slice(1));a.closest('li').hidden=target.closest('section').hidden;});
+  status.textContent=query?`${count} van ${sections.length} hoofdstukken gevonden`:`${sections.length} hoofdstukken · offline`;
+  document.querySelector('#no-results').hidden=count!==0;
+}
+search.addEventListener('input',filter);document.querySelector('#clear').addEventListener('click',()=>{search.value='';filter();search.focus();});
+document.querySelector('#print').addEventListener('click',()=>{search.value='';filter();window.print();});
+document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){e.preventDefault();search.focus();}if(e.key==='Escape'&&document.activeElement===search){search.value='';filter();}});
+document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{if(search.value){search.value='';filter();}}));
+window.addEventListener('hashchange',()=>{const target=document.getElementById(location.hash.slice(1));if(target){if(search.value){search.value='';filter();}target.scrollIntoView();}});
+if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){links.forEach(a=>a.removeAttribute('aria-current'));const a=links.find(a=>a.hash==='#'+entry.target.id);if(a)a.setAttribute('aria-current','location');}}},{rootMargin:'0px 0px -65% 0px'});document.querySelectorAll('h2,h3').forEach(h=>observer.observe(h));}
+window.addEventListener('scroll',()=>{const total=document.documentElement.scrollHeight-innerHeight;document.querySelector('#position').style.width=(total>0?scrollY/total*100:0)+'%';},{passive:true});
+filter();
+</script></body></html>

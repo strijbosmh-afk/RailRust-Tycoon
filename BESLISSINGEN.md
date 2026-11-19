@@ -1,5 +1,23 @@
 # Project decisions
 
+## 2026-11-19 — Offline Nederlandse spelershandleiding
+
+- Eén Markdown-bron, `docs/HANDLEIDING_NL.md`, genereert een zelfstandige HTML-
+  handleiding met 25 hoofdstukken, zoeken, sectielinks en printopmaak.
+- Help opent de lokale HTML via de Windows-bestandsassociatie; geen netwerk,
+  telemetrie, nieuwe Rust-dependency of wijziging van parkdata.
+- Het pakket naast de executable krijgt voorrang boven de ontwikkelcheckout.
+  Een ontbrekend bestand geeft een zichtbare aanwijzing in Help.
+- `python scripts/build-player-manual.py --check` controleert hoofdstukken,
+  ankers en gegenereerde inhoud in CI. Python is alleen een bouwgereedschap;
+  spelers hebben geen Python nodig.
+
+## 2026-11-19 — individual settings by right-click
+
+- Use a short right-click release to open the existing owner-specific ride or service window. Preserve right-drag and middle-drag camera panning.
+- Use the same physical visibility picking as normal selection. Coaster rails and owned queues/gates resolve to their ride; unrelated terrain/scenery do not open a window.
+- Keep a four-logical-pixel drag threshold. Cancel gestures across focus, modal, camera or park-generation changes. Keep the gesture transient and retain save schema/content 52/52.
+
 ## 2026-11-19 — Organized menus and three-use park advice
 
 - Keep the established forest/cream/gold theme and main-menu text buttons. Give remaining panels labelled sections and distinct facility/management pictograms. Preserve text in editable fields, roster entries and design previews.

@@ -1,5 +1,24 @@
 # Project status
 
+## Current work — Right-click settings and Dutch player manual, 0.99.1
+
+Working on `codex/right-click-settings`, based on
+`3d08981d99f8f3373941a2ffe72deaeaf2e66bd6` from the prior menu/advice phase.
+Short right-click releases open the visible ride or service's own settings.
+Right-drag and middle-drag retain camera panning. Existing menus, ownership and
+save schema/content 52/52 are preserved. Read `docs/OBJECT_SETTINGS.md`.
+The 25-chapter Dutch player manual is in `docs/HANDLEIDING_NL.md` and its
+offline HTML companion. Help opens the document in the default browser.
+Regenerate with `python scripts/build-player-manual.py`; CI checks freshness.
+
+All 599 application tests and strict workspace Clippy passed.
+The release build is in progress. Manual links and JavaScript syntax pass. Native input testing was stopped by the user
+with Escape; right-click and browser-opening acceptance are not claimed.
+Distribution verification remains pending.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Local standard prompt 2.1.0 is used.
+Google Drive remains disabled. This PC is not a performance reference.
+
 ## Current work — Organized menus and park advice, 0.99.0
 
 Runtime source `27e9eb714dfceab786561225a6a97301e57c83d9` is on

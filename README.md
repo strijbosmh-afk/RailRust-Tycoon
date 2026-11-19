@@ -1,5 +1,13 @@
 # Parkbound
 
+Lees de [uitgebreide Nederlandse spelershandleiding](docs/HANDLEIDING_NL.md),
+of open `docs/HANDLEIDING_NL.html` voor zoeken en een inhoudsopgave. In het spel:
+**H/F1 → Handleiding (NL)**. De 25 hoofdstukken behandelen starten, bouwen,
+individuele instellingen, alle attracties en services, financiën, personeel,
+onderzoek, reclame, campagne en scenario-editor.
+
+Version **0.99.1** opens individual ride and facility settings with a short **right-click**. Right-drag and middle-drag keep panning the map. The selected object is resolved from its visible surface, including coaster rails, gates and owned queues. See [individual settings](docs/OBJECT_SETTINGS.md).
+
 Version **0.99.0** organizes the remaining game menus into labelled sections, with distinct facility and management icons. A new **Tips** lightbulb beside Rides offers two suggestions based on your current park. Each park gets three uses, retained across saves, backups and restarts. The main menu keeps its text buttons. Read [the advice and menu guide](docs/PARK_TIPS.md).
 
 Version **0.98.1** groups Build tools into Paths, Landscape and Scenery, with colored pictograms and hover labels. The main menu, new-park dialogs and settings use their original text buttons. Park menus share a forest-green, cream and gold theme. New display preferences start in borderless fullscreen. **F11** restores windowed mode. See [menu and display behavior](docs/MENU_THEME.md).

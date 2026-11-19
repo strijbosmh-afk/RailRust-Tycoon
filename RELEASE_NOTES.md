@@ -1,5 +1,18 @@
 # Parkbound release notes
 
+## 0.99.1 — right-click object settings
+
+- Right-click a ride, its track, gates or owned queue to open that ride’s settings.
+- Right-click a service building to open its individual price and operating controls.
+- Preserve right/middle drag panning and ignore clicks through foreground terrain or UI.
+- Cancel pending clicks on camera, park-load and focus changes. Opening settings does not change the park or consume Tips.
+- No new dependencies or save-format changes.
+
+Dezelfde versie bevat een Nederlandstalige spelershandleiding met 25
+hoofdstukken, zoekfunctie, hoofdstuklinks en afdrukweergave. Open haar via
+Help of `docs/HANDLEIDING_NL.html`. De Markdown-bron wordt met een
+dependencyvrije generator omgezet; CI controleert links en actualiteit.
+
 ## 0.99.0 — organized menus and park advice
 
 - Labelled inset sections and distinct icons across the remaining park menus.
