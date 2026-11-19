@@ -76,6 +76,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             .expect("generated RGBA pixels")
             .chunks_exact_mut(4)
         {
+            let lightness = (f32::from(pixel[0]) * 0.2126
+                + f32::from(pixel[1]) * 0.7152
+                + f32::from(pixel[2]) * 0.0722)
+                / 255.0;
+            pixel[3] = (f32::from(pixel[3]) * lightness.powi(2)).round() as u8;
             pixel[..3].fill(255);
         }
         color.push(images.add(image));
