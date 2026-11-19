@@ -1,5 +1,36 @@
 # Resume development on another Windows PC
 
+## Current checkpoint — Complete PC transfer, 0.99.3
+
+The requested handoff is in `dist/Parkbound-Transfer-2026-11-19`, with a
+companion ZIP of the same name. Start with its `START_HERE.md`. It contains the
+complete committed source and all tracked Markdown, the Windows installer,
+the portable game ZIP, an offline Git-history bundle and a separate player-data
+backup. `docs/TRANSFER_TO_ANOTHER_PC.md` explains playing, restoring saves and
+resuming development. The source commit and distribution build commit are
+recorded separately in the transfer manifest.
+
+The runtime/documentation baseline `e2b86b6965fbcf43da9346ea5e79b67c67f3dd33`
+now has a fully successful GitHub CI result: run `44536241835`, all six jobs
+including the Windows installer and four endurance cases. This supersedes the
+previous in-progress CI note. The runtime remains 0.99.3 / schema-content 52/52;
+there is no gameplay change in this handoff. Source and Git bundle restore
+checks, package hashes and player-data copy checks are recorded with the
+transfer. Use `Verify-Transfer.ps1` after copying it to the destination PC.
+
+Continue on `codex/right-click-settings` / PR #93. The transfer's source
+snapshot is for browsing; clone its Git bundle into a new folder to preserve
+history. Install the Rust/C++ build tools only when developing; playing needs
+only the supplied installer or portable ZIP. The destination PC has not been
+installed or tested by this transfer operation.
+
+Original shared Git root:
+`C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Preserve the
+existing project identity and remote, and register the actual path on the new
+PC. Google Drive remains disabled; existing exports stay local. This PC is
+not a performance reference.
+
 ## Current checkpoint — Native guide and English Help verified, 0.99.3
 
 On PC1830, the installed game passed the complete seven-step first-park guide.

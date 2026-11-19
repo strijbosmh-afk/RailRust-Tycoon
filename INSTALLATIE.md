@@ -35,13 +35,23 @@ Version 0.91.0 includes **Play Sunhaven Gardens · 7 rides** on the title screen
 
 ## Resume development on another PC
 
+For the self-contained transfer folder (source, Git history, installer,
+documentation and player-data backup), start with
+`docs/TRANSFER_TO_ANOTHER_PC.md` or the folder's `START_HERE.md`.
+
 Clone the repository specified in `PROJECT.json`, then check out the branch and commit recorded in `STATUS.md` and `RESUME_DEVELOPMENT.md`. Install Git, Rust 1.93.1 and the Microsoft Visual C++ build tools with Windows SDK. Use the committed lockfile.
 
 The first source build downloads the locked dependencies from crates.io. The extracted Windows distribution supports offline play.
 
 Run `cargo fmt --all -- --check`, `cargo clippy --release --workspace --all-targets --locked -- -D warnings` and `cargo test --release --workspace --locked`. Build the Windows package with `scripts/package-windows.ps1`.
 
-For project registration on that PC, read the current Softwareprojecten standard prompt and local `ONBOARDING.md`, verify the existing GitHub and private Drive destinations, then use `node onboarding.mjs --project PATH --apply`. The helper installation lives in `%USERPROFILE%\.codex\softwareprojecten`. Review native hook trust on that PC. Automatic export is established only after its native Stop event, local export and accepted Drive readback receipt.
+The optional Codex project-helper setup is separate from installing or building
+the game. If it is installed on that PC, follow its local standard prompt and
+`ONBOARDING.md`, preserving this project's identity and GitHub remote. Google
+Drive synchronization is disabled; do not contact Drive or transfer exports
+there unless the owner explicitly re-enables it. Do not copy authentication,
+machine configuration or hook trust from the previous PC. No helper setup is
+required just to play Parkbound.
 
 The current shared OneDrive path is recorded in `RESUME_DEVELOPMENT.md`. Register the actual Git root on each PC rather than assuming an identical drive path.
 
