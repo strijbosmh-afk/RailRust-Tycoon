@@ -1,5 +1,19 @@
 # Project status
 
+## Current work — Structured construction menus, 0.98.1
+
+Runtime `726dcfc8ce400eb452ca3d0aedbf952227f1fef9` on `codex/themed-menus-borderless` is published in PR 91. The Build panel groups Paths, Landscape and Scenery/park items. Construction icons use colored filled artwork, with distinct signs, patrol routes and brush controls. The title, new-park, pause and settings screens regain their original text buttons. All 44 relevant UI/front/display tests, formatting, strict Clippy, release compilation, screen captures and extracted-package front continuation passed. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-structured-build-menu.md`.
+
+PC1830 is upgraded to 0.98.1. All 194 installed payloads match the package, both existing player files are preserved and both shortcuts were checked. Executable SHA256 is `b7c9ba207b448d02a8b1d79222a0354aa0168946553320243e2cdbc5d0adf214`. ZIP and installer checksums accompany the downloads in `dist/`. The GitHub run was still in progress at the verification checkpoint.
+
+The shared Git root is `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Google Drive remains disabled and local standard prompt 2.1.0 is in use. Saves remain 51/51 and display settings remain version 1.
+
+## Current work — Menu theme and borderless startup, 0.98.0
+
+Branch `codex/themed-menus-borderless` starts at `4933b0ec75fa33c4d62c1a251a2803fb61674213`. Forest-green menu panels, cream text and gold accents are implemented. The owner's clarification applies icon-only controls and live hover/focus labels to every menu button. New display settings start in borderless fullscreen. This intermediate build is superseded by 0.98.1 above. See `docs/MENU_THEME.md` and the current session report.
+
+The shared Git root remains `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Google Drive synchronization is disabled. The cached standard prompt is 2.1.0. Saves remain 51/51 and display settings remain version 1.
+
 ## Current work — Soundtrack and spatial audio, 0.97.0
 
 Branch `codex/soundtrack-and-spatial-audio` starts at `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Runtime `44c25003d7bb7172175ec85f385c2c2394c9e56c` is published in PR 90. Three arranged original tracks, zoom-aware ride sound and recorded visitor cheering are complete. All 1,045 tests, strict Clippy, formatting, eleven independent WAV re-renders, Windows audio output and extracted-package demo/front/audio continuation passed. See `docs/AUDIO_OVERHAUL.md` and `docs/sessions/2026-11-18-soundtrack.md`.

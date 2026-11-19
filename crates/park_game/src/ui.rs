@@ -13,6 +13,8 @@ use crate::path_tools::PathTool;
 
 pub(crate) mod appearance;
 pub(crate) mod audio;
+mod build_tools;
+pub(crate) mod button_icons;
 pub(crate) mod catalogue;
 pub(crate) mod designs;
 mod economy;
@@ -24,10 +26,12 @@ pub(crate) mod management;
 pub(crate) mod names;
 pub(crate) mod navigation;
 pub(crate) mod park_life;
+mod pictograms;
 pub(crate) mod rides;
 pub(crate) mod scenario_workshop;
 pub(crate) mod scenarios;
 pub(crate) mod services;
+pub(crate) mod theme;
 pub(super) mod track;
 pub(crate) mod visitor_flow;
 pub(super) use economy::money;
@@ -91,12 +95,12 @@ pub(super) const PATH_PANEL_WIDTH: f32 = RIDE_PANEL_WIDTH;
 #[cfg(test)]
 pub(super) const PATH_PANEL_HEIGHT: f32 = 358.0;
 
-pub(crate) const INK: Color = Color::srgb_u8(24, 63, 48);
-pub(crate) const MUTED: Color = Color::srgb_u8(92, 110, 84);
-pub(crate) const PAPER: Color = Color::srgb_u8(252, 244, 222);
-const BORDER: Color = Color::srgb_u8(193, 174, 123);
-const GOLD: Color = Color::srgb_u8(239, 192, 76);
-pub(crate) const BUTTON: Color = Color::srgb_u8(240, 231, 201);
+pub(crate) const INK: Color = theme::TEXT;
+pub(crate) const MUTED: Color = theme::MUTED;
+pub(crate) const PAPER: Color = theme::PANEL;
+const BORDER: Color = theme::BORDER;
+const GOLD: Color = theme::ACCENT;
+pub(crate) const BUTTON: Color = theme::BUTTON;
 
 #[derive(Component, Clone, Copy, PartialEq)]
 pub(super) enum Action {
@@ -321,7 +325,7 @@ pub(super) fn setup(mut commands: Commands) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(INK),
+            BackgroundColor(theme::HEADER),
         ))
         .with_children(|p| {
             p.spawn(Node {
@@ -331,7 +335,7 @@ pub(super) fn setup(mut commands: Commands) {
             })
             .with_children(|p| {
                 p.spawn(row()).with_children(|p| {
-                    label(p, "PARKBOUND", 25.0, PAPER);
+                    label(p, "PARKBOUND", 25.0, GOLD);
                     p.spawn((
                         Button,
                         Action::Finance,
@@ -372,13 +376,13 @@ pub(super) fn setup(mut commands: Commands) {
                 );
             });
             p.spawn(row()).with_children(|p| {
-                dynamic_label(p, "00:00  /  1x", 13.0, PAPER, Label::Clock);
+                dynamic_label(p, "00:00  /  1x", 13.0, INK, Label::Clock);
                 button(p, "Pause", Action::Pause, 70.0);
                 button(p, "1x", Action::Speed(Speed::Normal), 39.0);
                 button(p, "2x", Action::Speed(Speed::Fast), 39.0);
                 button(p, "4x", Action::Speed(Speed::Fastest), 39.0);
                 button(p, "Help", Action::Help, 60.0);
-                button(p, "Menu", Action::Menu, 62.0);
+                button(p, "Park menu", Action::Menu, 40.0);
             });
         });
 
@@ -488,7 +492,7 @@ pub(super) fn setup(mut commands: Commands) {
                     row_gap: px(8),
                     ..default()
                 },
-                BackgroundColor(Color::srgb_u8(234, 237, 221)),
+                BackgroundColor(crate::ui::theme::INSET),
                 BorderRadius::all(px(5)),
             ))
             .with_children(|p| {
@@ -545,127 +549,7 @@ pub(super) fn setup(mut commands: Commands) {
             BorderRadius::all(px(6)),
         ))
         .with_children(|p| {
-            p.spawn(Node {
-                justify_content: JustifyContent::SpaceBetween,
-                ..row()
-            })
-            .with_children(|p| {
-                label(p, "BUILD", 16.0, INK);
-                p.spawn((
-                    Button,
-                    Action::Services,
-                    Node {
-                        width: px(126),
-                        height: px(22),
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        border: UiRect::all(px(1)),
-                        ..default()
-                    },
-                    BackgroundColor(BUTTON),
-                    BorderColor::all(BORDER),
-                    BorderRadius::all(px(5)),
-                ))
-                .with_children(|p| label(p, "Services [M]", 12.0, INK));
-            });
-            p.spawn(row()).with_children(|p| {
-                button(
-                    p,
-                    "Catalogue",
-                    Action::Catalogue(catalogue::Command::Open),
-                    100.0,
-                );
-                button(p, "Path [P]", Action::SetPathTool(PathTool::Build), 100.0);
-            });
-            p.spawn(row()).with_children(|p| {
-                button(
-                    p,
-                    "Queue [J]",
-                    Action::SetPathTool(PathTool::BuildQueue),
-                    100.0,
-                );
-                button(
-                    p,
-                    "Demolish [X]",
-                    Action::SetPathTool(PathTool::Demolish),
-                    100.0,
-                );
-            });
-            p.spawn(row()).with_children(|p| {
-                button(
-                    p,
-                    "Raise [B]",
-                    Action::SetPathTool(PathTool::RaiseTerrain),
-                    100.0,
-                );
-                button(
-                    p,
-                    "Lower [V]",
-                    Action::SetPathTool(PathTool::LowerTerrain),
-                    100.0,
-                );
-            });
-            p.spawn(row()).with_children(|p| {
-                button(p, "Water", Action::SetPathTool(PathTool::PaintWater), 65.0);
-                button(p, "Grass", Action::SetPathTool(PathTool::PaintGrass), 65.0);
-                button(p, "Sand", Action::SetPathTool(PathTool::PaintSand), 65.0);
-            });
-            button(
-                p,
-                "Buy Land / $5",
-                Action::SetPathTool(PathTool::BuyLand),
-                207.0,
-            );
-            p.spawn(row()).with_children(|p| {
-                button(p, "Brush -", Action::TerrainBrushRadius(-1), 100.0);
-                button(p, "Brush +", Action::TerrainBrushRadius(1), 100.0);
-            });
-            dynamic_label(p, "Brush: 1 x 1", 11.0, INK, Label::TerrainBrushRadius);
-            p.spawn(row()).with_children(|p| {
-                button(p, "Slope [C]", Action::CyclePathShape, 65.0);
-                button(
-                    p,
-                    "Tree",
-                    Action::SetPathTool(PathTool::Scenery(SceneryKind::Tree)),
-                    65.0,
-                );
-                button(
-                    p,
-                    "Flowers",
-                    Action::SetPathTool(PathTool::Scenery(SceneryKind::FlowerBed)),
-                    65.0,
-                );
-            });
-            p.spawn(row()).with_children(|p| {
-                button(p, "Bin on path", Action::ToggleBin, 100.0);
-                button(p, "Patrol path", Action::TogglePatrol, 100.0);
-            });
-            button(p, "Bench on path / $1", Action::ToggleBench, 207.0);
-            p.spawn(row()).with_children(|p| {
-                button(p, "Sign / $2", Action::ToggleSign, 100.0);
-                button(p, "Fence / $3", Action::ToggleFence, 100.0);
-            });
-            dynamic_label(p, "Path height: 8", 11.0, INK, Label::PathHeight);
-            p.spawn(row()).with_children(|p| {
-                button(p, "- [PgDn]", Action::PathHeight(-1), 100.0);
-                button(p, "+ [PgUp]", Action::PathHeight(1), 100.0);
-            });
-            for (initial, kind, color) in [
-                ("Choose a build tool.", Label::PathHint, INK),
-                ("Last: no build changes yet.", Label::PathResult, MUTED),
-            ] {
-                p.spawn(Node {
-                    width: percent(100),
-                    height: px(30),
-                    flex_shrink: 0.0,
-                    overflow: Overflow::clip(),
-                    ..default()
-                })
-                .with_children(|p| {
-                    dynamic_label(p, initial, 11.0, color, kind);
-                });
-            }
-            label(p, "Esc: return to inspection", 11.0, MUTED);
+            build_tools::setup(p);
         });
 
     commands
@@ -1935,7 +1819,7 @@ pub(super) fn refresh(
                 PathSlope::South => "S",
                 PathSlope::West => "W",
             }),
-            Label::TerrainBrushRadius => format!("Brush: {} x {} / paid per tile", 1 + 2 * view.path_tool.brush_radius, 1 + 2 * view.path_tool.brush_radius),
+            Label::TerrainBrushRadius => format!("Brush: {} × {}", 1 + 2 * view.path_tool.brush_radius, 1 + 2 * view.path_tool.brush_radius),
             Label::PathHeight => {
                 if matches!(view.path_tool.mode, PathTool::RaiseTerrain | PathTool::LowerTerrain | PathTool::PaintWater | PathTool::PaintGrass | PathTool::PaintSand | PathTool::BuyLand) {"Tool follows visible terrain".into()}
                 else if matches!(view.path_tool.mode, PathTool::Scenery(_)) {"Scenery follows land height".into()}
@@ -2061,11 +1945,11 @@ pub(super) fn refresh(
             || access_disabled
             || test_disabled
         {
-            Color::srgb_u8(239, 240, 232)
+            crate::ui::theme::DISABLED
         } else if (!view.capture_active && *interaction == Interaction::Pressed) || active {
             GOLD
         } else if !view.capture_active && *interaction == Interaction::Hovered {
-            Color::srgb_u8(207, 220, 197)
+            crate::ui::theme::HOVER
         } else {
             BUTTON
         };

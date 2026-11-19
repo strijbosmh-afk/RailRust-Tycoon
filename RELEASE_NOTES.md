@@ -1,4 +1,20 @@
-# Parkbound 0.97.0 soundtrack and spatial audio
+# Parkbound 0.98.1 structured construction menus
+
+Build tools are grouped into Paths, Landscape and Scenery/park items. Their
+colored pictograms distinguish paths, queues, signs, patrol routes and brush
+adjustments. Hover and keyboard focus reveal the action and shortcut.
+The title, new-park, pause and settings screens use their original text buttons.
+
+## Parkbound 0.98.0 menu theme and borderless startup
+
+Park menus use forest-green panels, cream lettering and gold accents, with
+matching hover, selected and disabled states. All menu buttons use compact
+antialiased icons with their full action labels on hover or keyboard focus.
+Version 0.98.1 restores text navigation to the front screens. New display
+preferences start borderless fullscreen. F11 and safe-windowed recovery remain
+available. Existing display choices and park saves remain compatible.
+
+## Parkbound 0.97.0 soundtrack and spatial audio
 
 Three original instrumental tracks have fuller arrangements, rhythmic and
 melodic variations and crossfaded transitions. Zooming toward rides brings

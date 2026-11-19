@@ -35,7 +35,7 @@ fn card(p: &mut ChildSpawnerCommands, description: &str, kind: ScenarioKind) {
             row_gap: px(8),
             ..default()
         },
-        BackgroundColor(Color::srgb_u8(232, 238, 224)),
+        BackgroundColor(crate::ui::theme::INSET),
         BorderRadius::all(px(5)),
     ))
     .with_children(|p| {

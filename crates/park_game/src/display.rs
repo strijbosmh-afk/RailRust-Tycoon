@@ -72,8 +72,8 @@ impl ScaleChoice {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ModeChoice {
-    #[default]
     Windowed,
+    #[default]
     Borderless,
     Fullscreen,
 }
@@ -161,7 +161,7 @@ impl Settings {
         Self {
             version: 1,
             scale: ScaleChoice::Auto,
-            mode: ModeChoice::Windowed,
+            mode: ModeChoice::Borderless,
             monitor: 0,
             lighting: Lighting::Day,
             weather: Weather::Clear,
@@ -228,6 +228,7 @@ impl DisplaySettings {
         if !normal_launch {
             // Captures remain deterministic unless the scale is explicitly requested.
             value = Settings::initial();
+            value.mode = ModeChoice::Windowed;
             value.scale = ScaleChoice::Percent100;
             if let Some(index) = arguments.iter().position(|arg| arg == "--capture-ui-scale") {
                 value.scale = match arguments.get(index + 1).map(|arg| arg.to_string_lossy()) {
@@ -271,6 +272,16 @@ impl DisplaySettings {
         self.persist();
     }
 
+    pub(crate) fn window_mode(&self) -> WindowMode {
+        match self.value.mode {
+            ModeChoice::Windowed => WindowMode::Windowed,
+            ModeChoice::Borderless => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+            ModeChoice::Fullscreen => {
+                WindowMode::Fullscreen(MonitorSelection::Current, VideoModeSelection::Current)
+            }
+        }
+    }
+
     pub(crate) fn change_lighting(&mut self) {
         self.value.lighting = self.value.lighting.next();
         self.persist();
@@ -299,7 +310,12 @@ impl DisplaySettings {
     }
 
     pub(crate) fn reset(&mut self) {
+        self.reset_mode(ModeChoice::Borderless);
+    }
+
+    fn reset_mode(&mut self, mode: ModeChoice) {
         self.value = Settings::initial();
+        self.value.mode = mode;
         self.mode_dirty = true;
         self.write_blocked = false;
         self.persist();
@@ -345,7 +361,7 @@ pub(crate) fn update(
     keys: Res<ButtonInput<KeyCode>>,
 ) {
     if keys.just_pressed(KeyCode::F11) {
-        settings.reset();
+        settings.reset_mode(ModeChoice::Windowed);
     }
     let Ok(mut window) = windows.single_mut() else {
         return;
@@ -392,6 +408,7 @@ pub(crate) fn update(
                 WindowMode::Fullscreen(selection, VideoModeSelection::Current)
             }
         };
+        window.decorations = settings.value.mode == ModeChoice::Windowed;
         if settings.value.mode == ModeChoice::Windowed && settings.value.monitor != 0 {
             window.position = WindowPosition::Centered(selection);
         }
@@ -410,6 +427,29 @@ pub(crate) fn update(
 mod tests {
     use super::*;
     use crate::persistence::SaveSession;
+
+    #[test]
+    fn fresh_launch_is_borderless_and_captures_and_recovery_are_windowed() {
+        let path =
+            std::env::temp_dir().join(format!("parkbound-display-default-{}", std::process::id()));
+        let session =
+            SaveSession::from_arguments([OsString::from("--save-dir"), path.into_os_string()]);
+        let mut settings = DisplaySettings::new(&session, &[], false);
+        assert_eq!(settings.window_mode(), WindowMode::Windowed);
+        settings.value = Settings::initial();
+        assert_eq!(
+            settings.window_mode(),
+            WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+        );
+        settings.reset_mode(ModeChoice::Windowed);
+        assert_eq!(settings.value.mode, ModeChoice::Windowed);
+        assert_eq!(
+            DisplaySettings::new(&session, &[OsString::from("--safe-windowed")], true)
+                .value
+                .mode,
+            ModeChoice::Windowed
+        );
+    }
 
     #[test]
     fn scale_keeps_a_map_viewport_and_responds_to_logical_width() {
@@ -436,7 +476,7 @@ mod tests {
         ]);
         let mut settings = DisplaySettings::new(&session, &[], true);
         settings.change_scale(2);
-        settings.change_mode(1);
+        settings.change_mode(0);
         settings.change_lighting();
         settings.change_lighting();
         settings.change_weather();

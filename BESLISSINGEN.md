@@ -1,5 +1,20 @@
 # Project decisions
 
+## 2026-11-19 — Structured Build panel and text navigation
+
+- Restore the original text buttons in the title, new-park, pause and settings screens, following the owner's clarification.
+- Group in-park construction actions by Paths, Landscape and Scenery/park items. Keep height controls with paths and brush controls with landscape editing.
+- Use colored filled pictograms for recognizable construction objects, with distinct sign, patrol and brush symbols. Use monochrome artwork for selected, disabled and high-contrast states.
+- Retain borderless startup, the existing action handlers and save format. Continue on the existing menu branch and PR 91.
+
+## 2026-11-19 — Menu theme and fullscreen
+
+- Use shared forest, cream and gold colors throughout the menu system. Retain readable button text when the background changes to gold.
+- Apply the owner's clarified icon request to every menu button, including Path, Find, Gate and Exit. Keep original action handlers and dynamic labels. Show the full label and existing shortcut in a hover/focus tooltip.
+- Generate original antialiased pictograms in Rust. Keep icon contrast appropriate to the selected/disabled background and accessibility preferences.
+- Create new windows borderless by default. Honor explicit saved display choices and retain decorated-window recovery through F11 and safe-windowed launch.
+- Preserve display settings version 1 and park saves 51/51. Keep Google Drive disabled.
+
 ## 2026-11-18 — Soundtrack, spatial sound and Drive synchronization
 
 - Disable Google Drive synchronization for Parkbound at the owner's request. Retain local exports and existing destination IDs. Keep the project flag in Git so another PC can respect the choice.

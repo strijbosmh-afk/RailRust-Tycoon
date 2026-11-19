@@ -99,7 +99,7 @@ fn preview_column(parent: &mut ChildSpawnerCommands) {
                     border: UiRect::all(px(1)),
                     ..default()
                 },
-                BackgroundColor(Color::srgb_u8(238, 242, 228)),
+                BackgroundColor(crate::ui::theme::INSET),
                 BorderColor::all(BORDER),
                 BorderRadius::all(px(6)),
             ));
@@ -565,13 +565,13 @@ pub(crate) fn refresh(
         let enabled =
             populated && crate::design_library::command_enabled(&sim.0, &library, command);
         background.0 = if !enabled {
-            Color::srgb_u8(239, 240, 232)
+            crate::ui::theme::DISABLED
         } else if !view.capture_active && *interaction == Interaction::Pressed {
             GOLD
         } else if !view.capture_active && *interaction == Interaction::Hovered {
-            Color::srgb_u8(207, 220, 197)
+            crate::ui::theme::HOVER
         } else if selected {
-            Color::srgb_u8(238, 232, 204)
+            crate::ui::theme::BUTTON
         } else {
             BUTTON
         };
@@ -596,11 +596,11 @@ pub(crate) fn refresh(
         };
         let enabled = crate::design_library::command_enabled(&sim.0, &library, *command);
         background.0 = if !enabled {
-            Color::srgb_u8(239, 240, 232)
+            crate::ui::theme::DISABLED
         } else if !view.capture_active && *interaction == Interaction::Pressed {
             GOLD
         } else if !view.capture_active && *interaction == Interaction::Hovered {
-            Color::srgb_u8(207, 220, 197)
+            crate::ui::theme::HOVER
         } else {
             BUTTON
         };

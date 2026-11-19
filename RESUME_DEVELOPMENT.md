@@ -1,5 +1,19 @@
 # Resume development on another Windows PC
 
+## Current work — Structured construction menus, 0.98.1
+
+Continue `codex/themed-menus-borderless`, runtime `726dcfc8ce400eb452ca3d0aedbf952227f1fef9`, in PR 91. The Build panel groups paths, landscape and scenery, with their own height/brush controls and improved colored icons. Front screens use their original text buttons. All 44 relevant UI/front/display tests, strict checks, release compilation, screen captures and extracted-package front continuation passed. See `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-structured-build-menu.md`.
+
+PC1830 runs 0.98.1. All 194 installed payloads and both shortcuts were verified, and both player files were preserved byte-for-byte. Executable SHA256 is `b7c9ba207b448d02a8b1d79222a0354aa0168946553320243e2cdbc5d0adf214`. Current download checksums are in `dist/`. GitHub run `44492067260` was still in progress at this checkpoint.
+
+Shared checkout `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Existing Rust/Windows requirements apply. Google Drive remains disabled. Save format is 51/51 and display preferences are version 1. This PC supplies correctness and visual evidence.
+
+## Current work — Menu theme and borderless startup, 0.98.0
+
+Continue on `codex/themed-menus-borderless`, based on `4933b0ec75fa33c4d62c1a251a2803fb61674213`. The interface uses shared forest/cream/gold colors. Every menu button uses an original antialiased pictogram and a live hover/focus label, including construction, ride gates and settings. New display settings launch borderless, while F11 and `--safe-windowed` provide windowed recovery. This intermediate build is superseded by 0.98.1 above. Read `docs/MENU_THEME.md` and `docs/sessions/2026-11-19-menu-theme.md`.
+
+Shared checkout `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`. Use the existing Rust and Windows build requirements. Saves remain 51/51 and display preferences remain version 1. Google Drive remains disabled. This PC is used for correctness and visual checks.
+
 ## Current work — Soundtrack and spatial audio, 0.97.0
 
 Continue on `codex/soundtrack-and-spatial-audio`, based on `7c41a3ef5b9e7c55cf3a35d4a857ce0717e28911`. Runtime `44c25003d7bb7172175ec85f385c2c2394c9e56c` is in PR 90. Three original arranged tracks, spatial ride effects and recorded cheering are complete. All 1,045 tests, formatting, strict Clippy, release build, eleven exact WAV re-renders, Windows audio output and extracted-package continuation passed. Follow `docs/AUDIO_OVERHAUL.md` and the current session report.

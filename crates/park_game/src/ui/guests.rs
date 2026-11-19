@@ -131,7 +131,7 @@ fn meter(parent: &mut ChildSpawnerCommands, kind: GuestMeterFill) {
                     height: px(10),
                     ..default()
                 },
-                BackgroundColor(Color::srgb_u8(217, 225, 210)),
+                BackgroundColor(crate::ui::theme::INSET),
                 BorderRadius::all(px(5)),
             ))
             .with_children(|p| {
@@ -352,7 +352,7 @@ pub(super) fn setup(commands: &mut Commands) {
                                 padding: UiRect::axes(px(8), px(6)),
                                 ..default()
                             },
-                            BackgroundColor(Color::srgb_u8(232, 238, 224)),
+                            BackgroundColor(crate::ui::theme::INSET),
                             BorderRadius::all(px(5)),
                         ))
                         .with_children(|p| {
@@ -524,11 +524,11 @@ fn meter_color(kind: GuestMeterFill, value: u8) -> Color {
         _ => value >= 40,
     };
     if warning {
-        Color::srgb_u8(196, 75, 61)
+        crate::ui::theme::DANGER
     } else if caution {
-        Color::srgb_u8(215, 153, 52)
+        crate::ui::theme::WARNING
     } else {
-        Color::srgb_u8(70, 148, 108)
+        crate::ui::theme::SUCCESS
     }
 }
 
@@ -765,7 +765,7 @@ pub(crate) fn refresh(
         background.0 = if guest.is_some_and(|guest| Some(guest.id) == view.selected_guest) {
             GOLD
         } else if guest.is_some() && !view.capture_active && *interaction == Interaction::Hovered {
-            Color::srgb_u8(207, 220, 197)
+            crate::ui::theme::HOVER
         } else {
             BUTTON
         };
