@@ -39,6 +39,38 @@ pub(super) fn center(
     projected(object, facing, Vec3::new(0.0, 0.0, 2.72), size, rotation).truncate()
 }
 
+pub(super) fn lit_counter(
+    mesh: &mut Painter,
+    park: &Park,
+    object: &SurfaceObject,
+    service: &park_sim::Service,
+    rotation: u8,
+    strength: f32,
+) {
+    if matches!(service.kind, ServiceKind::Toilet | ServiceKind::Rest) {
+        return;
+    }
+    // Behind the product models, in front of the back panel of the serving hatch.
+    let corner = |y, z| {
+        projected(
+            object,
+            service.facing,
+            Vec3::new(-0.19, y, z),
+            park.width(),
+            rotation,
+        )
+    };
+    let [a, b, c, d] = [
+        corner(-0.25, 1.28),
+        corner(0.25, 1.28),
+        corner(0.25, 1.90),
+        corner(-0.25, 1.90),
+    ];
+    let ink = [1.0, 0.71, 0.26, 0.84 * strength];
+    mesh.triangle_3d([a, b, c], ink);
+    mesh.triangle_3d([a, c, d], ink);
+}
+
 /// Every box remains inside the one-tile footprint and three-step clearance.
 /// Local +X faces the PUBLIC serving edge, independent of camera rotation.
 pub(super) fn faces(

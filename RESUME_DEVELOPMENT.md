@@ -1,5 +1,12 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Sunhaven plaza
+
+Continue on `codex/right-click-settings`. The demo capture shows the fountain;
+add `--capture-lighting night` to review path lamps and service counters.
+Visitor poses are derived from the existing visit and bench state.
+See `docs/sessions/2026-11-23-sunhaven-plaza.md`.
+
 ## 0.99.3 — Park planting, shadows and motion
 
 Continue on `codex/right-click-settings`. The atmosphere and lighting

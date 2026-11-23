@@ -1,5 +1,11 @@
 # Project decisions
 
+## 2026-11-23 — Sunhaven plaza
+
+Keep the fountain tied to the intact demo pond. Derive visitor poses from
+current activities and allow one seated visitor per bench. Clip lamp pools
+to actual path decks and place counter lights inside existing serving hatches.
+
 ## 2026-11-23 — Park atmosphere
 
 Cluster cosmetic planting with deterministic tile noise and clip contact

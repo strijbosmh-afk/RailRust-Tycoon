@@ -1,5 +1,12 @@
 # Project status
 
+## 0.99.3 — Sunhaven plaza
+
+Sunhaven's pond has an animated fountain and scattered reeds at its edge.
+Visitors use distinct counter, bench and queue poses. Evening lamps light
+their path decks and open service counters glow warmly. See
+[the plaza session](docs/sessions/2026-11-23-sunhaven-plaza.md).
+
 ## 0.99.3 — Park planting, shadows and motion
 
 Low planting grows in visual clusters on open lawns. Trees, stations and

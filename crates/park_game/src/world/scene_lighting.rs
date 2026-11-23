@@ -59,6 +59,38 @@ pub(crate) fn ambience_mesh(
             rgb(82, 97, 77),
         );
         if lighting != Lighting::Day {
+            let strength = if lighting == Lighting::Night {
+                1.0
+            } else {
+                0.55
+            };
+            if object.kind == ObjectKind::Path {
+                let roof = object_surfaces(park, object, rotation)[0];
+                for (width, height, opacity) in
+                    [(18.0, 8.0, 0.18), (11.0, 5.0, 0.23), (5.5, 2.8, 0.25)]
+                {
+                    painter.surface_ellipse(
+                        roof,
+                        foot.truncate() - Vec2::new(2.0, 1.0),
+                        width,
+                        height,
+                        DETAIL_BIAS * 4.0,
+                        [1.0, 0.72, 0.29, opacity * strength],
+                    );
+                }
+            } else if let Some(service) = park
+                .service_by_object(object.id)
+                .filter(|service| service.open)
+            {
+                service_render::lit_counter(
+                    &mut painter,
+                    park,
+                    object,
+                    service,
+                    rotation,
+                    strength,
+                );
+            }
             painter.ellipse(
                 head.truncate(),
                 7.5,

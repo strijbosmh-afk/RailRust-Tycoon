@@ -10,7 +10,7 @@ use park_sim::{
     Axis, GuestState, ObjectKind, Park, PathSlope, RideVisitPhase, SurfaceId, SurfaceObject,
     Terrain, TilePos,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 mod atmosphere;
 mod carousel_render;
@@ -1501,6 +1501,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     if park.width() != park.height() {
         return mesh.finish();
     }
+    let mut occupied_benches = HashSet::new();
     for guest in park.guests() {
         if guest_is_riding(guest) {
             continue;
@@ -1515,6 +1516,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         let Some(base) = guest_anchor(park, guest.id, rotation) else {
             continue;
         };
+        let (base, pose) = guest_activity(park, guest, base, rotation, &mut occupied_benches);
         let point = base.truncate();
         // Clip the contact shadow to the actual supporting path decks. While
         // crossing a tile edge the two roofs form the continuous support.
@@ -1699,6 +1701,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
             park.ticks(),
             point.y,
         );
+        pose.apply(&mut mesh.positions[body_start..], point.y);
         if let Some(phase) = guest_visit_marker(guest) {
             paint_guest_visit_marker(&mut mesh, phase, point, depth);
         }
@@ -2024,6 +2027,80 @@ fn guest_supports(guest: &park_sim::Guest) -> [Option<park_sim::ObjectId>; 2] {
         return [None, None];
     }
     [guest.current, guest.next]
+}
+
+#[derive(Clone, Copy)]
+enum GuestActivity {
+    Standing,
+    Seated,
+    Ordering(f32),
+    Watching(f32),
+}
+
+impl GuestActivity {
+    fn apply(self, positions: &mut [[f32; 3]], feet_y: f32) {
+        for point in positions {
+            let height = point[1] - feet_y;
+            match self {
+                Self::Standing => return,
+                Self::Seated => {
+                    point[0] += ((9.0 - height) / 9.0).clamp(0.0, 1.0) * 4.0;
+                    point[1] -= height.clamp(0.0, 9.0) * 0.42;
+                }
+                Self::Ordering(toward) => {
+                    point[0] += ((height - 8.0) / 13.0).clamp(0.0, 1.0) * toward * 3.0;
+                    point[1] -= ((height - 12.0) / 10.0).clamp(0.0, 1.0) * 1.3;
+                }
+                Self::Watching(toward) => {
+                    let head = ((height - 16.0) / 7.0).clamp(0.0, 1.0);
+                    point[0] += head * toward * 2.6;
+                    point[1] += head * 1.6;
+                }
+            }
+        }
+    }
+}
+
+fn guest_activity(
+    park: &Park,
+    guest: &park_sim::Guest,
+    base: Vec3,
+    rotation: u8,
+    occupied_benches: &mut HashSet<park_sim::ObjectId>,
+) -> (Vec3, GuestActivity) {
+    if guest.state != GuestState::Waiting {
+        return (base, GuestActivity::Standing);
+    }
+    let toward = |target| {
+        surface_center(park, SurfaceId::Object(target), rotation)
+            .map_or(0.0, |point| ((point.x - base.x) / 12.0).clamp(-1.0, 1.0))
+    };
+    if let Some(visit) = &guest.service_visit {
+        if let Some(object) = park
+            .service(visit.service)
+            .and_then(|service| service.object)
+        {
+            return (base, GuestActivity::Ordering(toward(object)));
+        }
+    } else if let Some(visit) = &guest.ride_visit {
+        if visit.phase == RideVisitPhase::Queueing
+            && let Some(gate) = park.ride_by_id(visit.ride).and_then(|ride| ride.entrance)
+        {
+            return (base, GuestActivity::Watching(toward(gate.object)));
+        }
+    } else if let Some(path) = guest.current
+        && park
+            .path_benches()
+            .binary_search_by_key(&path, |bench| bench.path)
+            .is_ok()
+        && let Some(center) = park.object(path).and_then(SurfaceObject::path_center)
+        && occupied_benches.insert(path)
+    {
+        let anchor =
+            project_path_point(center, park.width(), rotation) + Vec3::new(9.0, 1.0, 0.012);
+        return (anchor, GuestActivity::Seated);
+    }
+    (base, GuestActivity::Standing)
 }
 
 fn animate_guest_idle(

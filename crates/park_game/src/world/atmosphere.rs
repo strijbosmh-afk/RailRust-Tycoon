@@ -241,6 +241,108 @@ pub(super) fn shore_details(
                 );
             }
         }
+        if noise(neighbor).is_multiple_of(7) {
+            let root = a.lerp(b, 0.35).lerp(center, 0.07);
+            for (dx, height) in [(-3.0, 7.0), (0.0, 11.0), (3.0, 9.0)] {
+                let tip = root + Vec2::new(dx * 1.5, height);
+                mesh.surface_line(
+                    top,
+                    root + Vec2::X * dx,
+                    tip,
+                    1.2,
+                    DETAIL_BIAS * 5.0,
+                    rgb(85, 121, 54),
+                );
+                mesh.surface_line(
+                    top,
+                    tip - Vec2::Y * 2.5,
+                    tip,
+                    2.1,
+                    DETAIL_BIAS * 6.0,
+                    rgb(143, 114, 67),
+                );
+            }
+        }
+    }
+}
+
+fn fountain(mesh: &mut Painter, park: &Park, rotation: u8, phase: u8) {
+    // The ornamental basin occupies the four central tiles of Sunhaven's
+    // pond. Edits that displace its water or add a crossing remove the prop.
+    let center = TilePos { x: 23, y: 25 };
+    if park.width() != 48
+        || !(24..=27).all(|y| {
+            (20..=27).all(|x| {
+                park.tile(TilePos { x, y })
+                    .is_some_and(|tile| tile.terrain == Terrain::Water && tile.height == 0)
+            })
+        })
+        || park
+            .objects()
+            .iter()
+            .any(|object| (22..=25).contains(&object.pos.x) && (24..=27).contains(&object.pos.y))
+    {
+        return;
+    }
+    let opposite = TilePos { x: 24, y: 26 };
+    let (x, y) = rotate(center, park.width(), rotation);
+    let (other_x, other_y) = rotate(opposite, park.width(), rotation);
+    let base = project(
+        (x + other_x) as f32 * 0.5,
+        (y + other_y) as f32 * 0.5,
+        0.0,
+        park.width(),
+    );
+    let p = base.truncate();
+    let z = base.z + DETAIL_BIAS * 6.0;
+    mesh.ellipse(p, 22.0, 10.5, z, rgb(21, 103, 132));
+    mesh.ellipse(
+        p + Vec2::Y * 2.0,
+        17.0,
+        8.0,
+        z + DETAIL_BIAS,
+        rgb(167, 151, 110),
+    );
+    mesh.ellipse(
+        p + Vec2::Y * 4.0,
+        14.0,
+        6.0,
+        z + DETAIL_BIAS * 2.0,
+        rgb(104, 199, 202),
+    );
+    mesh.line(
+        p + Vec2::Y * 4.0,
+        p + Vec2::Y * 13.0,
+        6.0,
+        z + DETAIL_BIAS * 3.0,
+        rgb(191, 173, 123),
+    );
+    let pulse = (f32::from(phase) * std::f32::consts::TAU / 16.0).sin();
+    let spray = p + Vec2::Y * 13.0;
+    let crest = p + Vec2::new(pulse * 2.0, 53.0 + pulse * 3.0);
+    mesh.line(spray, crest, 3.0, z + DETAIL_BIAS * 4.0, rgb(126, 222, 230));
+    mesh.line(
+        spray + Vec2::X,
+        crest + Vec2::X,
+        1.1,
+        z + DETAIL_BIAS * 5.0,
+        rgb(236, 252, 238),
+    );
+    for sign in [-1.0, 1.0] {
+        let mut previous = spray;
+        for step in 1..=5 {
+            let t = step as f32 / 5.0;
+            let point =
+                spray + Vec2::new(sign * (15.0 + pulse) * t, 72.0 * t * (1.0 - t) - 9.0 * t);
+            mesh.line(
+                previous,
+                point,
+                1.3,
+                z + DETAIL_BIAS * 4.0,
+                rgb(165, 232, 225),
+            );
+            previous = point;
+        }
     }
 }
 /// Water glints are cosmetic and capped to normal playable maps. Static waves
@@ -271,12 +373,47 @@ pub(crate) fn water_mesh(park: &Park, rotation: u8, mode: ViewMode, phase: u8) -
             );
         }
     }
+    fountain(&mut mesh, park, rotation, phase);
     mesh.finish()
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use bevy::mesh::VertexAttributeValues;
+
+    #[test]
+    fn demo_fountain_tracks_the_pond_and_moves_without_editing_the_park() {
+        let park = park_sim::demo_park::build_demo_park().unwrap();
+        let before = park.to_save_bytes().unwrap();
+        for rotation in 0..4 {
+            let mut still = Painter::default();
+            let mut moving = Painter::default();
+            fountain(&mut still, &park, rotation, 0);
+            fountain(&mut moving, &park, rotation, 4);
+            assert!(!still.positions.is_empty());
+            assert_eq!(still.positions.len(), moving.positions.len());
+            assert_ne!(still.positions, moving.positions);
+            assert!(
+                moving
+                    .positions
+                    .iter()
+                    .flatten()
+                    .all(|value| value.is_finite())
+            );
+        }
+        assert_eq!(before, park.to_save_bytes().unwrap());
+        let mut changed = park;
+        changed
+            .apply_terrain_brush(
+                TilePos { x: 23, y: 25 },
+                0,
+                park_sim::TerrainBrushKind::Sand,
+            )
+            .unwrap();
+        let mut drained = Painter::default();
+        fountain(&mut drained, &changed, 0, 0);
+        assert!(drained.positions.is_empty());
+    }
 
     #[test]
     fn shoreline_stays_on_water_roofs_in_every_rotation_and_preserves_park() {
