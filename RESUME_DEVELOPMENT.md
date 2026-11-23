@@ -1,5 +1,11 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Water graphics
+
+Continue on `codex/right-click-settings`. Water colors and surface details
+live in `world.rs` and `world/atmosphere.rs`. Use the landscape capture for
+visual comparisons. See `docs/sessions/2026-11-23-water-graphics.md`.
+
 ## 0.99.3 — Park startup
 
 Continue on `codex/right-click-settings`. The front end prepares Sunhaven

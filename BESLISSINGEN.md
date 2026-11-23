@@ -1,5 +1,11 @@
 # Project decisions
 
+## 2026-11-23 — Water graphics
+
+Paint lighter shallows along land edges and vary ripple lengths using the
+existing tile noise. Use the terrain surface painter to keep these details
+inside the water face and preserve the existing picking and occlusion rules.
+
 ## 2026-11-19 — Sunhaven Gardens startup
 
 Prepare the demo on Bevy's background compute pool during the intro and

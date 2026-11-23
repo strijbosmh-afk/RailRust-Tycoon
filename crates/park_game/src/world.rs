@@ -939,7 +939,7 @@ fn scene_painter(
             let color = if tile.owned {
                 match tile.terrain {
                     Terrain::Grass => varied(62, 151, 66, variation),
-                    Terrain::Water => varied(39, 167, 183, variation),
+                    Terrain::Water => varied(28, 133, 156, variation),
                     Terrain::Sand => varied(226, 204, 148, variation),
                 }
             } else {
@@ -972,24 +972,8 @@ fn scene_painter(
                 }
             }
 
-            if tile.terrain == Terrain::Water && !noise(pos).is_multiple_of(3) {
-                let offset = (noise(pos) % 11) as f32 - 5.0;
-                mesh.surface_line(
-                    top,
-                    center + Vec2::new(-11.0, offset),
-                    center + Vec2::new(8.0, offset),
-                    1.1,
-                    DETAIL_BIAS,
-                    rgb(133, 197, 192),
-                );
-                mesh.surface_line(
-                    top,
-                    center + Vec2::new(2.0, offset + 4.0),
-                    center + Vec2::new(9.0, offset + 4.0),
-                    0.8,
-                    DETAIL_BIAS,
-                    rgb(105, 179, 181),
-                );
+            if tile.terrain == Terrain::Water {
+                atmosphere::water_ripples(&mut mesh, pos, center, top);
             }
 
             atmosphere::shore_details(&mut mesh, park, pos, rotation, top);
@@ -997,7 +981,7 @@ fn scene_painter(
             if grid {
                 let stroke = match tile.terrain {
                     Terrain::Grass => rgb(65, 151, 53),
-                    Terrain::Water => rgb(36, 145, 169),
+                    Terrain::Water => rgb(27, 119, 143),
                     Terrain::Sand => rgb(207, 179, 109),
                 };
                 // Two edges per tile avoid double-width interior grid lines.

@@ -33,6 +33,32 @@ pub(super) fn ground_details(
     }
 }
 
+pub(super) fn water_ripples(mesh: &mut Painter, pos: TilePos, center: Vec2, top: Surface) {
+    let seed = noise(pos);
+    if seed.is_multiple_of(3) {
+        return;
+    }
+    let origin = center + Vec2::new(((seed >> 8) % 17) as f32 - 8.0, (seed % 13) as f32 - 6.0);
+    let length = 6.0 + ((seed >> 16) % 13) as f32;
+    mesh.surface_line(
+        top,
+        origin - Vec2::X * (length * 0.5),
+        origin + Vec2::X * (length * 0.5),
+        0.85,
+        DETAIL_BIAS,
+        rgb(83, 172, 182),
+    );
+    let crest = origin + Vec2::new(length * 0.18, 2.0);
+    mesh.surface_line(
+        top,
+        crest - Vec2::X * (length * 0.28),
+        crest + Vec2::X * (length * 0.28),
+        0.6,
+        DETAIL_BIAS,
+        rgb(146, 211, 199),
+    );
+}
+
 /// Soft water-side bands follow the actual land/water boundary in every
 /// camera rotation. The material stays on the water face and cannot change
 /// hit targets or cover a higher neighboring tile.
@@ -77,6 +103,12 @@ pub(super) fn shore_details(
         } else {
             rgb(60, 142, 110)
         };
+        mesh.paint_on_surface(
+            top,
+            &[a, b, b.lerp(center, 0.36), a.lerp(center, 0.36)],
+            DETAIL_BIAS * 0.5,
+            rgb(44, 153, 157),
+        );
         mesh.surface_line(
             top,
             a.lerp(center, 0.025),
@@ -91,7 +123,7 @@ pub(super) fn shore_details(
             b.lerp(center, 0.08),
             2.2,
             DETAIL_BIAS,
-            rgb(43, 126, 141),
+            rgb(65, 168, 161),
         );
         mesh.surface_line(
             top,
@@ -99,7 +131,7 @@ pub(super) fn shore_details(
             b.lerp(center, 0.17),
             0.9,
             DETAIL_BIAS * 2.0,
-            rgb(177, 219, 196),
+            rgb(131, 200, 180),
         );
         // Small water-edge stones break up the straight bank, while remaining
         // clipped to the actual water roof and below crossing paths.

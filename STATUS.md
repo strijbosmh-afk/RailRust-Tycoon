@@ -1,5 +1,11 @@
 # Project status
 
+## 0.99.3 — Water graphics
+
+Water has a deeper teal base, lighter shallows at land edges, and varied
+ripples. The surface depth and clipping rules remain in effect. See
+[the water graphics session](docs/sessions/2026-11-23-water-graphics.md).
+
 ## 0.99.3 — Park startup
 
 Sunhaven Gardens prepares its deterministic opening state on a background
