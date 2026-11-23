@@ -782,13 +782,10 @@ fn main() -> AppExit {
                 .chain(),
         )
         .add_systems(FixedUpdate, tick_simulation)
+        .add_systems(Update, (visual_style::fonts, visual_style::button_feedback))
         .add_systems(
-            Update,
-            (
-                visual_style::fonts,
-                visual_style::button_feedback,
-                visual_style::fit_backdrop,
-            ),
+            PostUpdate,
+            visual_style::fit_backdrop.before(bevy::ui::UiSystems::Layout),
         )
         .add_systems(
             Update,

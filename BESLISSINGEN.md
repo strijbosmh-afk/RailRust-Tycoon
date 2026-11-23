@@ -1,5 +1,10 @@
 # Project decisions
 
+## 2026-11-23 — Stable startup menu
+
+Keep the static intro overlay stable between input and screen changes.
+Size replacement artwork before layout so it fills the viewport at once.
+
 ## 2026-11-23 — Park soundscape
 
 Derive positional ambience from the existing park and camera. Keep the

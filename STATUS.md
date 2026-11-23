@@ -1,5 +1,11 @@
 # Project status
 
+## 0.99.3 — Stable startup menu
+
+The static intro keeps its UI instead of refreshing on a timer. Welcome
+artwork is sized before layout on the frame it appears. See
+[the startup menu session](docs/sessions/2026-11-23-startup-menu.md).
+
 ## 0.99.3 — Park soundscape
 
 The shared audio mixer adds spatial fountain spray, footsteps and shop

@@ -133,7 +133,6 @@ pub(super) struct FrontEnd {
     demo_task: Option<Task<Result<Park, String>>>,
     demo_template: Option<Park>,
     load_return: Screen,
-    intro_frame: u8,
     focus: usize,
 }
 
@@ -225,7 +224,6 @@ impl FrontEnd {
             demo_task: None,
             demo_template: None,
             load_return: Screen::Title,
-            intro_frame: 0,
             focus: 0,
         };
         result.reload();
@@ -538,7 +536,7 @@ pub(crate) fn campaign_park(campaign: &Campaign, kind: CampaignScenario) -> Resu
 
 pub(super) fn setup(
     mut commands: Commands,
-    front: Res<FrontEnd>,
+    mut front: ResMut<FrontEnd>,
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
     display: Option<Res<DisplaySettings>>,
@@ -554,6 +552,7 @@ pub(super) fn setup(
             &sim.0,
             art.as_deref(),
         );
+        front.dirty_ui = false;
     }
 }
 
@@ -1172,7 +1171,6 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
 
 type PresentationSettings<'w> = (
     Option<Res<'w, DisplaySettings>>,
-    Option<Res<'w, crate::accessibility::Preferences>>,
     Option<Res<'w, crate::visual_style::ClassicArt>>,
 );
 
@@ -1185,21 +1183,10 @@ pub(super) fn refresh(
     sim: Res<Simulation>,
     settings: PresentationSettings<'_>,
 ) {
-    let (display, preferences, art) = settings;
+    let (display, art) = settings;
     if front.screen == Screen::Settings && display.as_ref().is_some_and(|value| value.is_changed())
     {
         front.dirty_ui = true;
-    }
-    if front.screen == Screen::Intro {
-        let frame = if preferences.as_ref().is_some_and(|p| p.value.reduced_motion) {
-            0
-        } else {
-            (front.intro_started.elapsed().as_millis() / 250) as u8
-        };
-        if frame != front.intro_frame {
-            front.intro_frame = frame;
-            front.dirty_ui = true;
-        }
     }
     if !front.enabled || !front.dirty_ui {
         return;
@@ -1258,7 +1245,7 @@ fn spawn_overlay(
                         Screen::Park => "" };
                     title(p, subtitle, 19.0, cream);
                     match front.screen {
-                        Screen::Intro => { title(p, &format!("{} Build a place worth remembering {}", "✦".repeat((front.intro_frame % 4 + 1) as usize), "✦".repeat((front.intro_frame % 4 + 1) as usize)), 24.0, cream); button(p, "Skip intro", Action::Skip); },
+                        Screen::Intro => unreachable!("welcome screens use the artwork layout"),
                         Screen::Title => { if front.continue_id().is_some() { button(p, "Continue latest park", Action::Continue); }
                             else { title(p, "Continue unavailable — no healthy saved park. Use Load Park for a backup.", 14.0, cream); }
                             button(p, "Play Sunhaven Gardens · 7 rides", Action::Demo);
@@ -1339,7 +1326,7 @@ fn spawn_overlay(
                     }
                     if !front.notice.is_empty() { title(p, &front.notice, 13.0, gold); }
                     if let Some(action) = keyboard_actions(front).get(front.focus) {
-                        title(p, &format!("↑/↓ or Tab • Enter selects {} • Esc goes back", action_name(*action)), 12.0, cream);
+                        title(p, &format!("Up / Down or Tab • Enter selects {} • Esc goes back", action_name(*action)), 12.0, cream);
                     }
                 });
         });
@@ -1352,6 +1339,7 @@ fn spawn_welcome(
     art: Option<&crate::visual_style::ClassicArt>,
 ) {
     use crate::visual_style::{CREAM, FOREST, GOLD, MenuButton};
+    let actions = keyboard_actions(front);
     commands
         .spawn((
             Overlay,
@@ -1418,7 +1406,7 @@ fn spawn_welcome(
                     title(panel, "Build a park worth exploring.", 20.0, CREAM);
                     welcome_button(panel, "Enter Parkbound", Action::Skip, true, true);
                 } else {
-                    for action in keyboard_actions(front) {
+                    for &action in &actions {
                         let value = match action {
                             Action::Continue => "Continue",
                             Action::Demo => "Play Sunhaven Gardens",
@@ -1431,17 +1419,19 @@ fn spawn_welcome(
                             value,
                             action,
                             matches!(action, Action::Demo),
-                            keyboard_actions(front).get(front.focus) == Some(&action),
+                            actions.get(front.focus) == Some(&action),
                         );
                     }
                 }
                 if !front.notice.is_empty() {
                     title(panel, &front.notice, 14.0, GOLD);
                 }
-                if let Some(action) = keyboard_actions(front).get(front.focus) {
+                if front.screen == Screen::Intro {
+                    title(panel, "Enter to continue", 13.0, CREAM);
+                } else if let Some(action) = actions.get(front.focus) {
                     title(
                         panel,
-                        &format!("↑ / ↓  ·  Enter — {}", action_name(*action)),
+                        &format!("Up / Down · Enter — {}", action_name(*action)),
                         13.0,
                         CREAM,
                     );
@@ -1569,6 +1559,55 @@ fn action_name(action: Action) -> &'static str {
 mod tests {
     use super::*;
     use std::{ffi::OsString, fs};
+
+    #[test]
+    fn welcome_layout_is_stable_and_fitted_on_the_first_title_frame() {
+        use crate::visual_style::{ClassicArt, TitleBackdrop, fit_backdrop};
+
+        let mut app = App::new();
+        let session = SaveSession::from_arguments([OsString::from("--save-dir")]);
+        app.insert_resource(FrontEnd::new(true, &session))
+            .insert_resource(Campaign::preview())
+            .insert_resource(Simulation(new_game_park()))
+            .insert_resource(ClassicArt {
+                background: Handle::default(),
+                oak: Handle::default(),
+                heading: Handle::default(),
+                body: Handle::default(),
+            })
+            .add_systems(Startup, setup)
+            .add_systems(Update, refresh)
+            .add_systems(PostUpdate, fit_backdrop);
+        app.world_mut().spawn((
+            Window {
+                resolution: (1024, 680).into(),
+                ..default()
+            },
+            bevy::window::PrimaryWindow,
+        ));
+        let backdrop = |app: &mut App| {
+            let world = app.world_mut();
+            let (entity, node) = world
+                .query_filtered::<(Entity, &Node), With<TitleBackdrop>>()
+                .single(world)
+                .unwrap();
+            assert!(matches!(node.width, Val::Percent(width) if width > 110.0));
+            assert_eq!(node.height, percent(100.0));
+            entity
+        };
+        app.update();
+        let intro = backdrop(&mut app);
+        app.world_mut().resource_mut::<FrontEnd>().intro_started =
+            Instant::now() - Duration::from_secs(1);
+        app.update();
+        assert_eq!(backdrop(&mut app), intro);
+        app.world_mut()
+            .resource_mut::<FrontEnd>()
+            .capture_scene("title")
+            .unwrap();
+        app.update();
+        assert_ne!(backdrop(&mut app), intro);
+    }
 
     #[test]
     fn repeated_saves_keep_distinct_success_revisions_for_the_guide() {

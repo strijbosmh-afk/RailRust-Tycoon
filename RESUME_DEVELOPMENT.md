@@ -1,5 +1,11 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Stable startup menu
+
+Continue on `codex/right-click-settings`. The intro and main menu artwork
+is sized in PostUpdate before UI layout. The welcome-layout regression uses
+a 1024×680 window. See `docs/sessions/2026-11-23-startup-menu.md`.
+
 ## 0.99.3 — Park soundscape
 
 Continue on `codex/right-click-settings`. The camera-derived audio scene

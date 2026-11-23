@@ -34,7 +34,7 @@ pub(crate) fn fit_backdrop(
     mut backgrounds: Query<&mut Node, With<TitleBackdrop>>,
 ) {
     let Ok(window) = windows.single() else { return };
-    let ratio = window.width() / window.height().max(1.0);
+    let ratio = window.width().max(1.0) / window.height().max(1.0);
     let art_ratio = 16.0 / 9.0;
     for mut node in &mut backgrounds {
         node.width = percent(100.0 * (art_ratio / ratio).max(1.0));
