@@ -1,8 +1,33 @@
 //! Derive a bounded sound scene from the same camera and physical park positions.
-use super::synth::{MixState, RideEmitter};
+use super::synth::{AmbientSource, MixState, RideEmitter};
 use crate::{ViewState, world};
 use bevy::prelude::*;
-use park_sim::{CarouselPhase, Park, RideId, RideVisitPhase, TrainPhase};
+use park_sim::{
+    CarouselPhase, GuestState, Park, RideId, RideVisitPhase, ServiceVisitPhase, TrainPhase,
+};
+
+#[derive(Default)]
+struct LocalActivity {
+    weight: f32,
+    pan: f32,
+}
+
+impl LocalActivity {
+    fn add(&mut self, pan: f32, presence: f32) {
+        self.weight += presence;
+        self.pan += pan * presence;
+    }
+
+    fn source(&self, density: f32) -> AmbientSource {
+        if self.weight == 0.0 {
+            return AmbientSource::default();
+        }
+        AmbientSource {
+            level: 1.0 - (-self.weight / density).exp(),
+            pan: self.pan / self.weight,
+        }
+    }
+}
 
 pub(super) fn scene(park: &Park, view: &ViewState, window: &Window, ui_scale: f32) -> MixState {
     let mut state = MixState::default();
@@ -13,6 +38,10 @@ pub(super) fn scene(park: &Park, view: &ViewState, window: &Window, ui_scale: f3
     let radius = window.width().min(window.height()) * 0.32;
     let detail = (view.zoom / 3.0).clamp(0.12, 1.0);
     let spatial = |point| attenuation(point, center, scale, radius, detail);
+    if let Some(anchor) = world::fountain_anchor(park, view.rotation, view.view_mode) {
+        let (pan, level) = spatial(anchor.truncate());
+        state.fountain = AmbientSource { level, pan };
+    }
     let occupied = |id: RideId, train: Option<u8>| {
         park.guests().iter().any(|guest| {
             guest.ride_visit.as_ref().is_some_and(|visit| {
@@ -100,23 +129,37 @@ pub(super) fn scene(park: &Park, view: &ViewState, window: &Window, ui_scale: f3
         *slot = Some(emitter);
     }
 
-    let mut weight = 0.0;
-    let mut pan_weight = 0.0;
+    let mut crowd = LocalActivity::default();
+    let mut shops = LocalActivity::default();
+    let mut footsteps = LocalActivity::default();
     let mut happiness = 0.0;
     for guest in park.guests() {
         let Some(point) = world::guest_anchor(park, guest.id, view.rotation) else {
             continue;
         };
         let (pan, presence) = spatial(point.truncate());
-        weight += presence;
-        pan_weight += pan * presence;
+        crowd.add(pan, presence);
+        if guest.state == GuestState::Walking {
+            footsteps.add(pan, presence);
+        }
+        if guest.service_visit.as_ref().is_some_and(|visit| {
+            matches!(
+                visit.phase,
+                ServiceVisitPhase::Waiting | ServiceVisitPhase::Using
+            )
+        }) {
+            shops.add(pan, presence);
+        }
         happiness += f32::from(guest.satisfaction) / 100.0 * presence;
     }
-    if weight > 0.0 {
-        state.crowd = 1.0 - (-weight / 10.0).exp();
-        state.crowd_pan = pan_weight / weight;
-        state.happiness = happiness / weight;
+    if crowd.weight > 0.0 {
+        let source = crowd.source(10.0);
+        state.crowd = source.level;
+        state.crowd_pan = source.pan;
+        state.happiness = happiness / crowd.weight;
     }
+    state.shops = shops.source(3.0);
+    state.footsteps = footsteps.source(6.0);
     state.rain = park.park_life_status().weather == park_sim::Weather::Rain;
     state
 }
@@ -215,5 +258,30 @@ mod tests {
             }
             assert!(levels[1] > levels[0] * 4.0);
         }
+    }
+
+    #[test]
+    fn fountain_sound_follows_the_same_position_and_visibility_as_the_rendered_prop() {
+        let park = park_sim::demo_park::build_demo_park().unwrap();
+        let window = Window::default();
+        let mut view = ViewState {
+            zoom: 4.0,
+            front_modal: false,
+            ..Default::default()
+        };
+        let anchor = world::fountain_anchor(&park, view.rotation, view.view_mode).unwrap();
+        let (_, center) = crate::camera_layout_scaled(&window, &view, &park, 1.0);
+        view.pan += anchor.truncate() - center;
+        let close = scene(&park, &view, &window, 1.0);
+        assert!(close.fountain.level > 0.95 && close.fountain.pan.abs() < 0.01);
+        assert!(close.footsteps.level > 0.0);
+        view.pan += Vec2::X * 600.0;
+        let far = scene(&park, &view, &window, 1.0);
+        assert!(far.fountain.level < close.fountain.level && far.fountain.pan < -0.5);
+        view.view_mode = world::ViewMode::Underground;
+        assert_eq!(
+            scene(&park, &view, &window, 1.0).fountain,
+            AmbientSource::default()
+        );
     }
 }

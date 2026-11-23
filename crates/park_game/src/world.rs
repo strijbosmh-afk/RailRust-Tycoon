@@ -30,7 +30,7 @@ mod track_preview;
 mod train_render;
 mod tunnel_portals;
 
-pub(crate) use atmosphere::water_mesh;
+pub(crate) use atmosphere::{fountain_anchor, water_mesh};
 pub use carousel_render::{carousel_preview_mesh, ride_focus};
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};

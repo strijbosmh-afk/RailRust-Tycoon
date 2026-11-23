@@ -342,18 +342,25 @@ fn ornamental_pond(park: &Park) -> Option<(TilePos, TilePos, u8)> {
     None
 }
 
-fn fountain(mesh: &mut Painter, park: &Park, rotation: u8, phase: u8) {
-    let Some((center, opposite, height)) = ornamental_pond(park) else {
-        return;
-    };
+pub(crate) fn fountain_anchor(park: &Park, rotation: u8, mode: ViewMode) -> Option<Vec3> {
+    if park.width() > 64 || mode == ViewMode::Underground {
+        return None;
+    }
+    let (center, opposite, height) = ornamental_pond(park)?;
     let (x, y) = rotate(center, park.width(), rotation);
     let (other_x, other_y) = rotate(opposite, park.width(), rotation);
-    let base = project(
+    Some(project(
         (x + other_x) as f32 * 0.5,
         (y + other_y) as f32 * 0.5,
         f32::from(height),
         park.width(),
-    );
+    ))
+}
+
+fn fountain(mesh: &mut Painter, park: &Park, rotation: u8, phase: u8) {
+    let Some(base) = fountain_anchor(park, rotation, ViewMode::Surface) else {
+        return;
+    };
     let p = base.truncate();
     let z = base.z + DETAIL_BIAS * 6.0;
     mesh.ellipse(p, 22.0, 10.5, z, rgb(21, 103, 132));

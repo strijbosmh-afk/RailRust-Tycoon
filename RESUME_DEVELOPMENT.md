@@ -1,5 +1,12 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Park soundscape
+
+Continue on `codex/right-click-settings`. The camera-derived audio scene
+uses the rendered fountain anchor and active visitor state. Run the sound
+writer and verifier to reproduce the new plaza ambience excerpt.
+See `docs/sessions/2026-11-23-park-soundscape.md`.
+
 ## 0.99.3 — Graphics across parks
 
 Continue on `codex/right-click-settings`. The shared renderers determine

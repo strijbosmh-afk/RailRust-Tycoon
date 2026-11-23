@@ -208,6 +208,7 @@ type DeviceInputs<'w, 's> = (
     Query<'w, 's, &'static Window, With<bevy::window::PrimaryWindow>>,
     Query<'w, 's, &'static Interaction, (Changed<Interaction>, With<Button>)>,
     Option<Res<'w, UiScale>>,
+    Option<Res<'w, crate::display::DisplaySettings>>,
 );
 fn update(
     sim: Res<Simulation>,
@@ -218,7 +219,7 @@ fn update(
     output: Option<ResMut<Output>>,
     feedback_resources: FeedbackResources<'_, '_>,
 ) {
-    let (window, buttons, ui_scale) = inputs;
+    let (window, buttons, ui_scale, display) = inputs;
     let (mut feedback, preferences, mut captions) = feedback_resources;
     let test = std::mem::take(&mut settings.test_requested);
     feedback.remaining = (feedback.remaining - time.delta_secs()).max(0.0);
@@ -307,6 +308,10 @@ fn update(
     state.settings = settings.value;
     state.focused = window.iter().next().is_none_or(|w| w.focused);
     state.paused = view.speed == park_sim::Speed::Paused;
+    state.evening = !view.front_modal
+        && display
+            .as_ref()
+            .is_some_and(|settings| settings.value.lighting != crate::display::Lighting::Day);
     if out.last != Some(state)
         && out
             .sender

@@ -1,5 +1,11 @@
 # Project decisions
 
+## 2026-11-23 — Park soundscape
+
+Derive positional ambience from the existing park and camera. Keep the
+new sources on the ambience slider and use the existing evening preset.
+Differentiate ride models on the existing ride bus.
+
 ## 2026-11-23 — Graphics across parks
 
 Derive crossroad and waterfront finishes from existing path geometry and

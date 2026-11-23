@@ -1,5 +1,12 @@
 # Project status
 
+## 0.99.3 — Park soundscape
+
+The shared audio mixer adds spatial fountain spray, footsteps and shop
+activity. Twilight and night use crickets, and several ride models have
+distinct operating sounds. See
+[the soundscape session](docs/sessions/2026-11-23-park-soundscape.md).
+
 ## 0.99.3 — Graphics across parks
 
 Crossroads and waterfront walks pick their surface finish from the layout.
