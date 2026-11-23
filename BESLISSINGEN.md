@@ -1,5 +1,12 @@
 # Project decisions
 
+## 2026-11-23 — Park atmosphere
+
+Cluster cosmetic planting with deterministic tile noise and clip contact
+shadows to their receiving terrain. Use the existing presentation clock
+for entrance pennants and water glints. Waiting visitors use a cosmetic idle
+pose driven by park ticks. All three effects respect reduced motion.
+
 ## 2026-11-23 — Classic coaster graphics
 
 Use Sunburst as the reference for a shared Classic Coaster style. Carry

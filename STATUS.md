@@ -1,5 +1,12 @@
 # Project status
 
+## 0.99.3 — Park planting, shadows and motion
+
+Low planting grows in visual clusters on open lawns. Trees, stations and
+raised paths cast ground-clipped contact shadows. Ride entrances have animated
+pennants, waiting visitors shift their gaze, and water glints are more visible at park scale. See
+[the park atmosphere session](docs/sessions/2026-11-23-park-atmosphere.md).
+
 ## 0.99.3 — Classic coaster graphics
 
 The Classic Coaster has pitched platform roofs, brighter rails and train

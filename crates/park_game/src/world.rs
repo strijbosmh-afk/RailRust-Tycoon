@@ -640,7 +640,18 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 column_surfaces(park, object.pos, rotation)[0],
             ) {
                 match object.kind {
-                    ObjectKind::SceneryTree => tree(mesh, base, top, object.id.0 as u32),
+                    ObjectKind::SceneryTree => {
+                        if let Some(tile) = park.tile(object.pos) {
+                            atmosphere::contact_shadow(
+                                mesh,
+                                top,
+                                base + Vec2::new(9.0, -2.0),
+                                Vec2::new(22.0, 8.0),
+                                tile.terrain,
+                            );
+                        }
+                        tree(mesh, base, top, object.id.0 as u32);
+                    }
                     ObjectKind::FlowerBed => {
                         landscape::flowerbed(mesh, base, top, object.id.0 as u32)
                     }
@@ -1006,6 +1017,7 @@ fn scene_painter(
         }
     }
 
+    atmosphere::structure_shadows(&mut mesh, park, rotation);
     // Scenery is anchored to simulation coordinates, so it follows rotation.
     // The generous central clearing is reserved for later construction tools.
     let mut trees = natural_trees(park);
@@ -1017,6 +1029,13 @@ fn scene_painter(
     for pos in trees {
         let base = elevated_tile_center(park, pos, rotation).expect("valid scenery tile");
         let top = column_surfaces(park, pos, rotation)[0].expect("valid scenery roof");
+        atmosphere::contact_shadow(
+            &mut mesh,
+            top,
+            base + Vec2::new(9.0, -2.0),
+            Vec2::new(22.0, 8.0),
+            Terrain::Grass,
+        );
         tree(&mut mesh, base, top, noise(pos));
         mesh.end_group(PaintLayer::Scenery);
     }
@@ -1509,6 +1528,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         }
         // A tiny billboard has the depth of its feet, so nearer terrain or
         // decks can hide it. The bias only separates it from its own roof.
+        let body_start = mesh.positions.len();
         let depth = base.z + 0.04;
         let stride = if let Some(progress) = guest_walk_progress(guest) {
             ((f32::from(progress) / f32::from(park_sim::WALK_TICKS)) * std::f32::consts::TAU).sin()
@@ -1673,6 +1693,12 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 rgb(201, 68, 34),
             );
         }
+        animate_guest_idle(
+            &mut mesh.positions[body_start..],
+            guest,
+            park.ticks(),
+            point.y,
+        );
         if let Some(phase) = guest_visit_marker(guest) {
             paint_guest_visit_marker(&mut mesh, phase, point, depth);
         }
@@ -2000,6 +2026,25 @@ fn guest_supports(guest: &park_sim::Guest) -> [Option<park_sim::ObjectId>; 2] {
     [guest.current, guest.next]
 }
 
+fn animate_guest_idle(
+    positions: &mut [[f32; 3]],
+    guest: &park_sim::Guest,
+    ticks: u64,
+    feet_y: f32,
+) {
+    if guest.state != GuestState::Waiting
+        || (guest.ride_visit.is_none() && guest.service_visit.is_none())
+    {
+        return;
+    }
+    // Give each waiting guest a different cadence. Feet and depth stay fixed.
+    let phase = ((ticks % 96 + guest.id.0 % 96) % 96) as f32 * std::f32::consts::TAU / 96.0;
+    let lean = phase.sin() * 1.6;
+    for point in positions {
+        point[0] += ((point[1] - feet_y - 14.0) / 10.0).clamp(0.0, 1.0) * lean;
+    }
+}
+
 fn guest_walk_progress(guest: &park_sim::Guest) -> Option<u16> {
     if guest_is_transfer(guest) {
         return guest
@@ -2106,14 +2151,6 @@ fn project_path_point(point: park_sim::PathPoint, size: u32, rotation: u8) -> Ve
 fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
     let depth = top.depth_at(base) + 0.025;
     let scale = 0.85 + (seed % 6) as f32 * 0.055;
-    mesh.surface_ellipse(
-        top,
-        base + Vec2::new(6.0, -1.0),
-        18.0 * scale,
-        7.0 * scale,
-        DETAIL_BIAS,
-        rgb(61, 136, 59),
-    );
     mesh.line(
         base,
         base + Vec2::new(0.0, 25.0 * scale),

@@ -197,7 +197,16 @@ impl GuestRenderer {
                         guest.state != GuestState::Walking || guest.progress < WALK_TICKS
                     );
                     let appearance = (guest.id.0 % APPEARANCES as u64) as usize;
+                    let body_start = writer.positions.len();
                     writer.body(&self.bodies[appearance * POSES + pose], base);
+                    if !self.reduced_motion {
+                        animate_guest_idle(
+                            &mut writer.positions[body_start..],
+                            guest,
+                            park.ticks(),
+                            base.y,
+                        );
+                    }
                     if let Some(phase) = guest_visit_marker(guest) {
                         writer.body(&self.markers[marker_index(phase)], base);
                     }

@@ -10,6 +10,36 @@ pub(super) fn ground_details(
     landscape::ground(mesh, park, pos, top);
     let seed = noise(pos);
     if park.width() <= 64
+        && park
+            .tile(pos)
+            .is_some_and(|tile| tile.terrain == Terrain::Grass && tile.owned)
+        && seed.is_multiple_of(3)
+        && noise(TilePos {
+            x: pos.x / 4,
+            y: pos.y / 4,
+        })
+        .is_multiple_of(3)
+        && !park.objects().iter().any(|object| object.pos == pos)
+    {
+        // Nearby tiles share a coarse seed, leaving clear lawns between clusters.
+        for offset in [
+            Vec2::new(-11.0, 1.0),
+            Vec2::new(2.0, -4.0),
+            Vec2::new(10.0, 4.0),
+        ] {
+            let base = center + offset;
+            mesh.surface_ellipse(top, base, 5.5, 2.8, DETAIL_BIAS * 2.0, rgb(69, 118, 57));
+            mesh.surface_ellipse(
+                top,
+                base + Vec2::Y,
+                3.7,
+                2.2,
+                DETAIL_BIAS * 3.0,
+                rgb(100, 151, 71),
+            );
+        }
+    }
+    if park.width() <= 64
         && park.tile(pos).is_some_and(|t| t.terrain == Terrain::Grass)
         && seed.is_multiple_of(19)
         && !park.objects().iter().any(|o| o.pos == pos)
@@ -31,6 +61,68 @@ pub(super) fn ground_details(
             );
         }
     }
+}
+
+pub(super) fn structure_shadows(mesh: &mut Painter, park: &Park, rotation: u8) {
+    for object in park.objects() {
+        let Some(tile) = park.tile(object.pos) else {
+            continue;
+        };
+        let (offset, radii) = match object.kind {
+            ObjectKind::Path => {
+                let height = object_base_at(object, Vec2::ZERO) - f32::from(tile.height);
+                if height < 0.75 {
+                    continue;
+                }
+                let reach = height.min(10.0);
+                (reach, Vec2::new(11.0 + reach, 5.5))
+            }
+            ObjectKind::Track
+                if object_visible(park, object, ViewMode::Surface)
+                    && train_render::piece_for(park, object.id)
+                        .is_some_and(|piece| piece.kind == park_sim::TrackKind::Station) =>
+            {
+                (10.0, Vec2::new(23.0, 9.0))
+            }
+            _ => continue,
+        };
+        if let (Some(base), Some(top)) = (
+            elevated_tile_center(park, object.pos, rotation),
+            column_surfaces(park, object.pos, rotation)[0],
+        ) {
+            contact_shadow(
+                mesh,
+                top,
+                base + Vec2::new(offset, -2.0),
+                radii,
+                tile.terrain,
+            );
+            mesh.end_group(PaintLayer::Terrain);
+        }
+    }
+}
+
+pub(super) fn contact_shadow(
+    mesh: &mut Painter,
+    top: Surface,
+    center: Vec2,
+    radii: Vec2,
+    terrain: Terrain,
+) {
+    let (outer, inner) = match terrain {
+        Terrain::Grass => (rgb(58, 126, 63), rgb(49, 113, 58)),
+        Terrain::Sand => (rgb(209, 185, 131), rgb(190, 166, 117)),
+        Terrain::Water => return,
+    };
+    mesh.surface_ellipse(top, center, radii.x, radii.y, DETAIL_BIAS * 4.0, outer);
+    mesh.surface_ellipse(
+        top,
+        center - Vec2::X * (radii.x * 0.12),
+        radii.x * 0.72,
+        radii.y * 0.68,
+        DETAIL_BIAS * 5.0,
+        inner,
+    );
 }
 
 pub(super) fn water_ripples(mesh: &mut Painter, pos: TilePos, center: Vec2, top: Surface) {
@@ -167,13 +259,13 @@ pub(crate) fn water_mesh(park: &Park, rotation: u8, mode: ViewMode, phase: u8) -
             let top = column_surfaces(park, pos, rotation)[0].unwrap();
             let center = elevated_tile_center(park, pos, rotation).unwrap();
             let wave = ((u32::from(phase) + noise(pos) % 16) % 16) as f32;
-            let shift = (wave / 16.0 * std::f32::consts::TAU).sin() * 2.5;
-            let width = 4.0 + (wave / 16.0 * std::f32::consts::PI).sin() * 5.0;
+            let shift = (wave / 16.0 * std::f32::consts::TAU).sin() * 3.5;
+            let width = 3.0 + (wave / 16.0 * std::f32::consts::PI).sin() * 8.0;
             mesh.surface_line(
                 top,
                 center + Vec2::new(-width, shift),
                 center + Vec2::new(width, shift),
-                0.85,
+                1.05,
                 DETAIL_BIAS * 3.0,
                 rgb(147, 205, 197),
             );

@@ -1,5 +1,12 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Park planting, shadows and motion
+
+Continue on `codex/right-click-settings`. The atmosphere and lighting
+renderers own the new planting, shadows, water highlights and pennants.
+Use the demo and landscape captures to review the details at different zoom
+levels. See `docs/sessions/2026-11-23-park-atmosphere.md`.
+
 ## 0.99.3 — Classic coaster graphics
 
 Continue on `codex/right-click-settings`. The Classic Coaster update uses
