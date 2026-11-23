@@ -108,23 +108,41 @@ pub(super) fn static_faces(
     let (w, d) = model.dimensions();
     let z = f32::from(height);
     let center = Vec3::new((w - 1) as f32 / 2.0, (d - 1) as f32 / 2.0, z);
+    let (foundation, inlay, edging) = match model {
+        RideModel::PirateShip => (
+            [rgb(137, 92, 55), rgb(113, 72, 47), rgb(75, 50, 36)],
+            [rgb(180, 128, 80), rgb(152, 103, 66)],
+            GOLD,
+        ),
+        RideModel::TeaCups => (
+            [rgb(157, 126, 179), rgb(109, 86, 140), rgb(79, 59, 107)],
+            [rgb(238, 219, 208), rgb(202, 167, 205)],
+            [rgb(231, 196, 213), rgb(176, 132, 167), rgb(119, 90, 133)],
+        ),
+        RideModel::ObservationTower => (
+            [rgb(139, 157, 175), rgb(100, 121, 143), rgb(67, 85, 107)],
+            [rgb(212, 224, 227), rgb(168, 191, 210)],
+            [rgb(177, 204, 222), rgb(116, 149, 172), rgb(82, 105, 129)],
+        ),
+        _ => (GOLD, [rgb(218, 226, 193), rgb(158, 190, 166)], GOLD),
+    };
     local_box(
         &mut out,
         Vec3::new(-0.45, -0.45, z),
         Vec3::new(w as f32 - 0.55, d as f32 - 0.55, z + 0.15),
-        GOLD,
+        foundation,
     );
     for x in 0..w {
         local_box(
             &mut out,
             Vec3::new(x as f32 - 0.35, -0.4, z + 0.15),
             Vec3::new(x as f32 + 0.35, -0.15, z + 0.17),
-            RED,
+            edging,
         );
     }
     // The perimeter is assembled from slim posts and two rails, preserving
     // the open gate at the front left and every model's reserved footprint.
-    let fence = [GOLD[0], GOLD[1], GOLD[2]];
+    let fence = edging;
     for x in 0..w {
         for y in [-0.34, d as f32 - 0.66] {
             if x == 0 && y < 0.0 {
@@ -166,11 +184,7 @@ pub(super) fn static_faces(
                     center + Vec3::new(0.35, 0.30, 0.0),
                     center + Vec3::new(-0.30, 0.35, 0.0),
                 ],
-                if (x + y) % 2 == 0 {
-                    rgb(218, 226, 193)
-                } else {
-                    rgb(158, 190, 166)
-                },
+                inlay[((x + y) % 2) as usize],
             );
         }
     }
@@ -185,7 +199,7 @@ pub(super) fn static_faces(
                 Vec3::new(x, y, z + 0.20),
                 Vec3::new(x, y, z + 0.69),
                 0.009,
-                GOLD,
+                edging,
             );
         }
     }

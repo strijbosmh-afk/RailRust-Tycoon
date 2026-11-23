@@ -10,7 +10,7 @@ use park_sim::{
     Axis, GuestState, ObjectKind, Park, PathSlope, RideVisitPhase, SurfaceId, SurfaceObject,
     Terrain, TilePos,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 mod atmosphere;
 mod carousel_render;
@@ -30,7 +30,7 @@ mod track_preview;
 mod train_render;
 mod tunnel_portals;
 
-pub(crate) use atmosphere::water_mesh;
+pub(crate) use atmosphere::{fountain_anchor, water_mesh};
 pub use carousel_render::{carousel_preview_mesh, ride_focus};
 pub use guest_render::{GuestRenderStats, GuestRenderer};
 pub use layout::{path_focus, scene_bounds};
@@ -640,7 +640,18 @@ fn paint_objects(mesh: &mut Painter, park: &Park, rotation: u8, mode: ViewMode) 
                 column_surfaces(park, object.pos, rotation)[0],
             ) {
                 match object.kind {
-                    ObjectKind::SceneryTree => tree(mesh, base, top, object.id.0 as u32),
+                    ObjectKind::SceneryTree => {
+                        if let Some(tile) = park.tile(object.pos) {
+                            atmosphere::contact_shadow(
+                                mesh,
+                                top,
+                                base + Vec2::new(9.0, -2.0),
+                                Vec2::new(22.0, 8.0),
+                                tile.terrain,
+                            );
+                        }
+                        tree(mesh, base, top, object.id.0 as u32);
+                    }
                     ObjectKind::FlowerBed => {
                         landscape::flowerbed(mesh, base, top, object.id.0 as u32)
                     }
@@ -939,7 +950,7 @@ fn scene_painter(
             let color = if tile.owned {
                 match tile.terrain {
                     Terrain::Grass => varied(62, 151, 66, variation),
-                    Terrain::Water => varied(39, 167, 183, variation),
+                    Terrain::Water => varied(28, 133, 156, variation),
                     Terrain::Sand => varied(226, 204, 148, variation),
                 }
             } else {
@@ -972,24 +983,8 @@ fn scene_painter(
                 }
             }
 
-            if tile.terrain == Terrain::Water && !noise(pos).is_multiple_of(3) {
-                let offset = (noise(pos) % 11) as f32 - 5.0;
-                mesh.surface_line(
-                    top,
-                    center + Vec2::new(-11.0, offset),
-                    center + Vec2::new(8.0, offset),
-                    1.1,
-                    DETAIL_BIAS,
-                    rgb(133, 197, 192),
-                );
-                mesh.surface_line(
-                    top,
-                    center + Vec2::new(2.0, offset + 4.0),
-                    center + Vec2::new(9.0, offset + 4.0),
-                    0.8,
-                    DETAIL_BIAS,
-                    rgb(105, 179, 181),
-                );
+            if tile.terrain == Terrain::Water {
+                atmosphere::water_ripples(&mut mesh, pos, center, top);
             }
 
             atmosphere::shore_details(&mut mesh, park, pos, rotation, top);
@@ -997,7 +992,7 @@ fn scene_painter(
             if grid {
                 let stroke = match tile.terrain {
                     Terrain::Grass => rgb(65, 151, 53),
-                    Terrain::Water => rgb(36, 145, 169),
+                    Terrain::Water => rgb(27, 119, 143),
                     Terrain::Sand => rgb(207, 179, 109),
                 };
                 // Two edges per tile avoid double-width interior grid lines.
@@ -1022,6 +1017,7 @@ fn scene_painter(
         }
     }
 
+    atmosphere::structure_shadows(&mut mesh, park, rotation);
     // Scenery is anchored to simulation coordinates, so it follows rotation.
     // The generous central clearing is reserved for later construction tools.
     let mut trees = natural_trees(park);
@@ -1033,6 +1029,13 @@ fn scene_painter(
     for pos in trees {
         let base = elevated_tile_center(park, pos, rotation).expect("valid scenery tile");
         let top = column_surfaces(park, pos, rotation)[0].expect("valid scenery roof");
+        atmosphere::contact_shadow(
+            &mut mesh,
+            top,
+            base + Vec2::new(9.0, -2.0),
+            Vec2::new(22.0, 8.0),
+            Terrain::Grass,
+        );
         tree(&mut mesh, base, top, noise(pos));
         mesh.end_group(PaintLayer::Scenery);
     }
@@ -1163,6 +1166,59 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     let mut mesh = Painter::default();
     if park.width() != park.height() {
         return mesh.finish();
+    }
+    if mode == ViewMode::Surface {
+        for path in park.objects().iter().filter(|p| p.is_public_path()) {
+            let Some(tile) = park.tile(path.pos) else {
+                continue;
+            };
+            if path.height < tile.height.saturating_add(2) && tile.terrain != Terrain::Water {
+                continue;
+            }
+            let (min_x, max_x, min_y, max_y) = object_bounds(park, path);
+            let (lo, hi, left, right) = match object_axis(path) {
+                Axis::X => (min_x, max_x, min_y, max_y),
+                Axis::Y => (min_y, max_y, min_x, max_x),
+            };
+            for across in [
+                (left > -0.5).then_some(left + 0.035),
+                (right < 0.5).then_some(right - 0.035),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let post = |along| {
+                    let p = object_point(
+                        path,
+                        along,
+                        across,
+                        object_top(path),
+                        park.width(),
+                        rotation,
+                    );
+                    let roof = object_surfaces(park, path, rotation)[0];
+                    p.extend(roof.depth_at(p) + 0.035)
+                };
+                let a = post(lo + 0.04);
+                let b = post(hi - 0.04);
+                for base in [a, b] {
+                    mesh.line(
+                        base.truncate(),
+                        base.truncate() + Vec2::Y * 7.0,
+                        1.7,
+                        base.z,
+                        rgb(93, 65, 44),
+                    );
+                }
+                mesh.line(
+                    a.truncate() + Vec2::Y * 7.0,
+                    b.truncate() + Vec2::Y * 7.0,
+                    1.8,
+                    (a.z + b.z) * 0.5,
+                    rgb(194, 147, 88),
+                );
+            }
+        }
     }
     for id in park.handyman_patrol() {
         let Some(path) = park
@@ -1498,6 +1554,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     if park.width() != park.height() {
         return mesh.finish();
     }
+    let mut occupied_benches = HashSet::new();
     for guest in park.guests() {
         if guest_is_riding(guest) {
             continue;
@@ -1512,6 +1569,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         let Some(base) = guest_anchor(park, guest.id, rotation) else {
             continue;
         };
+        let (base, pose) = guest_activity(park, guest, base, rotation, &mut occupied_benches);
         let point = base.truncate();
         // Clip the contact shadow to the actual supporting path decks. While
         // crossing a tile edge the two roofs form the continuous support.
@@ -1525,6 +1583,7 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
         }
         // A tiny billboard has the depth of its feet, so nearer terrain or
         // decks can hide it. The bias only separates it from its own roof.
+        let body_start = mesh.positions.len();
         let depth = base.z + 0.04;
         let stride = if let Some(progress) = guest_walk_progress(guest) {
             ((f32::from(progress) / f32::from(park_sim::WALK_TICKS)) * std::f32::consts::TAU).sin()
@@ -1689,6 +1748,13 @@ pub fn guest_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
                 rgb(201, 68, 34),
             );
         }
+        animate_guest_idle(
+            &mut mesh.positions[body_start..],
+            guest,
+            park.ticks(),
+            point.y,
+        );
+        pose.apply(&mut mesh.positions[body_start..], point.y);
         if let Some(phase) = guest_visit_marker(guest) {
             paint_guest_visit_marker(&mut mesh, phase, point, depth);
         }
@@ -2016,6 +2082,99 @@ fn guest_supports(guest: &park_sim::Guest) -> [Option<park_sim::ObjectId>; 2] {
     [guest.current, guest.next]
 }
 
+#[derive(Clone, Copy)]
+enum GuestActivity {
+    Standing,
+    Seated,
+    Ordering(f32),
+    Watching(f32),
+}
+
+impl GuestActivity {
+    fn apply(self, positions: &mut [[f32; 3]], feet_y: f32) {
+        for point in positions {
+            let height = point[1] - feet_y;
+            match self {
+                Self::Standing => return,
+                Self::Seated => {
+                    point[0] += ((9.0 - height) / 9.0).clamp(0.0, 1.0) * 4.0;
+                    point[1] -= height.clamp(0.0, 9.0) * 0.42;
+                }
+                Self::Ordering(toward) => {
+                    point[0] += ((height - 8.0) / 13.0).clamp(0.0, 1.0) * toward * 3.0;
+                    point[1] -= ((height - 12.0) / 10.0).clamp(0.0, 1.0) * 1.3;
+                }
+                Self::Watching(toward) => {
+                    let head = ((height - 16.0) / 7.0).clamp(0.0, 1.0);
+                    point[0] += head * toward * 2.6;
+                    point[1] += head * 1.6;
+                }
+            }
+        }
+    }
+}
+
+fn guest_activity(
+    park: &Park,
+    guest: &park_sim::Guest,
+    base: Vec3,
+    rotation: u8,
+    occupied_benches: &mut HashSet<park_sim::ObjectId>,
+) -> (Vec3, GuestActivity) {
+    if guest.state != GuestState::Waiting {
+        return (base, GuestActivity::Standing);
+    }
+    let toward = |target| {
+        surface_center(park, SurfaceId::Object(target), rotation)
+            .map_or(0.0, |point| ((point.x - base.x) / 12.0).clamp(-1.0, 1.0))
+    };
+    if let Some(visit) = &guest.service_visit {
+        if let Some(object) = park
+            .service(visit.service)
+            .and_then(|service| service.object)
+        {
+            return (base, GuestActivity::Ordering(toward(object)));
+        }
+    } else if let Some(visit) = &guest.ride_visit {
+        if visit.phase == RideVisitPhase::Queueing
+            && let Some(gate) = park.ride_by_id(visit.ride).and_then(|ride| ride.entrance)
+        {
+            return (base, GuestActivity::Watching(toward(gate.object)));
+        }
+    } else if let Some(path) = guest.current
+        && park
+            .path_benches()
+            .binary_search_by_key(&path, |bench| bench.path)
+            .is_ok()
+        && let Some(center) = park.object(path).and_then(SurfaceObject::path_center)
+        && occupied_benches.insert(path)
+    {
+        let anchor =
+            project_path_point(center, park.width(), rotation) + Vec3::new(9.0, 1.0, 0.012);
+        return (anchor, GuestActivity::Seated);
+    }
+    (base, GuestActivity::Standing)
+}
+
+fn animate_guest_idle(
+    positions: &mut [[f32; 3]],
+    guest: &park_sim::Guest,
+    ticks: u64,
+    feet_y: f32,
+) {
+    if guest.state != GuestState::Waiting
+        || (guest.ride_visit.is_none() && guest.service_visit.is_none())
+    {
+        return;
+    }
+    // Give each waiting guest a different cadence. Feet and depth stay fixed.
+    let phase = ((ticks % 96 + guest.id.0 % 96) % 96) as f32 * std::f32::consts::TAU / 96.0;
+    let lean = phase.sin() * 1.6;
+    for point in positions {
+        point[0] += ((point[1] - feet_y - 14.0) / 10.0).clamp(0.0, 1.0) * lean;
+    }
+}
+
 fn guest_walk_progress(guest: &park_sim::Guest) -> Option<u16> {
     if guest_is_transfer(guest) {
         return guest
@@ -2122,14 +2281,6 @@ fn project_path_point(point: park_sim::PathPoint, size: u32, rotation: u8) -> Ve
 fn tree(mesh: &mut Painter, base: Vec2, top: Surface, seed: u32) {
     let depth = top.depth_at(base) + 0.025;
     let scale = 0.85 + (seed % 6) as f32 * 0.055;
-    mesh.surface_ellipse(
-        top,
-        base + Vec2::new(6.0, -1.0),
-        18.0 * scale,
-        7.0 * scale,
-        DETAIL_BIAS,
-        rgb(61, 136, 59),
-    );
     mesh.line(
         base,
         base + Vec2::new(0.0, 25.0 * scale),

@@ -204,6 +204,7 @@ impl Glyph {
 
     pub(super) fn for_button(action: Option<&Action>, caption: &str) -> Self {
         match action {
+            Some(Action::Manual) => Self::File,
             Some(Action::Menu) => Self::Menu,
             Some(
                 Action::CloseNavigation

@@ -9,8 +9,9 @@ enum Excerpt {
     Water,
     Chain,
     Crowd,
+    Plaza,
 }
-const CLIPS: [(&str, usize, Option<usize>, Excerpt); 11] = [
+const CLIPS: [(&str, usize, Option<usize>, Excerpt); 12] = [
     ("parkbound-mix.wav", 40, None, Excerpt::Park),
     ("meadow-theme.wav", 8, Some(1), Excerpt::Park),
     ("park-ambience.wav", 8, Some(2), Excerpt::Park),
@@ -22,6 +23,7 @@ const CLIPS: [(&str, usize, Option<usize>, Excerpt); 11] = [
     ("water-slide.wav", 8, Some(3), Excerpt::Water),
     ("coaster-chain.wav", 8, Some(3), Excerpt::Chain),
     ("enthusiastic-visitors.wav", 5, Some(5), Excerpt::Crowd),
+    ("plaza-evening.wav", 12, Some(2), Excerpt::Plaza),
 ];
 fn demo(seconds: usize, bus: Option<usize>, excerpt: Excerpt) -> Vec<u8> {
     let mut mixer = Mixer::default();
@@ -61,6 +63,21 @@ fn demo(seconds: usize, bus: Option<usize>, excerpt: Excerpt) -> Vec<u8> {
     }
     let mut pcm = Vec::new();
     match excerpt {
+        Excerpt::Plaza => {
+            mixer.state.fountain = synth::AmbientSource {
+                level: 0.85,
+                pan: -0.6,
+            };
+            mixer.state.shops = synth::AmbientSource {
+                level: 0.55,
+                pan: 0.7,
+            };
+            mixer.state.footsteps = synth::AmbientSource {
+                level: 0.65,
+                pan: 0.2,
+            };
+            mixer.state.evening = true;
+        }
         Excerpt::Lakeside => mixer.start_track(1),
         Excerpt::Starlight => mixer.start_track(2),
         Excerpt::Water | Excerpt::Chain => {
@@ -77,6 +94,10 @@ fn demo(seconds: usize, bus: Option<usize>, excerpt: Excerpt) -> Vec<u8> {
         Excerpt::Park => {}
     }
     for second in 0..seconds {
+        if matches!(excerpt, Excerpt::Plaza) && second == seconds / 2 {
+            mixer.state.fountain.pan = 0.6;
+            mixer.state.shops.pan = -0.7;
+        }
         mixer.cue(if bus == Some(5) {
             if second % 2 == 0 {
                 Cue::Cheer
@@ -201,7 +222,7 @@ fn verify(directory: &Path) -> Result<(), String> {
             return Err(format!("Original PCM restart differs: {name}"));
         }
     }
-    fs::write(directory.join("verification-sound.txt"),"PASS: actual UI levels/mute, bounded strict settings, independent park bytes, eleven exact soundtrack/effect WAV re-renders after fresh restart.\n").map_err(|e|e.to_string())
+    fs::write(directory.join("verification-sound.txt"),format!("PASS: actual UI levels/mute, bounded strict settings, independent park bytes, {} exact soundtrack/effect WAV re-renders after fresh restart.\n", CLIPS.len())).map_err(|e|e.to_string())
 }
 pub(super) fn run(args: &[OsString]) -> Option<AppExit> {
     let flags: Vec<_> = args

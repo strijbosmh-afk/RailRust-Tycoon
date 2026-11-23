@@ -189,6 +189,7 @@ pub(super) enum Action {
     CloseHelp,
     Accessibility,
     ReplayGuide,
+    Manual,
 }
 
 #[derive(Component)]
@@ -212,6 +213,7 @@ pub(super) enum Label {
     RideName,
     RideAccess,
     SaveStatus,
+    ManualStatus,
     ParkName,
     ParkInfo,
     PathHeight,
@@ -657,7 +659,7 @@ pub(super) fn setup(mut commands: Commands) {
             dynamic_label(p, "Ready to explore", 11.0, INK, Label::Status);
             label(
                 p,
-                "P/J: paths  I/K: gates  X: remove  L: guests  H: help",
+                "Right-click: settings  /  Right-drag: pan  /  H: help",
                 11.0,
                 MUTED,
             );
@@ -688,8 +690,13 @@ pub(super) fn setup(mut commands: Commands) {
             ))
             .with_children(|p| {
                 label(p, "Make yourself at home", 23.0, INK);
+                layout::section(p, "Detailed player manual", |p| {
+                    button(p, "Player manual - open in browser", Action::Manual, 310.0);
+                    dynamic_label(p, "", 12.0, MUTED, Label::ManualStatus);
+                    label(p, "Press Space to pause before reading. Otherwise your park keeps running.", 12.0, MUTED);
+                });
                 layout::section(p, "Park basics", |p| {
-                label(p,"Paths join at matching edge heights. A queue needs one public entry and a ride entrance.\nRides → Access explains missing connections. Coaster tools show the next height before placement.\nChoose slope up/down, then Add next. Close the circuit, test it, and follow opening checks.\nFacilities need a public path and stock. Staff need reachable work. Save before major changes.\nShortcuts below are defaults. Controls & accessibility shows your saved key assignments.",12.0,INK);
+                label(p,"Right-click a ride or facility for its settings; right-drag pans.\nPaths join at matching edge heights. A queue needs one public entry and a ride entrance.\nRides → Access explains missing connections. Coaster tools show the next height before placement.\nChoose slope up/down, then Add next. Close the circuit, test it, and follow opening checks.\nFacilities need a public path and stock. Staff need reachable work. Save before major changes.\nShortcuts below are defaults. Controls & accessibility shows your saved key assignments.",12.0,INK);
                 label(
                     p,
                     &format!(
@@ -1139,7 +1146,7 @@ pub(super) fn button_actions(
         if view.help
             && !matches!(
                 action,
-                Action::CloseHelp | Action::Help | Action::Sound | Action::Menu
+                Action::CloseHelp | Action::Help | Action::Sound | Action::Menu | Action::Manual
             )
         {
             continue;
@@ -1447,6 +1454,19 @@ pub(super) fn button_actions(
                 view.help = !view.help;
             }
             Action::Accessibility | Action::ReplayGuide => {}
+            Action::Manual
+                if view.help
+                    && !view.capture_active
+                    && view.diagnostic_case.is_none()
+                    && !view.modal_input_blocked
+                    && view.save_pending.is_none() =>
+            {
+                view.manual_notice = match crate::manual::open() {
+                    Ok(()) => "Manual requested in your default browser. You can also open docs/PLAYER_MANUAL.html beside the game.".into(),
+                    Err(error) => error,
+                };
+            }
+            Action::Manual => {}
             Action::CloseHelp => view.help = false,
         }
     }
@@ -1825,6 +1845,7 @@ pub(super) fn refresh(
             }
             .into(),
             Label::SaveStatus => view.save_notice.clone(),
+            Label::ManualStatus => view.manual_notice.clone(),
             Label::PathShape
                 if matches!(view.path_tool.mode, PathTool::Entrance | PathTool::Exit | PathTool::Service(_)) =>
             {

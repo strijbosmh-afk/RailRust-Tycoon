@@ -173,15 +173,33 @@ pub(super) fn path(
     };
     let p = |a, b| object_point(object, a, b, object_top(object), park.width(), rotation);
     let queue = object.queue_owner.is_some();
+    let coaster_queue = object.queue_owner.and_then(|ride| park.ride_model(ride))
+        == Some(park_sim::RideModel::ClassicCoaster);
     let ground = object.path_slope == PathSlope::Flat
         && park
             .tile(object.pos)
             .is_some_and(|t| t.height == object.height && t.terrain != Terrain::Water);
     let detail = park.width() <= 64;
-    if ground && !queue {
+    let demo = park.width() == park_sim::demo_park::DEMO_PARK_SIZE
+        && park
+            .tile(TilePos { x: 23, y: 25 })
+            .is_some_and(|tile| tile.terrain == Terrain::Water);
+    let crossroads = max_x - min_x > 0.9 && max_y - min_y > 0.9;
+    let waterfront = park_sim::PathDirection::ALL.iter().any(|dir| {
+        dir.neighbor(object.pos)
+            .and_then(|pos| park.tile(pos))
+            .is_some_and(|tile| tile.terrain == Terrain::Water)
+    });
+    let plaza = crossroads
+        || (demo && (18..=29).contains(&object.pos.x) && (21..=31).contains(&object.pos.y));
+    let boardwalk = (waterfront && !plaza)
+        || (demo
+            && ((20..=28).contains(&object.pos.x) && object.pos.y == 19
+                || (35..=40).contains(&object.pos.x) && object.pos.y == 38));
+    if ground && !queue && !boardwalk {
         let seed = noise(object.pos);
         // Staggered stone courses form continuous promenades, including junctions.
-        let rows = if detail { 4 } else { 2 };
+        let rows = if plaza || !detail { 2 } else { 4 };
         for row in 0..rows {
             let y = across_lo + (across_hi - across_lo) * row as f32 / rows as f32;
             let h = (across_hi - across_lo) / rows as f32;
@@ -195,7 +213,13 @@ pub(super) fn path(
                     continue;
                 }
                 let n = seed.wrapping_add((row * 31 + (col + 1) * 7) as u32);
-                let ink = varied(218, 207, 172, (n % 15) as i16 - 7);
+                let ink = if plaza
+                    && (row + col + object.pos.x as i32 + object.pos.y as i32).rem_euclid(2) == 0
+                {
+                    varied(176, 145, 116, (n % 11) as i16 - 5)
+                } else {
+                    varied(218, 207, 172, (n % 15) as i16 - 7)
+                };
                 mesh.paint_on_surface(
                     top,
                     &[
@@ -237,6 +261,19 @@ pub(super) fn path(
             }
         }
     } else {
+        if boardwalk && !queue {
+            mesh.paint_on_surface(
+                top,
+                &[
+                    p(lo, across_lo),
+                    p(hi, across_lo),
+                    p(hi, across_hi),
+                    p(lo, across_hi),
+                ],
+                DETAIL_BIAS * 0.5,
+                rgb(183, 143, 89),
+            );
+        }
         // Transverse planks follow the incline; shallow grain stays on that plane.
         for a in [-0.4, -0.2, 0.0, 0.2, 0.4] {
             mesh.surface_line(
@@ -275,9 +312,11 @@ pub(super) fn path(
             }
         }
     }
-    let border = if queue {
+    let border = if coaster_queue {
+        rgb(244, 191, 93)
+    } else if queue {
         rgb(230, 226, 185)
-    } else if ground {
+    } else if ground && !boardwalk {
         rgb(242, 229, 187)
     } else {
         rgb(105, 73, 46)
@@ -324,7 +363,11 @@ pub(super) fn path(
                     p(hi - 0.025, across),
                     0.7,
                     DETAIL_BIAS * 2.0,
-                    rgb(143, 205, 204),
+                    if coaster_queue {
+                        rgb(232, 143, 105)
+                    } else {
+                        rgb(143, 205, 204)
+                    },
                 );
             }
         }

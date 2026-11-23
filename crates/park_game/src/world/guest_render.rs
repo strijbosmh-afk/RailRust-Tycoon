@@ -51,6 +51,7 @@ pub struct GuestRenderer {
     bodies: Vec<BodyTemplate>,
     mechanic_body: Option<BodyTemplate>,
     markers: Vec<BodyTemplate>,
+    occupied_benches: HashSet<ObjectId>,
     max_guest_vertices: usize,
     shadow: [Vec2; 12],
     shadow_color: Ink,
@@ -72,6 +73,7 @@ impl GuestRenderer {
         self.stats.updates += 1;
         self.stats.rendered_guests = 0;
         let rotation = rotation % 4;
+        self.occupied_benches.clear();
         let square = park.width() == park.height();
         if square {
             self.prepare(park, rotation);
@@ -173,6 +175,8 @@ impl GuestRenderer {
                             .point
                     };
                     let base = project_path_point(point, park.width(), rotation);
+                    let (base, activity) =
+                        guest_activity(park, guest, base, rotation, &mut self.occupied_benches);
                     for deck in guest_supports(guest)
                         .into_iter()
                         .flatten()
@@ -197,7 +201,17 @@ impl GuestRenderer {
                         guest.state != GuestState::Walking || guest.progress < WALK_TICKS
                     );
                     let appearance = (guest.id.0 % APPEARANCES as u64) as usize;
+                    let body_start = writer.positions.len();
                     writer.body(&self.bodies[appearance * POSES + pose], base);
+                    if !self.reduced_motion {
+                        animate_guest_idle(
+                            &mut writer.positions[body_start..],
+                            guest,
+                            park.ticks(),
+                            base.y,
+                        );
+                    }
+                    activity.apply(&mut writer.positions[body_start..], base.y);
                     if let Some(phase) = guest_visit_marker(guest) {
                         writer.body(&self.markers[marker_index(phase)], base);
                     }

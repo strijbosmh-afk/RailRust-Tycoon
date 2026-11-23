@@ -1,6 +1,7 @@
 //! Startup and park management. The full-screen layer owns input while open.
 use std::time::{Duration, Instant};
 
+use bevy::tasks::{AsyncComputeTaskPool, Task, futures::check_ready};
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
 use park_sim::{CampaignScenario, ChargingRule, Park, ScenarioKind, Speed};
 
@@ -31,8 +32,15 @@ enum Screen {
     ConfirmQuit,
     ConfirmLoad,
     Loading,
+    Starting,
     Error,
     Park,
+}
+
+#[derive(Clone, Copy)]
+enum ParkStart {
+    New,
+    Demo,
 }
 
 fn initial_focus(_screen: Screen) -> usize {
@@ -121,8 +129,10 @@ pub(super) struct FrontEnd {
     dirty_ui: bool,
     paused_speed: Speed,
     pending_load: Option<(u64, bool)>,
+    pending_start: Option<ParkStart>,
+    demo_task: Option<Task<Result<Park, String>>>,
+    demo_template: Option<Park>,
     load_return: Screen,
-    intro_frame: u8,
     focus: usize,
 }
 
@@ -210,8 +220,10 @@ impl FrontEnd {
             dirty_ui: true,
             paused_speed: Speed::Normal,
             pending_load: None,
+            pending_start: None,
+            demo_task: None,
+            demo_template: None,
             load_return: Screen::Title,
-            intro_frame: 0,
             focus: 0,
         };
         result.reload();
@@ -428,8 +440,33 @@ impl FrontEnd {
         view.tutorial_requested = true;
     }
 
-    fn demo_park(&mut self, sim: &mut Simulation, view: &mut ViewState) {
-        match park_sim::demo_park::build_demo_park() {
+    fn prepare_demo(&mut self) {
+        // The demo advances 9,000 simulation ticks before it can be played.
+        if self.demo_template.is_none() && self.demo_task.is_none() {
+            self.demo_task = Some(
+                AsyncComputeTaskPool::get().spawn(async { park_sim::demo_park::build_demo_park() }),
+            );
+        }
+    }
+
+    fn prepared_demo(&mut self) -> Option<Result<Park, String>> {
+        if let Some(result) = self.demo_task.as_mut().and_then(check_ready) {
+            self.demo_task = None;
+            match result {
+                Ok(park) => self.demo_template = Some(park),
+                Err(error) => return Some(Err(error)),
+            }
+        }
+        self.demo_template.clone().map(Ok)
+    }
+
+    fn demo_park(
+        &mut self,
+        result: Result<Park, String>,
+        sim: &mut Simulation,
+        view: &mut ViewState,
+    ) {
+        match result {
             Ok(park) => {
                 self.draft = park_sim::demo_park::DEMO_PARK_NAME.into();
                 self.start_park(park, sim, view);
@@ -446,7 +483,7 @@ impl FrontEnd {
             }
             Err(error) => {
                 self.notice = format!("Could not open Sunhaven Gardens. {error}");
-                self.dirty_ui = true;
+                self.show(Screen::Title, view);
             }
         }
     }
@@ -499,7 +536,7 @@ pub(crate) fn campaign_park(campaign: &Campaign, kind: CampaignScenario) -> Resu
 
 pub(super) fn setup(
     mut commands: Commands,
-    front: Res<FrontEnd>,
+    mut front: ResMut<FrontEnd>,
     campaign: Res<Campaign>,
     sim: Res<Simulation>,
     display: Option<Res<DisplaySettings>>,
@@ -515,6 +552,7 @@ pub(super) fn setup(
             &sim.0,
             art.as_deref(),
         );
+        front.dirty_ui = false;
     }
 }
 
@@ -546,6 +584,28 @@ pub(super) fn input(
         return;
     }
     if !front.enabled {
+        return;
+    }
+    if front.screen == Screen::Intro {
+        front.prepare_demo();
+    }
+    if front.screen == Screen::Starting {
+        match front.pending_start {
+            Some(ParkStart::New) => {
+                front.pending_start = None;
+                front.show(Screen::New, &mut view);
+                front.new_park(&mut sim, &mut view, &campaign);
+                view.tutorial_requested &=
+                    preferences.as_ref().is_none_or(|p| p.value.guided_start);
+            }
+            Some(ParkStart::Demo) => {
+                if let Some(result) = front.prepared_demo() {
+                    front.pending_start = None;
+                    front.demo_park(result, &mut sim, &mut view);
+                }
+            }
+            None => {}
+        }
         return;
     }
     if front.screen == Screen::Loading {
@@ -750,10 +810,14 @@ pub(super) fn input(
             }
         }
         Action::Start => {
-            front.new_park(&mut sim, &mut view, &campaign);
-            view.tutorial_requested &= preferences.as_ref().is_none_or(|p| p.value.guided_start);
+            front.pending_start = Some(ParkStart::New);
+            front.show(Screen::Starting, &mut view);
         }
-        Action::Demo => front.demo_park(&mut sim, &mut view),
+        Action::Demo => {
+            front.prepare_demo();
+            front.pending_start = Some(ParkStart::Demo);
+            front.show(Screen::Starting, &mut view);
+        }
         Action::Mode(mode) => {
             front.mode = mode;
             front.dirty_ui = true;
@@ -1101,13 +1165,12 @@ fn keyboard_actions(front: &FrontEnd) -> Vec<Action> {
         Screen::ConfirmTitle => vec![Action::Save, Action::ConfirmTitle, Action::Back],
         Screen::ConfirmQuit => vec![Action::Save, Action::ConfirmQuit, Action::Back],
         Screen::ConfirmLoad => vec![Action::Save, Action::ConfirmLoad, Action::Back],
-        Screen::Loading | Screen::Park => Vec::new(),
+        Screen::Loading | Screen::Starting | Screen::Park => Vec::new(),
     }
 }
 
 type PresentationSettings<'w> = (
     Option<Res<'w, DisplaySettings>>,
-    Option<Res<'w, crate::accessibility::Preferences>>,
     Option<Res<'w, crate::visual_style::ClassicArt>>,
 );
 
@@ -1120,21 +1183,10 @@ pub(super) fn refresh(
     sim: Res<Simulation>,
     settings: PresentationSettings<'_>,
 ) {
-    let (display, preferences, art) = settings;
+    let (display, art) = settings;
     if front.screen == Screen::Settings && display.as_ref().is_some_and(|value| value.is_changed())
     {
         front.dirty_ui = true;
-    }
-    if front.screen == Screen::Intro {
-        let frame = if preferences.as_ref().is_some_and(|p| p.value.reduced_motion) {
-            0
-        } else {
-            (front.intro_started.elapsed().as_millis() / 250) as u8
-        };
-        if frame != front.intro_frame {
-            front.intro_frame = frame;
-            front.dirty_ui = true;
-        }
     }
     if !front.enabled || !front.dirty_ui {
         return;
@@ -1189,11 +1241,11 @@ fn spawn_overlay(
                         Screen::Delete => "ARCHIVE PARK?", Screen::Settings => "SETTINGS",
                         Screen::Credits => "CREDITS", Screen::Pause => "PARK MENU",
                         Screen::ConfirmTitle | Screen::ConfirmQuit | Screen::ConfirmLoad => "UNSAVED CHANGES",
-                        Screen::Loading => "LOADING PARK", Screen::Error => "PARK COULD NOT LOAD",
+                        Screen::Loading => "LOADING PARK", Screen::Starting => "STARTING PARK", Screen::Error => "PARK COULD NOT LOAD",
                         Screen::Park => "" };
                     title(p, subtitle, 19.0, cream);
                     match front.screen {
-                        Screen::Intro => { title(p, &format!("{} Build a place worth remembering {}", "✦".repeat((front.intro_frame % 4 + 1) as usize), "✦".repeat((front.intro_frame % 4 + 1) as usize)), 24.0, cream); button(p, "Skip intro", Action::Skip); },
+                        Screen::Intro => unreachable!("welcome screens use the artwork layout"),
                         Screen::Title => { if front.continue_id().is_some() { button(p, "Continue latest park", Action::Continue); }
                             else { title(p, "Continue unavailable — no healthy saved park. Use Load Park for a backup.", 14.0, cream); }
                             button(p, "Play Sunhaven Gardens · 7 rides", Action::Demo);
@@ -1268,12 +1320,13 @@ fn spawn_overlay(
                             button(p, "Discard changes and continue", if front.screen == Screen::ConfirmTitle { Action::ConfirmTitle } else if front.screen == Screen::ConfirmQuit { Action::ConfirmQuit } else { Action::ConfirmLoad });
                             button(p, "Cancel", Action::Back); },
                         Screen::Loading => title(p, "Checking park files…", 17.0, cream),
+                        Screen::Starting => title(p, "Preparing your park…", 17.0, cream),
                         Screen::Error => button(p, "Back", Action::Back),
                         Screen::Park => {},
                     }
                     if !front.notice.is_empty() { title(p, &front.notice, 13.0, gold); }
                     if let Some(action) = keyboard_actions(front).get(front.focus) {
-                        title(p, &format!("↑/↓ or Tab • Enter selects {} • Esc goes back", action_name(*action)), 12.0, cream);
+                        title(p, &format!("Up / Down or Tab • Enter selects {} • Esc goes back", action_name(*action)), 12.0, cream);
                     }
                 });
         });
@@ -1286,6 +1339,7 @@ fn spawn_welcome(
     art: Option<&crate::visual_style::ClassicArt>,
 ) {
     use crate::visual_style::{CREAM, FOREST, GOLD, MenuButton};
+    let actions = keyboard_actions(front);
     commands
         .spawn((
             Overlay,
@@ -1352,7 +1406,7 @@ fn spawn_welcome(
                     title(panel, "Build a park worth exploring.", 20.0, CREAM);
                     welcome_button(panel, "Enter Parkbound", Action::Skip, true, true);
                 } else {
-                    for action in keyboard_actions(front) {
+                    for &action in &actions {
                         let value = match action {
                             Action::Continue => "Continue",
                             Action::Demo => "Play Sunhaven Gardens",
@@ -1365,17 +1419,19 @@ fn spawn_welcome(
                             value,
                             action,
                             matches!(action, Action::Demo),
-                            keyboard_actions(front).get(front.focus) == Some(&action),
+                            actions.get(front.focus) == Some(&action),
                         );
                     }
                 }
                 if !front.notice.is_empty() {
                     title(panel, &front.notice, 14.0, GOLD);
                 }
-                if let Some(action) = keyboard_actions(front).get(front.focus) {
+                if front.screen == Screen::Intro {
+                    title(panel, "Enter to continue", 13.0, CREAM);
+                } else if let Some(action) = actions.get(front.focus) {
                     title(
                         panel,
-                        &format!("↑ / ↓  ·  Enter — {}", action_name(*action)),
+                        &format!("Up / Down · Enter — {}", action_name(*action)),
                         13.0,
                         CREAM,
                     );
@@ -1505,6 +1561,55 @@ mod tests {
     use std::{ffi::OsString, fs};
 
     #[test]
+    fn welcome_layout_is_stable_and_fitted_on_the_first_title_frame() {
+        use crate::visual_style::{ClassicArt, TitleBackdrop, fit_backdrop};
+
+        let mut app = App::new();
+        let session = SaveSession::from_arguments([OsString::from("--save-dir")]);
+        app.insert_resource(FrontEnd::new(true, &session))
+            .insert_resource(Campaign::preview())
+            .insert_resource(Simulation(new_game_park()))
+            .insert_resource(ClassicArt {
+                background: Handle::default(),
+                oak: Handle::default(),
+                heading: Handle::default(),
+                body: Handle::default(),
+            })
+            .add_systems(Startup, setup)
+            .add_systems(Update, refresh)
+            .add_systems(PostUpdate, fit_backdrop);
+        app.world_mut().spawn((
+            Window {
+                resolution: (1024, 680).into(),
+                ..default()
+            },
+            bevy::window::PrimaryWindow,
+        ));
+        let backdrop = |app: &mut App| {
+            let world = app.world_mut();
+            let (entity, node) = world
+                .query_filtered::<(Entity, &Node), With<TitleBackdrop>>()
+                .single(world)
+                .unwrap();
+            assert!(matches!(node.width, Val::Percent(width) if width > 110.0));
+            assert_eq!(node.height, percent(100.0));
+            entity
+        };
+        app.update();
+        let intro = backdrop(&mut app);
+        app.world_mut().resource_mut::<FrontEnd>().intro_started =
+            Instant::now() - Duration::from_secs(1);
+        app.update();
+        assert_eq!(backdrop(&mut app), intro);
+        app.world_mut()
+            .resource_mut::<FrontEnd>()
+            .capture_scene("title")
+            .unwrap();
+        app.update();
+        assert_ne!(backdrop(&mut app), intro);
+    }
+
+    #[test]
     fn repeated_saves_keep_distinct_success_revisions_for_the_guide() {
         let root = std::env::temp_dir().join(format!(
             "parkbound-save-revisions-{}-{}",
@@ -1590,9 +1695,22 @@ mod tests {
                 .iter()
                 .any(|a| matches!(a, Action::Demo))
         );
-        front.demo_park(&mut sim, &mut view);
+        AsyncComputeTaskPool::get_or_init(bevy::tasks::TaskPool::new);
+        front.prepare_demo();
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let prepared = loop {
+            if let Some(result) = front.prepared_demo() {
+                break result.unwrap();
+            }
+            assert!(Instant::now() < deadline, "demo preparation timed out");
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        front.demo_park(Ok(prepared.clone()), &mut sim, &mut view);
         assert_eq!(front.screen, Screen::Park);
         assert_eq!(front.current_name(), park_sim::demo_park::DEMO_PARK_NAME);
+        front.prepare_demo();
+        assert!(front.demo_task.is_none());
+        assert_eq!(front.prepared_demo().unwrap().unwrap(), prepared);
         assert_eq!(sim.0.all_rides().count(), 7);
         assert!(!view.front_modal);
         assert!(!view.tutorial_requested);

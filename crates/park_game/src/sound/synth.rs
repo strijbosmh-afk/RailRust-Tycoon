@@ -4,6 +4,12 @@ use park_sim::{RideId, RideModel};
 use std::f32::consts::TAU;
 pub(super) const RATE: u32 = 44_100;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct AmbientSource {
+    pub level: f32,
+    pub pan: f32,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Cue {
     Click,
@@ -38,6 +44,10 @@ pub(super) struct MixState {
     pub happiness: f32,
     pub rides: [Option<RideEmitter>; 4],
     pub rain: bool,
+    pub evening: bool,
+    pub fountain: AmbientSource,
+    pub shops: AmbientSource,
+    pub footsteps: AmbientSource,
 }
 impl Default for MixState {
     fn default() -> Self {
@@ -50,6 +60,10 @@ impl Default for MixState {
             happiness: 0.7,
             rides: [None; 4],
             rain: false,
+            evening: false,
+            fountain: AmbientSource::default(),
+            shops: AmbientSource::default(),
+            footsteps: AmbientSource::default(),
         }
     }
 }
@@ -77,6 +91,8 @@ pub(super) struct Mixer {
     sample: u64,
     noise: u32,
     wind: f32,
+    splash: f32,
+    surroundings: [AmbientSource; 3],
     gain: [f32; 6],
     rides: [RideVoice; 4],
     score: Score,
@@ -98,6 +114,8 @@ impl Default for Mixer {
             sample: 0,
             noise: 0x7331a945,
             wind: 0.0,
+            splash: 0.0,
+            surroundings: [AmbientSource::default(); 3],
             gain: [0.0; 6],
             rides: std::array::from_fn(|_| RideVoice::default()),
             score: Score::default(),
@@ -185,6 +203,11 @@ impl Mixer {
             self.cheer_at(ride.pan, ride.presence);
         }
         self.dropping = exciting.is_some();
+        let mut surroundings = [self.state.fountain, self.state.shops, self.state.footsteps];
+        if self.state.paused {
+            surroundings[1].level = 0.0;
+            surroundings[2].level = 0.0;
+        }
         for _ in 0..frames {
             if self.sample >= self.next_crowd {
                 self.next_crowd = self.sample + u64::from(RATE) * (7 + u64::from(self.noise % 7));
@@ -198,6 +221,11 @@ impl Mixer {
             self.noise = self.noise.wrapping_mul(1664525).wrapping_add(1013904223);
             let noise = (self.noise >> 8) as f32 / 8388608.0 - 1.0;
             self.wind += (noise - self.wind) * 0.025;
+            self.splash += (noise - self.splash) * 0.16;
+            for (source, target) in self.surroundings.iter_mut().zip(surroundings) {
+                source.level += (target.level - source.level) * 0.001;
+                source.pan += (target.pan - source.pan) * 0.001;
+            }
             let mut rides = [0.0; 2];
             let mut close_ride = 0.0_f32;
             for (voice, target_ride) in self.rides.iter_mut().zip(self.state.rides) {
@@ -230,7 +258,17 @@ impl Mixer {
             }
             let clock = self.sample as f64 / f64::from(RATE);
             let bird_age = ((clock + 2.0) % 7.0) as f32;
-            let bird = if bird_age < 0.27 {
+            let wildlife = if self.state.evening {
+                let chirp = (clock * 4.0).fract() as f32;
+                if chirp < 0.24 {
+                    osc(self.sample, 3350.0)
+                        * osc(self.sample, 51.0)
+                        * (chirp * std::f32::consts::PI / 0.24).sin()
+                        * 0.012
+                } else {
+                    0.0
+                }
+            } else if bird_age < 0.27 {
                 sine(bird_age, 1800.0 + bird_age * 2100.0)
                     * (bird_age * std::f32::consts::PI / 0.27).sin()
                     * 0.025
@@ -244,7 +282,20 @@ impl Mixer {
             };
             let murmur = self.wind * 0.07 * self.state.crowd
                 + osc(self.sample, 173.0) * osc(self.sample, 3.7) * self.state.crowd * 0.004;
-            let ambient = stereo(murmur, self.state.crowd_pan);
+            let mut ambient = stereo(murmur, self.state.crowd_pan);
+            let spray = (self.splash - self.wind) * (0.18 + 0.045 * osc(self.sample, 5.1))
+                + self.wind * 0.07;
+            let bustle = self.wind * 0.14 * (0.7 + 0.3 * osc(self.sample, 2.3))
+                + osc(self.sample, 218.0) * osc(self.sample, 1.8) * 0.008;
+            let gait = (clock * 2.7).fract() as f32;
+            let second_gait = (clock * 3.3 + 0.37).fract() as f32;
+            let steps = (noise * 0.08 + self.wind * 0.14)
+                * ((-gait * 38.0).exp() + (-second_gait * 45.0).exp() * 0.6);
+            for (signal, source) in [spray, bustle, steps].into_iter().zip(self.surroundings) {
+                let sound = stereo(signal * source.level, source.pan);
+                ambient[0] += sound[0];
+                ambient[1] += sound[1];
+            }
             let music = self.score.sample(self.sample, noise);
             let mut effects = [0.0; 2];
             let mut reactions = [0.0; 2];
@@ -284,7 +335,7 @@ impl Mixer {
             let music_duck = 1.0 - close_ride * self.gain[3] * 0.42;
             for channel in 0..2 {
                 let mixed = (music[channel] * 2.0 * self.gain[1] * music_duck
-                    + (ambient[channel] + rain + bird) * self.gain[2]
+                    + (ambient[channel] + rain + wildlife) * self.gain[2]
                     + rides[channel] * self.gain[3]
                     + effects[channel] * self.gain[4]
                     + reactions[channel] * self.gain[5])
@@ -317,11 +368,23 @@ fn ride_sound(sample: u64, noise: f32, water: f32, ride: RideEmitter, voice: &Ri
                 + chain * 0.65
                 + osc(sample, 350.0 + 100.0 * osc(sample, 2.1)) * 0.008 * voice.speed
         }
-        RideModel::ClassicCoaster | RideModel::SteelCoaster | RideModel::InvertedCoaster => {
+        RideModel::ClassicCoaster => {
             rolling
                 + chain
                 + water * 0.15 * voice.drop
                 + noise * (-pulse_age * 55.0).exp() * voice.speed * 0.045
+        }
+        RideModel::SteelCoaster => {
+            rolling * 0.72
+                + chain * 0.7
+                + (noise - water) * voice.speed * (0.027 + voice.drop * 0.035)
+                + osc(sample, 690.0 + 250.0 * voice.speed) * voice.speed * 0.012
+        }
+        RideModel::InvertedCoaster => {
+            rolling * 0.5
+                + chain * 0.75
+                + water * voice.speed * (0.12 + voice.drop * 0.27)
+                + osc(sample, 230.0) * voice.speed * 0.006
         }
         RideModel::ParkRailway => {
             rolling * 0.6 + noise * (-pulse_age * 22.0).exp() * voice.speed * 0.09
@@ -340,13 +403,21 @@ fn ride_sound(sample: u64, noise: f32, water: f32, ride: RideEmitter, voice: &Ri
                 * (1.0 - age / 0.33)
                 + osc(sample, 58.0) * 0.009
         }
-        RideModel::FerrisWheel | RideModel::ObservationTower => {
-            osc(sample, 76.0) * 0.015 + water * 0.012
+        RideModel::FerrisWheel => osc(sample, 76.0) * 0.015 + water * 0.012,
+        RideModel::ObservationTower => {
+            let lift = (ride.cycle * TAU).sin().abs();
+            (osc(sample, 114.0) + osc(sample, 228.0) * 0.33) * (0.006 + lift * 0.012)
+                + water * lift * 0.023
         }
         RideModel::TeaCups => osc(sample, 95.0) * 0.018 + water * 0.018,
-        RideModel::Swing | RideModel::PirateShip => {
+        RideModel::Swing => {
             let swing = (ride.cycle * TAU * 3.0).sin().abs();
             water * (0.03 + swing * 0.16) + osc(sample, 122.0) * swing * 0.018
+        }
+        RideModel::PirateShip => {
+            let swing = (ride.cycle * TAU * 3.0).sin().abs();
+            let creak = osc(sample, 43.0) * (0.6 + 0.4 * osc(sample, 7.2));
+            water * (0.025 + swing * 0.11) + creak * (1.0 - swing) * 0.026
         }
         RideModel::DropTower => {
             let falling = ((ride.cycle - 0.46) * 12.0).clamp(0.0, 1.0)

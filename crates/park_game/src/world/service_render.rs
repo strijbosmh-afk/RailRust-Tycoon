@@ -39,6 +39,38 @@ pub(super) fn center(
     projected(object, facing, Vec3::new(0.0, 0.0, 2.72), size, rotation).truncate()
 }
 
+pub(super) fn lit_counter(
+    mesh: &mut Painter,
+    park: &Park,
+    object: &SurfaceObject,
+    service: &park_sim::Service,
+    rotation: u8,
+    strength: f32,
+) {
+    if matches!(service.kind, ServiceKind::Toilet | ServiceKind::Rest) {
+        return;
+    }
+    // Behind the product models, in front of the back panel of the serving hatch.
+    let corner = |y, z| {
+        projected(
+            object,
+            service.facing,
+            Vec3::new(-0.19, y, z),
+            park.width(),
+            rotation,
+        )
+    };
+    let [a, b, c, d] = [
+        corner(-0.25, 1.28),
+        corner(0.25, 1.28),
+        corner(0.25, 1.90),
+        corner(-0.25, 1.90),
+    ];
+    let ink = [1.0, 0.71, 0.26, 0.84 * strength];
+    mesh.triangle_3d([a, b, c], ink);
+    mesh.triangle_3d([a, c, d], ink);
+}
+
 /// Every box remains inside the one-tile footprint and three-step clearance.
 /// Local +X faces the PUBLIC serving edge, independent of camera rotation.
 pub(super) fn faces(
@@ -162,6 +194,14 @@ pub(super) fn faces(
         );
         match kind {
             ServiceKind::IceCream => {
+                for stripe in 0..6 {
+                    let y = -0.42 + stripe as f32 * 0.14;
+                    cuboid(
+                        Vec3::new(0.27, y, 1.96),
+                        Vec3::new(0.49, y + 0.14, 2.10),
+                        if stripe % 2 == 0 { cream } else { accent },
+                    );
+                }
                 for (y, color) in [
                     (-0.22, cream),
                     (-0.02, accent),
@@ -175,6 +215,18 @@ pub(super) fn faces(
                 }
             }
             ServiceKind::Souvenir => {
+                for y in [-0.32, 0.28] {
+                    cuboid(
+                        Vec3::new(0.32, y, 1.14),
+                        Vec3::new(0.44, y + 0.04, 1.94),
+                        cream,
+                    );
+                }
+                cuboid(
+                    Vec3::new(0.33, -0.30, 1.44),
+                    Vec3::new(0.43, 0.30, 1.49),
+                    dark,
+                );
                 for (i, y) in [-0.23, 0.0, 0.23].iter().enumerate() {
                     cuboid(
                         Vec3::new(0.32, *y, 1.14),
@@ -356,6 +408,18 @@ pub(super) fn faces(
             accent,
         );
         if kind == ServiceKind::Food {
+            cuboid(
+                Vec3::new(-0.10, 0.12, 1.23),
+                Vec3::new(0.21, 0.33, 1.31),
+                dark,
+            );
+            for y in [0.16, 0.25] {
+                cuboid(
+                    Vec3::new(-0.05, y, 1.31),
+                    Vec3::new(0.15, y + 0.04, 1.34),
+                    cream,
+                );
+            }
             for y in [-0.34, -0.08, 0.18] {
                 cuboid(
                     Vec3::new(-0.44, y, 2.72),

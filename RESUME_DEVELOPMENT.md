@@ -1,5 +1,265 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Stable startup menu
+
+Continue on `codex/right-click-settings`. The intro and main menu artwork
+is sized in PostUpdate before UI layout. The welcome-layout regression uses
+a 1024×680 window. See `docs/sessions/2026-11-23-startup-menu.md`.
+
+## 0.99.3 — Park soundscape
+
+Continue on `codex/right-click-settings`. The camera-derived audio scene
+uses the rendered fountain anchor and active visitor state. Run the sound
+writer and verifier to reproduce the new plaza ambience excerpt.
+See `docs/sessions/2026-11-23-park-soundscape.md`.
+
+## 0.99.3 — Graphics across parks
+
+Continue on `codex/right-click-settings`. The shared renderers determine
+walkway, ornamental pond and attraction finishes from existing park data.
+Use the landscape and catalogue captures to inspect rendered styles outside
+Sunhaven. See `docs/sessions/2026-11-23-park-wide-graphics.md`.
+
+## 0.99.3 — Park districts
+
+Continue on `codex/right-click-settings`. The demo builder adds the new
+paths and planting when a fresh Sunhaven opens. Use the demo capture
+with `--capture-lighting sunset` for the directional shadows.
+See `docs/sessions/2026-11-23-park-districts.md`.
+
+## 0.99.3 — Sunhaven plaza
+
+Continue on `codex/right-click-settings`. The demo capture shows the fountain;
+add `--capture-lighting night` to review path lamps and service counters.
+Visitor poses are derived from the existing visit and bench state.
+See `docs/sessions/2026-11-23-sunhaven-plaza.md`.
+
+## 0.99.3 — Park planting, shadows and motion
+
+Continue on `codex/right-click-settings`. The atmosphere and lighting
+renderers own the new planting, shadows, water highlights and pennants.
+Use the demo and landscape captures to review the details at different zoom
+levels. See `docs/sessions/2026-11-23-park-atmosphere.md`.
+
+## 0.99.3 — Classic coaster graphics
+
+Continue on `codex/right-click-settings`. The Classic Coaster update uses
+the existing track, train and queue renderers. The demo capture can focus
+Sunburst with `--capture-scene demo-park --capture-ride ClassicCoaster`.
+See `docs/sessions/2026-11-23-sunburst-graphics.md`.
+
+## 0.99.3 — Water graphics
+
+Continue on `codex/right-click-settings`. Water colors and surface details
+live in `world.rs` and `world/atmosphere.rs`. Use the landscape capture for
+visual comparisons. See `docs/sessions/2026-11-23-water-graphics.md`.
+
+## 0.99.3 — Park startup
+
+Continue on `codex/right-click-settings`. The front end prepares Sunhaven
+Gardens on a background worker and keeps the original opening state available
+for replay. A startup screen gives feedback after Create Park or Play Sunhaven
+Gardens. The previous transfer remains the 0.99.3 package checkpoint. See
+`docs/sessions/2026-11-19-park-startup.md` for scope and checks.
+
+## Current checkpoint — Complete PC transfer, 0.99.3
+
+The requested handoff is in `dist/Parkbound-Transfer-2026-11-19`, with a
+companion ZIP of the same name. Start with its `START_HERE.md`. It contains the
+complete committed source and all tracked Markdown, the Windows installer,
+the portable game ZIP, an offline Git-history bundle and a separate player-data
+backup. `docs/TRANSFER_TO_ANOTHER_PC.md` explains playing, restoring saves and
+resuming development. The source commit and distribution build commit are
+recorded separately in the transfer manifest.
+
+The runtime/documentation baseline `e2b86b6965fbcf43da9346ea5e79b67c67f3dd33`
+now has a fully successful GitHub CI result: run `44536241835`, all six jobs
+including the Windows installer and four endurance cases. This supersedes the
+previous in-progress CI note. The runtime remains 0.99.3 / schema-content 52/52;
+there is no gameplay change in this handoff. Source and Git bundle restore
+checks, package hashes and player-data copy checks are recorded with the
+transfer. Use `Verify-Transfer.ps1` after copying it to the destination PC.
+
+Continue on `codex/right-click-settings` / PR #93. The transfer's source
+snapshot is for browsing; clone its Git bundle into a new folder to preserve
+history. Install the Rust/C++ build tools only when developing; playing needs
+only the supplied installer or portable ZIP. The destination PC has not been
+installed or tested by this transfer operation.
+
+Original shared Git root:
+`C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Preserve the
+existing project identity and remote, and register the actual path on the new
+PC. Google Drive remains disabled; existing exports stay local. This PC is
+not a performance reference.
+
+## Current checkpoint — Native guide and English Help verified, 0.99.3
+
+On PC1830, the installed game passed the complete seven-step first-park guide.
+A fresh Sandbox used an isolated profile, and Next advanced through steps 1–7
+without requiring construction, a guest trip or a save. The last Next closed
+the guide. During navigation, the park stayed paused at 00:11 with $1,000.00.
+The test park was saved separately after these checks and closed normally.
+
+Help (H) → the document icon opened the installed
+`docs/PLAYER_MANUAL.html` in Microsoft Edge. The browser showed the English
+“Parkbound — complete player manual”, version 0.99.3, its contents panel and
+English chapters. The game also displayed its successful manual-launch
+notice. This resolves the earlier outstanding native opener check. A browser
+translation offer is browser UI; the shipped manual remains English.
+
+No code fix or save migration was needed in this acceptance pass. Runtime
+source remains `16292a10ce2bb7f1bb2467c2398078c93eb2a0db`; tested documentation
+baseline was `11949ddabbfa640837ce93d31a40f1ddd27f870c`. Continue from the latest
+`codex/right-click-settings` commit / PR #93. Installed/runtime SHA256:
+`f3c847f4927fec5f5485f212db4f571eaa341a5866a16a0ae11453fb2006f2f7`.
+
+GitHub CI run `44533828792` was inspected on 2026-11-19: formatting, manual
+freshness, asset validation, strict lints, workspace tests, Windows packaging,
+embedded icons, persistent Tips and the demo-park check passed. Remaining
+continuation/installer/endurance jobs were still running at this checkpoint;
+this is not a claim that the entire workflow is green. Check the latest
+[PR #93 checks](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/93/checks)
+and local `artifacts/native-guide-ci-*.json` receipts before release.
+
+The refreshed documentation uses the same 0.99.3 executable. Distribution and
+installed-payload verification receipts are retained under
+`artifacts/native-guide-*`; package checksums remain beside the files in `dist`.
+See `docs/sessions/2026-11-19-native-guide-manual-acceptance.md` for the test
+sequence. Further browser search/filter interaction is not claimed by this
+pass; the requested Help-to-English-manual launch is verified.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Drive remains
+disabled and existing exports stay local. This PC is not a performance reference.
+
+## Current checkpoint — First-park guide navigation fixed, 0.99.3
+
+Runtime source: `16292a10ce2bb7f1bb2467c2398078c93eb2a0db`, branch
+`codex/right-click-settings`. The following documentation commit records the
+completed validation and installation. Resume from the latest remote branch.
+
+Next no longer stops at 2/7. Every step can be browsed without completing its
+practice task. The guide shows explicit optional-practice status, updates tool
+and navigation tooltips, and finishes normally after step 7. It detects a new
+connected public-path ID even if another path was removed, and can inspect an
+existing ride's access in Sunhaven or another established park.
+
+All six guide regressions passed, including the complete seven-step flow in
+starter and demo parks with byte-identical saved park state, actual practice
+with construction/guests/saving, connected-path detection, existing-ride access,
+replay and modal guards. Formatting, strict workspace/all-target Clippy and the
+Windows release build passed. The extracted package passed 204 payload hashes,
+175 current guides and separate park-library writer/restart verification.
+
+PC1830 was upgraded to 0.99.3 at `%LOCALAPPDATA%\Programs\Parkbound`. All 204
+installed payloads matched, four player files stayed byte-identical and both
+shortcut targets/icons were verified. Runtime SHA256:
+`f3c847f4927fec5f5485f212db4f571eaa341a5866a16a0ae11453fb2006f2f7`.
+The final documentation refresh uses the same runtime. Current ZIP/installer
+checksums are beside the distribution files in `dist`; evidence is in
+`artifacts/guide-*`.
+
+The English manual and quick-start guide explain optional practice. Save
+schema/content stays 52/52; guide progress is transient and no migration is
+needed. The earlier native manual-opening retest is a separate outstanding
+acceptance item and is not claimed by this guide fix.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Drive remains
+disabled; keep existing local exports. This PC is not a performance reference.
+
+## Current checkpoint — English manual and context controls, 0.99.2
+
+Continue on `codex/right-click-settings` / PR #93. English-manual source:
+`34cf0fdb7311d1c06234e833432f069176731856`. Windows-opener fix:
+`42c7f09fb3bb57ce888d2b7db72c3c1ad0b7396b`. The subsequent documentation
+commit records this acceptance checkpoint. The complete manual and all related
+Help text are English. `docs/PLAYER_MANUAL.md` is canonical; its HTML has search,
+25 chapters, 80 headings, 120 local links and 14 tables. The older HTML address
+is an identical English compatibility copy.
+
+Native checks passed on the 0.99.2 package: right-click Garden Carousel #4 and
+Drinks #2 selected the correct individual settings. Earlier checks also opened
+Golden Wheel #6 from its queue and changed/restored the drinks price through
+actual buttons. The isolated saved park reloaded paused with its state intact.
+No real player data was used.
+
+The manual-opening test found the earlier Explorer launcher opening Documents.
+It now uses `ShellExecuteW`, literal UTF-16 filenames with native separators
+and checked error codes. The corrected build and strict all-target Clippy
+passed. The eight focused resolver/pointer tests passed before the final opener
+replacement; the new Windows call was compiled and linted. HTML generation,
+all local links and JavaScript syntax passed. The package passed 203 payload
+hashes and 174 current guides.
+
+IMPORTANT: the user stopped Computer Use with physical Escape before the
+corrected opener could be visually retested. Do not mark that final native
+manual-opening/search check complete. The running isolated test process was
+left alone after the stop. Close the game before installing the prepared
+0.99.2 update; the installer refuses an active game. Installation status and
+final package receipts are under `artifacts/english-*` and `dist`.
+
+Runtime SHA256:
+`d6f68d4fcc2df1e9c922cf4cff34c16a2e8687bbf43ec2c101df66f60eb9c67b`.
+GitHub CI is inspected through [PR #93 checks](https://github.com/strijbosmh-afk/RailRust-Tycoon/pull/93/checks).
+Local passing tests do not imply a green remote workflow. See the latest
+commit's checks and local CI receipt for the publication-time state.
+
+Remaining: visually verify that Help opens the English manual, exercise its
+search and chapter links, and confirm all remote jobs have completed. Native
+input was stopped by the user; do not resume it without a new request.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`, PC1830, local standard prompt 2.1.0. Park schema/content
+stays 52/52. Drive remains disabled and existing exports remain local. This PC
+is not a performance reference.
+
+## Current checkpoint — Right-click settings and Dutch manual, 0.99.1
+
+Runtime and manual source: `38179d701e229ab38fe4d844c026c7c06b04611e`,
+branch `codex/right-click-settings`, based on the previous menu/advice phase
+at `3d08981d99f8f3373941a2ffe72deaeaf2e66bd6`. Resume from this branch's latest
+remote commit, which also includes the final validation record.
+
+A short right-click opens the visible ride or service's own settings. Track,
+owned queues and gates resolve to their ride. Right/middle dragging still pans;
+focus, modal, camera and loaded-park changes cancel pending clicks. See
+`docs/OBJECT_SETTINGS.md`. Park schema/content remains 52/52.
+
+The Dutch player manual contains 25 chapters, about 9,500 words, 80 heading
+anchors and 14 reference tables. `docs/HANDLEIDING_NL.md` is the source;
+`docs/HANDLEIDING_NL.html` is the offline searchable version. Help (H/F1) offers
+its document icon. All 120 local links resolve. Build with
+`python scripts/build-player-manual.py`; `--check` validates the output in CI.
+Python is a development tool only; the player uses a normal browser.
+
+All 599 application tests, formatting, strict workspace Clippy, the release
+build and seven-size embedded-icon checks passed. The extracted package passed
+200 payload hashes, 172 current guides and separate write/restart checks for
+ride operations, Tips and the park library. Manual HTML/link and JavaScript
+syntax checks passed. Logs are retained under `artifacts/context-*` and
+`artifacts/manual-audit.json`.
+
+PC1830 is updated to 0.99.1 at `%LOCALAPPDATA%\Programs\Parkbound`.
+All 200 installed payloads matched; four existing player files were preserved
+byte-for-byte, along with both shortcut targets/icons. Runtime SHA256:
+`2bff66774ed77e6b542762fbbdcc2455ddddc6ef1e9d8c6e14d36e5b2f275ffd`.
+The final guide-only package refresh uses this same executable; download
+checksums and installer records live beside the files in `dist`.
+
+Native input testing reached the real title screen in an isolated profile, then
+the user stopped Computer Use with Escape. No further UI automation followed.
+Native right-click and browser-opening acceptance remain unverified; the input
+behavior is covered by automated application regressions. The next manual
+check is a ride click, a service click and Help opening the offline manual.
+This PC supplies correctness evidence, never a product performance reference.
+
+Shared Git root: `C:\Users\Michiel Strijbos\OneDrive - RZ Heilig Hart Tienen vzw\Documenten\ChatGPT\Railroad Tycoon`.
+Project `railrust-tycoon`; local standard prompt 2.1.0. Google Drive remains
+disabled. Preserve existing local exports and the complete AppData player
+folder when continuing on another PC.
+
 ## Current work — Organized menus and park advice, 0.99.0
 
 Runtime source `27e9eb714dfceab786561225a6a97301e57c83d9` is on

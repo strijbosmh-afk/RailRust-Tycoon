@@ -13,6 +13,40 @@ pub(crate) fn ambience_mesh(
     if mode == ViewMode::Underground {
         return painter.finish();
     }
+    if lighting == Lighting::Sunset {
+        for object in park
+            .objects()
+            .iter()
+            .filter(|object| {
+                matches!(object.kind, ObjectKind::Track | ObjectKind::Carousel)
+                    && object.height.saturating_add(object.clearance) >= 5
+            })
+            .take(96)
+        {
+            for reach in 1..=2 {
+                let pos = TilePos {
+                    x: object.pos.x + reach,
+                    y: object.pos.y,
+                };
+                let Some(top) = park.tile(pos).and_then(|tile| {
+                    (tile.terrain != Terrain::Water)
+                        .then(|| column_surfaces(park, pos, rotation)[0])
+                        .flatten()
+                }) else {
+                    continue;
+                };
+                let center = top.vertices.map(Vec3::truncate).into_iter().sum::<Vec2>() * 0.25;
+                painter.surface_ellipse(
+                    top,
+                    center,
+                    21.0 / reach as f32,
+                    8.0 / reach as f32,
+                    DETAIL_BIAS * 6.0,
+                    [0.10, 0.14, 0.20, 0.25 / reach as f32],
+                );
+            }
+        }
+    }
     for object in park
         .objects()
         .iter()
@@ -59,6 +93,38 @@ pub(crate) fn ambience_mesh(
             rgb(82, 97, 77),
         );
         if lighting != Lighting::Day {
+            let strength = if lighting == Lighting::Night {
+                1.0
+            } else {
+                0.55
+            };
+            if object.kind == ObjectKind::Path {
+                let roof = object_surfaces(park, object, rotation)[0];
+                for (width, height, opacity) in
+                    [(18.0, 8.0, 0.18), (11.0, 5.0, 0.23), (5.5, 2.8, 0.25)]
+                {
+                    painter.surface_ellipse(
+                        roof,
+                        foot.truncate() - Vec2::new(2.0, 1.0),
+                        width,
+                        height,
+                        DETAIL_BIAS * 4.0,
+                        [1.0, 0.72, 0.29, opacity * strength],
+                    );
+                }
+            } else if let Some(service) = park
+                .service_by_object(object.id)
+                .filter(|service| service.open)
+            {
+                service_render::lit_counter(
+                    &mut painter,
+                    park,
+                    object,
+                    service,
+                    rotation,
+                    strength,
+                );
+            }
             painter.ellipse(
                 head.truncate(),
                 7.5,
@@ -85,6 +151,27 @@ pub(crate) fn ambience_mesh(
             head.z + DETAIL_BIAS * 3.0,
             rgb(41, 63, 59),
         );
+        if object.kind == ObjectKind::RideEntrance {
+            let base = head.truncate() + Vec2::Y * 4.0;
+            let depth = head.z + DETAIL_BIAS * 3.0;
+            let flutter = ((f32::from(phase) + (object.id.0 % 16) as f32) * std::f32::consts::TAU
+                / 16.0)
+                .sin();
+            let tip = base + Vec2::new(15.0 + 2.5 * flutter, 7.0 + 3.5 * flutter);
+            painter.line(base, base + Vec2::Y * 13.0, 1.35, depth, rgb(72, 61, 46));
+            painter.triangle(
+                [base + Vec2::Y * 12.0, tip, base + Vec2::Y * 3.0],
+                depth + DETAIL_BIAS,
+                rgb(219, 90, 72),
+            );
+            painter.line(
+                base + Vec2::Y * 12.0,
+                tip,
+                0.9,
+                depth + DETAIL_BIAS * 2.0,
+                rgb(252, 196, 101),
+            );
+        }
     }
     if weather == Weather::Rain {
         for index in 0..160_u32 {
