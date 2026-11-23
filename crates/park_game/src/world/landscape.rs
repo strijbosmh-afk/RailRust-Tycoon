@@ -173,6 +173,8 @@ pub(super) fn path(
     };
     let p = |a, b| object_point(object, a, b, object_top(object), park.width(), rotation);
     let queue = object.queue_owner.is_some();
+    let coaster_queue = object.queue_owner.and_then(|ride| park.ride_model(ride))
+        == Some(park_sim::RideModel::ClassicCoaster);
     let ground = object.path_slope == PathSlope::Flat
         && park
             .tile(object.pos)
@@ -275,7 +277,9 @@ pub(super) fn path(
             }
         }
     }
-    let border = if queue {
+    let border = if coaster_queue {
+        rgb(244, 191, 93)
+    } else if queue {
         rgb(230, 226, 185)
     } else if ground {
         rgb(242, 229, 187)
@@ -324,7 +328,11 @@ pub(super) fn path(
                     p(hi - 0.025, across),
                     0.7,
                     DETAIL_BIAS * 2.0,
-                    rgb(143, 205, 204),
+                    if coaster_queue {
+                        rgb(232, 143, 105)
+                    } else {
+                        rgb(143, 205, 204)
+                    },
                 );
             }
         }

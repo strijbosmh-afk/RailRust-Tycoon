@@ -1,5 +1,11 @@
 # Project decisions
 
+## 2026-11-23 — Classic coaster graphics
+
+Use Sunburst as the reference for a shared Classic Coaster style. Carry
+warm rail and gold accent colors across the station, train and queue. Keep
+the platforms covered and the running lane visible between them.
+
 ## 2026-11-23 — Water graphics
 
 Paint lighter shallows along land edges and vary ripple lengths using the

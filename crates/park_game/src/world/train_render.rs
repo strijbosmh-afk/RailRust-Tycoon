@@ -3,6 +3,9 @@
 use super::*;
 use park_sim::{ObjectId, TRACK_UNITS, TrackKind, TrackPiece, TrackPoint, TrainPose};
 
+const TIMBER_HIGHLIGHT: [u8; 3] = [207, 153, 99];
+const CAR_BODY_TOP: [u8; 3] = [240, 96, 66];
+
 pub(super) struct Face {
     pub(super) surface: Surface,
     pub(super) ink: Ink,
@@ -209,7 +212,11 @@ fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8
         .unwrap_or_default();
     let colors = ride_colors::inks(
         paint.supports,
-        [rgb(189, 121, 62), rgb(132, 74, 42), rgb(86, 47, 33)],
+        [
+            rgb_from(TIMBER_HIGHLIGHT),
+            rgb(147, 94, 57),
+            rgb(96, 61, 43),
+        ],
     );
     let mut legs = Vec::with_capacity(2);
     for offset in [-0.23, 0.23] {
@@ -220,10 +227,10 @@ fn supports(faces: &mut Vec<Face>, park: &Park, piece: &TrackPiece, rotation: u8
         legs.push((point, bottom));
         let ground_point = Vec3::new(point.x, point.y, bottom);
         let footprint = [
-            ground_point + Vec3::new(-0.035, -0.035, 0.0),
-            ground_point + Vec3::new(-0.035, 0.035, 0.0),
-            ground_point + Vec3::new(0.035, 0.035, 0.0),
-            ground_point + Vec3::new(0.035, -0.035, 0.0),
+            ground_point + Vec3::new(-0.044, -0.044, 0.0),
+            ground_point + Vec3::new(-0.044, 0.044, 0.0),
+            ground_point + Vec3::new(0.044, 0.044, 0.0),
+            ground_point + Vec3::new(0.044, -0.044, 0.0),
         ];
         slab(
             faces,
@@ -360,7 +367,7 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                 0.25,
                 ride_colors::inks(
                     paint.structure,
-                    [rgb(232, 75, 48), rgb(154, 47, 34), rgb(98, 32, 27)],
+                    [rgb(247, 114, 75), rgb(177, 57, 42), rgb(112, 37, 32)],
                 ),
                 size,
                 rotation,
@@ -374,7 +381,7 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                         strip(a, b, na, nb, lo, hi),
                         0.0,
                         0.24,
-                        [rgb(222, 206, 161), rgb(152, 137, 104), rgb(121, 113, 92)],
+                        [rgb(197, 175, 128), rgb(152, 137, 104), rgb(121, 113, 92)],
                         size,
                         rotation,
                     );
@@ -410,24 +417,39 @@ pub(super) fn piece_faces(park: &Park, piece: &TrackPiece, rotation: u8) -> Vec<
                             rotation,
                         );
                     }
-                    slab(
-                        &mut faces,
-                        strip(a, b, na, nb, lo, hi),
-                        1.40,
-                        1.48,
-                        [rgb(43, 124, 107), rgb(26, 84, 76), rgb(18, 62, 59)],
-                        size,
-                        rotation,
+                    let roof = ride_colors::inks(
+                        paint.structure,
+                        [rgb(217, 92, 63), rgb(159, 52, 42), rgb(105, 34, 32)],
                     );
-                    slab(
-                        &mut faces,
-                        strip(a, b, na, nb, outer - 0.015, outer + 0.015),
-                        1.48,
-                        1.52,
-                        [rgb(249, 210, 117), rgb(190, 145, 63), rgb(123, 88, 36)],
-                        size,
-                        rotation,
-                    );
+                    let ridge = (lo + hi) * 0.5;
+                    let left = lo - 0.035;
+                    let right = hi + 0.035;
+                    let eave = Vec3::Z * 1.45;
+                    let peak = Vec3::Z * 1.73;
+                    for (x, y, x_height, y_height, ink) in [
+                        (left, ridge, eave, peak, roof[0]),
+                        (ridge, right, peak, eave, roof[1]),
+                    ] {
+                        let [p, q, r, s] = strip(a, b, na, nb, x, y);
+                        face(
+                            &mut faces,
+                            [p + x_height, q + x_height, r + y_height, s + y_height],
+                            ink,
+                            size,
+                            rotation,
+                        );
+                    }
+                    for eave_edge in [left, right] {
+                        slab(
+                            &mut faces,
+                            strip(a, b, na, nb, eave_edge - 0.012, eave_edge + 0.012),
+                            1.42,
+                            1.47,
+                            [rgb(249, 210, 117), rgb(190, 145, 63), rgb(123, 88, 36)],
+                            size,
+                            rotation,
+                        );
+                    }
                 }
             }
             TrackKind::Lift => {
@@ -672,7 +694,7 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
     // authoritative front/rear pose so slope and bank tests remain meaningful.
     let top = footprint(0.0, 1.0, -0.215, 0.215).map(|p| p + Vec3::Z * 0.77);
     let lower = footprint(0.04, 0.96, -0.175, 0.175).map(|p| p + Vec3::Z * 0.36);
-    face(&mut faces, top, rgb(218, 67, 57), size, rotation);
+    face(&mut faces, top, rgb_from(CAR_BODY_TOP), size, rotation);
     for i in 0..4 {
         let j = (i + 1) % 4;
         face(
@@ -723,18 +745,18 @@ fn car_faces(pose: TrainPose, size: u32, rotation: u8) -> Vec<Face> {
         vehicle_slab(
             &mut faces,
             footprint(0.18, 0.72, lo, hi),
-            0.54,
-            0.72,
-            [rgb(196, 66, 54), rgb(142, 43, 44), rgb(101, 35, 42)],
+            0.50,
+            0.665,
+            [rgb(219, 85, 58), rgb(171, 53, 45), rgb(111, 35, 39)],
             size,
             rotation,
         );
         vehicle_slab(
             &mut faces,
             footprint(0.20, 0.70, lo, hi),
-            0.72,
+            0.665,
             0.745,
-            [rgb(251, 217, 129), rgb(181, 130, 63), rgb(132, 87, 44)],
+            [rgb(255, 219, 119), rgb(216, 155, 57), rgb(155, 97, 41)],
             size,
             rotation,
         );
@@ -1777,7 +1799,7 @@ mod tests {
                         let faces = car_faces(pose, 32, rotation);
                         let body = faces
                             .iter()
-                            .find(|face| face.ink == rgb(218, 67, 57))
+                            .find(|face| face.ink == rgb_from(CAR_BODY_TOP))
                             .unwrap();
                         let rear = (body.surface.vertices[0] + body.surface.vertices[3]) / 2.0;
                         let front = (body.surface.vertices[1] + body.surface.vertices[2]) / 2.0;
@@ -1966,13 +1988,21 @@ mod tests {
         let point = ground(piece.samples[piece.samples.len() / 2]);
         assert!(support_is_clear(&park, piece.object, point).is_some());
         let clean = piece_faces(&park, &piece, 0);
-        assert!(clean.iter().any(|face| face.ink == rgb(189, 121, 62)));
+        assert!(
+            clean
+                .iter()
+                .any(|face| face.ink == rgb_from(TIMBER_HIGHLIGHT))
+        );
         let pos = park.object(piece.object).unwrap().pos;
         park.place_object(pos, ObjectKind::Path, Axis::X, 3, 2)
             .unwrap();
         assert!(support_is_clear(&park, piece.object, point).is_none());
         let blocked = piece_faces(&park, &piece, 0);
         assert!(blocked.len() < clean.len());
-        assert!(!blocked.iter().any(|face| face.ink == rgb(189, 121, 62)));
+        assert!(
+            !blocked
+                .iter()
+                .any(|face| face.ink == rgb_from(TIMBER_HIGHLIGHT))
+        );
     }
 }

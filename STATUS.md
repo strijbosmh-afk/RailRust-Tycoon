@@ -1,5 +1,12 @@
 # Project status
 
+## 0.99.3 — Classic coaster graphics
+
+The Classic Coaster has pitched platform roofs, brighter rails and train
+trim, more legible timber supports, and gold accents on its queue. Sunburst
+Coaster in Sunhaven Gardens is the reference ride. See
+[the coaster graphics session](docs/sessions/2026-11-23-sunburst-graphics.md).
+
 ## 0.99.3 — Water graphics
 
 Water has a deeper teal base, lighter shallows at land edges, and varied

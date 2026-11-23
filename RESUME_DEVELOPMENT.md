@@ -1,5 +1,12 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Classic coaster graphics
+
+Continue on `codex/right-click-settings`. The Classic Coaster update uses
+the existing track, train and queue renderers. The demo capture can focus
+Sunburst with `--capture-scene demo-park --capture-ride ClassicCoaster`.
+See `docs/sessions/2026-11-23-sunburst-graphics.md`.
+
 ## 0.99.3 — Water graphics
 
 Continue on `codex/right-click-settings`. Water colors and surface details
