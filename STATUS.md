@@ -1,5 +1,12 @@
 # Project status
 
+## 0.99.3 — Park districts
+
+Sunhaven has patterned pond paths, benches and timber viewing walks.
+Willow Falls, Garden Carousel and Marigold Voyager have distinct surroundings.
+Service silhouettes, raised path rails and dusk shadows improve readability.
+See [the district graphics session](docs/sessions/2026-11-23-park-districts.md).
+
 ## 0.99.3 — Sunhaven plaza
 
 Sunhaven's pond has an animated fountain and scattered reeds at its edge.

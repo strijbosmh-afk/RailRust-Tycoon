@@ -13,6 +13,40 @@ pub(crate) fn ambience_mesh(
     if mode == ViewMode::Underground {
         return painter.finish();
     }
+    if lighting == Lighting::Sunset {
+        for object in park
+            .objects()
+            .iter()
+            .filter(|object| {
+                matches!(object.kind, ObjectKind::Track | ObjectKind::Carousel)
+                    && object.height.saturating_add(object.clearance) >= 5
+            })
+            .take(96)
+        {
+            for reach in 1..=2 {
+                let pos = TilePos {
+                    x: object.pos.x + reach,
+                    y: object.pos.y,
+                };
+                let Some(top) = park.tile(pos).and_then(|tile| {
+                    (tile.terrain != Terrain::Water)
+                        .then(|| column_surfaces(park, pos, rotation)[0])
+                        .flatten()
+                }) else {
+                    continue;
+                };
+                let center = top.vertices.map(Vec3::truncate).into_iter().sum::<Vec2>() * 0.25;
+                painter.surface_ellipse(
+                    top,
+                    center,
+                    21.0 / reach as f32,
+                    8.0 / reach as f32,
+                    DETAIL_BIAS * 6.0,
+                    [0.10, 0.14, 0.20, 0.25 / reach as f32],
+                );
+            }
+        }
+    }
     for object in park
         .objects()
         .iter()

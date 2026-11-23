@@ -1018,6 +1018,23 @@ fn paint_single_train(
             let paint = park.ride_appearance(id).unwrap_or_default().vehicles;
             painter.surface(face.surface, ride_colors::vehicle(paint, face.ink));
         }
+        if model == park_sim::RideModel::LogFlume {
+            let front = ground(pose.front);
+            let rear = ground(pose.rear);
+            if rear.z - front.z > 0.08 {
+                let tip = projected(front + Vec3::Z * 0.24, park.width(), rotation);
+                let spread = 5.0 + (park.ticks() % 5) as f32;
+                for side in [-1.0, 1.0] {
+                    painter.line(
+                        tip.truncate(),
+                        tip.truncate() + Vec2::new(side * spread, 5.0),
+                        1.1,
+                        tip.z + DETAIL_BIAS,
+                        rgb(208, 244, 241),
+                    );
+                }
+            }
+        }
     }
     for passenger in park.ride_guest_positions() {
         if passenger.phase != RideVisitPhase::Riding

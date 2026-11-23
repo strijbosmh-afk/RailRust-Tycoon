@@ -1,5 +1,11 @@
 # Project decisions
 
+## 2026-11-23 — Park districts
+
+Use ordinary paid paths, benches and beds in fresh Sunhaven. Give each
+district distinct paving and integrate kiosk details into existing
+facility geometry. Render railings and dusk shadows as visual details.
+
 ## 2026-11-23 — Sunhaven plaza
 
 Keep the fountain tied to the intact demo pond. Derive visitor poses from

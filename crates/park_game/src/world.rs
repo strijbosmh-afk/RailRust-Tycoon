@@ -1167,6 +1167,59 @@ pub fn grounds_mesh(park: &Park, rotation: u8, mode: ViewMode) -> Mesh {
     if park.width() != park.height() {
         return mesh.finish();
     }
+    if mode == ViewMode::Surface {
+        for path in park.objects().iter().filter(|p| p.is_public_path()) {
+            let Some(tile) = park.tile(path.pos) else {
+                continue;
+            };
+            if path.height < tile.height.saturating_add(2) && tile.terrain != Terrain::Water {
+                continue;
+            }
+            let (min_x, max_x, min_y, max_y) = object_bounds(park, path);
+            let (lo, hi, left, right) = match object_axis(path) {
+                Axis::X => (min_x, max_x, min_y, max_y),
+                Axis::Y => (min_y, max_y, min_x, max_x),
+            };
+            for across in [
+                (left > -0.5).then_some(left + 0.035),
+                (right < 0.5).then_some(right - 0.035),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let post = |along| {
+                    let p = object_point(
+                        path,
+                        along,
+                        across,
+                        object_top(path),
+                        park.width(),
+                        rotation,
+                    );
+                    let roof = object_surfaces(park, path, rotation)[0];
+                    p.extend(roof.depth_at(p) + 0.035)
+                };
+                let a = post(lo + 0.04);
+                let b = post(hi - 0.04);
+                for base in [a, b] {
+                    mesh.line(
+                        base.truncate(),
+                        base.truncate() + Vec2::Y * 7.0,
+                        1.7,
+                        base.z,
+                        rgb(93, 65, 44),
+                    );
+                }
+                mesh.line(
+                    a.truncate() + Vec2::Y * 7.0,
+                    b.truncate() + Vec2::Y * 7.0,
+                    1.8,
+                    (a.z + b.z) * 0.5,
+                    rgb(194, 147, 88),
+                );
+            }
+        }
+    }
     for id in park.handyman_patrol() {
         let Some(path) = park
             .object(*id)

@@ -1,5 +1,12 @@
 # Resume development on another Windows PC
 
+## 0.99.3 — Park districts
+
+Continue on `codex/right-click-settings`. The demo builder adds the new
+paths and planting when a fresh Sunhaven opens. Use the demo capture
+with `--capture-lighting sunset` for the directional shadows.
+See `docs/sessions/2026-11-23-park-districts.md`.
+
 ## 0.99.3 — Sunhaven plaza
 
 Continue on `codex/right-click-settings`. The demo capture shows the fountain;

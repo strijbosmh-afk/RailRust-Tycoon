@@ -9,6 +9,29 @@ pub(super) fn ground_details(
 ) {
     landscape::ground(mesh, park, pos, top);
     let seed = noise(pos);
+    if park.width() == park_sim::demo_park::DEMO_PARK_SIZE
+        && park
+            .tile(TilePos { x: 23, y: 25 })
+            .is_some_and(|tile| tile.terrain == Terrain::Water)
+        && matches!((pos.x, pos.y), (21, 15) | (22, 16) | (26, 15) | (27, 17))
+        && park
+            .tile(pos)
+            .is_some_and(|tile| tile.terrain == Terrain::Grass)
+    {
+        for (offset, size) in [(Vec2::new(-8.0, 0.0), 7.0), (Vec2::new(5.0, -2.0), 5.0)] {
+            let base = center + offset;
+            let depth = top.depth_at(base) + DETAIL_BIAS * 5.0;
+            let left = base - Vec2::X * size;
+            let right = base + Vec2::X * size;
+            let crown = base + Vec2::new(-size * 0.25, size * 0.85);
+            mesh.triangle([left, right, crown], depth, rgb(102, 114, 105));
+            mesh.triangle(
+                [left, crown, base + Vec2::Y * (size * 0.33)],
+                depth + DETAIL_BIAS,
+                rgb(159, 164, 147),
+            );
+        }
+    }
     if park.width() <= 64
         && park
             .tile(pos)

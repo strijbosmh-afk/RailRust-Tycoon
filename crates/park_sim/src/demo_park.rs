@@ -175,6 +175,51 @@ pub fn build_demo_park() -> Result<Park, String> {
                 .map_err(|e| e.to_string())?;
         }
     }
+    // The pond paths connect the north and south promenades without
+    // interrupting the flower borders or the fountain basin.
+    for x in [18, 29] {
+        for y in 22..=30 {
+            path(&mut park, x, y)?;
+        }
+        for y in [24, 27] {
+            let bench = park
+                .objects()
+                .iter()
+                .find(|p| p.is_public_path() && p.pos == TilePos { x, y })
+                .unwrap()
+                .id;
+            park.toggle_path_bench(bench).map_err(|e| e.to_string())?;
+        }
+    }
+    for x in 20..=28 {
+        path(&mut park, x, 19)?;
+    }
+    for y in [19, 20] {
+        path(&mut park, 20, y)?;
+    }
+    // Willow Falls, the carousel garden and the pirate ship's landing.
+    for (x, y) in [
+        (21, 16),
+        (22, 17),
+        (27, 15),
+        (11, 25),
+        (12, 27),
+        (14, 28),
+        (37, 35),
+        (39, 36),
+    ] {
+        let pos = TilePos { x, y };
+        if park.quote_scenery(pos, SceneryKind::FlowerBed).is_ok() {
+            park.build_scenery(pos, SceneryKind::FlowerBed)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    for x in 35..=40 {
+        path(&mut park, x, 38)?;
+    }
+    for y in 38..=40 {
+        path(&mut park, 37, y)?;
+    }
     for y in [3, 44] {
         for x in (4..=44).step_by(3) {
             tree(&mut park, x, y)?;
