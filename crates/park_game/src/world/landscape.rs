@@ -184,10 +184,18 @@ pub(super) fn path(
         && park
             .tile(TilePos { x: 23, y: 25 })
             .is_some_and(|tile| tile.terrain == Terrain::Water);
-    let plaza = demo && (18..=29).contains(&object.pos.x) && (21..=31).contains(&object.pos.y);
-    let boardwalk = demo
-        && ((20..=28).contains(&object.pos.x) && object.pos.y == 19
-            || (35..=40).contains(&object.pos.x) && object.pos.y == 38);
+    let crossroads = max_x - min_x > 0.9 && max_y - min_y > 0.9;
+    let waterfront = park_sim::PathDirection::ALL.iter().any(|dir| {
+        dir.neighbor(object.pos)
+            .and_then(|pos| park.tile(pos))
+            .is_some_and(|tile| tile.terrain == Terrain::Water)
+    });
+    let plaza = crossroads
+        || (demo && (18..=29).contains(&object.pos.x) && (21..=31).contains(&object.pos.y));
+    let boardwalk = (waterfront && !plaza)
+        || (demo
+            && ((20..=28).contains(&object.pos.x) && object.pos.y == 19
+                || (35..=40).contains(&object.pos.x) && object.pos.y == 38));
     if ground && !queue && !boardwalk {
         let seed = noise(object.pos);
         // Staggered stone courses form continuous promenades, including junctions.

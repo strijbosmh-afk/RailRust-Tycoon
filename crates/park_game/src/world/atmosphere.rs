@@ -289,31 +289,69 @@ pub(super) fn shore_details(
     }
 }
 
-fn fountain(mesh: &mut Painter, park: &Park, rotation: u8, phase: u8) {
-    // The ornamental basin occupies the four central tiles of Sunhaven's
-    // pond. Edits that displace its water or add a crossing remove the prop.
-    let center = TilePos { x: 23, y: 25 };
-    if park.width() != 48
-        || !(24..=27).all(|y| {
-            (20..=27).all(|x| {
-                park.tile(TilePos { x, y })
-                    .is_some_and(|tile| tile.terrain == Terrain::Water && tile.height == 0)
-            })
-        })
-        || park
-            .objects()
-            .iter()
-            .any(|object| (22..=25).contains(&object.pos.x) && (24..=27).contains(&object.pos.y))
-    {
-        return;
+/// Sand borders distinguish ornamental basins from natural or irregular lakes.
+fn ornamental_pond(park: &Park) -> Option<(TilePos, TilePos, u8)> {
+    let sand = |x, y| {
+        park.tile(TilePos { x, y })
+            .is_some_and(|tile| tile.terrain == Terrain::Sand)
+    };
+    for y in 1..park.height().saturating_sub(4) {
+        for x in 1..park.width().saturating_sub(4) {
+            let Some(tile) = park.tile(TilePos { x, y }) else {
+                continue;
+            };
+            if tile.terrain != Terrain::Water || !sand(x - 1, y) || !sand(x, y - 1) {
+                continue;
+            }
+            let water = |x, y| {
+                park.tile(TilePos { x, y }).is_some_and(|other| {
+                    other.terrain == Terrain::Water && other.height == tile.height
+                })
+            };
+            let right = (x..park.width())
+                .find(|&edge| !water(edge, y))
+                .unwrap_or(park.width());
+            let bottom = (y..park.height())
+                .find(|&edge| !water(x, edge))
+                .unwrap_or(park.height());
+            if right - x < 4
+                || bottom - y < 4
+                || !(x..right).all(|col| sand(col, y - 1) && sand(col, bottom))
+                || !(y..bottom).all(|row| {
+                    sand(x - 1, row) && sand(right, row) && (x..right).all(|col| water(col, row))
+                })
+            {
+                continue;
+            }
+            let a = TilePos {
+                x: (x + right - 1) / 2,
+                y: (y + bottom - 1) / 2,
+            };
+            let b = TilePos {
+                x: (x + right) / 2,
+                y: (y + bottom) / 2,
+            };
+            if !park.objects().iter().any(|object| {
+                (a.x - 1..=b.x + 1).contains(&object.pos.x)
+                    && (a.y - 1..=b.y + 1).contains(&object.pos.y)
+            }) {
+                return Some((a, b, tile.height));
+            }
+        }
     }
-    let opposite = TilePos { x: 24, y: 26 };
+    None
+}
+
+fn fountain(mesh: &mut Painter, park: &Park, rotation: u8, phase: u8) {
+    let Some((center, opposite, height)) = ornamental_pond(park) else {
+        return;
+    };
     let (x, y) = rotate(center, park.width(), rotation);
     let (other_x, other_y) = rotate(opposite, park.width(), rotation);
     let base = project(
         (x + other_x) as f32 * 0.5,
         (y + other_y) as f32 * 0.5,
-        0.0,
+        f32::from(height),
         park.width(),
     );
     let p = base.truncate();

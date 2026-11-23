@@ -1,5 +1,11 @@
 # Project decisions
 
+## 2026-11-23 — Graphics across parks
+
+Derive crossroad and waterfront finishes from existing path geometry and
+terrain. Sand borders identify ornamental water. Use the existing model and
+paint settings to give attraction platforms and stations distinct materials.
+
 ## 2026-11-23 — Park districts
 
 Use ordinary paid paths, benches and beds in fresh Sunhaven. Give each

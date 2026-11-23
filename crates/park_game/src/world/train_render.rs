@@ -1089,7 +1089,14 @@ fn catalogue_track_faces(
         .unwrap_or_default();
     let color = ride_colors::inks(
         paint.structure,
-        [rgb(240, 65, 77), rgb(163, 28, 52), rgb(97, 16, 36)],
+        match model {
+            M::LogFlume => [rgb(170, 117, 69), rgb(118, 78, 48), rgb(78, 52, 35)],
+            M::RiverRapids => [rgb(88, 180, 147), rgb(47, 127, 105), rgb(28, 85, 79)],
+            M::ParkRailway => [rgb(196, 102, 64), rgb(131, 63, 46), rgb(86, 44, 34)],
+            M::Monorail => [rgb(217, 234, 234), rgb(136, 177, 193), rgb(86, 119, 146)],
+            M::InvertedCoaster => [rgb(162, 117, 211), rgb(114, 72, 157), rgb(70, 47, 108)],
+            _ => [rgb(243, 89, 69), rgb(163, 41, 51), rgb(97, 26, 36)],
+        },
     );
     let steel = [rgb(185, 210, 218), rgb(100, 132, 151), rgb(57, 86, 108)];
     let water = [rgb(38, 193, 232), rgb(21, 116, 178), rgb(14, 66, 119)];
@@ -1242,16 +1249,20 @@ fn catalogue_track_faces(
                         brass,
                     );
                 }
-                ride_detail::panel(
-                    &mut detail,
-                    [
-                        left - side * 0.12 + Vec3::Z * 1.50,
-                        right - side * 0.12 + Vec3::Z * 1.50,
-                        right + side * 0.12 + Vec3::Z * 1.50,
-                        left + side * 0.12 + Vec3::Z * 1.50,
-                    ],
-                    color[0],
-                );
+                let eaves = Vec3::Z * 1.50;
+                let ridge = Vec3::Z * 1.70;
+                for (edge, ink) in [(-0.13, color[0]), (0.13, color[1])] {
+                    ride_detail::panel(
+                        &mut detail,
+                        [
+                            left + side * edge + eaves,
+                            right + side * edge + eaves,
+                            right + ridge,
+                            left + ridge,
+                        ],
+                        ink,
+                    );
+                }
                 ride_detail::tube(
                     &mut detail,
                     left + side * sign * 0.12 + Vec3::Z * 1.50,

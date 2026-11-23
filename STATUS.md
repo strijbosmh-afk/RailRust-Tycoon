@@ -1,5 +1,13 @@
 # Project status
 
+## 0.99.3 — Graphics across parks
+
+Crossroads and waterfront walks pick their surface finish from the layout.
+The first clear, rectangular sand-bordered pond on normal-size maps can
+display an ornamental fountain. Tracked stations and several flat ride
+platforms have model-specific finishes. See
+[the graphics session](docs/sessions/2026-11-23-park-wide-graphics.md).
+
 ## 0.99.3 — Park districts
 
 Sunhaven has patterned pond paths, benches and timber viewing walks.
